@@ -1,0 +1,4 @@
+{
+  "rate_limit_paths": ["/2/users/12345/mentions"],
+  "rate_limit_reset_epoch": 4102444800
+}

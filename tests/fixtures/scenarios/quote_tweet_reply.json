@@ -1,0 +1,37 @@
+{
+  "tweets": {
+    "900": {
+      "id": "900",
+      "text": "Economics are the method; the object is to change the soul.",
+      "author_id": "12345",
+      "conversation_id": "900",
+      "created_at": "2026-06-30T10:00:00Z"
+    }
+  },
+  "quote_tweets": {
+    "900": {
+      "data": [
+        {
+          "id": "910",
+          "text": "This account has a point.",
+          "author_id": "310",
+          "conversation_id": "910",
+          "referenced_tweets": [{"type": "quoted", "id": "900"}],
+          "created_at": "2026-06-30T10:00:00Z"
+        }
+      ],
+      "includes": {
+        "users": [
+          {
+            "id": "310",
+            "username": "reader",
+            "name": "Reader",
+            "description": "Interested in politics",
+            "public_metrics": {"followers_count": 10, "following_count": 20, "tweet_count": 30}
+          }
+        ]
+      }
+    }
+  },
+  "grok_replies": ["A point is useful only when it survives contact with reality. This one rather does."]
+}

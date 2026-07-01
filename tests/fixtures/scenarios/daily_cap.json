@@ -1,0 +1,12 @@
+{
+  "mentions": [
+    {
+      "id": "150",
+      "text": "@mrsMThatcher hello",
+      "author_id": "250",
+      "conversation_id": "150",
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "grok_replies": ["This should not be used."]
+}

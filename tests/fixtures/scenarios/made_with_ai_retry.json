@@ -1,0 +1,13 @@
+{
+  "mentions": [
+    {
+      "id": "180",
+      "text": "@mrsMThatcher should retry",
+      "author_id": "280",
+      "conversation_id": "180",
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "fail_made_with_ai_once": true,
+  "grok_replies": ["A retry is only sensible when the second attempt is better disciplined."]
+}

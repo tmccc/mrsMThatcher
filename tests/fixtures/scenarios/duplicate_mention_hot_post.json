@@ -1,0 +1,22 @@
+{
+  "mentions": [
+    {
+      "id": "110",
+      "text": "@mrsMThatcher this is spot on",
+      "author_id": "210",
+      "conversation_id": "700",
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "search_recent": [
+    {
+      "id": "110",
+      "text": "@mrsMThatcher this is spot on",
+      "author_id": "210",
+      "conversation_id": "700",
+      "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "grok_replies": ["Indeed. The obvious still needs saying when fashion has misplaced it."]
+}

@@ -1,0 +1,12 @@
+{
+  "mentions": [
+    {
+      "id": "130",
+      "text": "@mrsMThatcher thoughts?",
+      "author_id": "230",
+      "conversation_id": "130",
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "grok_replies": ["SKIP"]
+}

@@ -1,0 +1,14 @@
+{
+  "error_paths": {
+    "/2/users/12345/mentions": {
+      "status": 500,
+      "body": {
+        "errors": [
+          {
+            "detail": "configured repeated failure"
+          }
+        ]
+      }
+    }
+  }
+}

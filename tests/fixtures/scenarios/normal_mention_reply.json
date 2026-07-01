@@ -1,0 +1,12 @@
+{
+  "mentions": [
+    {
+      "id": "100",
+      "text": "@mrsMThatcher quite right",
+      "author_id": "200",
+      "conversation_id": "100",
+      "created_at": "2026-06-30T12:00:00Z"
+    }
+  ],
+  "grok_replies": ["Quite right. Good sense is unfashionable only to those profiting from nonsense."]
+}
