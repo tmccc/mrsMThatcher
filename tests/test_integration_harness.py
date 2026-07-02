@@ -719,6 +719,7 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
                 "UNKNOWN_KEY": True,
                 "ENABLE_AUTO_REPLIES": "not-a-bool",
                 "MIN_SECONDS_BETWEEN_REPLIES": -99,
+                "MAX_MENTIONS_PER_CHECK": 0,
                 "POST_SLEEP_MIN": 9000,
                 "POST_SLEEP_MAX": 10,
                 "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 1000,
@@ -733,6 +734,7 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert "Ignoring unsupported local config key" in result.stdout
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
+        assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
         assert "Ignoring invalid local config timing range POST_SLEEP_MIN" in result.stdout
         assert "Ignoring invalid local config timing range MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS" in result.stdout
         assert read_json(base_dir / "bot_state.json")["replied_to_ids"] == ["100"]
@@ -1427,6 +1429,24 @@ def test_self_test_in_test_mode_accepts_fake_endpoints_and_exact_phrase_only(tmp
     assert deliberate.returncode == 0, deliberate.stderr + deliberate.stdout
 
 
+def test_invalid_request_timeout_env_falls_back_safely_in_test_mode(tmp_path: Path) -> None:
+    base_dir = prepare_base_dir(tmp_path, local_config={"MIN_SECONDS_BETWEEN_REPLIES": 1})
+    fake = "http://127.0.0.1:9"
+    result = run_bot_with_env(
+        base_dir,
+        "--self-test",
+        extra_env={
+            "X_API_BASE_URL": fake,
+            "X_UPLOAD_BASE_URL": fake,
+            "XAI_API_BASE_URL": f"{fake}/v1",
+            "MRS_REQUEST_TIMEOUT_SECONDS": "not-a-number",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "Invalid MRS_REQUEST_TIMEOUT_SECONDS='not-a-number'; using default 60" in result.stdout
+
+
 @pytest.mark.parametrize("fake_server", ["normal_mention_reply.json"], indirect=True)
 def test_endpoint_overrides_tolerate_terminal_version_segments(tmp_path: Path, fake_server: FakeApiServer) -> None:
     base_dir = prepare_base_dir(tmp_path)
@@ -1528,6 +1548,27 @@ def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, 
         assert bool(server.posts) is expect_post
         if expect_post:
             assert len(server.posts[0]["text"]) <= 270
+    finally:
+        server.stop()
+
+
+def test_quote_tweet_malformed_xai_success_records_xai_error(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["xai_success_body"] = {}
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"next_reply_lane_priority": "quote", "recent_own_post_ids": ["900"], "last_reply_epoch": 0},
+            local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
+        )
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.posts == []
+        state = read_json(base_dir / "bot_state.json")
+        assert len(state["xai_error_epochs"]) == 1
+        assert state["x_error_epochs"] == []
     finally:
         server.stop()
 

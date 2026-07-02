@@ -362,6 +362,30 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "STATE_BACKUP_COUNT",
 }
 
+LOCAL_CONFIG_POSITIVE_INT_KEYS = {
+    "MAX_AUTO_REPLIES_PER_DAY",
+    "MAX_QUOTE_REPLIES_PER_DAY",
+    "MAX_REPLIES_PER_AUTHOR_PER_DAY",
+    "MAX_MENTIONS_PER_CHECK",
+    "MAX_HOT_POST_REPLIES_PER_CHECK",
+    "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
+    "MAX_QUOTE_POSTS_PER_CHECK",
+    "QUOTE_POST_LOOKBACK_MAIN_POSTS",
+    "RECENT_OWN_POST_IDS_MAX",
+    "QUOTE_LOOKUP_API_MAX_RESULTS",
+    "THREAD_CONTEXT_MAX_DEPTH",
+    "THREAD_CONTEXT_MAX_CHARS_PER_POST",
+    "THREAD_CONTEXT_MAX_TOTAL_CHARS",
+    "TWEET_CACHE_MAX_AGE_SECONDS",
+    "TWEET_CACHE_MAX_ITEMS",
+    "MAX_X_ERRORS_PER_WINDOW",
+    "MAX_XAI_ERRORS_PER_WINDOW",
+    "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
+    "COOLDOWN_AFTER_429_SECONDS",
+    "MAX_REPLY_CHARS",
+    "MAX_GROK_OUTPUT_TOKENS",
+}
+
 
 def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
     if isinstance(current_value, bool):
@@ -381,6 +405,8 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
         coerced = int(value)
         if key in LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS and coerced < 0:
             raise ValueError(f"{key} must be non-negative")
+        if key in LOCAL_CONFIG_POSITIVE_INT_KEYS and coerced <= 0:
+            raise ValueError(f"{key} must be positive")
         return coerced
 
     if isinstance(current_value, str):
@@ -668,7 +694,24 @@ X_UPLOAD_BASE = normalise_base_url(
 )
 XAI_BASE = normalise_base_url(os.getenv("XAI_API_BASE_URL", "https://api.x.ai/v1"))
 LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
-REQUEST_TIMEOUT_SECONDS = float(os.getenv("MRS_REQUEST_TIMEOUT_SECONDS", "60"))
+
+
+def parse_request_timeout_seconds() -> float:
+    raw = os.getenv("MRS_REQUEST_TIMEOUT_SECONDS", "60")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
+        return 60.0
+
+    if value <= 0:
+        log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
+        return 60.0
+
+    return value
+
+
+REQUEST_TIMEOUT_SECONDS = parse_request_timeout_seconds()
 
 if (
     TEST_MODE
@@ -3510,8 +3553,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 record_api_error(state, e, "xai")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
-            except Exception:
+            except Exception as e:
                 log.exception("Unexpected Grok failure during quote-tweet reply")
+                record_api_error(state, e, "xai")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
@@ -3557,8 +3601,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 record_api_error(state, e, "x")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
-            except Exception:
+            except Exception as e:
                 log.exception("Unexpected failure posting generated quote-tweet reply")
+                record_api_error(state, e, "x")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
