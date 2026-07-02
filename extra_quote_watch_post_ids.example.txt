@@ -1,0 +1,6 @@
+# One post ID per line. Safe to edit while the bot is running.
+# Blank lines and lines beginning with # are ignored.
+#
+# Copy this file to extra_quote_watch_post_ids.txt for local/live use.
+# Example:
+# 1234567890123456789

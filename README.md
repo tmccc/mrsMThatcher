@@ -5,6 +5,7 @@
 Run the safe local integration tests with:
 
 ```bash
+python3 -m pip install -r requirements.txt
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest tests/test_integration_harness.py
 ```
 
@@ -113,6 +114,9 @@ deployed as a coherent set:
 - `mrs_log_digest.py`
 - `README.md`
 - `runMrsMThatcher2_example`
+- `requirements.txt`
+- `mrsMThatcher.local.example.json`
+- `extra_quote_watch_post_ids.example.txt`
 - `mrsMThatcher.txt`
 - `images/t*.jpg`
 - `final_posting_queue_top90_as_is/images/*`
@@ -124,6 +128,29 @@ digest script against generated test logs.
 The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
 Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
 and `meme_shortlist*/` are intentionally ignored.
+
+## Local Runtime Files
+
+`mrsMThatcher.local.example.json` is a sanitized example of the optional local
+config file. To use those settings on a host, copy it to the untracked runtime
+name:
+
+```bash
+cp mrsMThatcher.local.example.json mrsMThatcher.local.json
+```
+
+`extra_quote_watch_post_ids.example.txt` documents the optional extra quote
+watch-list format. To use it, copy it to the untracked runtime name and add one
+post ID per line:
+
+```bash
+cp extra_quote_watch_post_ids.example.txt extra_quote_watch_post_ids.txt
+```
+
+The real `mrsMThatcher.local.json` and `extra_quote_watch_post_ids.txt` are
+ignored because they are host-local operational inputs. Generated runtime state
+and logs such as `bot_state.json*`, `lines_used.pickle`, `images_used.pickle`,
+and `mrsMThatcher.log*` are also intentionally ignored.
 
 ## Launcher Example
 
