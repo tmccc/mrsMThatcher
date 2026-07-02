@@ -85,6 +85,14 @@ QUOTE_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
 QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
 QUOTE_CHECK_STATUS_DISABLED = "disabled"
 
+NORMAL_CHECK_STATUS_CHECKED = "checked"
+NORMAL_CHECK_STATUS_POSTED = "posted"
+NORMAL_CHECK_STATUS_SKIPPED_SPACING = "skipped_spacing"
+NORMAL_CHECK_STATUS_SKIPPED_CAP = "skipped_cap"
+NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN = "skipped_cooldown"
+NORMAL_CHECK_STATUS_DISABLED = "disabled"
+NORMAL_CHECK_STATUS_API_ERROR = "api_error"
+
 # ---------------------------------------------------------------------
 # Reply automation
 # ---------------------------------------------------------------------
@@ -886,6 +894,7 @@ def default_state() -> dict:
         "meme_anchor_quote_post_epoch": 0,
 
         "last_reply_epoch": 0,
+        "last_reply_check_epoch": 0,
         "last_main_post_id": None,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
@@ -2895,20 +2904,20 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
         update_last_seen_mention_id(state, str(candidate.get("id", "")))
 
 
-def maybe_reply_to_mentions(state: dict) -> None:
+def maybe_reply_to_mentions(state: dict) -> str:
     log.info("Starting mention reply check")
 
     if not ENABLE_AUTO_REPLIES:
         log.info("Auto replies disabled")
-        return
+        return NORMAL_CHECK_STATUS_DISABLED
 
     if lane_paused("disable_replies", "disable_normal_replies"):
         log.info("Skipping mention/hot-post reply check due to runtime control file")
-        return
+        return NORMAL_CHECK_STATUS_DISABLED
 
     if in_api_cooldown(state):
         log.info("Skipping mention check due to API cooldown")
-        return
+        return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
 
     reset_daily_reply_count_if_needed(state)
 
@@ -2928,7 +2937,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
     if state["daily_reply_count"] >= MAX_AUTO_REPLIES_PER_DAY:
         log.info("Daily generated/replied cap reached")
         save_state(state)
-        return
+        return NORMAL_CHECK_STATUS_SKIPPED_CAP
 
     current = now_epoch()
 
@@ -2941,7 +2950,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
 
     if seconds_since_last_reply < MIN_SECONDS_BETWEEN_REPLIES:
         log.info("Skipping mention check: minimum interval between replies not reached")
-        return
+        return NORMAL_CHECK_STATUS_SKIPPED_SPACING
 
     try:
         mentions = get_mentions(state)
@@ -2951,16 +2960,16 @@ def maybe_reply_to_mentions(state: dict) -> None:
         log.exception("Failed to get mention/hot-post reply candidates")
         record_api_error(state, e, "x")
         save_state(state)
-        return
+        return NORMAL_CHECK_STATUS_API_ERROR
     except Exception as e:
         log.exception("Unexpected failure getting mention/hot-post reply candidates")
         record_api_error(state, e, "x")
         save_state(state)
-        return
+        return NORMAL_CHECK_STATUS_API_ERROR
 
     if not mentions:
         log.info("No mention or hot-post reply candidates returned")
-        return
+        return NORMAL_CHECK_STATUS_CHECKED
 
     mentions = valid_tweets_sorted_by_id(mentions, context="mention/hot-post candidate")
 
@@ -3034,7 +3043,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
             log.exception("Could not build context for %s %s due to API error", candidate_source, mention_id)
             record_api_error(state, e, "x")
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_API_ERROR
 
         if not should_continue:
             log.info("Skipping %s %s: could not build usable context or configured to skip", candidate_source, mention_id)
@@ -3050,12 +3059,12 @@ def maybe_reply_to_mentions(state: dict) -> None:
             log.exception("Failed to ask Grok for reply")
             record_api_error(state, e, "xai")
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_API_ERROR
         except Exception as e:
             log.exception("Unexpected Grok failure")
             record_api_error(state, e, "xai")
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_API_ERROR
 
         if not reply_text:
             log.info("No usable reply generated for %s %s", candidate_source, mention_id)
@@ -3080,7 +3089,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
 
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_POSTED
 
         try:
             reply_response = create_post(
@@ -3100,17 +3109,17 @@ def maybe_reply_to_mentions(state: dict) -> None:
                 state["replied_to_ids"] = list(replied_to_ids)[-1000:]
                 mark_mention_seen_if_applicable(state, mention)
                 save_state(state)
-                return
+                return NORMAL_CHECK_STATUS_CHECKED
 
             log.exception("Failed to post generated reply")
             record_api_error(state, e, "x")
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_API_ERROR
         except Exception as e:
             log.exception("Unexpected failure posting generated reply")
             record_api_error(state, e, "x")
             save_state(state)
-            return
+            return NORMAL_CHECK_STATUS_API_ERROR
 
         state["daily_reply_count"] += 1
         state["last_reply_epoch"] = current
@@ -3155,10 +3164,11 @@ def maybe_reply_to_mentions(state: dict) -> None:
             daily_reply_count=state.get("daily_reply_count"),
         )
         log.info("Reply posted successfully")
-        return
+        return NORMAL_CHECK_STATUS_POSTED
 
     save_state(state)
     log.info("Mention reply check finished with no reply generated/posted")
+    return NORMAL_CHECK_STATUS_CHECKED
 
 
 # ---------------------------------------------------------------------
@@ -3798,12 +3808,20 @@ def run_reply_lane_checks_for_tick(
         else:
             log.info("Due to check mentions")
 
-        before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-        maybe_reply_to_mentions(state)
-        last_reply_check_epoch = current
-        after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
+        normal_check_status = maybe_reply_to_mentions(state)
+        log.info("Normal/hot-post reply check status=%s", normal_check_status)
 
-        if after_reply_epoch != before_reply_epoch:
+        if normal_check_status != NORMAL_CHECK_STATUS_SKIPPED_SPACING:
+            last_reply_check_epoch = current
+            state["last_reply_check_epoch"] = current
+            save_state(state)
+        else:
+            log.info(
+                "Normal/hot-post reply check skipped only because of reply spacing; "
+                "normal check interval not consumed"
+            )
+
+        if normal_check_status == NORMAL_CHECK_STATUS_POSTED:
             state["next_reply_lane_priority"] = "quote"
             save_state(state)
             log.info("Normal/hot-post reply lane posted; next reply-lane priority=quote")
@@ -3950,7 +3968,7 @@ def main() -> None:
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
 
-    last_reply_check_epoch = 0
+    last_reply_check_epoch = int(state.get("last_reply_check_epoch", 0) or 0)
     last_quote_tweet_check_epoch = int(state.get("last_quote_tweet_check_epoch", 0) or 0)
 
     if not state.get("next_quote_post_epoch"):
@@ -4258,12 +4276,13 @@ def run_test_main_tick() -> int:
     log.info("Running one test production reply-lane tick")
     state = load_state()
     current = now_epoch()
+    last_reply_check_epoch = int(state.get("last_reply_check_epoch", 0) or 0)
     last_quote_tweet_check_epoch = int(state.get("last_quote_tweet_check_epoch", 0) or 0)
 
     run_reply_lane_checks_for_tick(
         state,
         current,
-        last_reply_check_epoch=0,
+        last_reply_check_epoch=last_reply_check_epoch,
         last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
     )
 
