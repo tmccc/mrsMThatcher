@@ -68,8 +68,9 @@ python3 mrsMThatcher2.py --test-post-meme
 ```
 
 The test-only commands require `MRS_TEST_MODE=1`. They use `MRS_BASE_DIR` for
-state, local config, control files, quote lines, images, meme files, and pickle
-history. They use `MRS_LOG_FILE` for logs.
+state, local config, control files, quote lines, images, meme files, and
+used-history JSON files. Legacy pickle history is read only as a migration
+fallback. They use `MRS_LOG_FILE` for logs.
 
 Production defaults are unchanged when these environment variables are unset:
 

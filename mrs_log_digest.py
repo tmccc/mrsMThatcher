@@ -509,6 +509,18 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
 
         if ("API cooldown active" in msg or "due to API cooldown" in msg or "Skipping quote-tweet check due to API cooldown" in msg or "Skipping mention check due to API cooldown" in msg):
             stats["cooldown_mentions"] += 1
+        m = re.search(r"Entering API cooldown after (429|repeated errors) until (.+)$", msg)
+        if m:
+            add_event("api_cooldown_entered", r.ts, reason=m.group(1), until=m.group(2).strip())
+            continue
+        m = re.search(r"Migrated legacy pickle file (.+) to JSON file (.+)$", msg)
+        if m:
+            add_event("used_history_migrated", r.ts, legacy_file=m.group(1).strip(), json_file=m.group(2).strip())
+            continue
+        m = re.search(r"Normalized used-history JSON ordering in (.+)$", msg)
+        if m:
+            add_event("used_history_normalized", r.ts, json_file=m.group(1).strip())
+            continue
         if "X API error" in msg or "X bearer API error" in msg:
             stats["x_api_errors"] += 1
         if "xAI error" in msg:
@@ -1211,6 +1223,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("mention_skipped", "Mention direct skips", ["time", "mention_id", "reason"])
     section("hot_post_reply_skipped", "Hot-post direct skips", ["time", "hot_post_reply_id", "reason"])
     section("quote_tweet_skipped", "Quote-tweet direct skips", ["time", "quote_tweet_id", "reason"])
+    section("api_cooldown_entered", "API cooldowns entered", ["time", "reason", "until"])
+    section("used_history_migrated", "Used-history migrations", ["time", "legacy_file", "json_file"])
+    section("used_history_normalized", "Used-history normalizations", ["time", "json_file"])
 
     errs = report.get("errors_and_warnings") or []
     out.append("## Errors / warnings")

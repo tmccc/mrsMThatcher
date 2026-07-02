@@ -141,6 +141,20 @@ def test_generated_reply_is_safe_enough(reply: str, expected: bool) -> None:
     assert bot.generated_reply_is_safe_enough(reply) is expected
 
 
+def test_meme_summary_context_limit_covers_current_analysis_shape() -> None:
+    summary = (
+        "2x2 grid meme: top-left Cuba 2016 rundown street, bottom-left Venezuela 2019 street scene with man on rubble, "
+        "bottom cartoon 'Fantasy Land' candy castle; right column shows same man saying 'I PREFER REAL SOCIALISM', "
+        "'I SAID REAL SOCIALISM', then 'PERFECTION' over the fantasy image Anti-socialist message: Real-world socialism "
+        "produces poverty and failure; the only 'real socialism' that works is pure fantasy Analysis metadata: ranking 17, "
+        "shareability high."
+    )
+    context = bot.tweet_context_text({"image_summary": summary})
+
+    assert len(context) <= bot.THREAD_CONTEXT_MAX_CHARS_PER_POST
+    assert bot.trim_context_text(context, bot.THREAD_CONTEXT_MAX_CHARS_PER_POST) == context
+
+
 def test_schedule_next_quote_post_uses_configured_delay(monkeypatch: pytest.MonkeyPatch) -> None:
     state: dict = {}
     monkeypatch.setattr(bot.random, "randint", lambda low, high: 123)

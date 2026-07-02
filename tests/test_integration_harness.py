@@ -1843,3 +1843,21 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         assert "Reply budget" in quiet_digest.stdout
     finally:
         meme_server.stop()
+
+    ops_base = prepare_base_dir(tmp_path / "digest-ops")
+    (ops_base / "test.log").write_text(
+        "\n".join(
+            [
+                "2026-07-02 10:00:00 ERROR    record_api_error:1122 - Entering API cooldown after 429 until 2099-12-31 00:01:00",
+                "2026-07-02 10:00:01 INFO     load_used_set:829 - Migrated legacy pickle file /tmp/lines_used.pickle to JSON file /tmp/lines_used.json",
+                "2026-07-02 10:00:02 INFO     load_used_set:817 - Normalized used-history JSON ordering in /tmp/images_used.json",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    ops_digest = run_digest(ops_base)
+    assert ops_digest.returncode == 0, ops_digest.stderr
+    assert "API cooldowns entered" in ops_digest.stdout
+    assert "Used-history migrations" in ops_digest.stdout
+    assert "Used-history normalizations" in ops_digest.stdout
