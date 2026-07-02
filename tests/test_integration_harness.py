@@ -289,6 +289,9 @@ def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_sch
     archive = subprocess.check_output(["git", "archive", "master"], cwd=ROOT)
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:*") as tar:
         tar.extractall(master_root)
+    master_has_persisted_normal_scheduler = (
+        "last_reply_check_epoch" in (master_root / "mrsMThatcher2.py").read_text(encoding="utf-8")
+    )
 
     rng = random.Random(20260702)
     base_cases = [
@@ -420,7 +423,8 @@ def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_sch
             assert master_result.returncode == 0, master_result.stderr + master_result.stdout
             assert promotion_result.returncode == 0, promotion_result.stderr + promotion_result.stdout
 
-        assert server_master.path_counts.get("/2/users/12345/mentions") == 2
+        expected_master_mentions = 1 if master_has_persisted_normal_scheduler else 2
+        assert server_master.path_counts.get("/2/users/12345/mentions") == expected_master_mentions
         assert server_promotion.path_counts.get("/2/users/12345/mentions") == 1
     finally:
         server_master.stop()
