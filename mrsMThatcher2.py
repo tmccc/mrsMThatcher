@@ -949,6 +949,28 @@ def load_state() -> dict:
     return default_state()
 
 
+def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = None) -> int:
+    raw_value = state.get(key, 0)
+    try:
+        value = int(raw_value or 0)
+    except (TypeError, ValueError):
+        log.warning("Ignoring malformed scheduler epoch %s=%r", key, raw_value)
+        value = 0
+
+    if value < 0:
+        log.warning("Ignoring negative scheduler epoch %s=%r", key, raw_value)
+        value = 0
+
+    if current is not None and value > current:
+        log.warning("Ignoring future scheduler epoch %s=%r current=%s", key, raw_value, current)
+        value = 0
+
+    if raw_value != value:
+        state[key] = value
+
+    return value
+
+
 def rotate_state_backups() -> None:
     if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
         return
@@ -3783,6 +3805,17 @@ def run_reply_lane_checks_for_tick(
     last_reply_check_epoch: int,
     last_quote_tweet_check_epoch: int,
 ) -> tuple[int, int]:
+    last_reply_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_reply_check_epoch",
+        current=current,
+    )
+    last_quote_tweet_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_quote_tweet_check_epoch",
+        current=current,
+    )
+
     reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
     if reply_lane_priority not in {"normal", "quote"}:
         reply_lane_priority = "normal"
@@ -3968,8 +4001,18 @@ def main() -> None:
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
 
-    last_reply_check_epoch = int(state.get("last_reply_check_epoch", 0) or 0)
-    last_quote_tweet_check_epoch = int(state.get("last_quote_tweet_check_epoch", 0) or 0)
+    current = now_epoch()
+    last_reply_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_reply_check_epoch",
+        current=current,
+    )
+    last_quote_tweet_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_quote_tweet_check_epoch",
+        current=current,
+    )
+    save_state(state)
 
     if not state.get("next_quote_post_epoch"):
         log.info("No next_quote_post_epoch found; first quote/image post will happen immediately")
@@ -4276,8 +4319,16 @@ def run_test_main_tick() -> int:
     log.info("Running one test production reply-lane tick")
     state = load_state()
     current = now_epoch()
-    last_reply_check_epoch = int(state.get("last_reply_check_epoch", 0) or 0)
-    last_quote_tweet_check_epoch = int(state.get("last_quote_tweet_check_epoch", 0) or 0)
+    last_reply_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_reply_check_epoch",
+        current=current,
+    )
+    last_quote_tweet_check_epoch = scheduler_epoch_from_state(
+        state,
+        "last_quote_tweet_check_epoch",
+        current=current,
+    )
 
     run_reply_lane_checks_for_tick(
         state,

@@ -449,6 +449,390 @@ def test_restart_after_persisted_normal_check_polls_when_interval_expires(tmp_pa
         server.stop()
 
 
+def test_missing_normal_check_epoch_behaves_like_live_state_and_polls(tmp_path: Path) -> None:
+    server = FakeApiServer({}).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"last_reply_epoch": 0},
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize("bad_value", ["not-an-epoch", -100, 2_000_009_999])
+def test_bad_normal_check_epoch_falls_back_safely_and_polls(tmp_path: Path, bad_value: object) -> None:
+    server = FakeApiServer({}).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": bad_value,
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+    finally:
+        server.stop()
+
+
+def test_runtime_disabled_normal_lane_consumes_check_interval(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+            },
+            control={"disable_normal_replies": True},
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.requests == []
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        assert state.get("replied_to_ids", []) == []
+    finally:
+        server.stop()
+
+
+def test_api_cooldown_consumes_normal_check_interval_without_polling(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "api_cooldown_until_epoch": 2_000_001_000,
+                "api_cooldown_reason": "x",
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.requests == []
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        assert state["api_cooldown_until_epoch"] == 2_000_001_000
+    finally:
+        server.stop()
+
+
+def test_api_failure_consumes_normal_check_interval_and_records_cooldown(tmp_path: Path) -> None:
+    server = FakeApiServer({"error_paths": {"/2/users/12345/mentions": 503}}).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        assert state["x_error_epochs"]
+        assert state["api_cooldown_until_epoch"] == 0
+    finally:
+        server.stop()
+
+
+def test_restart_normal_priority_posts_once_then_suppresses_duplicate_poll(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "100",
+            "text": "@mrsMThatcher quite right",
+            "author_id": "200",
+            "conversation_id": "100",
+            "created_at": "2026-06-30T12:00:00Z",
+        }
+    ]
+    scenario["grok_replies"] = [
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "The list grows longer each time they need another pound.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "normal",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+                "MIN_SECONDS_BETWEEN_REPLIES": 3600,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "quote"
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        assert state["last_quote_tweet_check_epoch"] == 0
+
+        restarted = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000100"},
+        )
+        assert restarted.returncode == 0, restarted.stderr + restarted.stdout
+        assert len(server.posts) == 1
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "quote"
+    finally:
+        server.stop()
+
+
+def test_restart_quote_priority_posts_once_then_suppresses_duplicate_quote(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "100",
+            "text": "@mrsMThatcher quite right",
+            "author_id": "200",
+            "conversation_id": "100",
+            "created_at": "2026-06-30T12:00:00Z",
+        }
+    ]
+    scenario["grok_replies"] = [
+        "The list grows longer each time they need another pound.",
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+                "MIN_SECONDS_BETWEEN_REPLIES": 3600,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "normal"
+        assert state["last_quote_tweet_check_epoch"] == 2_000_000_000
+
+        restarted = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000100"},
+        )
+        assert restarted.returncode == 0, restarted.stderr + restarted.stdout
+        assert len(server.posts) == 1
+        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "normal"
+    finally:
+        server.stop()
+
+
+def test_lane_priority_survives_restart_when_no_reply_posts(tmp_path: Path) -> None:
+    server = FakeApiServer({}).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        second = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000100"},
+        )
+
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.posts) == 0
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "quote"
+    finally:
+        server.stop()
+
+
+def test_fake_clock_sequence_does_not_duplicate_or_overpoll(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "100",
+            "text": "@mrsMThatcher quite right",
+            "author_id": "200",
+            "conversation_id": "100",
+            "created_at": "2026-06-30T12:00:00Z",
+        }
+    ]
+    scenario["grok_replies"] = [
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "The list grows longer each time they need another pound.",
+        "This spare reply must never be posted.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "normal",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+                "MIN_SECONDS_BETWEEN_REPLIES": 1200,
+            },
+        )
+
+        for offset in range(0, 7201, 300):
+            result = run_bot_command(
+                base_dir,
+                server,
+                "--test-main-tick",
+                extra_env={"MRS_FAKE_NOW_EPOCH": str(2_000_000_000 + offset)},
+            )
+            assert result.returncode == 0, result.stderr + result.stdout
+
+        reply_targets = [post.get("reply", {}).get("in_reply_to_tweet_id") for post in server.posts]
+        assert reply_targets.count("100") == 1
+        assert reply_targets.count("910") == 1
+        assert len(server.posts) == 2
+        assert server.path_counts.get("/2/users/12345/mentions", 0) <= 8
+        assert server.path_counts.get("/2/tweets/900/quote_tweets", 0) <= 8
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "normal"
+        assert state["replied_to_ids"].count("100") == 1
+        assert state["replied_to_quote_post_ids"].count("910") == 1
+    finally:
+        server.stop()
+
+
 def test_malformed_quote_tweet_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
     scenario["quote_tweets"]["900"]["data"] = [
