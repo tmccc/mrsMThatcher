@@ -825,7 +825,11 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
         log.exception("Failed loading used-history JSON file %s; using legacy/empty set", path)
 
     if legacy_pickle_path is not None:
-        return load_legacy_pickle_set(legacy_pickle_path)
+        migrated = load_legacy_pickle_set(legacy_pickle_path)
+        if migrated:
+            save_used_set(path, migrated)
+            log.info("Migrated legacy pickle file %s to JSON file %s", legacy_pickle_path, path)
+        return migrated
     return set()
 
 

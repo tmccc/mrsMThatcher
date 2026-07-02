@@ -55,6 +55,7 @@ def test_used_history_migrates_from_legacy_pickle_when_json_missing(tmp_path: Pa
         pickle.dump({4, 5}, f)
 
     assert bot.load_used_set(json_path, legacy_pickle_path=pickle_path) == {4, 5}
+    assert json.loads(json_path.read_text(encoding="utf-8")) == [4, 5]
 
 
 def test_used_history_bad_json_falls_back_to_legacy_pickle(tmp_path: Path) -> None:
