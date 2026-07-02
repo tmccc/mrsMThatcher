@@ -14,11 +14,10 @@ mrsMThatcher.local.json
 extra_quote_watch_post_ids.txt
 tests.tgz
 
-images/
 memes/
 meme_hunt_001/
 meme_shortlist*/
-final_posting_queue_top90_as_is/
+final_posting_queue_top90_as_is/*.csv
 meme_analysis*.json
 *.zip
 

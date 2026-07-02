@@ -113,9 +113,17 @@ deployed as a coherent set:
 - `mrs_log_digest.py`
 - `README.md`
 - `runMrsMThatcher2_example`
+- `mrsMThatcher.txt`
+- `images/t*.jpg`
+- `final_posting_queue_top90_as_is/images/*`
+- `final_posting_queue_top90_as_is/renamed_png_v3_top90_posting_queue.json`
 
 `mrs_log_digest.py` is included because the digest golden tests run the actual
 digest script against generated test logs.
+
+The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
+Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
+and `meme_shortlist*/` are intentionally ignored.
 
 ## Launcher Example
 

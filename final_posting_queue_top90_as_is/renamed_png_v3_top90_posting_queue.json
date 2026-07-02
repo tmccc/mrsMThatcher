@@ -1,0 +1,3878 @@
+{
+  "created_by": "copy_renamed_png_v3_top90.py",
+  "source_json": "/disks/disk1/Dropbox/Memes/meme_analysis_renamed_png_v3_relaxed_risk.json",
+  "selected_count": 90,
+  "selection": "A + post_as_is only, absurd-risk filtered",
+  "results": [
+    {
+      "filename": "Image177.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image177.png",
+      "grok_description": "Split image of two frying pans: left shows large raw steak labeled 'GROSS INCOME', right shows tiny cooked scrap labeled 'AFTER TAXES', under heading 'WHAT SOCIALISM LOOKS LIKE'",
+      "anti_socialist_message": "Socialism/taxes reduce your earnings to almost nothing",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "very high",
+      "score_justification": "Instant visual contrast delivers the anti-socialist point with maximum punch and zero decoding required; highly memorable and repostable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 18,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 589,
+        "output_tokens_details": {
+          "reasoning_tokens": 421
+        },
+        "total_tokens": 2570,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38143500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 589
+        }
+      },
+      "api_reported_cost_usd": 0.00381435,
+      "token_estimated_cost_usd": 0.00394875,
+      "preferred_cost_usd": 0.00381435,
+      "elapsed_seconds": 5.453,
+      "shortlist_rank": 1,
+      "output_filename": "001_impact18_share18_gradeA_post_as_is_Image177.png"
+    },
+    {
+      "filename": "Image013.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image013.png",
+      "grok_description": "Split-panel image: left side labeled 'Socialism' shows a crumbling, rubble-filled derelict building with broken path; right side labeled 'Capitalism' shows the same building restored, clean, with flowers and neat cobblestone street",
+      "anti_socialist_message": "Socialism produces decay and ruin; capitalism produces order, beauty and prosperity",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "very high",
+      "score_justification": "Instant visual contrast is brutally clear in under a second, highly memorable, on-brand for a Thatcher account, and has strong repost potential among ordinary right-leaning users",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 18,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 517,
+        "output_tokens_details": {
+          "reasoning_tokens": 332
+        },
+        "total_tokens": 2514,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36543500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 517
+        }
+      },
+      "api_reported_cost_usd": 0.00365435,
+      "token_estimated_cost_usd": 0.0037887500000000005,
+      "preferred_cost_usd": 0.00365435,
+      "elapsed_seconds": 6.331,
+      "shortlist_rank": 2,
+      "output_filename": "002_impact18_share18_gradeA_post_as_is_Image013.png"
+    },
+    {
+      "filename": "Image371.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image371.png",
+      "grok_description": "Black-and-white cartoon of a room packed with skeletons behind a door labeled 'The History of Socialism'; two men at the doorway, one saying 'I hear this room is a testament to socialism's achievements...'",
+      "anti_socialist_message": "Socialism's record is mass death and failure",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual punch with clear ironic contrast and dark humour; strong anti-socialist hook that lands in under a second and is highly shareable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 552,
+        "output_tokens_details": {
+          "reasoning_tokens": 378
+        },
+        "total_tokens": 2629,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38418500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 552
+        }
+      },
+      "api_reported_cost_usd": 0.00384185,
+      "token_estimated_cost_usd": 0.00397625,
+      "preferred_cost_usd": 0.00384185,
+      "elapsed_seconds": 4.462,
+      "shortlist_rank": 3,
+      "output_filename": "003_impact18_share17_gradeA_post_as_is_Image371.png"
+    },
+    {
+      "filename": "Image362.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image362.png",
+      "grok_description": "Clean graphic with Thatcher quote in white text on gray background next to a portrait photo of Margaret Thatcher in blue jacket and pearls",
+      "anti_socialist_message": "Socialism fails because it runs out of other people's money (Thatcher quote)",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Classic, sharp Thatcher quote paired with her own image; instantly readable, highly on-brand, and emotionally punchy for the target audience with no decoding required.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 529,
+        "output_tokens_details": {
+          "reasoning_tokens": 368
+        },
+        "total_tokens": 2510,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36643500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 529
+        }
+      },
+      "api_reported_cost_usd": 0.00366435,
+      "token_estimated_cost_usd": 0.00379875,
+      "preferred_cost_usd": 0.00366435,
+      "elapsed_seconds": 4.565,
+      "shortlist_rank": 4,
+      "output_filename": "004_impact18_share17_gradeA_post_as_is_Image362.png"
+    },
+    {
+      "filename": "Image343.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image343.png",
+      "grok_description": "Classic meme of a man holding up a tiny scrap of paper with a disgusted face; top text 'A COMPLETE LIST', bottom text 'OF THE BENEFITS OF SOCIALISM'",
+      "anti_socialist_message": "Socialism has no meaningful benefits (the list is empty)",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual joke with zero ambiguity; tiny paper makes the point in under a second with strong emotional punch and high repost potential for the target audience",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 517,
+        "output_tokens_details": {
+          "reasoning_tokens": 351
+        },
+        "total_tokens": 2594,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37543500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 517
+        }
+      },
+      "api_reported_cost_usd": 0.00375435,
+      "token_estimated_cost_usd": 0.00388875,
+      "preferred_cost_usd": 0.00375435,
+      "elapsed_seconds": 4.29,
+      "shortlist_rank": 5,
+      "output_filename": "005_impact18_share17_gradeA_post_as_is_Image343.png"
+    },
+    {
+      "filename": "Image330.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image330.png",
+      "grok_description": "Meme with bold top text asking why no one flees capitalism for socialism, central photo of people climbing through barbed-wire fences to escape, bottom text 'NEVER EVER, NOT ONCE...'",
+      "anti_socialist_message": "No one ever flees capitalism to seek a better life in a socialist state, proving socialism's failure.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual of desperate escape over barbed wire paired with blunt text that lands the anti-socialist point in under a second; strong emotional hook and highly repostable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 688,
+        "output_tokens_details": {
+          "reasoning_tokens": 499
+        },
+        "total_tokens": 2733,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41418500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 688
+        }
+      },
+      "api_reported_cost_usd": 0.00414185,
+      "token_estimated_cost_usd": 0.0042762500000000005,
+      "preferred_cost_usd": 0.00414185,
+      "elapsed_seconds": 5.776,
+      "shortlist_rank": 6,
+      "output_filename": "006_impact18_share17_gradeA_post_as_is_Image330.png"
+    },
+    {
+      "filename": "Image291.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image291.png",
+      "grok_description": "Side-by-side photos of Santa Claus and Karl Marx with top text claiming one supports the childish fantasy that wants can be magically produced for free, and bottom text stating the other is Santa Claus",
+      "anti_socialist_message": "Socialism/Marxism is a childish fantasy on par with believing in Santa Claus",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast plus short, punchy text delivers the anti-socialist point with clear humor and no decoding required; highly memorable and on-brand for a Thatcher-style account",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 625,
+        "output_tokens_details": {
+          "reasoning_tokens": 447
+        },
+        "total_tokens": 2670,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39843500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 625
+        }
+      },
+      "api_reported_cost_usd": 0.00398435,
+      "token_estimated_cost_usd": 0.00411875,
+      "preferred_cost_usd": 0.00398435,
+      "elapsed_seconds": 5.438,
+      "shortlist_rank": 7,
+      "output_filename": "007_impact18_share17_gradeA_post_as_is_Image291.png"
+    },
+    {
+      "filename": "Image234.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image234.png",
+      "grok_description": "Wojak meme: crying soyjak on left yelling 'in capitalism you have to work or you starve!', calm chad on right replying 'in communism you work and you starve.'",
+      "anti_socialist_message": "Communism forces you to work yet still leaves you starving, exposing the lie of socialist promises.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast between the two figures delivers the anti-communist point in under a second with strong meme hook and emotional punch; highly shareable for right-leaning audiences.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1891,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 506,
+        "output_tokens_details": {
+          "reasoning_tokens": 327
+        },
+        "total_tokens": 2397,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 34943500,
+        "context_details": {
+          "input_tokens": 1891,
+          "output_tokens": 506
+        }
+      },
+      "api_reported_cost_usd": 0.00349435,
+      "token_estimated_cost_usd": 0.00362875,
+      "preferred_cost_usd": 0.00349435,
+      "elapsed_seconds": 3.524,
+      "shortlist_rank": 8,
+      "output_filename": "008_impact18_share17_gradeA_post_as_is_Image234.png"
+    },
+    {
+      "filename": "Image228.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image228.png",
+      "grok_description": "Split-panel cartoon: plump healthy chicken labeled CAPITALISM surrounded by golden eggs (jobs, property, infrastructure, social programs, energy independence, tax revenue) vs. picked-clean chicken skeleton on a plate labeled SOCIALISM",
+      "anti_socialist_message": "Capitalism creates widespread prosperity and benefits; socialism destroys the productive system and leaves nothing",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely quick visual contrast using a familiar metaphor; instantly legible on a phone, blunt, memorable, and directly on-message for a free-market account with no decoding required",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 589,
+        "output_tokens_details": {
+          "reasoning_tokens": 406
+        },
+        "total_tokens": 2618,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38743500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 589
+        }
+      },
+      "api_reported_cost_usd": 0.00387435,
+      "token_estimated_cost_usd": 0.00400875,
+      "preferred_cost_usd": 0.00387435,
+      "elapsed_seconds": 4.904,
+      "shortlist_rank": 9,
+      "output_filename": "009_impact18_share17_gradeA_post_as_is_Image228.png"
+    },
+    {
+      "filename": "Image221.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image221.png",
+      "grok_description": "Portrait of Karl Marx with overlaid white text: 'On the 14th March, 1883, Karl Marx made his most important contribution to mankind. He died.'",
+      "anti_socialist_message": "Karl Marx's death was his greatest contribution to humanity",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible dark joke with strong visual hook and punchy wording; highly on-brand for anti-communist Thatcher account and very shareable among right-leaning audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1965,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 542,
+        "output_tokens_details": {
+          "reasoning_tokens": 375
+        },
+        "total_tokens": 2507,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36768500,
+        "context_details": {
+          "input_tokens": 1965,
+          "output_tokens": 542
+        }
+      },
+      "api_reported_cost_usd": 0.00367685,
+      "token_estimated_cost_usd": 0.00381125,
+      "preferred_cost_usd": 0.00367685,
+      "elapsed_seconds": 4.62,
+      "shortlist_rank": 10,
+      "output_filename": "010_impact18_share17_gradeA_post_as_is_Image221.png"
+    },
+    {
+      "filename": "Image172.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image172.png",
+      "grok_description": "Famous 1979 UK Conservative election poster: bold text 'LABOUR ISN'T WORKING.' with a long queue of people forming the word 'UNEMPLOYMENT' under an 'UNEMPLOYMENT OFFICE' sign, plus footer 'BRITAIN'S BETTER OFF WITH THE CONSERVATIVES.'",
+      "anti_socialist_message": "Labour causes mass unemployment; Conservatives are the solution",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible classic poster with a strong visual pun; perfectly on-brand for a Thatcher account and highly memorable to the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1965,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 606,
+        "output_tokens_details": {
+          "reasoning_tokens": 419
+        },
+        "total_tokens": 2571,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38368500,
+        "context_details": {
+          "input_tokens": 1965,
+          "output_tokens": 606
+        }
+      },
+      "api_reported_cost_usd": 0.00383685,
+      "token_estimated_cost_usd": 0.00397125,
+      "preferred_cost_usd": 0.00383685,
+      "elapsed_seconds": 5.859,
+      "shortlist_rank": 11,
+      "output_filename": "011_impact18_share17_gradeA_post_as_is_Image172.png"
+    },
+    {
+      "filename": "Image169.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image169.png",
+      "grok_description": "Split-panel image: left shows bright utopian city-park with colorful towers and happy people under 'WHAT SOCIALISTS THINK SOCIALISM WILL BE LIKE'; right shows dark, decaying industrial city with smokestacks and grim figures under 'HOW SOCIALISM ALWAYS TURNS OUT TO BE LIKE'.",
+      "anti_socialist_message": "Socialism promises a vibrant utopia but always produces grim decay and poverty instead.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely clear visual contrast that lands the anti-socialist point in under a second; blunt, memorable, and highly shareable for the target audience with no decoding required.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 592,
+        "output_tokens_details": {
+          "reasoning_tokens": 397
+        },
+        "total_tokens": 2589,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38418500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 592
+        }
+      },
+      "api_reported_cost_usd": 0.00384185,
+      "token_estimated_cost_usd": 0.003976250000000001,
+      "preferred_cost_usd": 0.00384185,
+      "elapsed_seconds": 6.542,
+      "shortlist_rank": 12,
+      "output_filename": "012_impact18_share17_gradeA_post_as_is_Image169.png"
+    },
+    {
+      "filename": "Image161.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image161.png",
+      "grok_description": "Three-panel comic: cyclist happily riding, then deliberately jamming a stick into his front wheel, then lying on the ground next to the crashed bike with caption 'Blames Thatcher'",
+      "anti_socialist_message": "Leftists deliberately sabotage their own situation then blame Thatcher for the resulting failure",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual joke with a clear self-sabotage punchline directly naming Thatcher; strong meme format, zero text to read, highly shareable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 548,
+        "output_tokens_details": {
+          "reasoning_tokens": 374
+        },
+        "total_tokens": 2577,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37718500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 548
+        }
+      },
+      "api_reported_cost_usd": 0.00377185,
+      "token_estimated_cost_usd": 0.00390625,
+      "preferred_cost_usd": 0.00377185,
+      "elapsed_seconds": 6.871,
+      "shortlist_rank": 13,
+      "output_filename": "013_impact18_share17_gradeA_post_as_is_Image161.png"
+    },
+    {
+      "filename": "Image157.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image157.png",
+      "grok_description": "Wide desert landscape with cracked ground, one tiny bush in foreground and distant rocks, overlaid with bold white text 'ANNUAL MEETING OF...' at top and 'SUCCESSFUL SOCIALIST STATES' at bottom",
+      "anti_socialist_message": "There are no successful socialist states (the desert is empty)",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual joke with strong contrast and zero ambiguity; classic meme format that lands immediately on a phone, highly repostable for the target audience, fully on-brand and post-ready",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 600,
+        "output_tokens_details": {
+          "reasoning_tokens": 424
+        },
+        "total_tokens": 2677,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39618500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 600
+        }
+      },
+      "api_reported_cost_usd": 0.00396185,
+      "token_estimated_cost_usd": 0.004096249999999999,
+      "preferred_cost_usd": 0.00396185,
+      "elapsed_seconds": 6.352,
+      "shortlist_rank": 14,
+      "output_filename": "014_impact18_share17_gradeA_post_as_is_Image157.png"
+    },
+    {
+      "filename": "Image155.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image155.png",
+      "grok_description": "Split-panel graphic: top 'CAPITALISM' shows six white silhouettes standing on yellow blocks of varying heights; bottom 'SOCIALISM' shows one armed silhouette atop a tall block and five others on identical short blocks.",
+      "anti_socialist_message": "Capitalism allows unequal success based on individual effort; socialism enforces equality at gunpoint with a ruling elite on top.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely quick visual contrast that lands the anti-socialist point without text or explanation; blunt, memorable, and highly shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 567,
+        "output_tokens_details": {
+          "reasoning_tokens": 381
+        },
+        "total_tokens": 2644,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38793500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 567
+        }
+      },
+      "api_reported_cost_usd": 0.00387935,
+      "token_estimated_cost_usd": 0.00401375,
+      "preferred_cost_usd": 0.00387935,
+      "elapsed_seconds": 7.025,
+      "shortlist_rank": 15,
+      "output_filename": "015_impact18_share17_gradeA_post_as_is_Image155.png"
+    },
+    {
+      "filename": "Image150.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image150.png",
+      "grok_description": "Split image: left shows a blender labeled 'Socialism' filled with layered ingredients marked 'Hope', 'Prosperity', 'Freedom'; right shows a hand pouring the resulting gray sludge down a kitchen sink drain.",
+      "anti_socialist_message": "Socialism takes good things (hope, prosperity, freedom) and turns them into worthless waste to be thrown away.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely clear visual metaphor that lands in under a second with strong emotional punch and no decoding required; highly on-brand for a Thatcher account and very repostable.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 557,
+        "output_tokens_details": {
+          "reasoning_tokens": 370
+        },
+        "total_tokens": 2586,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37943500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 557
+        }
+      },
+      "api_reported_cost_usd": 0.00379435,
+      "token_estimated_cost_usd": 0.00392875,
+      "preferred_cost_usd": 0.00379435,
+      "elapsed_seconds": 7.393,
+      "shortlist_rank": 16,
+      "output_filename": "016_impact18_share17_gradeA_post_as_is_Image150.png"
+    },
+    {
+      "filename": "Image148.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image148.png",
+      "grok_description": "Close-up photo of a skeptical-looking man holding a tiny white rectangle between thumb and forefinger, with bold white text bar above reading 'A list of successful socialist countries'",
+      "anti_socialist_message": "There are no successful socialist countries (the list is empty/tiny)",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual gag with strong anti-socialist punch; the tiny paper makes the point without needing thought or extra text. Clean, phone-readable, and highly shareable for the audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 493,
+        "output_tokens_details": {
+          "reasoning_tokens": 320
+        },
+        "total_tokens": 2490,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35943500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 493
+        }
+      },
+      "api_reported_cost_usd": 0.00359435,
+      "token_estimated_cost_usd": 0.0037287500000000003,
+      "preferred_cost_usd": 0.00359435,
+      "elapsed_seconds": 4.798,
+      "shortlist_rank": 17,
+      "output_filename": "017_impact18_share17_gradeA_post_as_is_Image148.png"
+    },
+    {
+      "filename": "Image138.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image138.png",
+      "grok_description": "Red graphic showing five intact chocolate chip cookies labeled Butter, Sugar, Flour, Baking Soda, and Egg, plus a broken cookie labeled Socialism reduced to crumbs, under the header 'Oops! You added too much'",
+      "anti_socialist_message": "Socialism ruins a good recipe / adding socialism spoils everything",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual joke with clear contrast between perfect cookies and socialist crumbs; no reading required, strong meme hook, instantly legible on mobile, and perfectly on-brand for a Thatcher-style anti-socialist account.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 573,
+        "output_tokens_details": {
+          "reasoning_tokens": 392
+        },
+        "total_tokens": 2618,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38543500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 573
+        }
+      },
+      "api_reported_cost_usd": 0.00385435,
+      "token_estimated_cost_usd": 0.00398875,
+      "preferred_cost_usd": 0.00385435,
+      "elapsed_seconds": 6.581,
+      "shortlist_rank": 18,
+      "output_filename": "018_impact18_share17_gradeA_post_as_is_Image138.png"
+    },
+    {
+      "filename": "Image119.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image119.png",
+      "grok_description": "Split-panel color vs. monochrome meme: left shows vibrant 'socialist dream' with happy people feasting outdoors amid sunflowers and factories; right shows grim 'socialist reality' of ragged people in a long barbed-wire queue resembling a gulag.",
+      "anti_socialist_message": "Socialism promises abundance and joy but delivers poverty, misery, and oppression.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely strong visual contrast that lands in under a second with clear emotional punch; highly on-brand, post-ready, and repostable for the audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 625,
+        "output_tokens_details": {
+          "reasoning_tokens": 440
+        },
+        "total_tokens": 2718,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40443500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 625
+        }
+      },
+      "api_reported_cost_usd": 0.00404435,
+      "token_estimated_cost_usd": 0.00417875,
+      "preferred_cost_usd": 0.00404435,
+      "elapsed_seconds": 6.597,
+      "shortlist_rank": 19,
+      "output_filename": "019_impact18_share17_gradeA_post_as_is_Image119.png"
+    },
+    {
+      "filename": "Image117.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image117.png",
+      "grok_description": "Split-panel contrast image: left shows opulent dining scene for 'SOCIALIST LEADERS' with hammer-and-sickle portrait; right shows rundown street with poor people for 'SOCIALIST CITIZENS'",
+      "anti_socialist_message": "Socialism makes leaders rich while citizens suffer poverty",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast hits hard with no reading required; classic, memorable anti-socialist meme that is blunt and emotionally punchy for the target audience",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 461,
+        "output_tokens_details": {
+          "reasoning_tokens": 292
+        },
+        "total_tokens": 2458,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35143500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 461
+        }
+      },
+      "api_reported_cost_usd": 0.00351435,
+      "token_estimated_cost_usd": 0.00364875,
+      "preferred_cost_usd": 0.00351435,
+      "elapsed_seconds": 5.093,
+      "shortlist_rank": 20,
+      "output_filename": "020_impact18_share17_gradeA_post_as_is_Image117.png"
+    },
+    {
+      "filename": "Image081.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image081.png",
+      "grok_description": "Split-panel image: left side 'Socialism' shows wrecked rusted cars and debris in front of dilapidated graffiti-covered buildings; right side 'Capitalism' shows a shiny modern black VW in front of a sleek glass office building.",
+      "anti_socialist_message": "Socialism produces decay and ruin while capitalism produces modernity and prosperity.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely quick visual contrast that requires zero decoding; blunt, emotionally punchy, and already in finished meme format. Classic format that travels well on X among the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 501,
+        "output_tokens_details": {
+          "reasoning_tokens": 318
+        },
+        "total_tokens": 2498,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36143500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 501
+        }
+      },
+      "api_reported_cost_usd": 0.00361435,
+      "token_estimated_cost_usd": 0.0037487500000000003,
+      "preferred_cost_usd": 0.00361435,
+      "elapsed_seconds": 6.205,
+      "shortlist_rank": 21,
+      "output_filename": "021_impact18_share17_gradeA_post_as_is_Image081.png"
+    },
+    {
+      "filename": "Image077.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image077.png",
+      "grok_description": "Black-and-white photo of Margaret Thatcher wearing headphones and smiling/laughing, with white text overlay: 'When someone says' at top and 'Real socialism hasn’t been tried' across the lower half.",
+      "anti_socialist_message": "The claim that 'real socialism hasn’t been tried' is laughably stupid.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible meme using Thatcher herself reacting with laughter to a classic socialist talking point; strong visual hook, on-brand, and highly repostable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 442,
+        "output_tokens_details": {
+          "reasoning_tokens": 263
+        },
+        "total_tokens": 2423,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 34468500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 442
+        }
+      },
+      "api_reported_cost_usd": 0.00344685,
+      "token_estimated_cost_usd": 0.0035812500000000002,
+      "preferred_cost_usd": 0.00344685,
+      "elapsed_seconds": 3.895,
+      "shortlist_rank": 22,
+      "output_filename": "022_impact18_share17_gradeA_post_as_is_Image077.png"
+    },
+    {
+      "filename": "Image071.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image071.png",
+      "grok_description": "Elderly man wearing 'LIVED UNDER SOCIALISM' rosette looks alarmed and skeptical while a young man with hammer-and-sickle pin excitedly says 'Trust me. It'll be different this time!'",
+      "anti_socialist_message": "Socialists always insist 'it will be different this time' despite the lived experience of those who suffered under previous attempts",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual contrast between the weary survivor and the naive enthusiast; strong, familiar anti-socialist hook that needs no explanation and is highly shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 549,
+        "output_tokens_details": {
+          "reasoning_tokens": 361
+        },
+        "total_tokens": 2642,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38543500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 549
+        }
+      },
+      "api_reported_cost_usd": 0.00385435,
+      "token_estimated_cost_usd": 0.003988749999999999,
+      "preferred_cost_usd": 0.00385435,
+      "elapsed_seconds": 5.532,
+      "shortlist_rank": 23,
+      "output_filename": "023_impact18_share17_gradeA_post_as_is_Image071.png"
+    },
+    {
+      "filename": "Image056.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image056.png",
+      "grok_description": "Two-panel meme: top shows a cartoon woman with orange hair holding a vodka bottle beside the text 'Real socialism has never been tried'; bottom shows a massive pile of skulls and bones with a speech bubble saying 'OH, F**K OFF!'",
+      "anti_socialist_message": "The common excuse that 'real socialism has never been tried' is angrily rejected by the historical death toll under socialist regimes",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual contrast between the slogan and the blunt skull-pile rebuttal; strong meme hook, dark humour, high phone readability, and very on-brand for an anti-socialist account",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 693,
+        "output_tokens_details": {
+          "reasoning_tokens": 491
+        },
+        "total_tokens": 2770,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41943500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 693
+        }
+      },
+      "api_reported_cost_usd": 0.00419435,
+      "token_estimated_cost_usd": 0.004328749999999999,
+      "preferred_cost_usd": 0.00419435,
+      "elapsed_seconds": 6.463,
+      "shortlist_rank": 24,
+      "output_filename": "024_impact18_share17_gradeA_post_as_is_Image056.png"
+    },
+    {
+      "filename": "Image001.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image001.png",
+      "grok_description": "Side-by-side image: left shows a brightly lit, festively decorated Christmas market building labeled CAPITALISM; right shows a dilapidated, overgrown building with people sitting on the ground labeled SOCIALISM.",
+      "anti_socialist_message": "Capitalism produces prosperity, warmth and abundance; socialism produces decay, poverty and ruin.",
+      "ranking": 18,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast is extremely clear and emotionally punchy with no decoding required; classic meme format that right-leaning audiences readily share.",
+      "grade": "A",
+      "instant_impact_score": 18,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 517,
+        "output_tokens_details": {
+          "reasoning_tokens": 346
+        },
+        "total_tokens": 2498,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36343500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 517
+        }
+      },
+      "api_reported_cost_usd": 0.00363435,
+      "token_estimated_cost_usd": 0.0037687500000000004,
+      "preferred_cost_usd": 0.00363435,
+      "elapsed_seconds": 5.939,
+      "shortlist_rank": 25,
+      "output_filename": "025_impact18_share17_gradeA_post_as_is_Image001.png"
+    },
+    {
+      "filename": "Image340.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image340.png",
+      "grok_description": "Black background meme with white distressed text 'SOCIALISM' at top, two stick figures below where one points a gun at the other's head, and bottom text 'IDEAS SO GOOD THEY HAVE TO BE MANDATORY'",
+      "anti_socialist_message": "Socialism must be imposed by force because people would not accept it voluntarily",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual punch with strong ironic contrast and no decoding required; highly on-brand for a Thatcher-style anti-socialist account and very likely to be shared",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 633,
+        "output_tokens_details": {
+          "reasoning_tokens": 452
+        },
+        "total_tokens": 2726,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40643500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 633
+        }
+      },
+      "api_reported_cost_usd": 0.00406435,
+      "token_estimated_cost_usd": 0.004198749999999999,
+      "preferred_cost_usd": 0.00406435,
+      "elapsed_seconds": 6.271,
+      "shortlist_rank": 26,
+      "output_filename": "026_impact17_share17_gradeA_post_as_is_Image340.png"
+    },
+    {
+      "filename": "Image310.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image310.png",
+      "grok_description": "Meme with poverty reduction statistic on left next to calm chad figure, and right side showing exaggerated soyjak figure shouting 'cApiTaLisM hAs fAiLeD!'",
+      "anti_socialist_message": "Capitalism has reduced extreme poverty from 85% to under 9%, so claims that it has failed are ridiculous",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable statistic + strong visual contrast in popular meme format delivers the anti-socialist point with maximum punch and minimal effort",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 604,
+        "output_tokens_details": {
+          "reasoning_tokens": 428
+        },
+        "total_tokens": 2585,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38518500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 604
+        }
+      },
+      "api_reported_cost_usd": 0.00385185,
+      "token_estimated_cost_usd": 0.00398625,
+      "preferred_cost_usd": 0.00385185,
+      "elapsed_seconds": 4.7,
+      "shortlist_rank": 27,
+      "output_filename": "027_impact17_share17_gradeA_post_as_is_Image310.png"
+    },
+    {
+      "filename": "Image264.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image264.png",
+      "grok_description": "Futurama Fry skeptical side-eye meme with top text 'WHEN SOMEONE SAYS' and bottom text 'REAL SOCIALISM HASN'T BEEN TRIED'",
+      "anti_socialist_message": "The claim that 'real socialism hasn't been tried' is a ridiculous cope",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible classic meme format with a strong visual hook and direct anti-socialist punch; no decoding required and highly repostable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 481,
+        "output_tokens_details": {
+          "reasoning_tokens": 315
+        },
+        "total_tokens": 2510,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36043500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 481
+        }
+      },
+      "api_reported_cost_usd": 0.00360435,
+      "token_estimated_cost_usd": 0.00373875,
+      "preferred_cost_usd": 0.00360435,
+      "elapsed_seconds": 4.218,
+      "shortlist_rank": 28,
+      "output_filename": "028_impact17_share17_gradeA_post_as_is_Image264.png"
+    },
+    {
+      "filename": "Image255.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image255.png",
+      "grok_description": "2x2 grid meme: top-left Cuba 2016 rundown street, bottom-left Venezuela 2019 street scene with man on rubble, bottom cartoon 'Fantasy Land' candy castle; right column shows same man saying 'I PREFER REAL SOCIALISM', 'I SAID REAL SOCIALISM', then 'PERFECTION' over the fantasy image",
+      "anti_socialist_message": "Real-world socialism produces poverty and failure (Cuba, Venezuela); the only 'real socialism' that works is pure fantasy",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast between failed real countries and cartoon fantasy plus the familiar 'not real socialism' gag makes it immediately punchy and highly repostable for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 755,
+        "output_tokens_details": {
+          "reasoning_tokens": 539
+        },
+        "total_tokens": 2848,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 43693500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 755
+        }
+      },
+      "api_reported_cost_usd": 0.00436935,
+      "token_estimated_cost_usd": 0.00450375,
+      "preferred_cost_usd": 0.00436935,
+      "elapsed_seconds": 5.803,
+      "shortlist_rank": 29,
+      "output_filename": "029_impact17_share17_gradeA_post_as_is_Image255.png"
+    },
+    {
+      "filename": "Image236.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image236.png",
+      "grok_description": "4-panel comic contrasting socialist vs actual views of socialism and capitalism using colored bar heights for poor/rich",
+      "anti_socialist_message": "Socialism makes everyone equally poor; capitalism raises everyone up",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual contrast with strong meme hook; blunt, memorable, and on-brand for the account",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 544,
+        "output_tokens_details": {
+          "reasoning_tokens": 401
+        },
+        "total_tokens": 2637,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38418500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 544
+        }
+      },
+      "api_reported_cost_usd": 0.00384185,
+      "token_estimated_cost_usd": 0.00397625,
+      "preferred_cost_usd": 0.00384185,
+      "elapsed_seconds": 3.742,
+      "shortlist_rank": 30,
+      "output_filename": "030_impact17_share17_gradeA_post_as_is_Image236.png"
+    },
+    {
+      "filename": "Image223.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image223.png",
+      "grok_description": "Flowchart titled 'socialism flowchart' showing a loop: implement socialism → does it work? (no) → it wasn't real socialism! → back to implement socialism",
+      "anti_socialist_message": "Socialism always fails, and its defenders always claim the failure 'wasn't real socialism'",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible flowchart that captures the classic 'no true socialism' excuse with a memorable loop; blunt, funny, and perfectly on-brand for the account with strong phone readability and repost potential.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2032,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 553,
+        "output_tokens_details": {
+          "reasoning_tokens": 373
+        },
+        "total_tokens": 2585,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37881000,
+        "context_details": {
+          "input_tokens": 2032,
+          "output_tokens": 553
+        }
+      },
+      "api_reported_cost_usd": 0.0037881,
+      "token_estimated_cost_usd": 0.0039225,
+      "preferred_cost_usd": 0.0037881,
+      "elapsed_seconds": 5.744,
+      "shortlist_rank": 31,
+      "output_filename": "031_impact17_share17_gradeA_post_as_is_Image223.png"
+    },
+    {
+      "filename": "Image213.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image213.png",
+      "grok_description": "Black-and-white photo of a father and son talking, with bold white text overlay: top reads 'DAD, IF SOCIALISM DOESN'T WORK, WHY DO SOME PEOPLE STILL SUPPORT IT?' and bottom reads 'BECAUSE THEY DON'T WORK EITHER, SON.'",
+      "anti_socialist_message": "Socialism is supported mainly by people who don't work and want to live off others.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible classic dad-son format with a blunt, punchy anti-socialist punchline that lands in under a second and has strong meme hook and repost potential for the audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1893,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 522,
+        "output_tokens_details": {
+          "reasoning_tokens": 325
+        },
+        "total_tokens": 2415,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35368500,
+        "context_details": {
+          "input_tokens": 1893,
+          "output_tokens": 522
+        }
+      },
+      "api_reported_cost_usd": 0.00353685,
+      "token_estimated_cost_usd": 0.00367125,
+      "preferred_cost_usd": 0.00353685,
+      "elapsed_seconds": 4.739,
+      "shortlist_rank": 32,
+      "output_filename": "032_impact17_share17_gradeA_post_as_is_Image213.png"
+    },
+    {
+      "filename": "Image171.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image171.png",
+      "grok_description": "Three-panel meme contrasting Cuba slum, Venezuela street chaos, and a fantasy castle landscape, with a man saying 'I PREFER REAL SOCIALISM', 'I SAID REAL SOCIALISM', and 'PERFECTION'",
+      "anti_socialist_message": "Real-world socialist countries are failures, so socialists retreat to fantasy; only imaginary 'real socialism' works",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast between real failed states and fantasy makes the anti-socialist point in under a second; strong meme hook, highly shareable for the audience, clean and post-ready",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 624,
+        "output_tokens_details": {
+          "reasoning_tokens": 435
+        },
+        "total_tokens": 2717,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40418500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 624
+        }
+      },
+      "api_reported_cost_usd": 0.00404185,
+      "token_estimated_cost_usd": 0.004176249999999999,
+      "preferred_cost_usd": 0.00404185,
+      "elapsed_seconds": 6.715,
+      "shortlist_rank": 33,
+      "output_filename": "033_impact17_share17_gradeA_post_as_is_Image171.png"
+    },
+    {
+      "filename": "Image079.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image079.png",
+      "grok_description": "AI-generated image of Karl Marx holding a sign reading 'Socialism Creates Poverty'",
+      "anti_socialist_message": "Socialism creates poverty (ironic statement by Marx himself)",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible ironic visual with strong meme hook; blunt, memorable, and emotionally punchy for the target audience with no decoding required.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 549,
+        "output_tokens_details": {
+          "reasoning_tokens": 405
+        },
+        "total_tokens": 2546,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37343500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 549
+        }
+      },
+      "api_reported_cost_usd": 0.00373435,
+      "token_estimated_cost_usd": 0.0038687500000000002,
+      "preferred_cost_usd": 0.00373435,
+      "elapsed_seconds": 5.33,
+      "shortlist_rank": 34,
+      "output_filename": "034_impact17_share17_gradeA_post_as_is_Image079.png"
+    },
+    {
+      "filename": "Image076.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image076.png",
+      "grok_description": "Top: orange-haired cartoon woman with 'Soy Water' can saying '100 million deaths are a small price to pay for Utopia'. Bottom: massive pile of skulls with speech bubble 'OH, F**K OFF!'",
+      "anti_socialist_message": "Communist utopians dismiss the 100 million deaths; the victims themselves reject the excuse",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast between naive utopian claim and mountain of skulls, blunt punchy retort, instantly legible on phone, strong anti-communist hook with dark humour that fits the account tone",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "Mild dark humour with skulls and swearing; acceptable for this audience and theme",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 588,
+        "output_tokens_details": {
+          "reasoning_tokens": 384
+        },
+        "total_tokens": 2665,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39318500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 588
+        }
+      },
+      "api_reported_cost_usd": 0.00393185,
+      "token_estimated_cost_usd": 0.0040662499999999996,
+      "preferred_cost_usd": 0.00393185,
+      "elapsed_seconds": 5.411,
+      "shortlist_rank": 35,
+      "output_filename": "035_impact17_share17_gradeA_post_as_is_Image076.png"
+    },
+    {
+      "filename": "Image063.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image063.png",
+      "grok_description": "Distracted Boyfriend meme: Marx-faced man staring at woman in red labeled 'Poverty, starvation, mass murder' while ignoring woman labeled 'Prosperity and human flourishing'",
+      "anti_socialist_message": "Marxism/socialism is drawn to poverty, starvation and mass murder instead of prosperity and human flourishing",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable classic meme format with sharp visual contrast and blunt anti-communist point; strong hook, fully post-ready, on-brand for Thatcher account",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2013,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 611,
+        "output_tokens_details": {
+          "reasoning_tokens": 435
+        },
+        "total_tokens": 2624,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39093500,
+        "context_details": {
+          "input_tokens": 2013,
+          "output_tokens": 611
+        }
+      },
+      "api_reported_cost_usd": 0.00390935,
+      "token_estimated_cost_usd": 0.0040437500000000005,
+      "preferred_cost_usd": 0.00390935,
+      "elapsed_seconds": 5.201,
+      "shortlist_rank": 36,
+      "output_filename": "036_impact17_share17_gradeA_post_as_is_Image063.png"
+    },
+    {
+      "filename": "Image190.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image190.png",
+      "grok_description": "Circular flowchart titled 'HOW TO DO COMMUNISM' with Marx in the center, showing the cycle: utopia -> rob/kill successful -> force free labor -> run out of food -> starve -> claim 'not real communism' and repeat",
+      "anti_socialist_message": "Communism follows an inevitable cycle of failure, starvation, and denial that it was 'real' communism",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual cycle with a strong, blunt anti-communist hook; highly shareable among the target audience and post-ready",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 17,
+      "obvious_problems": "Minor watermark and social icons at bottom right",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 641,
+        "output_tokens_details": {
+          "reasoning_tokens": 449
+        },
+        "total_tokens": 2734,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40843500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 641
+        }
+      },
+      "api_reported_cost_usd": 0.00408435,
+      "token_estimated_cost_usd": 0.004218749999999999,
+      "preferred_cost_usd": 0.00408435,
+      "elapsed_seconds": 6.102,
+      "shortlist_rank": 37,
+      "output_filename": "037_impact17_share17_gradeA_post_as_is_Image190.png"
+    },
+    {
+      "filename": "Image383.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image383.png",
+      "grok_description": "Dramatic landscape photo of a hiker walking past a large yellow 'DANGER: SOCIALISM AHEAD' road sign directly toward the edge of a steep cliff",
+      "anti_socialist_message": "Socialism leads to disaster; people ignore the clear warning and walk straight off the cliff",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual metaphor with strong emotional punch and no decoding required; the cliff edge makes the anti-socialist point brutally clear in under a second",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 534,
+        "output_tokens_details": {
+          "reasoning_tokens": 365
+        },
+        "total_tokens": 2563,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37368500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 534
+        }
+      },
+      "api_reported_cost_usd": 0.00373685,
+      "token_estimated_cost_usd": 0.0038712499999999997,
+      "preferred_cost_usd": 0.00373685,
+      "elapsed_seconds": 4.919,
+      "shortlist_rank": 38,
+      "output_filename": "038_impact17_share16_gradeA_post_as_is_Image383.png"
+    },
+    {
+      "filename": "Image377.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image377.png",
+      "grok_description": "2x2 grid meme titled 'Characters whose plans always fail miserably' showing Dick Dastardly & Muttley, Dexter, Wile E. Coyote, and Karl Marx",
+      "anti_socialist_message": "Marxism/communism is a comically failed ideology on the same level as cartoon villains whose schemes always collapse",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Fast visual gag with instantly recognisable characters; blunt anti-Marx punchline lands in under a second and has clear meme hook for right-leaning audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2061,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 539,
+        "output_tokens_details": {
+          "reasoning_tokens": 360
+        },
+        "total_tokens": 2600,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37893500,
+        "context_details": {
+          "input_tokens": 2061,
+          "output_tokens": 539
+        }
+      },
+      "api_reported_cost_usd": 0.00378935,
+      "token_estimated_cost_usd": 0.00392375,
+      "preferred_cost_usd": 0.00378935,
+      "elapsed_seconds": 4.675,
+      "shortlist_rank": 39,
+      "output_filename": "039_impact17_share16_gradeA_post_as_is_Image377.png"
+    },
+    {
+      "filename": "Image376.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image376.png",
+      "grok_description": "Santa Claus meme with text overlay comparing adults who believe in socialism to children who believe in Santa",
+      "anti_socialist_message": "Belief in socialism is as childish and unrealistic as belief in Santa Claus",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible contrast with strong visual hook, blunt anti-socialist point, and high phone readability; classic meme format that lands immediately for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 591,
+        "output_tokens_details": {
+          "reasoning_tokens": 438
+        },
+        "total_tokens": 2620,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38793500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 591
+        }
+      },
+      "api_reported_cost_usd": 0.00387935,
+      "token_estimated_cost_usd": 0.00401375,
+      "preferred_cost_usd": 0.00387935,
+      "elapsed_seconds": 4.568,
+      "shortlist_rank": 40,
+      "output_filename": "040_impact17_share16_gradeA_post_as_is_Image376.png"
+    },
+    {
+      "filename": "Image375.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image375.png",
+      "grok_description": "Red Chinese flag background with yellow stars, armed soldier silhouette behind barbed wire, bold white text at bottom: 'SOCIALISM. SO GOOD IT HAS TO BE DELIVERED DOWN THE BARREL OF A GUN'",
+      "anti_socialist_message": "Socialism/communism must be imposed by force and violence",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely fast comprehension, strong visual hook with Chinese flag + soldier + barbed wire directly reinforcing the text, blunt and punchy wording, highly shareable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "Gun imagery is dark but clearly fits the joke and account tone; no excessive risk",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 639,
+        "output_tokens_details": {
+          "reasoning_tokens": 442
+        },
+        "total_tokens": 2684,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40193500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 639
+        }
+      },
+      "api_reported_cost_usd": 0.00401935,
+      "token_estimated_cost_usd": 0.0041537499999999995,
+      "preferred_cost_usd": 0.00401935,
+      "elapsed_seconds": 4.892,
+      "shortlist_rank": 41,
+      "output_filename": "041_impact17_share16_gradeA_post_as_is_Image375.png"
+    },
+    {
+      "filename": "Image374.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image374.png",
+      "grok_description": "Cartoon of a giant boot labeled 'socialism' about to crush an artist painting a sunny idyllic scene on its sole; the artist is labeled 'western youth supporting socialism', with a tea table in the background",
+      "anti_socialist_message": "Western youth supporting socialism are naively painting a beautiful illusion onto something that will crush them",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual metaphor with instant legibility, clear anti-socialist contrast, and memorable imagery that works on a phone without needing explanation or text decoding",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 658,
+        "output_tokens_details": {
+          "reasoning_tokens": 480
+        },
+        "total_tokens": 2751,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41268500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 658
+        }
+      },
+      "api_reported_cost_usd": 0.00412685,
+      "token_estimated_cost_usd": 0.004261249999999999,
+      "preferred_cost_usd": 0.00412685,
+      "elapsed_seconds": 5.795,
+      "shortlist_rank": 42,
+      "output_filename": "042_impact17_share16_gradeA_post_as_is_Image374.png"
+    },
+    {
+      "filename": "Image372.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image372.png",
+      "grok_description": "Two-panel comic: relaxed man with coffee labeled 'Socialists enjoying capitalism' on left; same man angry and aflame saying 'This isn’t real socialism' on right",
+      "anti_socialist_message": "Socialists hypocritically enjoy capitalism’s benefits but claim failures are 'not real socialism'",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Clear visual contrast and instantly recognisable 'not real socialism' line deliver the point in under a second with strong emotional punch and high repost value for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2013,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 525,
+        "output_tokens_details": {
+          "reasoning_tokens": 351
+        },
+        "total_tokens": 2538,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36943500,
+        "context_details": {
+          "input_tokens": 2013,
+          "output_tokens": 525
+        }
+      },
+      "api_reported_cost_usd": 0.00369435,
+      "token_estimated_cost_usd": 0.00382875,
+      "preferred_cost_usd": 0.00369435,
+      "elapsed_seconds": 4.117,
+      "shortlist_rank": 43,
+      "output_filename": "043_impact17_share16_gradeA_post_as_is_Image372.png"
+    },
+    {
+      "filename": "Image370.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image370.png",
+      "grok_description": "Split-panel meme: sunny prosperous city on left labeled 'WHAT SOCIALISM PROMISES' with banner 'EQUALITY & PROSPERITY FOR ALL'; ruined dystopian city on right labeled 'WHAT SOCIALISM DELIVERS' with banner 'EQUALITY & MISERY FOR ALL'; bold text 'EVERY TIME.' at bottom",
+      "anti_socialist_message": "Socialism always promises equality and prosperity but delivers only misery and equality in poverty",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual contrast, instantly readable on phone, blunt anti-socialist point with emotional punch and meme hook; highly shareable for right-leaning audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2013,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 537,
+        "output_tokens_details": {
+          "reasoning_tokens": 337
+        },
+        "total_tokens": 2550,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37243500,
+        "context_details": {
+          "input_tokens": 2013,
+          "output_tokens": 537
+        }
+      },
+      "api_reported_cost_usd": 0.00372435,
+      "token_estimated_cost_usd": 0.00385875,
+      "preferred_cost_usd": 0.00372435,
+      "elapsed_seconds": 4.314,
+      "shortlist_rank": 44,
+      "output_filename": "044_impact17_share16_gradeA_post_as_is_Image370.png"
+    },
+    {
+      "filename": "Image369.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image369.png",
+      "grok_description": "Illustration titled 'SOCIALISM: THE ROAD TO SERFDOM' showing a winding road on a green hill that leads directly into a barbed-wire fenced camp with watchtowers, guards, and a large crowd of people inside.",
+      "anti_socialist_message": "Socialism is the road to serfdom and totalitarian imprisonment.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual metaphor that delivers the Hayek/Thatcher point instantly and memorably with no decoding required; blunt, on-brand, and highly shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 740,
+        "output_tokens_details": {
+          "reasoning_tokens": 559
+        },
+        "total_tokens": 2833,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 43318500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 740
+        }
+      },
+      "api_reported_cost_usd": 0.00433185,
+      "token_estimated_cost_usd": 0.00446625,
+      "preferred_cost_usd": 0.00433185,
+      "elapsed_seconds": 6.213,
+      "shortlist_rank": 45,
+      "output_filename": "045_impact17_share16_gradeA_post_as_is_Image369.png"
+    },
+    {
+      "filename": "Image368.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image368.png",
+      "grok_description": "Split-panel contrast meme: left side shows vibrant colorful utopia labeled 'SOCIALISM'S SALES PITCH' with happy people, markets and green fields; right side shows grim black-and-white Soviet-style dystopia labeled 'WHAT SOCIALISM CREATES' with miserable crowds and a large hammer-and-sickle flag.",
+      "anti_socialist_message": "Socialism promises prosperity and happiness but in reality produces poverty, oppression and misery.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual contrast that lands instantly, on-brand for a Thatcher account, highly shareable among the target audience, and post-ready with no text or visual issues.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 598,
+        "output_tokens_details": {
+          "reasoning_tokens": 401
+        },
+        "total_tokens": 2595,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38568500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 598
+        }
+      },
+      "api_reported_cost_usd": 0.00385685,
+      "token_estimated_cost_usd": 0.00399125,
+      "preferred_cost_usd": 0.00385685,
+      "elapsed_seconds": 5.804,
+      "shortlist_rank": 46,
+      "output_filename": "046_impact17_share16_gradeA_post_as_is_Image368.png"
+    },
+    {
+      "filename": "Image367.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image367.png",
+      "grok_description": "Dramatic ruined cityscape with fires and rubble; smiling woman in UPS uniform holds box labeled 'PROMISED EQUALITY, DELIVERED EQUAL MISERY' with large 'SOCIALISM' text at top",
+      "anti_socialist_message": "Socialism promises equality but delivers equal misery",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Extremely strong visual hook with sharp ironic contrast; instantly readable, emotionally punchy, and on-brand for the account with no decoding required",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 577,
+        "output_tokens_details": {
+          "reasoning_tokens": 408
+        },
+        "total_tokens": 2670,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39243500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 577
+        }
+      },
+      "api_reported_cost_usd": 0.00392435,
+      "token_estimated_cost_usd": 0.00405875,
+      "preferred_cost_usd": 0.00392435,
+      "elapsed_seconds": 6.571,
+      "shortlist_rank": 47,
+      "output_filename": "047_impact17_share16_gradeA_post_as_is_Image367.png"
+    },
+    {
+      "filename": "Image366.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image366.png",
+      "grok_description": "Large bold text 'PRACTICE SOCIALIST DISTANCING' above 'YOU' with double arrow pointing to portraits of Mao, Stalin, Che, and Marx.",
+      "anti_socialist_message": "Stay away from socialist and communist figures/leaders; treat socialism like a contagious disease.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible pun on COVID-era social distancing with clear visual hook and recognizable communist icons; blunt, witty, and highly shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 496,
+        "output_tokens_details": {
+          "reasoning_tokens": 327
+        },
+        "total_tokens": 2525,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36418500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 496
+        }
+      },
+      "api_reported_cost_usd": 0.00364185,
+      "token_estimated_cost_usd": 0.00377625,
+      "preferred_cost_usd": 0.00364185,
+      "elapsed_seconds": 3.837,
+      "shortlist_rank": 48,
+      "output_filename": "048_impact17_share16_gradeA_post_as_is_Image366.png"
+    },
+    {
+      "filename": "Image365.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image365.png",
+      "grok_description": "Photo of a man and young child sitting in a rundown street with a large overlaid quote in white/red text: 'SOCIALISM ISN'T A GOOD THEORY WITH BAD RESULTS. SOCIALISM IS AN EVIL THEORY WITH CATASTROPHIC RESULTS' attributed to Alice Smith",
+      "anti_socialist_message": "Socialism is not merely flawed but evil and produces catastrophic real-world harm, illustrated by visible poverty",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual of suffering paired with a sharp, memorable rhetorical contrast that lands instantly; blunt and emotionally punchy without needing decoding",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 790,
+        "output_tokens_details": {
+          "reasoning_tokens": 600
+        },
+        "total_tokens": 2835,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 43968500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 790
+        }
+      },
+      "api_reported_cost_usd": 0.00439685,
+      "token_estimated_cost_usd": 0.0045312500000000006,
+      "preferred_cost_usd": 0.00439685,
+      "elapsed_seconds": 6.497,
+      "shortlist_rank": 49,
+      "output_filename": "049_impact17_share16_gradeA_post_as_is_Image365.png"
+    },
+    {
+      "filename": "Image363.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image363.png",
+      "grok_description": "Cartoon of a light bulb with hammer-and-sickle filament, base labeled VENEZUELA; two men stand beside it, one says 'IT WON'T TURN ON' and the other replies 'I WONDER WHY'",
+      "anti_socialist_message": "Socialism/communism (Venezuela) does not work and produces nothing",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual metaphor delivered instantly with zero ambiguity or extra text; classic Venezuela example used as a blunt anti-socialist punchline that ordinary right-leaning users will instantly recognise and share",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 577,
+        "output_tokens_details": {
+          "reasoning_tokens": 389
+        },
+        "total_tokens": 2606,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38443500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 577
+        }
+      },
+      "api_reported_cost_usd": 0.00384435,
+      "token_estimated_cost_usd": 0.00397875,
+      "preferred_cost_usd": 0.00384435,
+      "elapsed_seconds": 4.741,
+      "shortlist_rank": 50,
+      "output_filename": "050_impact17_share16_gradeA_post_as_is_Image363.png"
+    },
+    {
+      "filename": "Image360.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image360.png",
+      "grok_description": "Simpsons meme showing Lisa with a checklist titled 'SOCIALISTS DECIDING WHY' listing HATRED, SPITE, VICTIMHOOD, ENVY, ENTITLEMENT; bottom caption reads 'THEY HATE SUCCESSFUL PEOPLE'",
+      "anti_socialist_message": "Socialists are driven by negative emotions like hatred, envy and entitlement, specifically resenting successful people",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible Simpsons checklist format delivers a blunt anti-socialist jab with strong visual hook and phone-readable text; highly on-brand and repostable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 581,
+        "output_tokens_details": {
+          "reasoning_tokens": 389
+        },
+        "total_tokens": 2658,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39143500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 581
+        }
+      },
+      "api_reported_cost_usd": 0.00391435,
+      "token_estimated_cost_usd": 0.004048749999999999,
+      "preferred_cost_usd": 0.00391435,
+      "elapsed_seconds": 5.104,
+      "shortlist_rank": 51,
+      "output_filename": "051_impact17_share16_gradeA_post_as_is_Image360.png"
+    },
+    {
+      "filename": "Image359.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image359.png",
+      "grok_description": "Split-panel meme: top shows colorful cartoon candy wonderland labeled 'SOCIALIST UTOPIA'; bottom shows people rummaging through garbage bags on a city street labeled 'SOCIALIST REALITY'",
+      "anti_socialist_message": "Socialism promises a sweet fantasy but delivers poverty and scavenging",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast, blunt and memorable, no text to read beyond labels, strong emotional punch for the target audience, fully post-ready",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 509,
+        "output_tokens_details": {
+          "reasoning_tokens": 342
+        },
+        "total_tokens": 2586,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37343500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 509
+        }
+      },
+      "api_reported_cost_usd": 0.00373435,
+      "token_estimated_cost_usd": 0.00386875,
+      "preferred_cost_usd": 0.00373435,
+      "elapsed_seconds": 4.586,
+      "shortlist_rank": 52,
+      "output_filename": "052_impact17_share16_gradeA_post_as_is_Image359.png"
+    },
+    {
+      "filename": "Image358.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image358.png",
+      "grok_description": "Matrix-style red/blue pill meme: blue pill 'WORK TO EARN MONEY', red pill 'TAKE MONEY FROM OTHERS'; below, gloved hand grabbing a huge pile of red pills labeled 'SOCIALISTS'",
+      "anti_socialist_message": "Socialists choose the option of taking money from others rather than working to earn it",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual hook using the well-known red-pill meme, instantly readable anti-socialist contrast, blunt and shareable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 672,
+        "output_tokens_details": {
+          "reasoning_tokens": 495
+        },
+        "total_tokens": 2765,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41618500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 672
+        }
+      },
+      "api_reported_cost_usd": 0.00416185,
+      "token_estimated_cost_usd": 0.00429625,
+      "preferred_cost_usd": 0.00416185,
+      "elapsed_seconds": 5.531,
+      "shortlist_rank": 53,
+      "output_filename": "053_impact17_share16_gradeA_post_as_is_Image358.png"
+    },
+    {
+      "filename": "Image357.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image357.png",
+      "grok_description": "Black-and-white cartoon of a smiling family of five seated at a dinner table inside a locked cage of vertical bars. A banner across the father reads 'GOVERNMENT CONTROL'; one woman says in a speech bubble 'We're all safer!'",
+      "anti_socialist_message": "Government control imprisons families while claiming to make them safer (anti-statist / anti-socialist)",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable visual metaphor with clear ironic caption; strong emotional hook and anti-government-control point that lands in under a second; clean, post-ready image with no extra decoding required.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 620,
+        "output_tokens_details": {
+          "reasoning_tokens": 426
+        },
+        "total_tokens": 2617,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39118500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 620
+        }
+      },
+      "api_reported_cost_usd": 0.00391185,
+      "token_estimated_cost_usd": 0.00404625,
+      "preferred_cost_usd": 0.00391185,
+      "elapsed_seconds": 5.395,
+      "shortlist_rank": 54,
+      "output_filename": "054_impact17_share16_gradeA_post_as_is_Image357.png"
+    },
+    {
+      "filename": "Image355.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image355.png",
+      "grok_description": "Man in blue overalls rapidly flipping through an enormously thick book, captioned 'LOOKING AT THE LIST OF TIMES SOCIALISM HAS FAILED'",
+      "anti_socialist_message": "The list of socialism's failures is comically enormous",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual joke with a strong meme hook (massive book = endless failures); blunt, punchy, and highly shareable for a right-leaning audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 603,
+        "output_tokens_details": {
+          "reasoning_tokens": 441
+        },
+        "total_tokens": 2696,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39893500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 603
+        }
+      },
+      "api_reported_cost_usd": 0.00398935,
+      "token_estimated_cost_usd": 0.00412375,
+      "preferred_cost_usd": 0.00398935,
+      "elapsed_seconds": 5.748,
+      "shortlist_rank": 55,
+      "output_filename": "055_impact17_share16_gradeA_post_as_is_Image355.png"
+    },
+    {
+      "filename": "Image353.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image353.png",
+      "grok_description": "Venn diagram of dystopian book/film titles overlapping, with 'YOU ARE HERE' and a location pin at the center intersection",
+      "anti_socialist_message": "Modern society is already a dystopian nightmare blending the worst elements of 1984, Brave New World, Animal Farm and similar works",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual meme with strong 'you are here' hook; anti-authoritarian message lands in under a second and is highly repostable for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 626,
+        "output_tokens_details": {
+          "reasoning_tokens": 451
+        },
+        "total_tokens": 2719,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40468500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 626
+        }
+      },
+      "api_reported_cost_usd": 0.00404685,
+      "token_estimated_cost_usd": 0.004181249999999999,
+      "preferred_cost_usd": 0.00404685,
+      "elapsed_seconds": 7.341,
+      "shortlist_rank": 56,
+      "output_filename": "056_impact17_share16_gradeA_post_as_is_Image353.png"
+    },
+    {
+      "filename": "Image351.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image351.png",
+      "grok_description": "Cartoon of a young man and older man sitting on a couch, with speech bubbles: young man says 'SOCIALISM ELIMINATES THE GAP BETWEEN THE RICH AND THE POOR', older man replies 'ABSOLUTELY! BY MAKING EVERYBODY EQUALLY POOR. FAIRNESS AT ITS FINEST...'",
+      "anti_socialist_message": "Socialism reduces the rich-poor gap only by making everyone equally poor",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable dialogue with a sharp sarcastic punchline that lands the anti-socialist point in under a second; clean visual, strong meme hook, on-brand for the account, and highly repostable by the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 673,
+        "output_tokens_details": {
+          "reasoning_tokens": 459
+        },
+        "total_tokens": 2670,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40443500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 673
+        }
+      },
+      "api_reported_cost_usd": 0.00404435,
+      "token_estimated_cost_usd": 0.00417875,
+      "preferred_cost_usd": 0.00404435,
+      "elapsed_seconds": 5.572,
+      "shortlist_rank": 57,
+      "output_filename": "057_impact17_share16_gradeA_post_as_is_Image351.png"
+    },
+    {
+      "filename": "Image350.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image350.png",
+      "grok_description": "Bold white sign with large black text: 'MICE DIE IN MOUSE TRAPS BECAUSE THEY DO NOT UNDERSTAND WHY THE CHEESE IS FREE. THE SAME THING HAPPENS WITH SOCIALISM.' The word SOCIALISM is boxed in black with white letters.",
+      "anti_socialist_message": "People fall for socialism the same way mice die in traps: they do not understand that the 'free' cheese is a trap.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual metaphor delivered in one quick read, blunt anti-socialist point with clear hook, highly readable on phone, on-brand for Thatcher account, no decoding required.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 637,
+        "output_tokens_details": {
+          "reasoning_tokens": 434
+        },
+        "total_tokens": 2730,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40743500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 637
+        }
+      },
+      "api_reported_cost_usd": 0.00407435,
+      "token_estimated_cost_usd": 0.00420875,
+      "preferred_cost_usd": 0.00407435,
+      "elapsed_seconds": 5.106,
+      "shortlist_rank": 58,
+      "output_filename": "058_impact17_share16_gradeA_post_as_is_Image350.png"
+    },
+    {
+      "filename": "Image349.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image349.png",
+      "grok_description": "Split-panel cartoon: left shows a bald eagle flying free above an empty cage on grass labeled FREEDOM; right shows the same bird trapped inside a cage on barren ground labeled SOCIALISM",
+      "anti_socialist_message": "Socialism imprisons people while freedom allows them to soar",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast with no decoding required; blunt, memorable, and perfectly on-brand for a Thatcher-style anti-socialist account",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 561,
+        "output_tokens_details": {
+          "reasoning_tokens": 398
+        },
+        "total_tokens": 2558,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37643500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 561
+        }
+      },
+      "api_reported_cost_usd": 0.00376435,
+      "token_estimated_cost_usd": 0.0038987500000000003,
+      "preferred_cost_usd": 0.00376435,
+      "elapsed_seconds": 4.597,
+      "shortlist_rank": 59,
+      "output_filename": "059_impact17_share16_gradeA_post_as_is_Image349.png"
+    },
+    {
+      "filename": "Image348.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image348.png",
+      "grok_description": "A hiker with backpack walking along a grassy cliff edge toward a sheer drop, with a large yellow road-sign style warning board reading 'DANGER: SOCIALISM AHEAD'",
+      "anti_socialist_message": "Socialism is a deadly danger that leads straight to ruin",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual metaphor using the classic 'danger ahead' cliff sign; strong emotional punch, clean phone readability, and obvious anti-socialist warning that requires zero decoding.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 607,
+        "output_tokens_details": {
+          "reasoning_tokens": 438
+        },
+        "total_tokens": 2604,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38793500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 607
+        }
+      },
+      "api_reported_cost_usd": 0.00387935,
+      "token_estimated_cost_usd": 0.00401375,
+      "preferred_cost_usd": 0.00387935,
+      "elapsed_seconds": 5.075,
+      "shortlist_rank": 60,
+      "output_filename": "060_impact17_share16_gradeA_post_as_is_Image348.png"
+    },
+    {
+      "filename": "Image345.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image345.png",
+      "grok_description": "Yoda reaction meme split into three panels: calm Yoda for 'mass starvation and crippling poverty in socialist countries' and 'over 100 million killed by socialist governments', then furious distorted red Yoda for 'someone making a profit', each labeled 'SOCIALISTS:'",
+      "anti_socialist_message": "Socialists ignore or downplay the deaths and poverty caused by socialism but fly into rage at the idea of profit",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual contrast with classic Yoda reaction format delivers the anti-socialist hypocrisy point instantly and memorably; blunt, phone-readable, and highly repostable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 626,
+        "output_tokens_details": {
+          "reasoning_tokens": 424
+        },
+        "total_tokens": 2719,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40468500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 626
+        }
+      },
+      "api_reported_cost_usd": 0.00404685,
+      "token_estimated_cost_usd": 0.004181249999999999,
+      "preferred_cost_usd": 0.00404685,
+      "elapsed_seconds": 4.713,
+      "shortlist_rank": 61,
+      "output_filename": "061_impact17_share16_gradeA_post_as_is_Image345.png"
+    },
+    {
+      "filename": "Image344.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image344.png",
+      "grok_description": "Three-panel cartoon: happy cyclist labeled 'Socialists', then leaning/falling, then bike on ground with rider face-down labeled 'Blames Thatcher'",
+      "anti_socialist_message": "Socialists create their own failures and then blame Thatcher",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual joke with strong contrast and direct Thatcher relevance; classic blame-shifting meme that lands immediately on a phone scroll.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 465,
+        "output_tokens_details": {
+          "reasoning_tokens": 309
+        },
+        "total_tokens": 2494,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35643500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 465
+        }
+      },
+      "api_reported_cost_usd": 0.00356435,
+      "token_estimated_cost_usd": 0.0036987499999999998,
+      "preferred_cost_usd": 0.00356435,
+      "elapsed_seconds": 3.953,
+      "shortlist_rank": 62,
+      "output_filename": "062_impact17_share16_gradeA_post_as_is_Image344.png"
+    },
+    {
+      "filename": "Image342.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image342.png",
+      "grok_description": "Meme graphic of a socialist burger: top bun only with sesame seeds, bottom bun missing, red box listing 'FAMINE OPPRESSION GENOCIDE WAR DESTRUCTION DEATH' as toppings, plus note '*BREAD MAY NOT BE AVAILABLE IN MOST CASES' and Atlas Society credit",
+      "anti_socialist_message": "Socialism delivers famine, oppression, genocide, war, destruction and death instead of actual food/bread",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual hook with the half-burger, instantly readable anti-socialist joke, blunt and memorable with the bread shortage punchline; clean enough to post directly and aligns with free-market tone",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 672,
+        "output_tokens_details": {
+          "reasoning_tokens": 466
+        },
+        "total_tokens": 2765,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41618500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 672
+        }
+      },
+      "api_reported_cost_usd": 0.00416185,
+      "token_estimated_cost_usd": 0.00429625,
+      "preferred_cost_usd": 0.00416185,
+      "elapsed_seconds": 6.499,
+      "shortlist_rank": 63,
+      "output_filename": "063_impact17_share16_gradeA_post_as_is_Image342.png"
+    },
+    {
+      "filename": "Image341.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image341.png",
+      "grok_description": "Black-and-white photo of George Orwell with overlaid text: 'Boy did I call it or what? -George Orwell'",
+      "anti_socialist_message": "Orwell correctly predicted the failures and dangers of socialism/totalitarianism",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible, uses a highly recognizable British literary figure with strong anti-totalitarian associations, punchy phrasing, and clear anti-socialist implication that requires zero decoding for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2061,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 499,
+        "output_tokens_details": {
+          "reasoning_tokens": 337
+        },
+        "total_tokens": 2560,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36893500,
+        "context_details": {
+          "input_tokens": 2061,
+          "output_tokens": 499
+        }
+      },
+      "api_reported_cost_usd": 0.00368935,
+      "token_estimated_cost_usd": 0.00382375,
+      "preferred_cost_usd": 0.00368935,
+      "elapsed_seconds": 4.559,
+      "shortlist_rank": 64,
+      "output_filename": "064_impact17_share16_gradeA_post_as_is_Image341.png"
+    },
+    {
+      "filename": "Image339.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image339.png",
+      "grok_description": "Classic painting of an elderly man writing by candlelight, with bold white text overlay: 'WHAT DID THE SOCIALISTS USE BEFORE CANDLES? ELECTRICITY.'",
+      "anti_socialist_message": "Socialists are so ignorant/backwards they think electricity existed before candles",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual hook with the candle, instantly readable joke format, blunt anti-socialist punch, high repost potential for right-leaning audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2013,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 726,
+        "output_tokens_details": {
+          "reasoning_tokens": 563
+        },
+        "total_tokens": 2739,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41968500,
+        "context_details": {
+          "input_tokens": 2013,
+          "output_tokens": 726
+        }
+      },
+      "api_reported_cost_usd": 0.00419685,
+      "token_estimated_cost_usd": 0.00433125,
+      "preferred_cost_usd": 0.00419685,
+      "elapsed_seconds": 6.531,
+      "shortlist_rank": 65,
+      "output_filename": "065_impact17_share16_gradeA_post_as_is_Image339.png"
+    },
+    {
+      "filename": "Image338.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image338.png",
+      "grok_description": "Cartoon of a rusty 'Great British Railways' train with miserable passengers and red stars, conductor waving green flag 'ALL ABOARD!' under departures board reading 'BACK TO THE 1970s'",
+      "anti_socialist_message": "Nationalisation and socialism take Britain back to the strikes, failures and misery of the 1970s",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible UK-specific visual gag with strong Thatcher-era resonance, clear anti-nationalisation hook, and high share potential among right-leaning British audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 669,
+        "output_tokens_details": {
+          "reasoning_tokens": 490
+        },
+        "total_tokens": 2666,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40343500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 669
+        }
+      },
+      "api_reported_cost_usd": 0.00403435,
+      "token_estimated_cost_usd": 0.004168750000000001,
+      "preferred_cost_usd": 0.00403435,
+      "elapsed_seconds": 6.565,
+      "shortlist_rank": 66,
+      "output_filename": "066_impact17_share16_gradeA_post_as_is_Image338.png"
+    },
+    {
+      "filename": "Image336.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image336.png",
+      "grok_description": "Two-panel split image showing Karl Marx in formal portraits. Top panel text: 'WHEN YOU REACH FOR YOUR WALLET TO PAY'. Bottom panel text: 'BUT YOU DON’T HAVE ANY MONEY SO INSTEAD YOU CREATE A SYSTEM THAT LETS YOU PAY WITH OTHER PEOPLES’ MONEY'. Small 'THE ATLAS SOCIETY' watermark visible.",
+      "anti_socialist_message": "Marx/socialism is just a scheme to spend other people’s money because you have none of your own.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual hook with contrasting Marx images, instantly readable text, clear ironic contrast, and blunt anti-socialist punch that lands in under a second on a phone screen.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 683,
+        "output_tokens_details": {
+          "reasoning_tokens": 473
+        },
+        "total_tokens": 2776,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41893500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 683
+        }
+      },
+      "api_reported_cost_usd": 0.00418935,
+      "token_estimated_cost_usd": 0.0043237499999999995,
+      "preferred_cost_usd": 0.00418935,
+      "elapsed_seconds": 5.877,
+      "shortlist_rank": 67,
+      "output_filename": "067_impact17_share16_gradeA_post_as_is_Image336.png"
+    },
+    {
+      "filename": "Image335.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image335.png",
+      "grok_description": "Cigarette pack parody labeled 'Marxism Famine Blend' with hammer-and-sickle logo, 'We starve together comrade' slogan, Surgeon General warning 'MARXISM IS BAD FOR YOUR HEALTH', and photo of Karl Marx",
+      "anti_socialist_message": "Marxism is as harmful as smoking and leads to famine/starvation",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual parody of cigarette warning labels with punchy anti-communist hook; instantly legible, memorable, blunt, and on-brand for a Thatcher-style account",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2077,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 685,
+        "output_tokens_details": {
+          "reasoning_tokens": 505
+        },
+        "total_tokens": 2762,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 41743500,
+        "context_details": {
+          "input_tokens": 2077,
+          "output_tokens": 685
+        }
+      },
+      "api_reported_cost_usd": 0.00417435,
+      "token_estimated_cost_usd": 0.004308749999999999,
+      "preferred_cost_usd": 0.00417435,
+      "elapsed_seconds": 5.455,
+      "shortlist_rank": 68,
+      "output_filename": "068_impact17_share16_gradeA_post_as_is_Image335.png"
+    },
+    {
+      "filename": "Image334.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image334.png",
+      "grok_description": "Split image: top shows distressed woman clutching throat with text 'WITHOUT AIR YOU'LL TURN BLUE'; bottom shows red-faced Karl Marx with text 'WITHOUT A BRAIN YOU'LL TURN RED'",
+      "anti_socialist_message": "Communists (red) lack brains; clever pun contrasting physical asphyxiation with ideological stupidity",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual pun with strong contrast and memorable hook; blunt anti-communist message lands fast for phone scrolling",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 628,
+        "output_tokens_details": {
+          "reasoning_tokens": 459
+        },
+        "total_tokens": 2721,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40518500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 628
+        }
+      },
+      "api_reported_cost_usd": 0.00405185,
+      "token_estimated_cost_usd": 0.00418625,
+      "preferred_cost_usd": 0.00405185,
+      "elapsed_seconds": 4.693,
+      "shortlist_rank": 69,
+      "output_filename": "069_impact17_share16_gradeA_post_as_is_Image334.png"
+    },
+    {
+      "filename": "Image328.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image328.png",
+      "grok_description": "Big Bang Theory Sheldon Cooper meme with top text 'I DON'T NEED SLEEP, I NEED ANSWERS...' and bottom text 'HOW DOES ADDING MORE GOVERNMENT CONTROL CREATE MORE FREEDOM?'",
+      "anti_socialist_message": "The claim that more government control produces more freedom is absurd and demands an answer",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong, instantly legible meme format with a clear, blunt anti-big-government point and good visual hook; very usable on X",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 470,
+        "output_tokens_details": {
+          "reasoning_tokens": 302
+        },
+        "total_tokens": 2467,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35368500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 470
+        }
+      },
+      "api_reported_cost_usd": 0.00353685,
+      "token_estimated_cost_usd": 0.00367125,
+      "preferred_cost_usd": 0.00353685,
+      "elapsed_seconds": 3.993,
+      "shortlist_rank": 70,
+      "output_filename": "070_impact17_share16_gradeA_post_as_is_Image328.png"
+    },
+    {
+      "filename": "Image327.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image327.png",
+      "grok_description": "Stormtrooper toy running in desert with top text 'WHEN THE FREE MARKET NATURALLY CORRECTS ITSELF WITHOUT GOVERNMENT INTERVENTION' and bottom quote 'just like the simulations'",
+      "anti_socialist_message": "The free market works perfectly on its own without any need for government intervention",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable pro-free-market meme using a widely recognised format; clear, punchy, on-brand for the account, strong visual hook and high repost potential among the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 598,
+        "output_tokens_details": {
+          "reasoning_tokens": 421
+        },
+        "total_tokens": 2691,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39768500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 598
+        }
+      },
+      "api_reported_cost_usd": 0.00397685,
+      "token_estimated_cost_usd": 0.0041112499999999995,
+      "preferred_cost_usd": 0.00397685,
+      "elapsed_seconds": 4.831,
+      "shortlist_rank": 71,
+      "output_filename": "071_impact17_share16_gradeA_post_as_is_Image327.png"
+    },
+    {
+      "filename": "Image326.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image326.png",
+      "grok_description": "GTA San Andreas screenshot of CJ in an alley with overlaid text 'MORE GOVERNMENT ‘SOLUTIONS’ THAT IGNORE ECONOMIC HISTORY' and the subtitle 'Ah shit, here we go again.'",
+      "anti_socialist_message": "Government interventions or socialist policies are doomed to repeat past economic failures.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Classic GTA meme format delivers the anti-socialist point instantly with strong visual recognition and emotional punch; very phone-readable and highly repostable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "Mild swearing in meme text",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 509,
+        "output_tokens_details": {
+          "reasoning_tokens": 330
+        },
+        "total_tokens": 2490,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36143500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 509
+        }
+      },
+      "api_reported_cost_usd": 0.00361435,
+      "token_estimated_cost_usd": 0.0037487500000000003,
+      "preferred_cost_usd": 0.00361435,
+      "elapsed_seconds": 4.269,
+      "shortlist_rank": 72,
+      "output_filename": "072_impact17_share16_gradeA_post_as_is_Image326.png"
+    },
+    {
+      "filename": "Image324.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image324.png",
+      "grok_description": "Morgan Freeman meme with finger raised, top text 'AND JUST LIKE THAT', bottom text 'BY REDUCING REGULATIONS AND TAXES, THE ECONOMY STARTED TO RECOVER.'",
+      "anti_socialist_message": "Cutting regulations and taxes quickly revives the economy (implying the opposite of socialist policies)",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible, strong visual hook with Freeman's expression and gesture, blunt free-market punch that lands in under a second and fits the account tone perfectly.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 502,
+        "output_tokens_details": {
+          "reasoning_tokens": 326
+        },
+        "total_tokens": 2531,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36568500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 502
+        }
+      },
+      "api_reported_cost_usd": 0.00365685,
+      "token_estimated_cost_usd": 0.0037912499999999995,
+      "preferred_cost_usd": 0.00365685,
+      "elapsed_seconds": 4.104,
+      "shortlist_rank": 73,
+      "output_filename": "073_impact17_share16_gradeA_post_as_is_Image324.png"
+    },
+    {
+      "filename": "Image323.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image323.png",
+      "grok_description": "Admiral Ackbar Star Wars meme with overlaid text: 'WHEN THE GOVERNMENT OFFERS ‘SOLUTIONS’ THAT INCREASE THEIR POWER...' and 'IT'S A TRAP!'",
+      "anti_socialist_message": "Government 'solutions' are traps that expand state power",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible classic meme format with a sharp, memorable anti-statist hook that lands in under a second; strong visual punch and high repost potential for the audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1981,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 610,
+        "output_tokens_details": {
+          "reasoning_tokens": 441
+        },
+        "total_tokens": 2591,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38668500,
+        "context_details": {
+          "input_tokens": 1981,
+          "output_tokens": 610
+        }
+      },
+      "api_reported_cost_usd": 0.00386685,
+      "token_estimated_cost_usd": 0.00400125,
+      "preferred_cost_usd": 0.00386685,
+      "elapsed_seconds": 4.229,
+      "shortlist_rank": 74,
+      "output_filename": "074_impact17_share16_gradeA_post_as_is_Image323.png"
+    },
+    {
+      "filename": "Image322.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image322.png",
+      "grok_description": "Two-panel reaction meme with smiling man (top) reacting positively to text about socialist policies ensuring equity, then frowning (bottom) at text about economy stagnating and taxes rising",
+      "anti_socialist_message": "Socialist policies sound good in theory but deliver economic stagnation and higher taxes in practice",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast between promise and failure is punchy, phone-readable, and has a clear meme hook; on-brand anti-socialist point delivered bluntly without extra decoding",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2013,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 491,
+        "output_tokens_details": {
+          "reasoning_tokens": 318
+        },
+        "total_tokens": 2504,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36093500,
+        "context_details": {
+          "input_tokens": 2013,
+          "output_tokens": 491
+        }
+      },
+      "api_reported_cost_usd": 0.00360935,
+      "token_estimated_cost_usd": 0.0037437500000000005,
+      "preferred_cost_usd": 0.00360935,
+      "elapsed_seconds": 3.849,
+      "shortlist_rank": 75,
+      "output_filename": "075_impact17_share16_gradeA_post_as_is_Image322.png"
+    },
+    {
+      "filename": "Image320.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image320.png",
+      "grok_description": "Maury Povich meme with top text 'THE SOCIALIST GOVERNMENT SAYING THEY WILL ONLY INCREASE TAXES ON THE RICH...' and bottom text 'SO THAT WAS A LIE.' Maury holds a results card.",
+      "anti_socialist_message": "Socialist governments lie when they promise to only raise taxes on the rich.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible popular meme template that delivers a blunt, punchy anti-socialist point with strong visual recognition and emotional force; very shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 504,
+        "output_tokens_details": {
+          "reasoning_tokens": 324
+        },
+        "total_tokens": 2597,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37418500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 504
+        }
+      },
+      "api_reported_cost_usd": 0.00374185,
+      "token_estimated_cost_usd": 0.0038762499999999995,
+      "preferred_cost_usd": 0.00374185,
+      "elapsed_seconds": 4.297,
+      "shortlist_rank": 76,
+      "output_filename": "076_impact17_share16_gradeA_post_as_is_Image320.png"
+    },
+    {
+      "filename": "Image319.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image319.png",
+      "grok_description": "Spongebob meme: Squidward labeled 'SOCIALIST COUNTRIES' stares through blinds at SpongeBob and Patrick behind bars labeled 'COUNTRIES THRIVING UNDER FREE-MARKET PRINCIPLES'",
+      "anti_socialist_message": "Socialist countries are trapped outside and envious of countries that thrive under free markets",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instant visual contrast using a widely recognised meme format; the anti-socialist point lands in under a second with no text to decode",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 628,
+        "output_tokens_details": {
+          "reasoning_tokens": 458
+        },
+        "total_tokens": 2657,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39718500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 628
+        }
+      },
+      "api_reported_cost_usd": 0.00397185,
+      "token_estimated_cost_usd": 0.00410625,
+      "preferred_cost_usd": 0.00397185,
+      "elapsed_seconds": 5.35,
+      "shortlist_rank": 77,
+      "output_filename": "077_impact17_share16_gradeA_post_as_is_Image319.png"
+    },
+    {
+      "filename": "Image315.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image315.png",
+      "grok_description": "Boromir 'one does not simply' meme with text 'ONE DOES NOT SIMPLY... CREATE WEALTH BY REDISTRIBUTING IT'",
+      "anti_socialist_message": "Wealth cannot be created simply by redistributing existing wealth (anti-socialist point)",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible popular meme format with a clear, punchy free-market point; strong visual hook and very on-brand",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 467,
+        "output_tokens_details": {
+          "reasoning_tokens": 310
+        },
+        "total_tokens": 2464,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35293500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 467
+        }
+      },
+      "api_reported_cost_usd": 0.00352935,
+      "token_estimated_cost_usd": 0.0036637500000000003,
+      "preferred_cost_usd": 0.00352935,
+      "elapsed_seconds": 3.617,
+      "shortlist_rank": 78,
+      "output_filename": "078_impact17_share16_gradeA_post_as_is_Image315.png"
+    },
+    {
+      "filename": "Image314.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image314.png",
+      "grok_description": "Success Kid meme with top text 'STARTS A BUSINESS IN A FREE MARKET...' and bottom text 'SUCCEEDS WITHOUT GOVERNMENT INTERFERENCE.'",
+      "anti_socialist_message": "Businesses can succeed on their own in a free market without needing government help or interference.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Classic, instantly readable meme format with a clear free-market celebration and strong visual hook; immediately on-brand and punchy for the audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 567,
+        "output_tokens_details": {
+          "reasoning_tokens": 404
+        },
+        "total_tokens": 2660,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 38993500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 567
+        }
+      },
+      "api_reported_cost_usd": 0.00389935,
+      "token_estimated_cost_usd": 0.004033749999999999,
+      "preferred_cost_usd": 0.00389935,
+      "elapsed_seconds": 4.504,
+      "shortlist_rank": 79,
+      "output_filename": "079_impact17_share16_gradeA_post_as_is_Image314.png"
+    },
+    {
+      "filename": "Image313.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image313.png",
+      "grok_description": "Office Space Lumbergh 'that would be great' meme with overlaid white text: 'IF WE COULD JUST NOT SACRIFICE INNOVATION FOR THE SAKE OF EQUALITY... THAT WOULD BE GREAT.'",
+      "anti_socialist_message": "Pursuing equality at the expense of innovation is counterproductive and undesirable",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible popular meme format with a clear, blunt free-market point that lands in under a second; strong visual hook and emotional dryness make it highly shareable for the audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2061,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 617,
+        "output_tokens_details": {
+          "reasoning_tokens": 435
+        },
+        "total_tokens": 2678,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39843500,
+        "context_details": {
+          "input_tokens": 2061,
+          "output_tokens": 617
+        }
+      },
+      "api_reported_cost_usd": 0.00398435,
+      "token_estimated_cost_usd": 0.00411875,
+      "preferred_cost_usd": 0.00398435,
+      "elapsed_seconds": 5.031,
+      "shortlist_rank": 80,
+      "output_filename": "080_impact17_share16_gradeA_post_as_is_Image313.png"
+    },
+    {
+      "filename": "Image312.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image312.png",
+      "grok_description": "Futurama Fry 'Not sure if' meme with text questioning if socialism is about equality or making everyone equally poor",
+      "anti_socialist_message": "Socialism is not genuine equality but enforced equal poverty",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Classic meme template with instant visual recognition, blunt anti-socialist punchline, highly readable on mobile, strong hook and share potential for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 459,
+        "output_tokens_details": {
+          "reasoning_tokens": 307
+        },
+        "total_tokens": 2488,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 35493500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 459
+        }
+      },
+      "api_reported_cost_usd": 0.00354935,
+      "token_estimated_cost_usd": 0.00368375,
+      "preferred_cost_usd": 0.00354935,
+      "elapsed_seconds": 3.875,
+      "shortlist_rank": 81,
+      "output_filename": "081_impact17_share16_gradeA_post_as_is_Image312.png"
+    },
+    {
+      "filename": "Image309.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image309.png",
+      "grok_description": "Cartoon of a man labeled 'Socialism' aiming a revolver at a man labeled 'Capitalism' while both stand on a narrow plank extending over a cliff edge",
+      "anti_socialist_message": "Socialism's attack on capitalism will destroy both",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual metaphor with clear ironic self-destruction hook; blunt, memorable, and on-brand for a Thatcher-style free-market account with strong repost potential among right-leaning audiences",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2061,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 543,
+        "output_tokens_details": {
+          "reasoning_tokens": 373
+        },
+        "total_tokens": 2604,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37993500,
+        "context_details": {
+          "input_tokens": 2061,
+          "output_tokens": 543
+        }
+      },
+      "api_reported_cost_usd": 0.00379935,
+      "token_estimated_cost_usd": 0.00393375,
+      "preferred_cost_usd": 0.00379935,
+      "elapsed_seconds": 4.651,
+      "shortlist_rank": 82,
+      "output_filename": "082_impact17_share16_gradeA_post_as_is_Image309.png"
+    },
+    {
+      "filename": "Image308.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image308.png",
+      "grok_description": "Cartoon of two men attempting to insert a giant fork labeled 'SOCIALISM' into a wall outlet labeled 'THE ECONOMY'. One says 'EVERYONE ELSE WHO TRIED THIS HAS GOTTEN HURT' while the other replies 'EVERYONE ELSE DID IT THE WRONG WAY.'",
+      "anti_socialist_message": "Socialism always fails; the claim that 'this time we'll do it right' is delusional.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual metaphor with short, punchy dialogue that instantly conveys the anti-socialist point. Clear, memorable, and highly shareable for the target audience.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 608,
+        "output_tokens_details": {
+          "reasoning_tokens": 408
+        },
+        "total_tokens": 2637,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39218500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 608
+        }
+      },
+      "api_reported_cost_usd": 0.00392185,
+      "token_estimated_cost_usd": 0.00405625,
+      "preferred_cost_usd": 0.00392185,
+      "elapsed_seconds": 5.042,
+      "shortlist_rank": 83,
+      "output_filename": "083_impact17_share16_gradeA_post_as_is_Image308.png"
+    },
+    {
+      "filename": "Image307.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image307.png",
+      "grok_description": "Two-panel cartoon: top shows rats eyeing cheese in a rat trap ('LOOK, CHEESE!'); bottom shows a man and woman eyeing a laptop ('LOOK, DEMOCRATIC SOCIALISM!') under the label 'HUMAN TRAP'.",
+      "anti_socialist_message": "Democratic socialism is a trap that lures people to their doom, just like cheese in a rat trap.",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual analogy delivered instantly with clear contrast and no extra text or decoding required; blunt, memorable, and on-brand for the account.",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1893,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 563,
+        "output_tokens_details": {
+          "reasoning_tokens": 375
+        },
+        "total_tokens": 2456,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36393500,
+        "context_details": {
+          "input_tokens": 1893,
+          "output_tokens": 563
+        }
+      },
+      "api_reported_cost_usd": 0.00363935,
+      "token_estimated_cost_usd": 0.00377375,
+      "preferred_cost_usd": 0.00363935,
+      "elapsed_seconds": 5.653,
+      "shortlist_rank": 84,
+      "output_filename": "084_impact17_share16_gradeA_post_as_is_Image307.png"
+    },
+    {
+      "filename": "Image304.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image304.png",
+      "grok_description": "Dinner date meme: woman says 'I'M A DEMOCRATIC SOCIALIST', man replies 'IT'S COOL THAT YOU'RE SO OPEN ABOUT YOUR MENTAL ILLNESS' while pouring wine and smirking",
+      "anti_socialist_message": "Democratic socialism is a form of mental illness",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly readable visual setup with a blunt, punchy insult that lands immediately; strong meme hook and high repost potential among the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2093,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 462,
+        "output_tokens_details": {
+          "reasoning_tokens": 293
+        },
+        "total_tokens": 2555,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 36368500,
+        "context_details": {
+          "input_tokens": 2093,
+          "output_tokens": 462
+        }
+      },
+      "api_reported_cost_usd": 0.00363685,
+      "token_estimated_cost_usd": 0.0037712499999999994,
+      "preferred_cost_usd": 0.00363685,
+      "elapsed_seconds": 4.096,
+      "shortlist_rank": 85,
+      "output_filename": "085_impact17_share16_gradeA_post_as_is_Image304.png"
+    },
+    {
+      "filename": "Image303.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image303.png",
+      "grok_description": "Cartoon of a man looking up at a large billboard sign reading 'DEMOCRATIC SOCIALISM' with the line 'WHERE EVERYTHING IS FREE... EXCEPT YOU'",
+      "anti_socialist_message": "Democratic socialism claims everything is free but actually takes away your freedom",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible sign with a sharp, memorable twist on the classic slogan; strong visual hook and blunt anti-socialist point that works on a phone scroll",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1907,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 725,
+        "output_tokens_details": {
+          "reasoning_tokens": 560
+        },
+        "total_tokens": 2632,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40618500,
+        "context_details": {
+          "input_tokens": 1907,
+          "output_tokens": 725
+        }
+      },
+      "api_reported_cost_usd": 0.00406185,
+      "token_estimated_cost_usd": 0.00419625,
+      "preferred_cost_usd": 0.00406185,
+      "elapsed_seconds": 5.564,
+      "shortlist_rank": 86,
+      "output_filename": "086_impact17_share16_gradeA_post_as_is_Image303.png"
+    },
+    {
+      "filename": "Image302.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image302.png",
+      "grok_description": "Cartoon of a Soviet soldier guarding bound civilians in a ruined city under a hammer-and-sickle flag; a punk asks 'Excuse me comrade, when do we get the free healthcare?'",
+      "anti_socialist_message": "Socialism's 'free healthcare' comes with tyranny, oppression and loss of freedom",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual irony, instantly legible anti-communist joke with clear hook and emotional punch; on-brand and highly shareable for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2045,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 548,
+        "output_tokens_details": {
+          "reasoning_tokens": 378
+        },
+        "total_tokens": 2593,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 37918500,
+        "context_details": {
+          "input_tokens": 2045,
+          "output_tokens": 548
+        }
+      },
+      "api_reported_cost_usd": 0.00379185,
+      "token_estimated_cost_usd": 0.00392625,
+      "preferred_cost_usd": 0.00379185,
+      "elapsed_seconds": 4.886,
+      "shortlist_rank": 87,
+      "output_filename": "087_impact17_share16_gradeA_post_as_is_Image302.png"
+    },
+    {
+      "filename": "Image298.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image298.png",
+      "grok_description": "Cartoon of two scientists in a lab; a wild-haired, wild-eyed one labeled 'SOCIALISM' adds green liquid from a test tube into a flask labeled 'THE ECONOMY' while a normal-looking colleague watches skeptically",
+      "anti_socialist_message": "Socialism is a reckless mad-scientist experiment that ruins the economy",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual gag with clear anti-socialist point, instantly readable on a phone, memorable mad-scientist contrast, and high repost potential for the audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 2029,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 610,
+        "output_tokens_details": {
+          "reasoning_tokens": 427
+        },
+        "total_tokens": 2639,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39268500,
+        "context_details": {
+          "input_tokens": 2029,
+          "output_tokens": 610
+        }
+      },
+      "api_reported_cost_usd": 0.00392685,
+      "token_estimated_cost_usd": 0.00406125,
+      "preferred_cost_usd": 0.00392685,
+      "elapsed_seconds": 5.59,
+      "shortlist_rank": 88,
+      "output_filename": "088_impact17_share16_gradeA_post_as_is_Image298.png"
+    },
+    {
+      "filename": "Image295.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image295.png",
+      "grok_description": "Cartoon: lone man holding '2+2=4' sign faces hostile crowd shouting 'NAZI!' while holding signs with false equations (2+2=3, 2+2=1, 2+2=3.5, 2+2=3.99, etc.)",
+      "anti_socialist_message": "Those who insist on objective truth are smeared as Nazis by people who deny basic reality",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Instantly legible visual contrast with strong meme hook; blunt, memorable, and on-brand for anti-relativism/anti-woke messaging that aligns with Thatcherite emphasis on reality over ideology",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1965,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 636,
+        "output_tokens_details": {
+          "reasoning_tokens": 430
+        },
+        "total_tokens": 2601,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 39118500,
+        "context_details": {
+          "input_tokens": 1965,
+          "output_tokens": 636
+        }
+      },
+      "api_reported_cost_usd": 0.00391185,
+      "token_estimated_cost_usd": 0.0040462499999999995,
+      "preferred_cost_usd": 0.00391185,
+      "elapsed_seconds": 6.693,
+      "shortlist_rank": 89,
+      "output_filename": "089_impact17_share16_gradeA_post_as_is_Image295.png"
+    },
+    {
+      "filename": "Image294.png",
+      "path": "/disks/disk1/Dropbox/Memes/renamed_png/Image294.png",
+      "grok_description": "Karl Marx standing in front of a heavily damaged Soviet-style building flying a large hammer-and-sickle banner, with rubble, destroyed cars and distant figures in the ruins",
+      "anti_socialist_message": "Marx/communism produces only destruction and ruin",
+      "ranking": 17,
+      "ranking_scale": "1-20",
+      "shareability": "high",
+      "score_justification": "Strong visual contrast between Marx and the ruined building delivers the anti-communist point instantly with no text required; blunt, memorable and highly shareable for the target audience",
+      "grade": "A",
+      "instant_impact_score": 17,
+      "shareability_score": 16,
+      "obvious_problems": "",
+      "post_readiness": "post_as_is",
+      "thatcher_fit": "strong",
+      "risk_notes": "",
+      "model": "grok-4.3",
+      "detail": "low",
+      "usage": {
+        "input_tokens": 1997,
+        "input_tokens_details": {
+          "cached_tokens": 128
+        },
+        "output_tokens": 689,
+        "output_tokens_details": {
+          "reasoning_tokens": 525
+        },
+        "total_tokens": 2686,
+        "num_sources_used": 0,
+        "num_server_side_tools_used": 0,
+        "cost_in_usd_ticks": 40843500,
+        "context_details": {
+          "input_tokens": 1997,
+          "output_tokens": 689
+        }
+      },
+      "api_reported_cost_usd": 0.00408435,
+      "token_estimated_cost_usd": 0.00421875,
+      "preferred_cost_usd": 0.00408435,
+      "elapsed_seconds": 6.038,
+      "shortlist_rank": 90,
+      "output_filename": "090_impact17_share16_gradeA_post_as_is_Image294.png"
+    }
+  ]
+}
