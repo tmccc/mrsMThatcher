@@ -11,7 +11,7 @@ __pycache__/
 digest.md
 .DS_Store
 ._*
-runMrsMThatcher2
+mrsMThatcher.env
 mrsMThatcher.local.json
 extra_quote_watch_post_ids.txt
 tests.tgz

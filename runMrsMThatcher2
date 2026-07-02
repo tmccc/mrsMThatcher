@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+cd /disks/disk1/etc/mrsMThatcher
+
+ENV_FILE=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
+if [[ ! -r "$ENV_FILE" ]]; then
+  echo "Missing readable environment file: $ENV_FILE" >&2
+  exit 2
+fi
+
+set -a
+source "$ENV_FILE"
+set +a
+
+while true; do
+  /usr/local/bin/mrsMThatcher2.py >/dev/null 2>&1
+  sleep 3600
+done

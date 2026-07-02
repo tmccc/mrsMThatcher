@@ -4126,7 +4126,7 @@ def run_self_test() -> int:
         except Exception as exc:
             require("local config parses", False, str(exc))
 
-    _self_test_warn("runtime control file present", CONTROL_FILE.exists(), str(CONTROL_FILE))
+    _self_test_warn("runtime control file absent", not CONTROL_FILE.exists(), str(CONTROL_FILE))
     if CONTROL_FILE.exists():
         try:
             with open(CONTROL_FILE, "r") as f:

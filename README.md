@@ -114,7 +114,8 @@ deployed as a coherent set:
 - `tests/fixtures/scenarios/*.json`
 - `mrs_log_digest.py`
 - `README.md`
-- `runMrsMThatcher2_example`
+- `runMrsMThatcher2`
+- `mrsMThatcher.env.example`
 - `requirements.txt`
 - `mrsMThatcher.local.example.json`
 - `extra_quote_watch_post_ids.example.txt`
@@ -154,48 +155,57 @@ and logs such as `bot_state.json*`, `lines_used.json`, `images_used.json`,
 legacy `*.pickle` history files, and `mrsMThatcher.log*` are also intentionally
 ignored.
 
-## Launcher Example
+## Launcher And Private Environment
 
-`runMrsMThatcher2_example` is a sanitized example of the live launcher. It lists
-the required X/xAI environment variables with placeholder values and refuses to
-start until the placeholders are replaced.
+`mrsMThatcher.env.example` is a sanitized example of the private live
+environment file. It lists the required X/xAI environment variables with
+placeholder values.
 
-For live use, copy it to a private untracked launcher and edit that copy:
+For live use, copy it to the ignored runtime name, edit that copy, and keep it
+readable only by the bot user:
 
 ```bash
-cp runMrsMThatcher2_example runMrsMThatcher2
-chmod +x runMrsMThatcher2
+cp mrsMThatcher.env.example mrsMThatcher.env
+chmod 600 mrsMThatcher.env
 ```
 
-The real `runMrsMThatcher2` is intentionally ignored by Git because it contains
-live API credentials. Do not commit the real launcher.
+`runMrsMThatcher2` is the tracked live launcher. It contains no secrets. It
+sources the ignored `mrsMThatcher.env` file and then runs
+`/usr/local/bin/mrsMThatcher2.py`.
+
+The real `mrsMThatcher.env` is intentionally ignored by Git. Do not commit live
+API credentials.
 
 ## Deployment Smoke Test
 
-Before replacing the live bot, make a timestamped backup of the live script:
+On this host, `/usr/local/bin/mrsMThatcher2.py` is a symlink to the script in
+this repository. Before replacing a non-symlink live script on another host,
+make a timestamped backup:
 
 ```bash
-cp /disks/disk1/bin/mrsMThatcher2.py /disks/disk1/bin/mrsMThatcher2.py.$(date +%Y%m%d-%H%M%S).bak
+cp /usr/local/bin/mrsMThatcher2.py /usr/local/bin/mrsMThatcher2.py.$(date +%Y%m%d-%H%M%S).bak
 ```
 
-Install the new script:
+Install or refresh the live symlink if needed:
 
 ```bash
-cp mrsMThatcher2.py /disks/disk1/bin/mrsMThatcher2.py
-chmod +x /disks/disk1/bin/mrsMThatcher2.py
+ln -sfn /disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py /usr/local/bin/mrsMThatcher2.py
+chmod +x mrsMThatcher2.py
 ```
 
 Compile-check the installed file:
 
 ```bash
-python3 -m py_compile /disks/disk1/bin/mrsMThatcher2.py
+PYTHONPYCACHEPREFIX=/tmp/mrs-pycache python3 -m py_compile /usr/local/bin/mrsMThatcher2.py
 ```
 
 Source the live environment, then run the bot self-test:
 
 ```bash
-source /path/to/live/env
-python3 /disks/disk1/bin/mrsMThatcher2.py --self-test
+set -a
+source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
+set +a
+python3 /usr/local/bin/mrsMThatcher2.py --self-test
 ```
 
 Restart the live service using the normal service manager for this host.
