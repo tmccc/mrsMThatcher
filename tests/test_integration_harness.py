@@ -509,6 +509,52 @@ def test_bad_normal_check_epoch_falls_back_safely_and_polls(tmp_path: Path, bad_
         server.stop()
 
 
+@pytest.mark.parametrize("bad_value", ["not-an-epoch", -100])
+def test_bad_quote_check_epoch_falls_back_safely_and_polls(tmp_path: Path, bad_value: object) -> None:
+    server = FakeApiServer(
+        {
+            "tweets": {
+                "900": {
+                    "id": "900",
+                    "text": "Original watched post.",
+                    "author_id": "12345",
+                    "conversation_id": "900",
+                    "created_at": "2026-06-01T07:00:00Z",
+                }
+            },
+            "quote_tweets": {"900": {}},
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_quote_tweet_check_epoch": bad_value,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_quote_tweet_check_epoch"] == 2_000_000_000
+    finally:
+        server.stop()
+
+
 def test_runtime_disabled_normal_lane_consumes_check_interval(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
@@ -538,6 +584,160 @@ def test_runtime_disabled_normal_lane_consumes_check_interval(tmp_path: Path) ->
         state = read_json(base_dir / "bot_state.json")
         assert state["last_reply_check_epoch"] == 2_000_000_000
         assert state.get("replied_to_ids", []) == []
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_id", "expected_state_key"),
+    [
+        ("grok_skip.json", "130", "last_seen_mention_id"),
+        ("reply_not_allowed_403.json", "190", "replied_to_ids"),
+    ],
+)
+def test_non_posting_normal_lane_outcomes_consume_check_interval(
+    tmp_path: Path,
+    scenario: str,
+    expected_id: str,
+    expected_state_key: str,
+) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / scenario)).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        second = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000100"},
+        )
+
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.posts) == 0
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        if expected_state_key == "last_seen_mention_id":
+            assert state["last_seen_mention_id"] == expected_id
+        else:
+            assert expected_id in state[expected_state_key]
+    finally:
+        server.stop()
+
+
+def test_spam_normal_lane_outcome_consumes_check_interval(tmp_path: Path) -> None:
+    server = FakeApiServer(
+        {
+            "mentions": [
+                {
+                    "id": "140",
+                    "text": "@mrsMThatcher buy crypto now http://spam.invalid",
+                    "author_id": "240",
+                    "conversation_id": "140",
+                    "created_at": "2026-06-30T12:00:00Z",
+                }
+            ],
+            "grok_replies": ["This should not be used."],
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        second = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000100"},
+        )
+
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.posts) == 0
+        assert len(server.xai_requests) == 0
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 2_000_000_000
+        assert state["last_seen_mention_id"] == "140"
+    finally:
+        server.stop()
+
+
+def test_per_author_cap_normal_lane_outcome_consumes_check_interval(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "daily_reply_date": "2026-05-18",
+                "daily_replied_author_counts": {"200": 1},
+                "daily_replied_author_ids": ["200"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_QUOTE_TWEET_CHECKS": False,
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "1779102000"},
+        )
+        second = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "1779102100"},
+        )
+
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert len(server.posts) == 0
+        assert len(server.xai_requests) == 0
+        assert server.path_counts.get("/2/users/12345/mentions") == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_check_epoch"] == 1_779_102_000
+        assert state["last_seen_mention_id"] == "100"
     finally:
         server.stop()
 
@@ -1450,6 +1650,48 @@ def test_state_backup_rotation_during_scheduler_ticks_keeps_valid_json(tmp_path:
             assert "last_reply_check_epoch" in backup_state
     finally:
         server.stop()
+
+
+def test_startup_self_test_does_not_rotate_backups_when_scheduler_epochs_are_clean(tmp_path: Path) -> None:
+    base_dir = prepare_base_dir(
+        tmp_path,
+        state={
+            "last_reply_check_epoch": 1_999_999_000,
+            "last_quote_tweet_check_epoch": 1_999_999_000,
+        },
+        local_config={"STATE_BACKUP_COUNT": 3, "MIN_SECONDS_BETWEEN_REPLIES": 1},
+    )
+    write_json(base_dir / "bot_state.json.bak1", {"sentinel": "bak1"})
+    write_json(base_dir / "bot_state.json.bak2", {"sentinel": "bak2"})
+
+    result = run_bot_with_env(
+        base_dir,
+        "--self-test",
+        extra_env={
+            "MRS_FAKE_NOW_EPOCH": "2000000000",
+            "X_API_BASE_URL": "http://127.0.0.1:1",
+            "X_UPLOAD_BASE_URL": "http://127.0.0.1:1",
+            "XAI_API_BASE_URL": "http://127.0.0.1:1/v1",
+            "X_BEARER_TOKEN": "dummy",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert read_json(base_dir / "bot_state.json.bak1") == {"sentinel": "bak1"}
+    assert read_json(base_dir / "bot_state.json.bak2") == {"sentinel": "bak2"}
+
+
+def test_launcher_matches_master_on_promotion_branch() -> None:
+    result = subprocess.run(
+        ["git", "diff", "--exit-code", "master", "--", "runMrsMThatcher2"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_malformed_quote_tweet_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
