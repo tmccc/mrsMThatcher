@@ -1014,6 +1014,24 @@ def parse_x_datetime_to_epoch(value: str | None) -> int | None:
         return None
 
 
+def parse_tweet_id(value: object, *, context: str) -> int | None:
+    value_str = str(value or "")
+    if not value_str.isdigit():
+        log.warning("Skipping %s with invalid tweet id=%r", context, value)
+        return None
+    return int(value_str)
+
+
+def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]:
+    valid: list[tuple[int, dict]] = []
+    for tweet in tweets:
+        tweet_id = parse_tweet_id(tweet.get("id"), context=context)
+        if tweet_id is None:
+            continue
+        valid.append((tweet_id, tweet))
+    return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
+
+
 def in_api_cooldown(state: dict) -> bool:
     until = int(state.get("api_cooldown_until_epoch", 0) or 0)
 
@@ -1593,12 +1611,16 @@ def get_mentions(state: dict) -> list[dict]:
 
     if mentions:
         for mention in mentions:
+            mention_id = mention.get("id")
+            if parse_tweet_id(mention_id, context="mention") is None:
+                continue
+
             cache_tweet(
                 state,
-                tweet_id=str(mention["id"]),
+                tweet_id=str(mention_id),
                 text=mention.get("text", ""),
                 author_id=str(mention.get("author_id", "")),
-                conversation_id=str(mention.get("conversation_id", mention["id"])),
+                conversation_id=str(mention.get("conversation_id", mention_id)),
                 referenced_tweets=mention.get("referenced_tweets", []),
                 created_at=mention.get("created_at"),
             )
@@ -1716,7 +1738,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         raw_highest_id = str(max(raw_ids)) if raw_ids else ""
         candidates_for_this_post = 0
 
-        for reply in sorted(replies, key=lambda t: int(t.get("id", 0))):
+        for reply in valid_tweets_sorted_by_id(replies, context="hot-post reply candidate"):
             reply_id = str(reply.get("id", ""))
             author_id = str(reply.get("author_id", ""))
 
@@ -2083,6 +2105,12 @@ def create_post(
     if not payload.get("text") and not payload.get("media"):
         raise ValueError("Cannot create X post without text or media")
 
+    def validate_created_post_response(result: dict) -> dict:
+        post_id = result.get("data", {}).get("id") if isinstance(result, dict) else None
+        if not post_id:
+            raise ApiError(f"X post creation response did not include data.id: {result}", service="x")
+        return result
+
     def made_with_ai_field_rejected(error: ApiError) -> bool:
         status_code = getattr(error, "status_code", None)
         if status_code not in {400, 422}:
@@ -2093,6 +2121,7 @@ def create_post(
 
     try:
         result = x_request("POST", "/2/tweets", json=payload)
+        validate_created_post_response(result)
         log.info("Created X post successfully. response=%s", result)
         return result
     except ApiError as exc:
@@ -2100,6 +2129,7 @@ def create_post(
             log.warning("Post failed because made_with_ai field was rejected; retrying without made_with_ai field")
             payload.pop("made_with_ai", None)
             result = x_request("POST", "/2/tweets", json=payload)
+            validate_created_post_response(result)
             log.info("Created X post successfully after removing made_with_ai. response=%s", result)
             return result
         raise
@@ -2872,7 +2902,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
         log.info("No mention or hot-post reply candidates returned")
         return
 
-    mentions = sorted(mentions, key=lambda t: int(t["id"]))
+    mentions = valid_tweets_sorted_by_id(mentions, context="mention/hot-post candidate")
 
     replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
     dry_run_seen_ids = set(str(x) for x in state.get("dry_run_seen_mention_ids", []))
@@ -3437,7 +3467,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             save_state(state)
             return QUOTE_CHECK_STATUS_CHECKED
 
-        for quote_tweet in sorted(quote_tweets, key=lambda t: int(t.get("id", 0))):
+        for quote_tweet in valid_tweets_sorted_by_id(quote_tweets, context="quote-tweet candidate"):
             if processed_candidates >= MAX_QUOTE_POSTS_PER_CHECK:
                 break
 

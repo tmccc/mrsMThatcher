@@ -213,6 +213,9 @@ class FakeApiServer:
                         if status >= 400:
                             self._json_response(status, response.get("body", {"error": "configured post failure"}))
                             return
+                        self.fake.posts.append(body)
+                        self._json_response(status, response.get("body", {}))
+                        return
 
                     if body.get("made_with_ai") and self.fake.scenario.get("fail_made_with_ai_once"):
                         self.fake.scenario["fail_made_with_ai_once"] = False

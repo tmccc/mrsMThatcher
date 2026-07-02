@@ -201,6 +201,39 @@ def test_normal_mention_reply(tmp_path: Path, fake_server: FakeApiServer) -> Non
     assert not (PRODUCTION_BASE_DIR / "bot_state.json.tmp").exists()
 
 
+def test_malformed_mention_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "not-a-tweet-id",
+            "text": "@mrsMThatcher malformed",
+            "author_id": "201",
+            "conversation_id": "not-a-tweet-id",
+            "created_at": "2026-06-30T11:59:00Z",
+        },
+        {
+            "id": "101",
+            "text": "@mrsMThatcher valid",
+            "author_id": "202",
+            "conversation_id": "101",
+            "created_at": "2026-06-30T12:00:00Z",
+        },
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "101"
+        state = read_json(base_dir / "bot_state.json")
+        assert "101" in state["replied_to_ids"]
+        assert "not-a-tweet-id" not in state["tweet_cache"]
+    finally:
+        server.stop()
+
+
 def test_quote_reply_flips_priority_to_normal(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "quote_tweet_reply.json")).start()
     try:
@@ -261,6 +294,53 @@ def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path:
         state = read_json(base_dir / "bot_state.json")
         assert state["next_reply_lane_priority"] == "normal"
         assert state.get("last_seen_mention_id") is None
+    finally:
+        server.stop()
+
+
+def test_malformed_quote_tweet_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["quote_tweets"]["900"]["data"] = [
+        {
+            "id": "bad-quote-id",
+            "text": "Malformed quote tweet.",
+            "author_id": "311",
+            "conversation_id": "bad-quote-id",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+            "created_at": "2026-06-30T09:59:00Z",
+        },
+        {
+            "id": "911",
+            "text": "Newer valid quote tweet.",
+            "author_id": "312",
+            "conversation_id": "911",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+            "created_at": "2026-06-30T10:01:00Z",
+        },
+        {
+            "id": "910",
+            "text": "Oldest valid quote tweet.",
+            "author_id": "310",
+            "conversation_id": "910",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+            "created_at": "2026-06-30T10:00:00Z",
+        },
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"next_reply_lane_priority": "quote", "recent_own_post_ids": ["900"], "last_reply_epoch": 0},
+            local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
+        )
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+        state = read_json(base_dir / "bot_state.json")
+        assert "910" in state["replied_to_quote_post_ids"]
+        assert "bad-quote-id" not in state["replied_to_quote_post_ids"]
     finally:
         server.stop()
 
@@ -1079,6 +1159,26 @@ def test_media_v2_failure_falls_back_to_v1_upload(tmp_path: Path, fake_server: F
     assert fake_server.posts[0]["media"]["media_ids"] == ["fake-media-v1-fallback"]
 
 
+def test_quote_image_post_missing_created_post_id_fails_without_marking_assets_used(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "media_quote_post.json")
+    scenario["tweet_post_responses"] = [{"status": 201, "body": {"data": {}}}]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        result = run_bot_command(base_dir, server, "--test-post-quote")
+
+        assert result.returncode == 1
+        assert len(server.posts) == 1
+        assert not (base_dir / "lines_used.pickle").exists()
+        assert not (base_dir / "images_used.pickle").exists()
+        state = read_json(base_dir / "bot_state.json")
+        assert not state.get("last_main_post_id")
+        assert state.get("recent_own_post_ids", []) == []
+        assert len(state["x_error_epochs"]) == 1
+    finally:
+        server.stop()
+
+
 @pytest.mark.parametrize("fake_server", ["meme_post.json"], indirect=True)
 def test_daily_meme_post_uploads_records_and_reschedules(tmp_path: Path, fake_server: FakeApiServer) -> None:
     base_dir = prepare_base_dir(
@@ -1103,6 +1203,29 @@ def test_daily_meme_post_uploads_records_and_reschedules(tmp_path: Path, fake_se
     assert state["posted_meme_filenames"] == ["001_test_meme.png"]
     assert state["next_meme_schedule_mode"] == "fallback"
     assert int(state["next_meme_post_epoch"]) > 0
+
+
+def test_daily_meme_post_missing_created_post_id_fails_without_recording_or_rescheduling(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "meme_post.json")
+    scenario["tweet_post_responses"] = [{"status": 201, "body": {"data": {}}}]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            meme=True,
+            local_config={"ENABLE_DAILY_MEME_POSTS": True, "MEME_POST_TEXT": "Test meme post"},
+        )
+        result = run_bot_command(base_dir, server, "--test-post-meme")
+
+        assert result.returncode == 1
+        assert len(server.posts) == 1
+        state = read_json(base_dir / "bot_state.json")
+        assert not state.get("last_main_post_id")
+        assert state.get("posted_meme_filenames", []) == []
+        assert not state.get("next_meme_post_epoch")
+        assert len(state["x_error_epochs"]) == 1
+    finally:
+        server.stop()
 
 
 @pytest.mark.parametrize("fake_server", ["made_with_ai_retry.json"], indirect=True)
