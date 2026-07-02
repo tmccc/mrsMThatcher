@@ -167,6 +167,8 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
 LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
 IMAGE_GLOB = str(BASE_DIR / "images/t*")
 
+LINES_USED_FILE = BASE_DIR / "lines_used.json"
+IMAGES_USED_FILE = BASE_DIR / "images_used.json"
 PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"
@@ -777,36 +779,66 @@ def api_error_is_reply_not_allowed(error: Exception) -> bool:
 # Persistence
 # ---------------------------------------------------------------------
 
-def load_pickle_set(path: Path) -> set:
-    log.debug("Loading pickle set from %s", path)
+def coerce_used_set(value: object, *, path: Path) -> set:
+    if isinstance(value, set):
+        return value
+    if isinstance(value, list):
+        return set(value)
+
+    raise ValueError(f"Used-history file {path} must contain a JSON list or legacy pickle set/list")
+
+
+def load_legacy_pickle_set(path: Path) -> set:
+    log.debug("Loading legacy pickle set from %s", path)
 
     try:
         with open(path, "rb") as f:
             value = pickle.load(f)
-            if isinstance(value, set):
-                log.debug("Loaded %d entries from %s", len(value), path)
-                return value
-
-            converted = set(value)
-            log.debug("Loaded %d converted entries from %s", len(converted), path)
-            return converted
+        converted = coerce_used_set(value, path=path)
+        log.warning("Loaded %d entries from legacy pickle file %s; will write JSON going forward", len(converted), path)
+        return converted
     except FileNotFoundError:
-        log.warning("Pickle file does not exist yet: %s", path)
+        log.info("Legacy pickle file does not exist: %s", path)
         return set()
     except OSError:
-        log.exception("OS error loading pickle file %s; using empty set", path)
+        log.exception("OS error loading legacy pickle file %s; using empty set", path)
         return set()
     except Exception:
-        log.exception("Failed loading pickle file %s; using empty set", path)
+        log.exception("Failed loading legacy pickle file %s; using empty set", path)
         return set()
 
 
-def save_pickle_set(path: Path, value: set) -> None:
-    log.debug("Saving %d entries to pickle %s", len(value), path)
+def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
+    log.debug("Loading used-history set from %s", path)
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            value = json.load(f)
+        converted = coerce_used_set(value, path=path)
+        log.debug("Loaded %d entries from %s", len(converted), path)
+        return converted
+    except FileNotFoundError:
+        log.warning("Used-history JSON file does not exist yet: %s", path)
+    except OSError:
+        log.exception("OS error loading used-history JSON file %s; using legacy/empty set", path)
+    except Exception:
+        log.exception("Failed loading used-history JSON file %s; using legacy/empty set", path)
+
+    if legacy_pickle_path is not None:
+        return load_legacy_pickle_set(legacy_pickle_path)
+    return set()
+
+
+def save_used_set(path: Path, value: set) -> None:
+    log.debug("Saving %d entries to used-history JSON %s", len(value), path)
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "wb") as f:
-        pickle.dump(value, f)
+    serializable = sorted(value, key=lambda item: (str(type(item)), str(item)))
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, indent=2)
+        f.write("\n")
+    tmp.replace(path)
 
 
 def default_state() -> dict:
@@ -2244,10 +2276,10 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         save_state(state)
 
     lines_used.add(line_no)
-    save_pickle_set(PICKLE_FILE, lines_used)
+    save_used_set(LINES_USED_FILE, lines_used)
 
     images_used.add(image_no)
-    save_pickle_set(IMAGE_PICKLE_FILE, images_used)
+    save_used_set(IMAGES_USED_FILE, images_used)
 
     log_event("main_post_posted", lane="quote_image", post_id=posted_id, line_no=line_no, image_no=image_no)
     log.info("Quote/image posted successfully. posted_id=%s", posted_id)
@@ -3883,8 +3915,8 @@ def main() -> None:
         meme_candidates_at_start = list_meme_candidates()
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
-    lines_used = load_pickle_set(PICKLE_FILE)
-    images_used = load_pickle_set(IMAGE_PICKLE_FILE)
+    lines_used = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
+    images_used = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
     state = load_state()
 
     seed_recent_own_post_ids_from_cache(state)
@@ -4232,8 +4264,8 @@ def run_test_post_quote() -> int:
         save_state(state)
         return 0
 
-    lines_used = load_pickle_set(PICKLE_FILE)
-    images_used = load_pickle_set(IMAGE_PICKLE_FILE)
+    lines_used = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
+    images_used = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
 
     try:
         post_random_quote(lines_used, images_used, state)

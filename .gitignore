@@ -1,4 +1,6 @@
 bot_state.json*
+lines_used.json
+images_used.json
 *.log
 *.log.*
 nohup.out

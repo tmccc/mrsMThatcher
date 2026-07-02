@@ -149,8 +149,9 @@ cp extra_quote_watch_post_ids.example.txt extra_quote_watch_post_ids.txt
 
 The real `mrsMThatcher.local.json` and `extra_quote_watch_post_ids.txt` are
 ignored because they are host-local operational inputs. Generated runtime state
-and logs such as `bot_state.json*`, `lines_used.pickle`, `images_used.pickle`,
-and `mrsMThatcher.log*` are also intentionally ignored.
+and logs such as `bot_state.json*`, `lines_used.json`, `images_used.json`,
+legacy `*.pickle` history files, and `mrsMThatcher.log*` are also intentionally
+ignored.
 
 ## Launcher Example
 

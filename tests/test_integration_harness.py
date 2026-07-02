@@ -1144,8 +1144,8 @@ def test_quote_image_post_uploads_media_records_state_and_schedules_meme(tmp_pat
     assert state["recent_own_post_ids"] == ["901000"]
     assert state["next_meme_schedule_mode"] == "after_first_quote_after_midday"
     assert int(state["next_meme_post_epoch"]) == int(state["last_quote_post_epoch"]) + 60
-    assert (base_dir / "lines_used.pickle").exists()
-    assert (base_dir / "images_used.pickle").exists()
+    assert (base_dir / "lines_used.json").exists()
+    assert (base_dir / "images_used.json").exists()
 
 
 @pytest.mark.parametrize("fake_server", ["media_v2_fallback.json"], indirect=True)
@@ -1169,8 +1169,8 @@ def test_quote_image_post_missing_created_post_id_fails_without_marking_assets_u
 
         assert result.returncode == 1
         assert len(server.posts) == 1
-        assert not (base_dir / "lines_used.pickle").exists()
-        assert not (base_dir / "images_used.pickle").exists()
+        assert not (base_dir / "lines_used.json").exists()
+        assert not (base_dir / "images_used.json").exists()
         state = read_json(base_dir / "bot_state.json")
         assert not state.get("last_main_post_id")
         assert state.get("recent_own_post_ids", []) == []
