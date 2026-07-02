@@ -408,6 +408,11 @@ def apply_local_config() -> None:
 
     applied: dict[str, object] = {}
     ignored: list[str] = []
+    original_values = {
+        key: globals()[key]
+        for key in data
+        if key in LOCAL_CONFIG_ALLOWED_KEYS and key in globals()
+    }
 
     for key, value in data.items():
         if key not in LOCAL_CONFIG_ALLOWED_KEYS or key not in globals():
@@ -422,6 +427,25 @@ def apply_local_config() -> None:
 
         globals()[key] = coerced
         applied[key] = coerced
+
+    for min_key, max_key in (
+        ("POST_SLEEP_MIN", "POST_SLEEP_MAX"),
+        ("MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"),
+    ):
+        if int(globals()[min_key]) <= int(globals()[max_key]):
+            continue
+
+        log.error(
+            "Ignoring invalid local config timing range %s=%r > %s=%r",
+            min_key,
+            globals()[min_key],
+            max_key,
+            globals()[max_key],
+        )
+        for key in (min_key, max_key):
+            if key in applied:
+                globals()[key] = original_values[key]
+                applied.pop(key, None)
 
     if ignored:
         log.warning("Ignoring unsupported local config key(s): %s", ", ".join(sorted(ignored)))
@@ -755,6 +779,7 @@ def default_state() -> dict:
         "daily_reply_date": None,
         "daily_reply_count": 0,
         "daily_replied_author_ids": [],
+        "daily_replied_author_counts": {},
 
         "own_auto_reply_ids": [],
         "tweet_cache": {},
@@ -867,6 +892,7 @@ def reset_daily_reply_count_if_needed(state: dict) -> None:
         state["daily_reply_date"] = today
         state["daily_reply_count"] = 0
         state["daily_replied_author_ids"] = []
+        state["daily_replied_author_counts"] = {}
 
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
@@ -881,6 +907,42 @@ def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
         )
         state["daily_quote_reply_date"] = today
         state["daily_quote_reply_count"] = 0
+
+
+def daily_author_reply_counts(state: dict) -> dict[str, int]:
+    counts = state.get("daily_replied_author_counts", {})
+    if isinstance(counts, dict):
+        cleaned: dict[str, int] = {}
+        for author_id, count in counts.items():
+            try:
+                cleaned[str(author_id)] = max(0, int(count))
+            except Exception:
+                continue
+        if not cleaned:
+            legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
+            cleaned = {author_id: 1 for author_id in legacy_authors}
+        state["daily_replied_author_counts"] = cleaned
+        return cleaned
+
+    legacy_authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
+    cleaned = {author_id: 1 for author_id in legacy_authors}
+    state["daily_replied_author_counts"] = cleaned
+    return cleaned
+
+
+def daily_author_reply_count(state: dict, author_id: str) -> int:
+    return daily_author_reply_counts(state).get(str(author_id), 0)
+
+
+def mark_daily_author_replied(state: dict, author_id: str) -> None:
+    author_id = str(author_id)
+    counts = daily_author_reply_counts(state)
+    counts[author_id] = counts.get(author_id, 0) + 1
+    state["daily_replied_author_counts"] = counts
+
+    authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
+    authors.add(author_id)
+    state["daily_replied_author_ids"] = list(authors)[-1000:]
 
 
 # ---------------------------------------------------------------------
@@ -2717,7 +2779,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
 
     reset_daily_reply_count_if_needed(state)
 
-    daily_replied_author_ids = set(str(x) for x in state.get("daily_replied_author_ids", []))
+    daily_replied_author_counts = daily_author_reply_counts(state)
 
     log.debug(
         "Reply cap status: daily_reply_count=%s max=%s",
@@ -2726,7 +2788,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
     )
     log.debug(
         "Daily per-author cap status: authors_replied_today=%d max_per_author=%s",
-        len(daily_replied_author_ids),
+        len(daily_replied_author_counts),
         MAX_REPLIES_PER_AUTHOR_PER_DAY,
     )
 
@@ -2755,10 +2817,12 @@ def maybe_reply_to_mentions(state: dict) -> None:
     except ApiError as e:
         log.exception("Failed to get mention/hot-post reply candidates")
         record_api_error(state, e, "x")
+        save_state(state)
         return
     except Exception as e:
         log.exception("Unexpected failure getting mention/hot-post reply candidates")
         record_api_error(state, e, "x")
+        save_state(state)
         return
 
     if not mentions:
@@ -2811,9 +2875,9 @@ def maybe_reply_to_mentions(state: dict) -> None:
             mark_mention_seen_if_applicable(state, mention)
             continue
 
-        if MAX_REPLIES_PER_AUTHOR_PER_DAY <= 1 and author_id in daily_replied_author_ids:
+        if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
             log.info(
-                "Skipping mention %s: already replied to author_id=%s today",
+                "Skipping mention %s: already reached per-author daily cap for author_id=%s",
                 mention_id,
                 author_id,
             )
@@ -2879,8 +2943,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
             dry_run_seen_ids.add(mention_id)
             state["dry_run_seen_mention_ids"] = list(dry_run_seen_ids)[-1000:]
 
-            daily_replied_author_ids.add(author_id)
-            state["daily_replied_author_ids"] = list(daily_replied_author_ids)[-1000:]
+            mark_daily_author_replied(state, author_id)
 
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
@@ -2922,8 +2985,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
         replied_to_ids.add(mention_id)
         state["replied_to_ids"] = list(replied_to_ids)[-1000:]
 
-        daily_replied_author_ids.add(author_id)
-        state["daily_replied_author_ids"] = list(daily_replied_author_ids)[-1000:]
+        mark_daily_author_replied(state, author_id)
 
         own_reply_id = reply_response.get("data", {}).get("id")
         if own_reply_id:
@@ -3296,7 +3358,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
     skipped_quote_ids = set(str(x) for x in state.get("skipped_quote_post_ids", []))
     quote_spam_author_ids = set(str(x) for x in state.get("quote_spam_author_ids", []))
     replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
-    daily_replied_author_ids = set(str(x) for x in state.get("daily_replied_author_ids", []))
+    daily_author_reply_counts(state)
 
     processed_candidates = 0
 
@@ -3395,9 +3457,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 )
                 continue
 
-            if author_id in daily_replied_author_ids:
+            if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
                 log.info(
-                    "Skipping quote tweet %s: already replied to author_id=%s today via another lane",
+                    "Skipping quote tweet %s: already reached per-author daily cap for author_id=%s",
                     quote_id,
                     author_id,
                 )
@@ -3468,8 +3530,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
                 state["last_reply_epoch"] = current
 
-                daily_replied_author_ids.add(author_id)
-                state["daily_replied_author_ids"] = list(daily_replied_author_ids)[-1000:]
+                mark_daily_author_replied(state, author_id)
                 mark_quote_tweet_replied(state, quote_id)
                 save_state(state)
                 return QUOTE_CHECK_STATUS_POSTED
@@ -3507,8 +3568,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
             mark_quote_tweet_replied(state, quote_id)
 
-            daily_replied_author_ids.add(author_id)
-            state["daily_replied_author_ids"] = list(daily_replied_author_ids)[-1000:]
+            mark_daily_author_replied(state, author_id)
 
             own_reply_id = reply_response.get("data", {}).get("id")
             if own_reply_id:

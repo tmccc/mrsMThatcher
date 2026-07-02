@@ -634,6 +634,8 @@ def test_midnight_rollover_resets_quote_counts_and_meme_fallback_date(tmp_path: 
                 "daily_quote_reply_count": 5,
                 "daily_reply_date": "2026-06-30",
                 "daily_reply_count": 5,
+                "daily_replied_author_counts": {"200": 2},
+                "daily_replied_author_ids": ["200"],
                 "last_reply_epoch": 0,
             },
             local_config={"ENABLE_HOT_POST_REPLY_CHECKS": False},
@@ -643,6 +645,8 @@ def test_midnight_rollover_resets_quote_counts_and_meme_fallback_date(tmp_path: 
         state = read_json(base_dir / "bot_state.json")
         assert state["daily_quote_reply_date"] == "2026-07-01"
         assert state["daily_quote_reply_count"] == 1
+        assert state["daily_replied_author_counts"] == {"310": 1}
+        assert state["daily_replied_author_ids"] == ["310"]
 
         meme_base = prepare_base_dir(
             tmp_path / "meme",
@@ -715,6 +719,10 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
                 "UNKNOWN_KEY": True,
                 "ENABLE_AUTO_REPLIES": "not-a-bool",
                 "MIN_SECONDS_BETWEEN_REPLIES": -99,
+                "POST_SLEEP_MIN": 9000,
+                "POST_SLEEP_MAX": 10,
+                "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 1000,
+                "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS": 60,
                 "MRS_BASE_DIR": "/should/not/apply",
                 "X_API_BASE_URL": "https://api.x.com",
             },
@@ -725,6 +733,8 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert "Ignoring unsupported local config key" in result.stdout
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
+        assert "Ignoring invalid local config timing range POST_SLEEP_MIN" in result.stdout
+        assert "Ignoring invalid local config timing range MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS" in result.stdout
         assert read_json(base_dir / "bot_state.json")["replied_to_ids"] == ["100"]
     finally:
         server.stop()
@@ -927,6 +937,57 @@ def test_per_author_cap_skips_second_reply(tmp_path: Path, fake_server: FakeApiS
     assert fake_server.xai_requests == []
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "140"
+
+
+def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
+    server = FakeApiServer(
+        {
+            "mentions": [
+                {
+                    "id": "100",
+                    "text": "@mrsMThatcher first",
+                    "author_id": "240",
+                    "conversation_id": "100",
+                    "created_at": "2026-06-30T12:00:00Z",
+                },
+                {
+                    "id": "101",
+                    "text": "@mrsMThatcher second",
+                    "author_id": "240",
+                    "conversation_id": "101",
+                    "created_at": "2026-06-30T12:01:00Z",
+                },
+                {
+                    "id": "102",
+                    "text": "@mrsMThatcher third",
+                    "author_id": "240",
+                    "conversation_id": "102",
+                    "created_at": "2026-06-30T12:02:00Z",
+                },
+            ],
+            "grok_replies": ["First reply.", "Second reply.", "Third reply should not be used."],
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, local_config={"MAX_REPLIES_PER_AUTHOR_PER_DAY": 2})
+
+        first = run_cycle(base_dir, server)
+        assert first.returncode == 0, first.stderr + first.stdout
+        second = run_cycle(base_dir, server)
+        assert second.returncode == 0, second.stderr + second.stdout
+        third = run_cycle(base_dir, server)
+        assert third.returncode == 0, third.stderr + third.stdout
+
+        assert len(server.posts) == 2
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+        assert server.posts[1]["reply"]["in_reply_to_tweet_id"] == "101"
+        assert len(server.xai_requests) == 2
+        state = read_json(base_dir / "bot_state.json")
+        assert state["daily_replied_author_counts"]["240"] == 2
+        assert state["daily_replied_author_ids"] == ["240"]
+        assert state["last_seen_mention_id"] == "102"
+    finally:
+        server.stop()
 
 
 @pytest.mark.parametrize("fake_server", ["daily_cap.json"], indirect=True)
