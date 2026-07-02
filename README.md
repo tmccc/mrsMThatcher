@@ -112,9 +112,26 @@ deployed as a coherent set:
 - `tests/fixtures/scenarios/*.json`
 - `mrs_log_digest.py`
 - `README.md`
+- `runMrsMThatcher2_example`
 
 `mrs_log_digest.py` is included because the digest golden tests run the actual
 digest script against generated test logs.
+
+## Launcher Example
+
+`runMrsMThatcher2_example` is a sanitized example of the live launcher. It lists
+the required X/xAI environment variables with placeholder values and refuses to
+start until the placeholders are replaced.
+
+For live use, copy it to a private untracked launcher and edit that copy:
+
+```bash
+cp runMrsMThatcher2_example runMrsMThatcher2
+chmod +x runMrsMThatcher2
+```
+
+The real `runMrsMThatcher2` is intentionally ignored by Git because it contains
+live API credentials. Do not commit the real launcher.
 
 ## Deployment Smoke Test
 
