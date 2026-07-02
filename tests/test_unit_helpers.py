@@ -42,10 +42,10 @@ for key, value in ORIGINAL_ENV.items():
 def test_used_history_json_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "used.json"
 
-    bot.save_used_set(path, {3, 1, 2})
+    bot.save_used_set(path, {3, 1, 2, 11})
 
-    assert json.loads(path.read_text(encoding="utf-8")) == [1, 2, 3]
-    assert bot.load_used_set(path) == {1, 2, 3}
+    assert json.loads(path.read_text(encoding="utf-8")) == [1, 2, 3, 11]
+    assert bot.load_used_set(path) == {1, 2, 3, 11}
 
 
 def test_used_history_migrates_from_legacy_pickle_when_json_missing(tmp_path: Path) -> None:
@@ -66,6 +66,14 @@ def test_used_history_bad_json_falls_back_to_legacy_pickle(tmp_path: Path) -> No
         pickle.dump([6, 7], f)
 
     assert bot.load_used_set(json_path, legacy_pickle_path=pickle_path) == {6, 7}
+
+
+def test_used_history_json_order_is_normalized_on_load(tmp_path: Path) -> None:
+    json_path = tmp_path / "used.json"
+    json_path.write_text("[11, 2, 1]", encoding="utf-8")
+
+    assert bot.load_used_set(json_path) == {1, 2, 11}
+    assert json.loads(json_path.read_text(encoding="utf-8")) == [1, 2, 11]
 
 
 def test_used_history_missing_or_corrupt_files_return_empty_set(tmp_path: Path) -> None:
@@ -141,6 +149,31 @@ def test_schedule_next_quote_post_uses_configured_delay(monkeypatch: pytest.Monk
     bot.schedule_next_quote_post(state, from_epoch=1_000)
 
     assert state["next_quote_post_epoch"] == 1_123
+
+
+def test_rate_limit_cooldown_uses_future_reset_with_buffer(monkeypatch: pytest.MonkeyPatch) -> None:
+    state: dict = {}
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+    monkeypatch.setattr(bot, "save_state", lambda state: None)
+
+    bot.record_api_error(state, bot.ApiError("rate limited", service="x", status_code=429, reset_epoch=1_200), "x")
+
+    assert state["api_cooldown_until_epoch"] == 1_260
+    assert state["api_cooldown_reason"] == "x returned 429/rate limit"
+
+
+@pytest.mark.parametrize("reset_epoch", [None, 900])
+def test_rate_limit_cooldown_falls_back_for_missing_or_past_reset(
+    monkeypatch: pytest.MonkeyPatch,
+    reset_epoch: int | None,
+) -> None:
+    state: dict = {}
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+    monkeypatch.setattr(bot, "save_state", lambda state: None)
+
+    bot.record_api_error(state, bot.ApiError("rate limited", service="x", status_code=429, reset_epoch=reset_epoch), "x")
+
+    assert state["api_cooldown_until_epoch"] == 1_000 + bot.COOLDOWN_AFTER_429_SECONDS
 
 
 def test_local_config_coercion_accepts_boolean_strings_and_rejects_boolean_ints() -> None:

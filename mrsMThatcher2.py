@@ -788,6 +788,16 @@ def coerce_used_set(value: object, *, path: Path) -> set:
     raise ValueError(f"Used-history file {path} must contain a JSON list or legacy pickle set/list")
 
 
+def used_set_to_sorted_list(value: set) -> list:
+    def sort_key(item: object) -> tuple[int, int | str]:
+        try:
+            return (0, int(item))
+        except Exception:
+            return (1, str(item))
+
+    return sorted(value, key=sort_key)
+
+
 def load_legacy_pickle_set(path: Path) -> set:
     log.debug("Loading legacy pickle set from %s", path)
 
@@ -815,6 +825,9 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
         with open(path, "r", encoding="utf-8") as f:
             value = json.load(f)
         converted = coerce_used_set(value, path=path)
+        if isinstance(value, list) and value != used_set_to_sorted_list(converted):
+            save_used_set(path, converted)
+            log.info("Normalized used-history JSON ordering in %s", path)
         log.debug("Loaded %d entries from %s", len(converted), path)
         return converted
     except FileNotFoundError:
@@ -837,7 +850,8 @@ def save_used_set(path: Path, value: set) -> None:
     log.debug("Saving %d entries to used-history JSON %s", len(value), path)
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    serializable = sorted(value, key=lambda item: (str(type(item)), str(item)))
+
+    serializable = used_set_to_sorted_list(value)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(serializable, f, indent=2)
@@ -1087,6 +1101,12 @@ def prune_error_epochs(epochs: list[int]) -> list[int]:
     return pruned
 
 
+def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
+    if reset_epoch and reset_epoch > current:
+        return reset_epoch + 60
+    return current + COOLDOWN_AFTER_429_SECONDS
+
+
 def record_api_error(state: dict, error: Exception, service: str) -> None:
     current = now_epoch()
 
@@ -1115,8 +1135,7 @@ def record_api_error(state: dict, error: Exception, service: str) -> None:
     )
 
     if status_code == 429:
-        cooldown_until = reset_epoch if reset_epoch and reset_epoch > current else current + COOLDOWN_AFTER_429_SECONDS
-        state["api_cooldown_until_epoch"] = cooldown_until + 60
+        state["api_cooldown_until_epoch"] = cooldown_until_for_rate_limit(current, reset_epoch)
         state["api_cooldown_reason"] = f"{service} returned 429/rate limit"
         log.error(
             "Entering API cooldown after 429 until %s",
@@ -1149,11 +1168,16 @@ def print_rate_limit_headers(response: requests.Response) -> int | None:
 
     try:
         reset_epoch = int(reset_time)
+    except (TypeError, ValueError):
+        log.warning("Rate Limit Resets At: %s", reset_time)
+        return None
+
+    try:
         reset_time_human = datetime.fromtimestamp(reset_epoch).strftime("%Y-%m-%d %H:%M:%S")
         log.warning("Rate Limit Resets At: %s", reset_time_human)
         return reset_epoch
-    except ValueError:
-        log.warning("Rate Limit Resets At: %s", reset_time)
+    except Exception:
+        log.warning("Rate Limit Resets At invalid epoch: %s", reset_time)
         return None
 
 

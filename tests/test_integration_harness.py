@@ -1773,7 +1773,7 @@ def test_api_cooldown_persists_across_restart_with_fake_clock(tmp_path: Path) ->
         first = run_bot_command(base_dir, server, extra_env={"MRS_FAKE_NOW_EPOCH": "1000"})
         assert first.returncode == 0, first.stderr + first.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert state["api_cooldown_until_epoch"] > 1000
+        assert state["api_cooldown_until_epoch"] == 4102444860
         request_count = len(server.requests)
 
         second = run_bot_command(base_dir, server, extra_env={"MRS_FAKE_NOW_EPOCH": "1100"})
