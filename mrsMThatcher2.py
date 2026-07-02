@@ -25,6 +25,7 @@ from requests_oauthlib import OAuth1
 
 SELF_TEST_REQUESTED = "--self-test" in sys.argv
 TEST_CYCLE_REQUESTED = "--test-cycle" in sys.argv
+TEST_MAIN_TICK_REQUESTED = "--test-main-tick" in sys.argv
 TEST_POST_QUOTE_REQUESTED = "--test-post-quote" in sys.argv
 TEST_POST_MEME_REQUESTED = "--test-post-meme" in sys.argv
 TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
@@ -1386,8 +1387,7 @@ def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
             chain = build_parent_chain(mention, state)
         except ApiError as e:
             log.warning("Could not build parent chain for mention %s: %s", mention_id, e)
-            record_api_error(state, e, "x")
-            return "", False
+            raise
         except Exception as e:
             log.warning("Unexpected failure building parent chain for mention %s: %s", mention_id, e)
             return "", False
@@ -2687,6 +2687,11 @@ def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
     log.debug("last_seen_mention_id is now %s", state["last_seen_mention_id"])
 
 
+def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
+    if candidate.get("_source", "mention") == "mention":
+        update_last_seen_mention_id(state, str(candidate.get("id", "")))
+
+
 def maybe_reply_to_mentions(state: dict) -> None:
     log.info("Starting mention reply check")
 
@@ -2777,25 +2782,25 @@ def maybe_reply_to_mentions(state: dict) -> None:
             incoming_text,
         )
 
-        if candidate_source == "mention":
-            update_last_seen_mention_id(state, mention_id)
-
         if mention_id in replied_to_ids:
             log.info("Skipping %s %s: already replied to", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="already_replied")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="already_replied")
+            mark_mention_seen_if_applicable(state, mention)
             continue
 
         if DRY_RUN_REPLIES and mention_id in dry_run_seen_ids:
             log.info("Skipping %s %s: already seen in dry-run", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="dry_run_already_seen")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="dry_run_already_seen")
+            mark_mention_seen_if_applicable(state, mention)
             continue
 
         if author_id == str(MY_USER_ID):
             log.info("Skipping %s %s: authored by our own account", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="own_account")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="own_account")
+            mark_mention_seen_if_applicable(state, mention)
             continue
 
         if MAX_REPLIES_PER_AUTHOR_PER_DAY <= 1 and author_id in daily_replied_author_ids:
@@ -2806,6 +2811,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
             )
             maybe_mark_hot_post_reply_skipped(state, mention, reason="author_daily_cap")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="author_daily_cap", author_id=author_id)
+            mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
 
@@ -2813,15 +2819,23 @@ def maybe_reply_to_mentions(state: dict) -> None:
             log.info("Skipping %s %s: spam/not worth replying", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="spam_or_not_worth_replying")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="spam_or_not_worth_replying")
+            mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
 
-        context_text, should_continue = build_context_for_grok(mention, state)
+        try:
+            context_text, should_continue = build_context_for_grok(mention, state)
+        except ApiError as e:
+            log.exception("Could not build context for %s %s due to API error", candidate_source, mention_id)
+            record_api_error(state, e, "x")
+            save_state(state)
+            return
 
         if not should_continue:
             log.info("Skipping %s %s: could not build usable context or configured to skip", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="context_unavailable")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="context_unavailable")
+            mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
 
@@ -2842,6 +2856,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
             log.info("No usable reply generated for %s %s", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="no_usable_reply_generated")
+            mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
 
@@ -2859,6 +2874,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
             daily_replied_author_ids.add(author_id)
             state["daily_replied_author_ids"] = list(daily_replied_author_ids)[-1000:]
 
+            mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             return
 
@@ -2878,6 +2894,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
                 )
                 replied_to_ids.add(mention_id)
                 state["replied_to_ids"] = list(replied_to_ids)[-1000:]
+                mark_mention_seen_if_applicable(state, mention)
                 save_state(state)
                 return
 
@@ -2923,6 +2940,7 @@ def maybe_reply_to_mentions(state: dict) -> None:
 
             log.info("Recorded and cached own auto-reply id=%s", own_reply_id)
 
+        mark_mention_seen_if_applicable(state, mention)
         save_state(state)
 
         log_event(
@@ -3546,6 +3564,118 @@ def schedule_next_quote_post(state: dict, from_epoch: int | None = None) -> None
     )
 
 
+def run_reply_lane_checks_for_tick(
+    state: dict,
+    current: int,
+    last_reply_check_epoch: int,
+    last_quote_tweet_check_epoch: int,
+) -> tuple[int, int]:
+    reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
+    if reply_lane_priority not in {"normal", "quote"}:
+        reply_lane_priority = "normal"
+        state["next_reply_lane_priority"] = reply_lane_priority
+        save_state(state)
+
+    seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0) or 0)
+    reply_spacing_open = seconds_since_last_reply >= MIN_SECONDS_BETWEEN_REPLIES
+    mention_check_due = ENABLE_AUTO_REPLIES and current - last_reply_check_epoch >= REPLY_CHECK_EVERY_SECONDS
+    quote_check_due = (
+        ENABLE_QUOTE_TWEET_CHECKS
+        and current - last_quote_tweet_check_epoch >= QUOTE_CHECK_EVERY_SECONDS
+    )
+
+    def run_normal_check(*, forced: bool = False) -> bool:
+        nonlocal last_reply_check_epoch
+
+        if forced:
+            log.info(
+                "Quote-tweet check is due, but normal/hot-post reply lane has priority; "
+                "running normal reply check first"
+            )
+        else:
+            log.info("Due to check mentions")
+
+        before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
+        maybe_reply_to_mentions(state)
+        last_reply_check_epoch = current
+        after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
+
+        if after_reply_epoch != before_reply_epoch:
+            state["next_reply_lane_priority"] = "quote"
+            save_state(state)
+            log.info("Normal/hot-post reply lane posted; next reply-lane priority=quote")
+            return True
+
+        if forced:
+            log.info("Normal/hot-post reply lane did not post; quote-tweet lane may use this slot")
+
+        return False
+
+    def run_quote_check() -> bool:
+        nonlocal last_quote_tweet_check_epoch
+
+        log.info("Due to check quote tweets")
+        priority_at_check = str(state.get("next_reply_lane_priority", reply_lane_priority) or reply_lane_priority)
+        quote_check_status = maybe_reply_to_quote_tweets(state)
+
+        log.info("Quote-tweet check status=%s", quote_check_status)
+        log_event("quote_check_status", status=quote_check_status, priority=priority_at_check)
+
+        if quote_check_status == QUOTE_CHECK_STATUS_POSTED:
+            state["next_reply_lane_priority"] = "normal"
+            save_state(state)
+            log.info("Quote-tweet reply lane posted; next reply-lane priority=normal")
+
+        if quote_check_status != QUOTE_CHECK_STATUS_SKIPPED_SPACING:
+            last_quote_tweet_check_epoch = current
+            state["last_quote_tweet_check_epoch"] = current
+            save_state(state)
+        else:
+            retry_epoch = current - QUOTE_CHECK_EVERY_SECONDS + QUOTE_CHECK_SPACING_RETRY_SECONDS
+            last_quote_tweet_check_epoch = retry_epoch
+            state["last_quote_tweet_check_epoch"] = retry_epoch
+            save_state(state)
+
+            log.info(
+                "Quote-tweet check skipped only because of reply spacing; "
+                "will retry in about %d seconds",
+                QUOTE_CHECK_SPACING_RETRY_SECONDS,
+            )
+
+        return quote_check_status == QUOTE_CHECK_STATUS_POSTED
+
+    if reply_spacing_open and quote_check_due and reply_lane_priority == "quote":
+        quote_posted = run_quote_check()
+        if not quote_posted and mention_check_due:
+            run_normal_check()
+    elif mention_check_due:
+        normal_posted = run_normal_check()
+        if not normal_posted and quote_check_due:
+            run_quote_check()
+    elif (
+        reply_spacing_open
+        and quote_check_due
+        and reply_lane_priority == "normal"
+        and ENABLE_AUTO_REPLIES
+    ):
+        normal_posted = run_normal_check(forced=True)
+        if not normal_posted:
+            run_quote_check()
+    elif quote_check_due:
+        run_quote_check()
+    else:
+        log.debug(
+            "Not due to check mentions. seconds_until_next=%s",
+            max(0, REPLY_CHECK_EVERY_SECONDS - (current - last_reply_check_epoch)),
+        )
+        log.debug(
+            "Not due to check quote tweets. seconds_until_next=%s",
+            max(0, QUOTE_CHECK_EVERY_SECONDS - (current - last_quote_tweet_check_epoch)),
+        )
+
+    return last_reply_check_epoch, last_quote_tweet_check_epoch
+
+
 def main() -> None:
     random.seed()
 
@@ -3640,97 +3770,12 @@ def main() -> None:
         current = now_epoch()
         log.debug("Main loop tick. epoch=%s", current)
 
-        reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-        if reply_lane_priority not in {"normal", "quote"}:
-            reply_lane_priority = "normal"
-            state["next_reply_lane_priority"] = reply_lane_priority
-            save_state(state)
-
-        seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0) or 0)
-        reply_spacing_open = seconds_since_last_reply >= MIN_SECONDS_BETWEEN_REPLIES
-        mention_check_due = ENABLE_AUTO_REPLIES and current - last_reply_check_epoch >= REPLY_CHECK_EVERY_SECONDS
-        quote_check_due = (
-            ENABLE_QUOTE_TWEET_CHECKS
-            and current - last_quote_tweet_check_epoch >= QUOTE_CHECK_EVERY_SECONDS
+        last_reply_check_epoch, last_quote_tweet_check_epoch = run_reply_lane_checks_for_tick(
+            state,
+            current,
+            last_reply_check_epoch,
+            last_quote_tweet_check_epoch,
         )
-
-        forced_normal_check_ran = False
-
-        if (
-            reply_spacing_open
-            and quote_check_due
-            and not mention_check_due
-            and reply_lane_priority == "normal"
-            and ENABLE_AUTO_REPLIES
-        ):
-            log.info(
-                "Quote-tweet check is due, but normal/hot-post reply lane has priority; "
-                "running normal reply check first"
-            )
-            before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-            maybe_reply_to_mentions(state)
-            forced_normal_check_ran = True
-            last_reply_check_epoch = current
-            after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-
-            if after_reply_epoch != before_reply_epoch:
-                state["next_reply_lane_priority"] = "quote"
-                save_state(state)
-                log.info("Normal/hot-post reply lane posted; next reply-lane priority=quote")
-            else:
-                log.info(
-                    "Normal/hot-post reply lane did not post; quote-tweet lane may use this slot"
-                )
-
-        if mention_check_due and not forced_normal_check_ran:
-            log.info("Due to check mentions")
-            before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-            maybe_reply_to_mentions(state)
-            last_reply_check_epoch = current
-            after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
-
-            if after_reply_epoch != before_reply_epoch:
-                state["next_reply_lane_priority"] = "quote"
-                save_state(state)
-                log.info("Normal/hot-post reply lane posted; next reply-lane priority=quote")
-        elif not mention_check_due and not forced_normal_check_ran:
-            log.debug(
-                "Not due to check mentions. seconds_until_next=%s",
-                max(0, REPLY_CHECK_EVERY_SECONDS - (current - last_reply_check_epoch)),
-            )
-
-        if quote_check_due:
-            log.info("Due to check quote tweets")
-            quote_check_status = maybe_reply_to_quote_tweets(state)
-
-            log.info("Quote-tweet check status=%s", quote_check_status)
-            log_event("quote_check_status", status=quote_check_status, priority=reply_lane_priority)
-
-            if quote_check_status == QUOTE_CHECK_STATUS_POSTED:
-                state["next_reply_lane_priority"] = "normal"
-                save_state(state)
-                log.info("Quote-tweet reply lane posted; next reply-lane priority=normal")
-
-            if quote_check_status != QUOTE_CHECK_STATUS_SKIPPED_SPACING:
-                last_quote_tweet_check_epoch = current
-                state["last_quote_tweet_check_epoch"] = current
-                save_state(state)
-            else:
-                retry_epoch = current - QUOTE_CHECK_EVERY_SECONDS + QUOTE_CHECK_SPACING_RETRY_SECONDS
-                last_quote_tweet_check_epoch = retry_epoch
-                state["last_quote_tweet_check_epoch"] = retry_epoch
-                save_state(state)
-
-                log.info(
-                    "Quote-tweet check skipped only because of reply spacing; "
-                    "will retry in about %d seconds",
-                    QUOTE_CHECK_SPACING_RETRY_SECONDS,
-                )
-        else:
-            log.debug(
-                "Not due to check quote tweets. seconds_until_next=%s",
-                max(0, QUOTE_CHECK_EVERY_SECONDS - (current - last_quote_tweet_check_epoch)),
-            )
 
         next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
         if current >= next_quote_epoch:
@@ -4002,6 +4047,28 @@ def run_test_cycle() -> int:
     return 0
 
 
+def run_test_main_tick() -> int:
+    """Run the production reply-lane tick once for local integration tests."""
+    if not require_test_mode("--test-main-tick"):
+        return 2
+
+    log.info("Running one test production reply-lane tick")
+    state = load_state()
+    current = now_epoch()
+    last_quote_tweet_check_epoch = int(state.get("last_quote_tweet_check_epoch", 0) or 0)
+
+    run_reply_lane_checks_for_tick(
+        state,
+        current,
+        last_reply_check_epoch=0,
+        last_quote_tweet_check_epoch=last_quote_tweet_check_epoch,
+    )
+
+    save_state(state)
+    log.info("Test production reply-lane tick finished")
+    return 0
+
+
 def require_test_mode(command_name: str) -> bool:
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("%s requires MRS_TEST_MODE=1", command_name)
@@ -4076,6 +4143,8 @@ if __name__ == "__main__":
             sys.exit(run_self_test())
         if TEST_CYCLE_REQUESTED:
             sys.exit(run_test_cycle())
+        if TEST_MAIN_TICK_REQUESTED:
+            sys.exit(run_test_main_tick())
         if TEST_POST_QUOTE_REQUESTED:
             sys.exit(run_test_post_quote())
         if TEST_POST_MEME_REQUESTED:

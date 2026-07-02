@@ -218,6 +218,53 @@ def test_quote_reply_flips_priority_to_normal(tmp_path: Path) -> None:
         server.stop()
 
 
+def test_production_tick_quote_priority_runs_quote_before_due_mentions(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "100",
+            "text": "@mrsMThatcher quite right",
+            "author_id": "200",
+            "conversation_id": "100",
+            "created_at": "2026-06-30T12:00:00Z",
+        }
+    ]
+    scenario["grok_replies"] = [
+        "A point is useful only when it survives contact with reality. This one rather does.",
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_EVERY_SECONDS": 1,
+            },
+        )
+        result = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"},
+        )
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "normal"
+        assert state.get("last_seen_mention_id") is None
+    finally:
+        server.stop()
+
+
 def test_normal_reply_flips_priority_to_quote(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
@@ -226,6 +273,36 @@ def test_normal_reply_flips_priority_to_quote(tmp_path: Path) -> None:
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["next_reply_lane_priority"] == "quote"
+    finally:
+        server.stop()
+
+
+def test_transient_parent_fetch_failure_does_not_advance_mention_watermark(tmp_path: Path) -> None:
+    server = FakeApiServer(
+        {
+            "mentions": [
+                {
+                    "id": "100",
+                    "text": "@mrsMThatcher what did you mean here?",
+                    "author_id": "200",
+                    "conversation_id": "100",
+                    "referenced_tweets": [{"type": "replied_to", "id": "99"}],
+                    "created_at": "2026-06-30T12:00:00Z",
+                }
+            ],
+            "error_paths": {"/2/tweets/99": 503},
+            "grok_replies": ["This should not be used."],
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, state={"last_seen_mention_id": None, "last_reply_epoch": 0})
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert len(server.posts) == 0
+        assert server.path_counts.get("/v1/chat/completions", 0) == 0
+        state = read_json(base_dir / "bot_state.json")
+        assert state.get("last_seen_mention_id") is None
+        assert state["x_error_epochs"]
     finally:
         server.stop()
 
