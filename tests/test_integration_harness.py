@@ -413,6 +413,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"]["700"] == "301"
         assert state["skipped_hot_reply_records"]["303"]["reason"] == "no_usable_reply_generated"
+        assert state["skipped_hot_reply_records"]["303"]["retryable"] is False
 
         state["hot_post_reply_check_counts"]["700"] = 11
         state["last_reply_epoch"] = 0
@@ -1055,6 +1056,28 @@ def test_made_with_ai_post_failure_retries_without_flag(tmp_path: Path, fake_ser
     assert "180" in state["replied_to_ids"]
 
 
+def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["network_failures"] = {"/2/tweets": "closed"}
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"last_reply_epoch": 0},
+            local_config={"MARK_AI_REPLIES_AS_AI": True},
+        )
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.path_counts["/2/tweets"] == 1
+        assert server.posts == []
+        state = read_json(base_dir / "bot_state.json")
+        assert state.get("last_seen_mention_id") is None
+        assert state["x_error_epochs"]
+    finally:
+        server.stop()
+
+
 @pytest.mark.parametrize("fake_server", ["reply_not_allowed_403.json"], indirect=True)
 def test_reply_not_allowed_403_marks_mention_handled_without_consuming_quota(tmp_path: Path, fake_server: FakeApiServer) -> None:
     base_dir = prepare_base_dir(tmp_path)
@@ -1227,6 +1250,23 @@ def test_test_mode_refuses_default_live_endpoints(tmp_path: Path) -> None:
 
     assert result.returncode == 2
     assert "Refusing to run in MRS_TEST_MODE with live endpoint" in result.stdout
+
+
+def test_test_mode_refuses_live_endpoints_with_explicit_ports(tmp_path: Path) -> None:
+    base_dir = prepare_base_dir(tmp_path)
+    result = run_bot_with_env(
+        base_dir,
+        extra_env={
+            "X_API_BASE_URL": "https://api.x.com:443",
+            "X_UPLOAD_BASE_URL": "https://upload.twitter.com:443",
+            "XAI_API_BASE_URL": "https://api.x.ai:443/v1",
+        },
+    )
+
+    assert result.returncode == 2
+    assert "X_API_BASE_URL=https://api.x.com:443" in result.stdout
+    assert "X_UPLOAD_BASE_URL=https://upload.twitter.com:443" in result.stdout
+    assert "XAI_API_BASE_URL=https://api.x.ai:443/v1" in result.stdout
 
 
 def test_live_endpoint_override_requires_deliberate_phrase(tmp_path: Path) -> None:

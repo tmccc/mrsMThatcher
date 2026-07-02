@@ -632,7 +632,7 @@ def normalise_base_url(raw: str, *, strip_trailing_segments: tuple[str, ...] = (
 
 def endpoint_host(url: str) -> str:
     try:
-        return urlsplit(url).netloc.lower()
+        return (urlsplit(url).hostname or "").lower()
     except Exception:
         return ""
 
@@ -1723,7 +1723,7 @@ def mark_hot_post_reply_skipped(
     state["skipped_hot_reply_ids"] = list(skipped)[-2000:]
 
     if retryable is None:
-        retryable = reason in {"grok_skip", "no_usable_reply_generated"}
+        retryable = False
 
     records = state.get("skipped_hot_reply_records", {})
     if not isinstance(records, dict):
@@ -1978,13 +1978,21 @@ def create_post(
     if not payload.get("text") and not payload.get("media"):
         raise ValueError("Cannot create X post without text or media")
 
+    def made_with_ai_field_rejected(error: ApiError) -> bool:
+        status_code = getattr(error, "status_code", None)
+        if status_code not in {400, 422}:
+            return False
+
+        message = str(error).lower()
+        return "made_with_ai" in message
+
     try:
         result = x_request("POST", "/2/tweets", json=payload)
         log.info("Created X post successfully. response=%s", result)
         return result
-    except ApiError:
-        if made_with_ai:
-            log.warning("Post failed with made_with_ai=True; retrying without made_with_ai field")
+    except ApiError as exc:
+        if made_with_ai and made_with_ai_field_rejected(exc):
+            log.warning("Post failed because made_with_ai field was rejected; retrying without made_with_ai field")
             payload.pop("made_with_ai", None)
             result = x_request("POST", "/2/tweets", json=payload)
             log.info("Created X post successfully after removing made_with_ai. response=%s", result)
