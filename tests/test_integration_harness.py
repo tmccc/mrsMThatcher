@@ -833,6 +833,241 @@ def test_fake_clock_sequence_does_not_duplicate_or_overpoll(tmp_path: Path) -> N
         server.stop()
 
 
+def test_two_day_fake_clock_soak_with_posts_pauses_cooldown_and_rollover(tmp_path: Path) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "@mrsMThatcher quite right",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-06-30T12:00:00Z",
+            },
+            {
+                "id": "101",
+                "text": "@mrsMThatcher what happens next?",
+                "author_id": "201",
+                "conversation_id": "101",
+                "created_at": "2026-07-01T12:00:00Z",
+            },
+        ],
+        "quote_tweets": {
+            "900": {
+                "data": [
+                    {
+                        "id": "910",
+                        "text": "@mrsMThatcher ? What will you tax next in your levelling down quest?",
+                        "author_id": "310",
+                        "conversation_id": "910",
+                        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+                        "created_at": "2026-06-01T08:00:00Z",
+                    },
+                    {
+                        "id": "911",
+                        "text": "@mrsMThatcher is the second day any better?",
+                        "author_id": "311",
+                        "conversation_id": "911",
+                        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+                        "created_at": "2026-06-02T08:00:00Z",
+                    },
+                ]
+            }
+        },
+        "tweets": {
+            "900": {
+                "id": "900",
+                "text": "Original watched post.",
+                "author_id": "12345",
+                "conversation_id": "900",
+                "created_at": "2026-06-01T07:00:00Z",
+            },
+            "300": {
+                "id": "300",
+                "text": "A usable hot-post candidate",
+                "author_id": "400",
+                "conversation_id": "900",
+                "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+                "created_at": "2026-06-01T09:00:00Z",
+            }
+        },
+        "search_recent": [
+            {
+                "id": "300",
+                "text": "A usable hot-post candidate",
+                "author_id": "400",
+                "conversation_id": "900",
+                "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+                "created_at": "2026-06-01T09:00:00Z",
+            }
+        ],
+        "grok_replies": [
+            "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+            "The list grows longer each time they need another pound.",
+            "The next thing is usually dearer government and less liberty.",
+            "A second day does not improve a bad idea.",
+            "Hot air is not policy, however loudly it is reheated.",
+            "This spare reply should never be needed.",
+        ],
+        "next_post_id": 950000,
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            meme=True,
+            watch_ids=["900"],
+            state={
+                "next_reply_lane_priority": "normal",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+                "last_seen_mention_id": None,
+                "next_quote_post_epoch": 0,
+                "next_meme_post_epoch": 0,
+                "posted_meme_filenames": [],
+                "daily_reply_date": "2030-01-01",
+                "daily_reply_count": 99,
+                "daily_quote_reply_date": "2030-01-01",
+                "daily_quote_reply_count": 99,
+                "daily_replied_author_ids": ["stale-author"],
+                "daily_replied_author_counts": {"stale-author": 1},
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": True,
+                "ENABLE_DAILY_MEME_POSTS": True,
+                "REPLY_CHECK_EVERY_SECONDS": 900,
+                "QUOTE_CHECK_EVERY_SECONDS": 900,
+                "MIN_SECONDS_BETWEEN_REPLIES": 1800,
+                "MAX_AUTO_REPLIES_PER_DAY": 4,
+                "MAX_QUOTE_REPLIES_PER_DAY": 2,
+                "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
+                "MEME_POST_TEXT": "meme",
+                "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS": 2100,
+                "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS": 2100,
+            },
+        )
+
+        tick_epochs = [
+            1_780_370_100,  # 2026-06-01 daytime, stale daily counters must roll over.
+            1_780_371_000,
+            1_780_371_900,
+            1_780_372_800,
+            1_780_373_700,
+            1_780_374_600,
+            1_780_375_500,
+            1_780_376_400,
+            1_780_377_300,
+            1_780_378_200,
+            1_780_379_100,
+            1_780_380_000,
+            1_780_383_600,  # crossed local midnight into the next day.
+            1_780_384_500,
+            1_780_385_400,
+            1_780_386_300,
+            1_780_387_200,
+            1_780_388_100,
+            1_780_389_000,
+            1_780_389_900,
+            1_780_390_800,
+            1_780_391_700,
+            1_780_392_600,
+        ]
+
+        for index, epoch in enumerate(tick_epochs):
+            if index == 4:
+                write_json(
+                    base_dir / "mrsMThatcher.control.json",
+                    {
+                        "disable_replies": True,
+                        "pause_until_epoch": epoch + 3600,
+                    },
+                )
+            elif index == 5:
+                write_json(
+                    base_dir / "bot_state.json",
+                    {
+                        **read_json(base_dir / "bot_state.json"),
+                        "api_cooldown_until_epoch": epoch + 3600,
+                        "api_cooldown_reason": "soak-test",
+                    },
+                )
+                (base_dir / "mrsMThatcher.control.json").unlink(missing_ok=True)
+            elif index == 6:
+                state = read_json(base_dir / "bot_state.json")
+                state["api_cooldown_until_epoch"] = 0
+                state["api_cooldown_reason"] = ""
+                write_json(base_dir / "bot_state.json", state)
+
+            result = run_bot_command(
+                base_dir,
+                server,
+                "--test-main-tick",
+                extra_env={"MRS_FAKE_NOW_EPOCH": str(epoch)},
+            )
+            assert result.returncode == 0, result.stderr + result.stdout
+
+        quote_result = run_bot_command(
+            base_dir,
+            server,
+            "--test-post-quote",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(1_780_377_000)},
+        )
+        assert quote_result.returncode == 0, quote_result.stderr + quote_result.stdout
+
+        meme_result = run_bot_command(
+            base_dir,
+            server,
+            "--test-post-meme",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(1_780_379_200)},
+        )
+        assert meme_result.returncode == 0, meme_result.stderr + meme_result.stdout
+
+        reply_targets = [
+            post.get("reply", {}).get("in_reply_to_tweet_id")
+            for post in server.posts
+            if post.get("reply")
+        ]
+        main_posts = [
+            post
+            for post in server.posts
+            if not post.get("reply") and not post.get("quote_tweet_id")
+        ]
+
+        assert len(reply_targets) == len(set(reply_targets))
+        assert "100" in reply_targets
+        assert "910" in reply_targets
+        assert "101" in reply_targets or "911" in reply_targets or "300" in reply_targets
+        assert server.path_counts.get("/2/tweets/search/recent", 0) > 0
+        assert len(main_posts) == 2
+        assert any(post.get("text") == "A test quote." for post in main_posts)
+        assert any(post.get("text") == "meme" for post in main_posts)
+        assert len(server.uploads) >= 2
+
+        state = read_json(base_dir / "bot_state.json")
+        assert "100" in state["replied_to_ids"]
+        assert "910" in state["replied_to_quote_post_ids"]
+        assert state["replied_to_ids"].count("100") == 1
+        assert state["replied_to_quote_post_ids"].count("910") == 1
+        assert state["daily_reply_date"] == "2026-06-02"
+        assert state["daily_quote_reply_date"] == "2026-06-02"
+        assert "stale-author" not in state["daily_replied_author_ids"]
+        assert "stale-author" not in state["daily_replied_author_counts"]
+        assert state["daily_reply_count"] <= 4
+        assert state["daily_quote_reply_count"] <= 2
+        assert state["last_reply_check_epoch"] <= tick_epochs[-1]
+        assert state["last_quote_tweet_check_epoch"] <= tick_epochs[-1]
+        assert state["last_reply_check_epoch"] >= tick_epochs[0]
+        assert state["last_quote_tweet_check_epoch"] >= tick_epochs[0]
+        assert state["next_meme_schedule_date"] >= "2026-06-02"
+        assert state["posted_meme_filenames"] == ["001_test_meme.png"]
+        assert state["next_reply_lane_priority"] in {"normal", "quote"}
+        assert server.path_counts.get("/2/users/12345/mentions", 0) < len(tick_epochs)
+        assert server.path_counts.get("/2/tweets/900/quote_tweets", 0) < len(tick_epochs)
+    finally:
+        server.stop()
+
+
 def test_malformed_quote_tweet_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
     scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
     scenario["quote_tweets"]["900"]["data"] = [
