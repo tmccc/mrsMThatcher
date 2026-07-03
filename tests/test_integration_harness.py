@@ -3678,6 +3678,9 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert stale_digest.returncode == 0, stale_digest.stderr
     assert "no API cooldown" in stale_digest.stdout
     assert "API cooldown occurred" not in stale_digest.stdout
+    assert "api_cooldown_until      = 1" in stale_digest.stdout
+    assert "api_cooldown_reason     = old cooldown" in stale_digest.stdout
+    assert "expired" in stale_digest.stdout
     assert "mention_fetch_attempts         = 1" in stale_digest.stdout
     assert "mention_checks_skipped_spacing = 1" in stale_digest.stdout
     assert "Mention direct skips" in stale_digest.stdout

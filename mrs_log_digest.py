@@ -159,6 +159,14 @@ def int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+def cooldown_state_text(until_epoch: Any, state_time_text: Any) -> str:
+    until = int_or_none(until_epoch)
+    state_time = parse_dt(state_time_text) if state_time_text else None
+    if not until or not state_time:
+        return ""
+    return "active" if int(state_time.timestamp()) < until else "expired"
+
+
 @dataclass(frozen=True)
 class Record:
     ts: datetime
@@ -1154,10 +1162,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if st.get("skipped_hot_reply_count") is not None:
             out.append(f"skipped_hot_reply_count = {st.get('skipped_hot_reply_count')}")
         out.append(f"quote_spam_author_count = {st.get('quote_spam_author_count')}")
-        out.append(f"api_cooldown_until      = {st.get('api_cooldown_until_epoch')}  {st.get('api_cooldown_until_human') or ''}")
+        api_cooldown_status = cooldown_state_text(st.get("api_cooldown_until_epoch"), st.get("time"))
+        api_cooldown_suffix = f"  {api_cooldown_status}" if api_cooldown_status else ""
+        out.append(
+            f"api_cooldown_until      = {st.get('api_cooldown_until_epoch')}  "
+            f"{st.get('api_cooldown_until_human') or ''}{api_cooldown_suffix}"
+        )
         if st.get("api_cooldown_reason"):
             out.append(f"api_cooldown_reason     = {st.get('api_cooldown_reason')}")
-        out.append(f"quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  {st.get('quote_api_cooldown_until_human') or ''}")
+        quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), st.get("time"))
+        quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
+        out.append(
+            f"quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  "
+            f"{st.get('quote_api_cooldown_until_human') or ''}{quote_api_cooldown_suffix}"
+        )
         if st.get("quote_api_cooldown_reason"):
             out.append(f"quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")
         out.append(f"last_main_post_id       = {st.get('last_main_post_id')}")
