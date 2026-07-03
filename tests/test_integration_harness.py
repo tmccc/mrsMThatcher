@@ -196,7 +196,12 @@ def normalize_for_branch_parity(value):
     if isinstance(value, dict):
         normalized = {}
         for key, item in value.items():
-            if key == "last_reply_check_epoch":
+            if key in {
+                "last_reply_check_epoch",
+                "quote_api_cooldown_reason",
+                "quote_api_cooldown_until_epoch",
+                "quote_x_error_epochs",
+            }:
                 continue
             if key in {"cached_epoch", "created_at"}:
                 continue
@@ -1122,6 +1127,74 @@ def test_api_failure_consumes_normal_check_interval_and_records_cooldown(tmp_pat
         assert state["last_reply_check_epoch"] == 2_000_000_000
         assert state["x_error_epochs"]
         assert state["api_cooldown_until_epoch"] == 0
+    finally:
+        server.stop()
+
+
+def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
+    server = FakeApiServer(
+        {
+            "tweets": {
+                "900": {
+                    "id": "900",
+                    "text": "Original watched post.",
+                    "author_id": "12345",
+                    "conversation_id": "900",
+                    "created_at": "2026-06-01T07:00:00Z",
+                }
+            },
+            "mentions": [
+                {
+                    "id": "100",
+                    "text": "@mrsMThatcher normal lane should still work",
+                    "author_id": "200",
+                    "conversation_id": "100",
+                    "created_at": "2026-06-30T12:00:00Z",
+                }
+            ],
+            "grok_replies": ["The point is plain enough."],
+            "error_paths": {"/2/tweets/900/quote_tweets": 503},
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "quote",
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "REPLY_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_EVERY_SECONDS": 1,
+                "MIN_SECONDS_BETWEEN_REPLIES": 0,
+            },
+        )
+
+        for epoch in ["2000000000", "2000000001", "2000000002", "2000000003"]:
+            result = run_bot_command(
+                base_dir,
+                server,
+                "--test-main-tick",
+                extra_env={"MRS_FAKE_NOW_EPOCH": epoch},
+            )
+            assert result.returncode == 0, result.stderr + result.stdout
+
+        assert server.path_counts.get("/2/tweets/900/quote_tweets") == 3
+        assert server.path_counts.get("/2/users/12345/mentions") == 4
+        assert len(server.posts) == 1
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+
+        state = read_json(base_dir / "bot_state.json")
+        assert len(state["quote_x_error_epochs"]) == 3
+        assert state["quote_api_cooldown_until_epoch"] == 2_000_003_602
+        assert state["quote_api_cooldown_reason"] == "too many quote/x API errors in the last hour"
+        assert state["x_error_epochs"] == []
+        assert state["api_cooldown_until_epoch"] == 0
+        assert "100" in state["replied_to_ids"]
     finally:
         server.stop()
 

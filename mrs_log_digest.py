@@ -424,6 +424,7 @@ def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
         return None
     keys = [
         "api_cooldown_reason", "api_cooldown_until_epoch",
+        "quote_api_cooldown_reason", "quote_api_cooldown_until_epoch",
         "daily_quote_reply_count", "daily_quote_reply_date",
         "daily_reply_count", "daily_reply_date",
         "last_main_post_id", "last_meme_post_epoch", "last_quote_post_epoch",
@@ -565,7 +566,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             elif msg.startswith("Remaining:"):
                 api_errors[-1]["remaining"] = msg.split(":", 1)[1].strip()
             else:
-                m = re.search(r"Recorded x API error\. status_code=(\d+) errors_in_window=(\d+/\d+)", msg)
+                m = re.search(r"Recorded (?:quote/)?x API error\. status_code=(\d+) errors_in_window=(\d+/\d+)", msg)
                 if m:
                     api_errors[-1]["errors_in_window"] = m.group(2)
         if "Traceback" in msg:
@@ -857,6 +858,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "api_cooldown_until_epoch": latest_state.get("api_cooldown_until_epoch"),
             "api_cooldown_until_human": epoch_to_human(latest_state.get("api_cooldown_until_epoch")),
             "api_cooldown_reason": latest_state.get("api_cooldown_reason"),
+            "quote_api_cooldown_until_epoch": latest_state.get("quote_api_cooldown_until_epoch"),
+            "quote_api_cooldown_until_human": epoch_to_human(latest_state.get("quote_api_cooldown_until_epoch")),
+            "quote_api_cooldown_reason": latest_state.get("quote_api_cooldown_reason"),
             "quote_spam_author_count": len(latest_state.get("quote_spam_author_ids") or []),
             "posted_meme_count": len(latest_state.get("posted_meme_filenames") or []),
             "posted_meme_filenames_tail": list((latest_state.get("posted_meme_filenames") or [])[-8:]),
@@ -880,6 +884,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     else:
         headline.append("no serious errors")
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
+    quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
     if cooldown_until_epoch and latest_state_time:
         latest_state_epoch = int(latest_state_time.timestamp())
@@ -887,6 +892,12 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             headline.append("API cooldown active now")
         else:
             headline.append("API cooldown occurred, now expired")
+    elif quote_cooldown_until_epoch and latest_state_time:
+        latest_state_epoch = int(latest_state_time.timestamp())
+        if latest_state_epoch < quote_cooldown_until_epoch:
+            headline.append("quote API cooldown active now")
+        else:
+            headline.append("quote API cooldown occurred, now expired")
     elif stats.get("api_cooldown_entered", 0):
         headline.append("API cooldown occurred")
     else:
@@ -1117,6 +1128,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"api_cooldown_until      = {st.get('api_cooldown_until_epoch')}  {st.get('api_cooldown_until_human') or ''}")
         if st.get("api_cooldown_reason"):
             out.append(f"api_cooldown_reason     = {st.get('api_cooldown_reason')}")
+        out.append(f"quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  {st.get('quote_api_cooldown_until_human') or ''}")
+        if st.get("quote_api_cooldown_reason"):
+            out.append(f"quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")
         out.append(f"last_main_post_id       = {st.get('last_main_post_id')}")
         out.append(f"last_seen_mention_id    = {st.get('last_seen_mention_id')}")
         if st.get("last_quote_post_epoch") is not None:

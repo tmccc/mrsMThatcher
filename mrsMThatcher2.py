@@ -913,6 +913,9 @@ def default_state() -> dict:
         "xai_error_epochs": [],
         "api_cooldown_until_epoch": 0,
         "api_cooldown_reason": "",
+        "quote_x_error_epochs": [],
+        "quote_api_cooldown_until_epoch": 0,
+        "quote_api_cooldown_reason": "",
     }
 
 
@@ -1114,15 +1117,21 @@ def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]
     return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
 
 
-def in_api_cooldown(state: dict) -> bool:
-    until = int(state.get("api_cooldown_until_epoch", 0) or 0)
+def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
+    if scope == "quote":
+        until = int(state.get("quote_api_cooldown_until_epoch", 0) or 0)
+        reason = state.get("quote_api_cooldown_reason", "Quote API cooldown")
+        label = "Quote API cooldown"
+    else:
+        until = int(state.get("api_cooldown_until_epoch", 0) or 0)
+        reason = state.get("api_cooldown_reason", "API cooldown")
+        label = "API cooldown"
 
     if until <= now_epoch():
         return False
 
-    reason = state.get("api_cooldown_reason", "API cooldown")
     until_human = datetime.fromtimestamp(until).strftime("%Y-%m-%d %H:%M:%S")
-    log.warning("API cooldown active until %s: %s", until_human, reason)
+    log.warning("%s active until %s: %s", label, until_human, reason)
     return True
 
 
@@ -1139,15 +1148,24 @@ def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
     return current + COOLDOWN_AFTER_429_SECONDS
 
 
-def record_api_error(state: dict, error: Exception, service: str) -> None:
+def record_api_error(state: dict, error: Exception, service: str, *, scope: str = "api") -> None:
     current = now_epoch()
 
-    if service == "x":
+    if service == "x" and scope == "quote":
+        key = "quote_x_error_epochs"
+        max_errors = MAX_X_ERRORS_PER_WINDOW
+        cooldown_until_key = "quote_api_cooldown_until_epoch"
+        cooldown_reason_key = "quote_api_cooldown_reason"
+    elif service == "x":
         key = "x_error_epochs"
         max_errors = MAX_X_ERRORS_PER_WINDOW
+        cooldown_until_key = "api_cooldown_until_epoch"
+        cooldown_reason_key = "api_cooldown_reason"
     else:
         key = "xai_error_epochs"
         max_errors = MAX_XAI_ERRORS_PER_WINDOW
+        cooldown_until_key = "api_cooldown_until_epoch"
+        cooldown_reason_key = "api_cooldown_reason"
 
     epochs = prune_error_epochs(state.get(key, []))
     epochs.append(current)
@@ -1158,7 +1176,7 @@ def record_api_error(state: dict, error: Exception, service: str) -> None:
 
     log.warning(
         "Recorded %s API error. status_code=%s errors_in_window=%d/%d reset_epoch=%s error=%s",
-        service,
+        f"{scope}/{service}" if scope != "api" else service,
         status_code,
         len(epochs),
         max_errors,
@@ -1167,21 +1185,25 @@ def record_api_error(state: dict, error: Exception, service: str) -> None:
     )
 
     if status_code == 429:
-        state["api_cooldown_until_epoch"] = cooldown_until_for_rate_limit(current, reset_epoch)
-        state["api_cooldown_reason"] = f"{service} returned 429/rate limit"
+        state[cooldown_until_key] = cooldown_until_for_rate_limit(current, reset_epoch)
+        state[cooldown_reason_key] = f"{scope}/{service} returned 429/rate limit" if scope != "api" else f"{service} returned 429/rate limit"
         log.error(
             "Entering API cooldown after 429 until %s",
-            datetime.fromtimestamp(state["api_cooldown_until_epoch"]).strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.fromtimestamp(state[cooldown_until_key]).strftime("%Y-%m-%d %H:%M:%S"),
         )
         save_state(state)
         return
 
     if len(epochs) >= max_errors:
-        state["api_cooldown_until_epoch"] = current + COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS
-        state["api_cooldown_reason"] = f"too many {service} API errors in the last hour"
+        state[cooldown_until_key] = current + COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS
+        state[cooldown_reason_key] = (
+            f"too many {scope}/{service} API errors in the last hour"
+            if scope != "api"
+            else f"too many {service} API errors in the last hour"
+        )
         log.error(
             "Entering API cooldown after repeated errors until %s",
-            datetime.fromtimestamp(state["api_cooldown_until_epoch"]).strftime("%Y-%m-%d %H:%M:%S"),
+            datetime.fromtimestamp(state[cooldown_until_key]).strftime("%Y-%m-%d %H:%M:%S"),
         )
         save_state(state)
 
@@ -3488,7 +3510,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log.info("Skipping quote-tweet check due to runtime control file")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if in_api_cooldown(state):
+    if in_api_cooldown(state) or in_api_cooldown(state, scope="quote"):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
@@ -3536,7 +3558,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             original_tweet = get_tweet_by_id_cached(original_post_id, state)
         except ApiError as e:
             log.exception("Failed to fetch original own post %s", original_post_id)
-            record_api_error(state, e, "x")
+            record_api_error(state, e, "x", scope="quote")
             save_state(state)
             continue
         except Exception:
@@ -3552,7 +3574,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             quote_tweets = get_quote_tweets_for_post(original_post_id)
         except ApiError as e:
             log.exception("Failed to fetch quote tweets for post %s", original_post_id)
-            record_api_error(state, e, "x")
+            record_api_error(state, e, "x", scope="quote")
             save_state(state)
             return QUOTE_CHECK_STATUS_CHECKED
         except Exception:
