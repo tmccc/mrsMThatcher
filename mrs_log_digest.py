@@ -459,6 +459,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     stats = Counter()
     events: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
+    api_errors: List[Dict[str, Any]] = []
+    cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
     configs: Dict[str, str] = {}
@@ -509,6 +511,13 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
 
         if ("API cooldown active" in msg or "due to API cooldown" in msg or "Skipping quote-tweet check due to API cooldown" in msg or "Skipping mention check due to API cooldown" in msg):
             stats["cooldown_mentions"] += 1
+        m = re.search(r"API cooldown active until ([^:]+:\d{2}:\d{2}): (.+)$", msg)
+        if m:
+            cooldown_active.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "until": m.group(1).strip(),
+                "reason": m.group(2).strip(),
+            })
         m = re.search(r"Entering API cooldown after (429|repeated errors) until (.+)$", msg)
         if m:
             add_event("api_cooldown_entered", r.ts, reason=m.group(1), until=m.group(2).strip())
@@ -521,10 +530,44 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         if m:
             add_event("used_history_normalized", r.ts, json_file=m.group(1).strip())
             continue
-        if "X API error" in msg or "X bearer API error" in msg:
+        x_error_match = None
+        if r.src in {"x_request", "x_bearer_request"}:
+            x_error_match = re.search(r"^X(?: bearer)? API error (\d+):", msg)
+        if x_error_match:
             stats["x_api_errors"] += 1
-        if "xAI error" in msg:
+            service = "X bearer" if "X bearer API error" in msg else "X OAuth"
+            endpoint = "quote_tweets" if service == "X bearer" else "mentions/hot-post"
+            status_code = x_error_match.group(1)
+            api_errors.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "service": service,
+                "endpoint": endpoint,
+                "status": status_code,
+                "message": short(msg, 240),
+            })
+            if status_code == "503":
+                stats[f"x_api_503_{endpoint.replace('/', '_').replace('-', '_')}"] += 1
+            elif status_code == "429":
+                stats["x_api_429_rate_limit"] += 1
+        if r.src in {"ask_grok_for_reply", "xai_request"} and msg.startswith("xAI error"):
             stats["xai_errors"] += 1
+            m = re.search(r"xAI error (\d+):", msg)
+            api_errors.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "service": "xAI",
+                "endpoint": "chat",
+                "status": m.group(1) if m else "",
+                "message": short(msg, 240),
+            })
+        if api_errors:
+            if msg.startswith("Rate Limit:"):
+                api_errors[-1]["rate_limit"] = msg.split(":", 1)[1].strip()
+            elif msg.startswith("Remaining:"):
+                api_errors[-1]["remaining"] = msg.split(":", 1)[1].strip()
+            else:
+                m = re.search(r"Recorded x API error\. status_code=(\d+) errors_in_window=(\d+/\d+)", msg)
+                if m:
+                    api_errors[-1]["errors_in_window"] = m.group(2)
         if "Traceback" in msg:
             stats["tracebacks"] += 1
 
@@ -863,6 +906,25 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         },
     }
 
+    not_rate_limited = any(
+        str(item.get("remaining", "")).isdigit()
+        and int(str(item.get("remaining"))) > 0
+        and str(item.get("status")) != "429"
+        for item in api_errors
+    )
+    post_cooldown_errors: List[Dict[str, Any]] = []
+    cooldown_events = [ev for ev in events if ev.get("kind") == "api_cooldown_entered"]
+    for item in api_errors:
+        try:
+            item_ts = datetime.strptime(item["time"], "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            continue
+        for ev in cooldown_events:
+            until = parse_dt(str(ev.get("until", "")))
+            if until and item_ts > until:
+                post_cooldown_errors.append(item)
+                break
+
     return {
         "summary": {
             "record_count": len(records),
@@ -875,6 +937,12 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         "latest_config": configs,
         "latest_state": latest_state_summary,
         "derived": derived,
+        "api_health": {
+            "errors": api_errors,
+            "cooldown_active": cooldown_active,
+            "post_cooldown_errors": post_cooldown_errors,
+            "not_rate_limited": not_rate_limited,
+        },
         "lifecycle": lifecycle[-12:],
         "events": events,
         "errors_and_warnings": errors[-40:],
@@ -1226,6 +1294,50 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("api_cooldown_entered", "API cooldowns entered", ["time", "reason", "until"])
     section("used_history_migrated", "Used-history migrations", ["time", "legacy_file", "json_file"])
     section("used_history_normalized", "Used-history normalizations", ["time", "json_file"])
+
+    api_health = report.get("api_health") or {}
+    api_errors = api_health.get("errors") or []
+    cooldown_active = api_health.get("cooldown_active") or []
+    post_cooldown_errors = api_health.get("post_cooldown_errors") or []
+    if api_errors or cooldown_active:
+        out.append("## API health")
+        if api_errors:
+            out.append(md_table_row(["time", "service", "endpoint", "status", "window", "remaining", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
+            for item in api_errors:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("service", ""),
+                    item.get("endpoint", ""),
+                    item.get("status", ""),
+                    item.get("errors_in_window", ""),
+                    item.get("remaining", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+        if cooldown_active:
+            out.append("Cooldown-active checks:")
+            out.append(md_table_row(["time", "until", "reason"]))
+            out.append(md_table_row(["---", "---", "---"]))
+            for item in cooldown_active:
+                out.append(md_table_row([item.get("time", ""), item.get("until", ""), item.get("reason", "")]))
+            out.append("")
+        if post_cooldown_errors:
+            out.append("Post-cooldown errors:")
+            out.append(md_table_row(["time", "service", "endpoint", "status", "window"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---"]))
+            for item in post_cooldown_errors:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("service", ""),
+                    item.get("endpoint", ""),
+                    item.get("status", ""),
+                    item.get("errors_in_window", ""),
+                ]))
+            out.append("")
+        if api_health.get("not_rate_limited"):
+            out.append("Likely cause: upstream/API-side failure, not quota exhaustion; remaining quota was non-zero on recorded error headers.")
+            out.append("")
 
     errs = report.get("errors_and_warnings") or []
     out.append("## Errors / warnings")

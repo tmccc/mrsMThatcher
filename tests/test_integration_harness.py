@@ -3562,6 +3562,11 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         "\n".join(
             [
                 "2026-07-02 10:00:00 ERROR    record_api_error:1122 - Entering API cooldown after 429 until 2099-12-31 00:01:00",
+                "2026-07-02 10:01:00 ERROR    x_request:1254 - X API error 503: {\"detail\":\"Service Unavailable\"}",
+                "2026-07-02 10:01:00 WARNING  print_rate_limit_headers:1194 - Rate Limit: 40000",
+                "2026-07-02 10:01:00 WARNING  print_rate_limit_headers:1195 - Remaining: 40000",
+                "2026-07-02 10:01:00 WARNING  record_api_error:1159 - Recorded x API error. status_code=503 errors_in_window=1/3 reset_epoch=1783050931 error=X API error 503: {\"detail\":\"Service Unavailable\"}",
+                "2026-07-02 10:02:00 WARNING  in_api_cooldown:1125 - API cooldown active until 2099-12-31 00:01:00: too many x API errors in the last hour",
                 "2026-07-02 10:00:01 INFO     load_used_set:829 - Migrated legacy pickle file /tmp/lines_used.pickle to JSON file /tmp/lines_used.json",
                 "2026-07-02 10:00:02 INFO     load_used_set:817 - Normalized used-history JSON ordering in /tmp/images_used.json",
             ]
@@ -3572,5 +3577,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     ops_digest = run_digest(ops_base)
     assert ops_digest.returncode == 0, ops_digest.stderr
     assert "API cooldowns entered" in ops_digest.stdout
+    assert "API health" in ops_digest.stdout
+    assert "mentions/hot-post" in ops_digest.stdout
+    assert "not quota exhaustion" in ops_digest.stdout
     assert "Used-history migrations" in ops_digest.stdout
     assert "Used-history normalizations" in ops_digest.stdout

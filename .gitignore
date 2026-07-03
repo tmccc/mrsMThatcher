@@ -8,7 +8,7 @@ nohup.out
 __pycache__/
 .pytest_cache/
 .mrs_log_digest_state.json
-digest.md
+digest*.md
 .DS_Store
 ._*
 mrsMThatcher.env
