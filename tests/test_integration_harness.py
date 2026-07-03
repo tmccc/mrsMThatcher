@@ -3667,6 +3667,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
                 "2026-07-03 12:01:00 INFO     maybe_reply_to_mentions:2975 - Skipping mention check: minimum interval between replies not reached",
                 "2026-07-03 12:16:00 INFO     maybe_reply_to_mentions:2931 - Starting mention reply check",
                 "2026-07-03 12:16:00 INFO     get_mentions:1679 - Fetching mentions. last_seen_mention_id=1 max_results=5",
+                "2026-07-03 12:16:01 INFO     maybe_reply_to_mentions:3036 - Considering mention id=123 author_id=456 text='@MrsMThatcher @other'",
+                "2026-07-03 12:16:01 INFO     maybe_reply_to_mentions:3078 - Skipping mention 123: spam/not worth replying",
             ]
         )
         + "\n",
@@ -3678,3 +3680,5 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "API cooldown occurred" not in stale_digest.stdout
     assert "mention_fetch_attempts         = 1" in stale_digest.stdout
     assert "mention_checks_skipped_spacing = 1" in stale_digest.stdout
+    assert "Mention direct skips" in stale_digest.stdout
+    assert "@MrsMThatcher @other" in stale_digest.stdout

@@ -755,9 +755,24 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 if "already replied/skipped" in reason:
                     routine_skip_counts["hot_post_reply_already_handled"] += 1
                 else:
-                    add_event("hot_post_reply_skipped", r.ts, hot_post_reply_id=ident, reason=reason)
+                    add_event(
+                        "hot_post_reply_skipped",
+                        r.ts,
+                        hot_post_reply_id=ident,
+                        author_id=pending_mention.get("author_id"),
+                        incoming_text=pending_mention.get("incoming_text", ""),
+                        reason=reason,
+                    )
             else:
-                add_event("mention_skipped", r.ts, mention_id=ident, reason=reason)
+                add_event(
+                    "mention_skipped",
+                    r.ts,
+                    mention_id=ident,
+                    author_id=pending_mention.get("author_id"),
+                    incoming_text=pending_mention.get("incoming_text", ""),
+                    reason=reason,
+                )
+            pending_mention = {}
             continue
 
         m = re.search(r"Skipping hot-post candidate (\d+): (.*)$", msg, re.S)
@@ -1328,8 +1343,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])
     section("hot_post_reply_grok_skip", "Hot-post Grok skips", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
     section("quote_tweet_grok_skip", "Quote-tweet Grok skips", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text"])
-    section("mention_skipped", "Mention direct skips", ["time", "mention_id", "reason"])
-    section("hot_post_reply_skipped", "Hot-post direct skips", ["time", "hot_post_reply_id", "reason"])
+    section("mention_skipped", "Mention direct skips", ["time", "mention_id", "author_id", "incoming_text", "reason"])
+    section("hot_post_reply_skipped", "Hot-post direct skips", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reason"])
     section("quote_tweet_skipped", "Quote-tweet direct skips", ["time", "quote_tweet_id", "reason"])
     section("api_cooldown_entered", "API cooldowns entered", ["time", "reason", "until"])
     section("used_history_migrated", "Used-history migrations", ["time", "legacy_file", "json_file"])
