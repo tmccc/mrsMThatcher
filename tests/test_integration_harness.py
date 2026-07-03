@@ -3625,6 +3625,9 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
         digest = run_digest(base_dir, state_file=base_dir / ".digest_state.json")
         assert digest.returncode == 0, digest.stderr
         assert "# MrsMThatcher log digest" in digest.stdout
+        assert "## Input files" in digest.stdout
+        assert "records_after_since=" in digest.stdout
+        assert "records_in_window_before_dedupe=" in digest.stdout
         assert "mention reply/replies" in digest.stdout
         assert "hot_search" in digest.stdout or "hot-post" in digest.stdout
     finally:

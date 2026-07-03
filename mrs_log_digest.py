@@ -241,6 +241,63 @@ def read_records(
     return out
 
 
+def summarize_input_files(
+    paths: List[Path],
+    since: Optional[datetime],
+    until: Optional[datetime],
+    *,
+    since_exclusive: bool = False,
+) -> List[Dict[str, Any]]:
+    summaries: List[Dict[str, Any]] = []
+
+    for path in paths:
+        summary: Dict[str, Any] = {
+            "path": str(path),
+            "exists": path.exists(),
+            "size": None,
+            "mtime": None,
+            "total_records": 0,
+            "first_timestamp": None,
+            "last_timestamp": None,
+            "records_after_since": 0,
+            "records_in_window": 0,
+        }
+
+        if not path.exists():
+            summaries.append(summary)
+            continue
+
+        try:
+            stat = path.stat()
+            summary["size"] = stat.st_size
+            summary["mtime"] = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        except OSError:
+            pass
+
+        for record in iter_records(path):
+            summary["total_records"] += 1
+            ts_text = dt_text(record.ts)
+            if summary["first_timestamp"] is None:
+                summary["first_timestamp"] = ts_text
+            summary["last_timestamp"] = ts_text
+
+            after_since = True
+            if since is not None:
+                after_since = record.ts > since if since_exclusive else record.ts >= since
+            if after_since:
+                summary["records_after_since"] += 1
+
+            selected = after_since
+            if until is not None and record.ts > until:
+                selected = False
+            if selected:
+                summary["records_in_window"] += 1
+
+        summaries.append(summary)
+
+    return summaries
+
+
 def lit(value: str) -> str:
     """Parse a Python repr string when possible, otherwise return raw."""
     value = value.strip()
@@ -1139,7 +1196,33 @@ def render_markdown(report: Dict[str, Any]) -> str:
     if report.get("resume_state_file"):
         out.append(f"Resume state file: `{report.get('resume_state_file')}`")
     out.append(f"Records parsed: `{s.get('record_count')}`")
+    input_warning = report.get("input_warning")
+    if input_warning:
+        out.append(f"Input warning: **{input_warning}**")
     out.append("")
+
+    input_files = report.get("input_files") or []
+    if input_files:
+        out.append("## Input files")
+        out.append("```text")
+        for item in input_files:
+            out.append(str(item.get("path")))
+            if not item.get("exists"):
+                out.append("  missing")
+                continue
+            out.append(f"  size={item.get('size')}  mtime={item.get('mtime')}")
+            out.append(
+                f"  first_timestamp={item.get('first_timestamp')}  "
+                f"last_timestamp={item.get('last_timestamp')}"
+            )
+            out.append(
+                f"  total_records={item.get('total_records')}  "
+                f"records_after_since={item.get('records_after_since')}  "
+                f"records_in_window_before_dedupe={item.get('records_in_window')}"
+            )
+        out.append("```")
+        out.append("")
+
     out.append("## Headline")
     out.append(s.get("headline") or "")
     out.append("")
@@ -1515,9 +1598,17 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     until = parse_dt(args.until)
     records = read_records(logs, since, until, since_exclusive=since_exclusive)
+    input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     report = analyse(records, max_text=args.max_text)
 
     report["log_files"] = [str(p) for p in logs]
+    report["input_files"] = input_files
+    report["input_warning"] = None
+    if not records and any(int(item.get("records_in_window") or 0) > 0 for item in input_files):
+        report["input_warning"] = (
+            "selected log sources contain timestamped records inside the requested window, "
+            "but 0 records survived filtering"
+        )
     report["requested_since"] = dt_text(since) if since else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
