@@ -895,6 +895,7 @@ def default_state() -> dict:
 
         "last_reply_epoch": 0,
         "last_reply_check_epoch": 0,
+        "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
@@ -3132,6 +3133,21 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
             mark_daily_author_replied(state, author_id)
 
+            cache_tweet(
+                state,
+                tweet_id=f"dry-run-reply-{mention_id}",
+                text=reply_text,
+                author_id=str(MY_USER_ID),
+                conversation_id=str(mention.get("conversation_id", mention_id)),
+                referenced_tweets=[
+                    {
+                        "type": "replied_to",
+                        "id": str(mention_id),
+                    }
+                ],
+                post_type="auto_reply",
+            )
+
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             return NORMAL_CHECK_STATUS_POSTED
@@ -3721,6 +3737,21 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
                 mark_daily_author_replied(state, author_id)
                 mark_quote_tweet_replied(state, quote_id)
+
+                cache_tweet(
+                    state,
+                    tweet_id=f"dry-run-quote-reply-{quote_id}",
+                    text=reply_text,
+                    author_id=str(MY_USER_ID),
+                    conversation_id=str(quote_tweet.get("conversation_id", quote_id)),
+                    referenced_tweets=[
+                        {
+                            "type": "replied_to",
+                            "id": str(quote_id),
+                        }
+                    ],
+                    post_type="auto_reply",
+                )
                 save_state(state)
                 return QUOTE_CHECK_STATUS_POSTED
 

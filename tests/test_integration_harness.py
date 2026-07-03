@@ -206,6 +206,11 @@ def normalize_for_branch_parity(value):
             if key in {"cached_epoch", "created_at"}:
                 continue
             normalized[key] = normalize_for_branch_parity(item)
+        if (
+            "replied_to_ids" in normalized
+            and "next_reply_lane_priority" not in normalized
+        ):
+            normalized["next_reply_lane_priority"] = "normal"
         return normalized
     if isinstance(value, list):
         return [normalize_for_branch_parity(item) for item in value]
@@ -520,7 +525,26 @@ def test_normal_mention_reply(tmp_path: Path, fake_server: FakeApiServer) -> Non
     state = read_json(base_dir / "bot_state.json")
     assert "100" in state["replied_to_ids"]
     assert state["last_seen_mention_id"] == "100"
+    assert state["next_reply_lane_priority"] == "quote"
     assert not (PRODUCTION_BASE_DIR / "bot_state.json.tmp").exists()
+
+
+def test_dry_run_mention_reply_caches_generated_reply_without_posting(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, local_config={"DRY_RUN_REPLIES": True})
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.posts == []
+        state = read_json(base_dir / "bot_state.json")
+        cached = state["tweet_cache"]["dry-run-reply-100"]
+        assert cached["text"] == "Quite right. Good sense is unfashionable only to those profiting from nonsense."
+        assert cached["author_id"] == "12345"
+        assert cached["referenced_tweets"] == [{"id": "100", "type": "replied_to"}]
+        assert cached["post_type"] == "auto_reply"
+    finally:
+        server.stop()
 
 
 def test_malformed_mention_ids_are_skipped_without_crashing(tmp_path: Path) -> None:
@@ -569,6 +593,28 @@ def test_quote_reply_flips_priority_to_normal(tmp_path: Path) -> None:
         state = read_json(base_dir / "bot_state.json")
         assert state["next_reply_lane_priority"] == "normal"
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+    finally:
+        server.stop()
+
+
+def test_dry_run_quote_reply_caches_generated_reply_without_posting(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "quote_tweet_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={"next_reply_lane_priority": "quote", "recent_own_post_ids": ["900"], "last_reply_epoch": 0},
+            local_config={"DRY_RUN_REPLIES": True, "ENABLE_HOT_POST_REPLY_CHECKS": False},
+        )
+        result = run_cycle(base_dir, server)
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.posts == []
+        state = read_json(base_dir / "bot_state.json")
+        cached = state["tweet_cache"]["dry-run-quote-reply-910"]
+        assert cached["text"] == "A point is useful only when it survives contact with reality. This one rather does."
+        assert cached["author_id"] == "12345"
+        assert cached["referenced_tweets"] == [{"id": "910", "type": "replied_to"}]
+        assert cached["post_type"] == "auto_reply"
     finally:
         server.stop()
 
