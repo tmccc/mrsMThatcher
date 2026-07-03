@@ -879,8 +879,16 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         headline.append(f"{len(serious_errors)} error(s)")
     else:
         headline.append("no serious errors")
-    if latest_state_summary.get("api_cooldown_until_epoch"):
-        headline.append("API cooldown active")
+    cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
+    latest_state_time = parse_dt(latest_state_summary.get("time"))
+    if cooldown_until_epoch and latest_state_time:
+        latest_state_epoch = int(latest_state_time.timestamp())
+        if latest_state_epoch < cooldown_until_epoch:
+            headline.append("API cooldown active now")
+        else:
+            headline.append("API cooldown occurred, now expired")
+    elif stats.get("api_cooldown_entered", 0):
+        headline.append("API cooldown occurred")
     else:
         headline.append("no API cooldown")
 
