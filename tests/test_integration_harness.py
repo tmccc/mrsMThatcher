@@ -3650,10 +3650,31 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     ops_digest = run_digest(ops_base)
     assert ops_digest.returncode == 0, ops_digest.stderr
-    assert "API cooldown occurred, now expired" in ops_digest.stdout
+    assert "API cooldown occurred" in ops_digest.stdout
     assert "API cooldowns entered" in ops_digest.stdout
     assert "API health" in ops_digest.stdout
     assert "mentions/hot-post" in ops_digest.stdout
     assert "not quota exhaustion" in ops_digest.stdout
     assert "Used-history migrations" in ops_digest.stdout
     assert "Used-history normalizations" in ops_digest.stdout
+
+    stale_base = prepare_base_dir(tmp_path / "digest-stale-cooldown")
+    (stale_base / "test.log").write_text(
+        "\n".join(
+            [
+                "2026-07-03 12:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 1, \"api_cooldown_reason\": \"old cooldown\"}",
+                "2026-07-03 12:01:00 INFO     maybe_reply_to_mentions:2931 - Starting mention reply check",
+                "2026-07-03 12:01:00 INFO     maybe_reply_to_mentions:2975 - Skipping mention check: minimum interval between replies not reached",
+                "2026-07-03 12:16:00 INFO     maybe_reply_to_mentions:2931 - Starting mention reply check",
+                "2026-07-03 12:16:00 INFO     get_mentions:1679 - Fetching mentions. last_seen_mention_id=1 max_results=5",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    stale_digest = run_digest(stale_base)
+    assert stale_digest.returncode == 0, stale_digest.stderr
+    assert "no API cooldown" in stale_digest.stdout
+    assert "API cooldown occurred" not in stale_digest.stdout
+    assert "mention_fetch_attempts         = 1" in stale_digest.stdout
+    assert "mention_checks_skipped_spacing = 1" in stale_digest.stdout

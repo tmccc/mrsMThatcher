@@ -577,6 +577,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             stats["no_mentions_checks"] += 1
         if "Starting mention reply check" in msg:
             stats["mention_checks"] += 1
+        if msg.startswith("Fetching mentions."):
+            stats["mention_fetch_attempts"] += 1
         if "Starting quote-tweet reply check" in msg:
             stats["quote_tweet_checks"] += 1
         if msg == "Due to check mentions":
@@ -831,6 +833,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "Skipping quote-tweet check: daily quote-reply cap reached",
         }:
             routine_skip_counts[msg] += 1
+            if msg == "Skipping mention check: minimum interval between replies not reached":
+                stats["mention_checks_skipped_spacing"] += 1
 
     latest_state_summary: Dict[str, Any] = {}
     if latest_state is not None:
@@ -886,18 +890,24 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
-    if cooldown_until_epoch and latest_state_time:
+    window_start_epoch = int(records[0].ts.timestamp()) if records else None
+
+    def cooldown_headline(until_epoch: int | None, *, label: str) -> str | None:
+        if not until_epoch or not latest_state_time:
+            return None
         latest_state_epoch = int(latest_state_time.timestamp())
-        if latest_state_epoch < cooldown_until_epoch:
-            headline.append("API cooldown active now")
-        else:
-            headline.append("API cooldown occurred, now expired")
-    elif quote_cooldown_until_epoch and latest_state_time:
-        latest_state_epoch = int(latest_state_time.timestamp())
-        if latest_state_epoch < quote_cooldown_until_epoch:
-            headline.append("quote API cooldown active now")
-        else:
-            headline.append("quote API cooldown occurred, now expired")
+        if latest_state_epoch < until_epoch:
+            return f"{label} cooldown active now"
+        if window_start_epoch is not None and until_epoch >= window_start_epoch:
+            return f"{label} cooldown occurred, now expired"
+        return None
+
+    cooldown_label = (
+        cooldown_headline(cooldown_until_epoch, label="API")
+        or cooldown_headline(quote_cooldown_until_epoch, label="quote API")
+    )
+    if cooldown_label:
+        headline.append(cooldown_label)
     elif stats.get("api_cooldown_entered", 0):
         headline.append("API cooldown occurred")
     else:
@@ -1014,6 +1024,10 @@ def refresh_derived(report: Dict[str, Any]) -> None:
             "config_filled_from_previous": bool(configs.get("_filled_from_previous")),
             "config_filled_from_log_backscan": bool(configs.get("_filled_from_log_backscan")),
             "normal_lane_due_checks": stats.get("normal_lane_due_checks", 0),
+            "mention_function_entries": stats.get("mention_checks", 0),
+            "mention_fetch_attempts": stats.get("mention_fetch_attempts", 0),
+            "mention_checks_skipped_spacing": stats.get("mention_checks_skipped_spacing", 0),
+            "mention_checks_skipped_cooldown": stats.get("cooldown_mentions", 0),
             "quote_lane_due_checks": stats.get("quote_lane_due_checks", 0),
             "flipped_to_quote": stats.get("priority_flipped_to_quote", 0),
             "flipped_to_normal": stats.get("priority_flipped_to_normal", 0),
@@ -1263,6 +1277,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         priority = lane.get("current_next_priority")
         out.append(f"current_next_priority          = {priority if priority is not None else 'not available'}")
         out.append(f"normal_lane_due_checks         = {lane.get('normal_lane_due_checks')}")
+        out.append(f"mention_function_entries       = {lane.get('mention_function_entries')}")
+        out.append(f"mention_fetch_attempts         = {lane.get('mention_fetch_attempts')}")
+        out.append(f"mention_checks_skipped_spacing = {lane.get('mention_checks_skipped_spacing')}")
+        out.append(f"mention_checks_skipped_cooldown = {lane.get('mention_checks_skipped_cooldown')}")
         out.append(f"quote_lane_due_checks          = {lane.get('quote_lane_due_checks')}")
         out.append(f"priority_flipped_to_quote      = {lane.get('flipped_to_quote')}")
         out.append(f"priority_flipped_to_normal     = {lane.get('flipped_to_normal')}")
