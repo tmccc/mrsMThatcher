@@ -2259,6 +2259,12 @@ def upload_media_v1_1(image_path: str) -> str:
 def upload_media(image_path: str) -> str:
     try:
         return upload_media_v2(image_path)
+    except ApiError as exc:
+        if getattr(exc, "status_code", None) == 429:
+            log.exception("v2 media upload was rate limited; not retrying v1.1 fallback")
+            raise
+        log.exception("v2 media upload failed; trying v1.1 fallback")
+        return upload_media_v1_1(image_path)
     except Exception:
         log.exception("v2 media upload failed; trying v1.1 fallback")
         return upload_media_v1_1(image_path)
