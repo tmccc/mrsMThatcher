@@ -171,7 +171,9 @@ chmod 600 mrsMThatcher.env
 
 `runMrsMThatcher2` is the tracked live launcher. It contains no secrets. It
 sources the ignored `mrsMThatcher.env` file and then runs
-`/usr/local/bin/mrsMThatcher2.py`.
+`/usr/local/bin/mrsMThatcher2.py`. If the Python process exits, the launcher
+waits 60 seconds before restarting it; the bot's ordinary scheduling still
+happens inside the Python process.
 
 The real `mrsMThatcher.env` is intentionally ignored by Git. Do not commit live
 API credentials.

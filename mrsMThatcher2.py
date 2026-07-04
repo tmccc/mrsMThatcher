@@ -920,6 +920,14 @@ def default_state() -> dict:
     }
 
 
+def append_unique_capped(values: object, item: object, max_items: int) -> list[str]:
+    item_text = str(item)
+    existing = [str(value) for value in values] if isinstance(values, list) else []
+    existing = [value for value in existing if value != item_text]
+    existing.append(item_text)
+    return existing[-max_items:]
+
+
 def load_state() -> dict:
     log.debug("Loading state from %s", STATE_FILE)
 
@@ -1069,9 +1077,11 @@ def mark_daily_author_replied(state: dict, author_id: str) -> None:
     counts[author_id] = counts.get(author_id, 0) + 1
     state["daily_replied_author_counts"] = counts
 
-    authors = set(str(x) for x in state.get("daily_replied_author_ids", []))
-    authors.add(author_id)
-    state["daily_replied_author_ids"] = list(authors)[-1000:]
+    state["daily_replied_author_ids"] = append_unique_capped(
+        state.get("daily_replied_author_ids", []),
+        author_id,
+        1000,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -1960,9 +1970,11 @@ def mark_hot_post_reply_skipped(
     if not reply_id:
         return
 
-    skipped = set(str(x) for x in state.get("skipped_hot_reply_ids", []))
-    skipped.add(reply_id)
-    state["skipped_hot_reply_ids"] = list(skipped)[-2000:]
+    state["skipped_hot_reply_ids"] = append_unique_capped(
+        state.get("skipped_hot_reply_ids", []),
+        reply_id,
+        2000,
+    )
 
     if retryable is None:
         retryable = False
@@ -3129,7 +3141,11 @@ def maybe_reply_to_mentions(state: dict) -> str:
             state["last_reply_epoch"] = current
 
             dry_run_seen_ids.add(mention_id)
-            state["dry_run_seen_mention_ids"] = list(dry_run_seen_ids)[-1000:]
+            state["dry_run_seen_mention_ids"] = append_unique_capped(
+                state.get("dry_run_seen_mention_ids", []),
+                mention_id,
+                1000,
+            )
 
             mark_daily_author_replied(state, author_id)
 
@@ -3167,7 +3183,11 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     mention_id,
                 )
                 replied_to_ids.add(mention_id)
-                state["replied_to_ids"] = list(replied_to_ids)[-1000:]
+                state["replied_to_ids"] = append_unique_capped(
+                    state.get("replied_to_ids", []),
+                    mention_id,
+                    1000,
+                )
                 mark_mention_seen_if_applicable(state, mention)
                 save_state(state)
                 return NORMAL_CHECK_STATUS_CHECKED
@@ -3186,15 +3206,21 @@ def maybe_reply_to_mentions(state: dict) -> str:
         state["last_reply_epoch"] = current
 
         replied_to_ids.add(mention_id)
-        state["replied_to_ids"] = list(replied_to_ids)[-1000:]
+        state["replied_to_ids"] = append_unique_capped(
+            state.get("replied_to_ids", []),
+            mention_id,
+            1000,
+        )
 
         mark_daily_author_replied(state, author_id)
 
         own_reply_id = reply_response.get("data", {}).get("id")
         if own_reply_id:
-            own_auto_reply_ids = set(str(x) for x in state.get("own_auto_reply_ids", []))
-            own_auto_reply_ids.add(str(own_reply_id))
-            state["own_auto_reply_ids"] = list(own_auto_reply_ids)[-1000:]
+            state["own_auto_reply_ids"] = append_unique_capped(
+                state.get("own_auto_reply_ids", []),
+                own_reply_id,
+                1000,
+            )
 
             cache_tweet(
                 state,
@@ -3478,36 +3504,41 @@ def build_quote_tweet_context(original_tweet: dict, quote_tweet: dict) -> str:
 def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
     quote_id = str(quote_id)
 
-    seen = set(str(x) for x in state.get("seen_quote_post_ids", []))
-    skipped = set(str(x) for x in state.get("skipped_quote_post_ids", []))
-
-    seen.add(quote_id)
-    skipped.add(quote_id)
-
-    state["seen_quote_post_ids"] = list(seen)[-2000:]
-    state["skipped_quote_post_ids"] = list(skipped)[-2000:]
+    state["seen_quote_post_ids"] = append_unique_capped(
+        state.get("seen_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
+    state["skipped_quote_post_ids"] = append_unique_capped(
+        state.get("skipped_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
 
 
 def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
     quote_id = str(quote_id)
 
-    seen = set(str(x) for x in state.get("seen_quote_post_ids", []))
-    replied = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
-
-    seen.add(quote_id)
-    replied.add(quote_id)
-
-    state["seen_quote_post_ids"] = list(seen)[-2000:]
-    state["replied_to_quote_post_ids"] = list(replied)[-2000:]
+    state["seen_quote_post_ids"] = append_unique_capped(
+        state.get("seen_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
+    state["replied_to_quote_post_ids"] = append_unique_capped(
+        state.get("replied_to_quote_post_ids", []),
+        quote_id,
+        2000,
+    )
 
 
 def mark_quote_spam_author(state: dict, author_id: str) -> None:
     author_id = str(author_id)
 
-    spam_authors = set(str(x) for x in state.get("quote_spam_author_ids", []))
-    spam_authors.add(author_id)
-
-    state["quote_spam_author_ids"] = list(spam_authors)[-2000:]
+    state["quote_spam_author_ids"] = append_unique_capped(
+        state.get("quote_spam_author_ids", []),
+        author_id,
+        2000,
+    )
     log.info("Marked author_id=%s as quote spam author. spam_author_count=%d", author_id, len(state["quote_spam_author_ids"]))
 
 
@@ -3793,9 +3824,11 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
             own_reply_id = reply_response.get("data", {}).get("id")
             if own_reply_id:
-                own_auto_reply_ids = set(str(x) for x in state.get("own_auto_reply_ids", []))
-                own_auto_reply_ids.add(str(own_reply_id))
-                state["own_auto_reply_ids"] = list(own_auto_reply_ids)[-1000:]
+                state["own_auto_reply_ids"] = append_unique_capped(
+                    state.get("own_auto_reply_ids", []),
+                    own_reply_id,
+                    1000,
+                )
 
                 cache_tweet(
                     state,

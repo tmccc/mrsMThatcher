@@ -15,5 +15,5 @@ set +a
 
 while true; do
   /usr/local/bin/mrsMThatcher2.py >/dev/null 2>&1
-  sleep 3600
+  sleep 60
 done

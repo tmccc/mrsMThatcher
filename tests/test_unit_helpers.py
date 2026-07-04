@@ -125,6 +125,14 @@ def test_choose_unused_image_resets_when_all_images_used(tmp_path: Path, monkeyp
     assert used == set()
 
 
+def test_append_unique_capped_preserves_order_and_moves_existing_item_to_tail() -> None:
+    assert bot.append_unique_capped(["a", "b", "c"], "b", 3) == ["a", "c", "b"]
+
+
+def test_append_unique_capped_discards_oldest_items() -> None:
+    assert bot.append_unique_capped(["a", "b", "c"], "d", 3) == ["b", "c", "d"]
+
+
 @pytest.mark.parametrize(
     "reply,expected",
     [

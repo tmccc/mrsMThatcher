@@ -2118,6 +2118,14 @@ def test_startup_self_test_does_not_rotate_backups_when_scheduler_epochs_are_cle
 
 
 def test_launcher_matches_master_on_promotion_branch() -> None:
+    branch = subprocess.check_output(
+        ["git", "branch", "--show-current"],
+        cwd=ROOT,
+        text=True,
+    ).strip()
+    if branch == "master":
+        pytest.skip("promotion-branch launcher parity check is not meaningful on master")
+
     result = subprocess.run(
         ["git", "diff", "--exit-code", "master", "--", "runMrsMThatcher2"],
         cwd=ROOT,
