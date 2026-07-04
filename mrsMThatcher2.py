@@ -1146,6 +1146,37 @@ def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
     return True
 
 
+def clear_expired_api_cooldowns(state: dict) -> bool:
+    changed = False
+    current = now_epoch()
+
+    for until_key, reason_key, label in (
+        ("api_cooldown_until_epoch", "api_cooldown_reason", "API cooldown"),
+        ("quote_api_cooldown_until_epoch", "quote_api_cooldown_reason", "Quote API cooldown"),
+    ):
+        until = int(state.get(until_key, 0) or 0)
+        if until <= 0 or until > current:
+            continue
+
+        log.info(
+            "Clearing expired %s. until_epoch=%s reason=%s",
+            label,
+            until,
+            state.get(reason_key, ""),
+        )
+        state[until_key] = 0
+        state[reason_key] = ""
+        changed = True
+
+    return changed
+
+
+def load_runtime_state() -> dict:
+    state = load_state()
+    clear_expired_api_cooldowns(state)
+    return state
+
+
 def prune_error_epochs(epochs: list[int]) -> list[int]:
     cutoff = now_epoch() - ERROR_WINDOW_SECONDS
     pruned = [int(e) for e in epochs if int(e) >= cutoff]
@@ -1799,6 +1830,25 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
     candidates: list[dict] = []
     state_changed = False
 
+    watched_post_id_set = {str(post_id) for post_id in watched_post_ids}
+    pruned_since_ids = {str(post_id): value for post_id, value in since_ids.items() if str(post_id) in watched_post_id_set}
+    pruned_check_counts = {
+        str(post_id): value
+        for post_id, value in check_counts.items()
+        if str(post_id) in watched_post_id_set
+    }
+    if pruned_since_ids != since_ids or pruned_check_counts != check_counts:
+        log.info(
+            "Pruned hot-post reply tracking maps. since_ids=%d->%d check_counts=%d->%d",
+            len(since_ids),
+            len(pruned_since_ids),
+            len(check_counts),
+            len(pruned_check_counts),
+        )
+        state_changed = True
+    since_ids = pruned_since_ids
+    check_counts = pruned_check_counts
+
     log.info(
         "Hot-post reply check loaded %d watched post(s) from %s: %s",
         len(watched_post_ids),
@@ -1812,13 +1862,16 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
 
         original_post_id = str(original_post_id)
         previous_count = int(check_counts.get(original_post_id, 0) or 0)
-        current_count = previous_count + 1
+        if HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS > 0:
+            current_count = (previous_count % HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS) + 1
+        else:
+            current_count = previous_count + 1
         check_counts[original_post_id] = current_count
         state_changed = True
 
         full_rescan = False
         if HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS > 0:
-            full_rescan = current_count % HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS == 0
+            full_rescan = current_count == HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS
 
         # conversation_id finds replies in the original post's conversation.
         # We exclude this account and retweets; later filtering keeps only actual replies.
@@ -4085,7 +4138,7 @@ def main() -> None:
 
     lines_used = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
     images_used = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
-    state = load_state()
+    state = load_runtime_state()
 
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
@@ -4350,7 +4403,7 @@ def run_test_cycle() -> int:
     log.info("X upload base=%s", X_UPLOAD_BASE)
     log.info("xAI base=%s", XAI_BASE)
 
-    state = load_state()
+    state = load_runtime_state()
 
     reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
     if reply_lane_priority not in {"normal", "quote"}:
@@ -4407,7 +4460,7 @@ def run_test_main_tick() -> int:
         return 2
 
     log.info("Running one test production reply-lane tick")
-    state = load_state()
+    state = load_runtime_state()
     current = now_epoch()
     last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
         state,
@@ -4447,7 +4500,7 @@ def run_test_post_quote() -> int:
         return 2
 
     log.info("Running one test quote/image post cycle")
-    state = load_state()
+    state = load_runtime_state()
 
     if lane_paused("disable_quote_posts"):
         log.warning("Skipping test quote/image post due to runtime control file")
@@ -4479,7 +4532,7 @@ def run_test_post_meme() -> int:
         return 2
 
     log.info("Running one test daily meme post cycle")
-    state = load_state()
+    state = load_runtime_state()
 
     if lane_paused("disable_meme_posts"):
         log.warning("Skipping test daily meme post due to runtime control file")

@@ -1950,8 +1950,8 @@ def test_hot_post_full_rescan_after_restart_omits_since_id_without_duplicate(tmp
                 "last_reply_epoch": 0,
                 "last_reply_check_epoch": 0,
                 "replied_to_ids": ["302"],
-                "hot_post_reply_since_ids": {"700": "301"},
-                "hot_post_reply_check_counts": {"700": 11},
+                "hot_post_reply_since_ids": {"700": "301", "old-watch": "999"},
+                "hot_post_reply_check_counts": {"700": 11, "old-watch": 102},
             },
             local_config={
                 "ENABLE_QUOTE_TWEET_CHECKS": False,
@@ -1975,6 +1975,8 @@ def test_hot_post_full_rescan_after_restart_omits_since_id_without_duplicate(tmp
         assert len(server.xai_requests) == 0
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_check_counts"]["700"] == 12
+        assert "old-watch" not in state["hot_post_reply_since_ids"]
+        assert "old-watch" not in state["hot_post_reply_check_counts"]
         assert state["replied_to_ids"].count("302") == 1
     finally:
         server.stop()
@@ -3620,6 +3622,31 @@ def test_api_cooldown_persists_across_restart_with_fake_clock(tmp_path: Path) ->
         assert second.returncode == 0, second.stderr + second.stdout
         assert len(server.requests) == request_count
         assert read_json(base_dir / "bot_state.json")["api_cooldown_reason"] == "x returned 429/rate limit"
+    finally:
+        server.stop()
+
+
+def test_expired_api_cooldown_is_cleared_on_startup(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "api_cooldown_until_epoch": 900,
+                "api_cooldown_reason": "expired test cooldown",
+                "quote_api_cooldown_until_epoch": 800,
+                "quote_api_cooldown_reason": "expired quote test cooldown",
+                "last_reply_epoch": 1_000,
+            },
+        )
+        result = run_bot_command(base_dir, server, extra_env={"MRS_FAKE_NOW_EPOCH": "1000"})
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert state["api_cooldown_until_epoch"] == 0
+        assert state["api_cooldown_reason"] == ""
+        assert state["quote_api_cooldown_until_epoch"] == 0
+        assert state["quote_api_cooldown_reason"] == ""
     finally:
         server.stop()
 

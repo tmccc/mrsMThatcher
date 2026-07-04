@@ -198,6 +198,22 @@ def test_rate_limit_cooldown_falls_back_for_missing_or_past_reset(
     assert state["api_cooldown_until_epoch"] == 1_000 + bot.COOLDOWN_AFTER_429_SECONDS
 
 
+def test_clear_expired_api_cooldowns_clears_only_expired_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = {
+        "api_cooldown_until_epoch": 900,
+        "api_cooldown_reason": "old",
+        "quote_api_cooldown_until_epoch": 1_100,
+        "quote_api_cooldown_reason": "still active",
+    }
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+
+    assert bot.clear_expired_api_cooldowns(state) is True
+    assert state["api_cooldown_until_epoch"] == 0
+    assert state["api_cooldown_reason"] == ""
+    assert state["quote_api_cooldown_until_epoch"] == 1_100
+    assert state["quote_api_cooldown_reason"] == "still active"
+
+
 def test_local_config_coercion_accepts_boolean_strings_and_rejects_boolean_ints() -> None:
     assert bot._coerce_local_config_value("ENABLE_AUTO_REPLIES", "false", True) is False
     assert bot._coerce_local_config_value("ENABLE_AUTO_REPLIES", "yes", False) is True
