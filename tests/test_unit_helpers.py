@@ -214,6 +214,20 @@ def test_clear_expired_api_cooldowns_clears_only_expired_values(monkeypatch: pyt
     assert state["quote_api_cooldown_reason"] == "still active"
 
 
+def test_sanitize_next_reply_lane_priority_normalizes_invalid_value() -> None:
+    state = {"next_reply_lane_priority": "sideways"}
+
+    assert bot.sanitize_next_reply_lane_priority(state) is True
+    assert state["next_reply_lane_priority"] == "normal"
+
+
+def test_sanitize_next_reply_lane_priority_accepts_valid_value() -> None:
+    state = {"next_reply_lane_priority": "quote"}
+
+    assert bot.sanitize_next_reply_lane_priority(state) is False
+    assert state["next_reply_lane_priority"] == "quote"
+
+
 def test_local_config_coercion_accepts_boolean_strings_and_rejects_boolean_ints() -> None:
     assert bot._coerce_local_config_value("ENABLE_AUTO_REPLIES", "false", True) is False
     assert bot._coerce_local_config_value("ENABLE_AUTO_REPLIES", "yes", False) is True

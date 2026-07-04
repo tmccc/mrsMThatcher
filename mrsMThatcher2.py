@@ -1171,9 +1171,23 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
     return changed
 
 
+def sanitize_next_reply_lane_priority(state: dict) -> bool:
+    priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
+    if priority in {"normal", "quote"}:
+        if state.get("next_reply_lane_priority") != priority:
+            state["next_reply_lane_priority"] = priority
+            return True
+        return False
+
+    log.warning("Invalid next_reply_lane_priority=%r; using normal", state.get("next_reply_lane_priority"))
+    state["next_reply_lane_priority"] = "normal"
+    return True
+
+
 def load_runtime_state() -> dict:
     state = load_state()
     clear_expired_api_cooldowns(state)
+    sanitize_next_reply_lane_priority(state)
     return state
 
 
@@ -3959,10 +3973,6 @@ def run_reply_lane_checks_for_tick(
         save_state(state)
 
     reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-    if reply_lane_priority not in {"normal", "quote"}:
-        reply_lane_priority = "normal"
-        state["next_reply_lane_priority"] = reply_lane_priority
-        save_state(state)
 
     seconds_since_last_reply = current - int(state.get("last_reply_epoch", 0) or 0)
     reply_spacing_open = seconds_since_last_reply >= MIN_SECONDS_BETWEEN_REPLIES
@@ -4406,10 +4416,6 @@ def run_test_cycle() -> int:
     state = load_runtime_state()
 
     reply_lane_priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
-    if reply_lane_priority not in {"normal", "quote"}:
-        reply_lane_priority = "normal"
-        state["next_reply_lane_priority"] = reply_lane_priority
-        save_state(state)
 
     quote_status = None
     before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)

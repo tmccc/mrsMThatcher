@@ -3651,6 +3651,29 @@ def test_expired_api_cooldown_is_cleared_on_startup(tmp_path: Path) -> None:
         server.stop()
 
 
+def test_invalid_reply_lane_priority_is_normalized_on_startup(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": "sideways",
+                "last_reply_epoch": 1_000,
+            },
+        )
+        result = run_bot_command(
+            base_dir,
+            server,
+            extra_env={"MRS_FAKE_NOW_EPOCH": "1000"},
+        )
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert state["next_reply_lane_priority"] == "normal"
+    finally:
+        server.stop()
+
+
 def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "duplicate_mention_hot_post.json")).start()
     try:
