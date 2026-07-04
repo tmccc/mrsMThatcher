@@ -34,6 +34,12 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def base_test_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["TZ"] = "Europe/London"
+    return env
+
+
 def prepare_base_dir(
     tmp_path: Path,
     *,
@@ -87,7 +93,7 @@ def run_bot_command(
     xai_api_base_url: str | None = None,
     extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -120,7 +126,7 @@ def run_bot_command(
 
 
 def run_bot_with_env(base_dir: Path, command: str = "--test-cycle", *, extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -237,7 +243,7 @@ def run_bot_command_for_root(
     *,
     fake_now: str = "2000000000",
 ) -> subprocess.CompletedProcess[str]:
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -472,7 +478,7 @@ def test_production_daemon_entrypoint_starts_under_fake_endpoints(tmp_path: Path
                 "MIN_SECONDS_BETWEEN_REPLIES": 1,
             },
         )
-        env = os.environ.copy()
+        env = base_test_env()
         env.update(
             {
                 "MRS_TEST_MODE": "1",
@@ -3718,7 +3724,7 @@ def test_hot_post_breaker_suppresses_subsequent_search_calls(tmp_path: Path) -> 
 
 
 def test_test_mode_refuses_production_base_dir(tmp_path: Path) -> None:
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -3746,7 +3752,7 @@ def test_test_mode_refuses_production_base_dir(tmp_path: Path) -> None:
 
 
 def test_test_mode_refuses_production_child_base_dir(tmp_path: Path) -> None:
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -3775,7 +3781,7 @@ def test_test_mode_refuses_production_child_base_dir(tmp_path: Path) -> None:
 
 def test_test_mode_refuses_production_log_file(tmp_path: Path) -> None:
     base_dir = prepare_base_dir(tmp_path)
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",
@@ -3808,7 +3814,7 @@ def test_test_mode_refuses_production_log_file(tmp_path: Path) -> None:
 
 def test_test_mode_refuses_default_live_endpoints(tmp_path: Path) -> None:
     base_dir = prepare_base_dir(tmp_path)
-    env = os.environ.copy()
+    env = base_test_env()
     env.update(
         {
             "MRS_TEST_MODE": "1",

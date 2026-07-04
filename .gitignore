@@ -13,6 +13,7 @@ digest*.md
 ._*
 mrsMThatcher.env
 mrsMThatcher.local.json
+mrsMThatcher.lock
 extra_quote_watch_post_ids.txt
 tests.tgz
 
