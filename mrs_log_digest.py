@@ -1071,6 +1071,22 @@ def refresh_derived(report: Dict[str, Any]) -> None:
     st = report.get("latest_state") or {}
     stats = report.get("summary", {}).get("stats", {}) or {}
 
+    # Cooldown human timestamps are derived from the epoch. Recompute after
+    # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.
+    for prefix in ("api_cooldown", "quote_api_cooldown"):
+        epoch_key = f"{prefix}_until_epoch"
+        human_key = f"{prefix}_until_human"
+        reason_key = f"{prefix}_reason"
+        if epoch_key not in st:
+            continue
+
+        until = int_or_none(st.get(epoch_key))
+        if until and until > 0:
+            st[human_key] = epoch_to_human(until)
+        else:
+            st[human_key] = None
+            st[reason_key] = ""
+
     max_auto = int_or_none(configs.get("MAX_AUTO_REPLIES_PER_DAY"))
     max_quote = int_or_none(configs.get("MAX_QUOTE_REPLIES_PER_DAY"))
     used_auto = int_or_none(st.get("daily_reply_count"))
@@ -1247,17 +1263,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"quote_spam_author_count = {st.get('quote_spam_author_count')}")
         api_cooldown_status = cooldown_state_text(st.get("api_cooldown_until_epoch"), st.get("time"))
         api_cooldown_suffix = f"  {api_cooldown_status}" if api_cooldown_status else ""
+        api_cooldown_human = st.get("api_cooldown_until_human") or "none"
         out.append(
             f"api_cooldown_until      = {st.get('api_cooldown_until_epoch')}  "
-            f"{st.get('api_cooldown_until_human') or ''}{api_cooldown_suffix}"
+            f"{api_cooldown_human}{api_cooldown_suffix}"
         )
         if st.get("api_cooldown_reason"):
             out.append(f"api_cooldown_reason     = {st.get('api_cooldown_reason')}")
         quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), st.get("time"))
         quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
+        quote_api_cooldown_human = st.get("quote_api_cooldown_until_human") or "none"
         out.append(
             f"quote_api_cooldown_until = {st.get('quote_api_cooldown_until_epoch')}  "
-            f"{st.get('quote_api_cooldown_until_human') or ''}{quote_api_cooldown_suffix}"
+            f"{quote_api_cooldown_human}{quote_api_cooldown_suffix}"
         )
         if st.get("quote_api_cooldown_reason"):
             out.append(f"quote_api_cooldown_reason = {st.get('quote_api_cooldown_reason')}")

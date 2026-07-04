@@ -3809,3 +3809,37 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "mention_checks_skipped_spacing = 1" in stale_digest.stdout
     assert "Mention direct skips" in stale_digest.stdout
     assert "@MrsMThatcher @other" in stale_digest.stdout
+
+    cleared_base = prepare_base_dir(tmp_path / "digest-cleared-cooldown")
+    cleared_state_file = cleared_base / ".digest_state.json"
+    write_json(
+        cleared_state_file,
+        {
+            "last_log_entry_time": "2026-07-03 10:00:00",
+            "last_known_latest_state": {
+                "time": "2026-07-03 10:00:00",
+                "api_cooldown_until_epoch": 1783054542,
+                "api_cooldown_until_human": "2026-07-03 05:55:42",
+                "api_cooldown_reason": "old cooldown",
+                "quote_api_cooldown_until_epoch": 1783054542,
+                "quote_api_cooldown_until_human": "2026-07-03 05:55:42",
+                "quote_api_cooldown_reason": "old quote cooldown",
+            },
+            "last_known_latest_config": {},
+        },
+    )
+    (cleared_base / "test.log").write_text(
+        "\n".join(
+            [
+                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\"}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
+    assert cleared_digest.returncode == 0, cleared_digest.stderr
+    assert "api_cooldown_until      = 0  none" in cleared_digest.stdout
+    assert "quote_api_cooldown_until = 0  none" in cleared_digest.stdout
+    assert "2026-07-03 05:55:42" not in cleared_digest.stdout
+    assert "old cooldown" not in cleared_digest.stdout
