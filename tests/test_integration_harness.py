@@ -4347,6 +4347,11 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
                 "2026-07-03 10:15:00 WARNING  record_api_error:1159 - Recorded x API error. status_code=503 errors_in_window=1/3 reset_epoch=1783050931 error=X API error 503: {\"detail\":\"Service Unavailable\"}",
                 "2026-07-03 10:30:00 ERROR    x_bearer_request:1544 - X bearer API error 403: {\"detail\":\"You are not allowed to reply to this Tweet as the Tweet author has restricted who can reply\"}",
                 "2026-07-03 10:30:01 WARNING  maybe_reply_to_quote_tweets:4086 - Quote tweet 999 reply not allowed; marking quote tweet as skipped without consuming reply quota",
+                "2026-07-03 10:30:02 INFO     main:4111 - Config: MAX_MENTIONS_PER_CHECK=5",
+                "2026-07-03 10:30:02 INFO     main:4112 - Config: MENTIONS_MAX_PAGES_PER_CHECK=3",
+                "2026-07-03 10:30:02 INFO     main:4140 - Config: QUOTE_LOOKUP_API_MAX_RESULTS=10",
+                "2026-07-03 10:30:02 INFO     main:4141 - Config: QUOTE_LOOKUP_MAX_PAGES_PER_POST=3",
+                "2026-07-03 10:30:02 INFO     main:4148 - Config: HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3",
                 "2026-07-03 10:31:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"xai_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_until_epoch\": 0}",
             ]
         )
@@ -4359,9 +4364,13 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "1 handled API restriction(s)" in classified_digest.stdout
     assert "self-test failures: 2 check(s)" in classified_digest.stdout
     assert "Handled API restrictions" in classified_digest.stdout
+    assert "post/reply" in classified_digest.stdout
     assert "403 restriction summary" in classified_digest.stdout
     assert "503/5xx summary" in classified_digest.stdout
     assert "SELFTEST FAIL: X_CONSUMER_KEY set" in classified_digest.stdout
+    assert "MENTIONS_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
+    assert "QUOTE_LOOKUP_MAX_PAGES_PER_POST=3" in classified_digest.stdout
+    assert "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
 
     stale_base = prepare_base_dir(tmp_path / "digest-stale-cooldown")
     (stale_base / "test.log").write_text(

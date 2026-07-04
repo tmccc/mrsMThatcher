@@ -631,6 +631,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             service = "X bearer" if "X bearer API error" in msg else "X OAuth"
             endpoint = "quote_tweets" if service == "X bearer" else "mentions/hot-post"
             status_code = x_error_match.group(1)
+            if status_code == "403" and is_handled_reply_restriction:
+                endpoint = "post/reply"
             api_error = {
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "service": service,
@@ -1647,9 +1649,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("Config source: current window plus missing values from previous digest state.")
         keep = [
             "MAX_AUTO_REPLIES_PER_DAY", "MAX_QUOTE_REPLIES_PER_DAY", "MIN_SECONDS_BETWEEN_REPLIES",
-            "REPLY_CHECK_EVERY_SECONDS", "QUOTE_CHECK_EVERY_SECONDS",
+            "REPLY_CHECK_EVERY_SECONDS", "MAX_MENTIONS_PER_CHECK", "MENTIONS_MAX_PAGES_PER_CHECK",
+            "QUOTE_CHECK_EVERY_SECONDS", "QUOTE_LOOKUP_API_MAX_RESULTS", "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
             "QUOTE_CHECK_SPACING_RETRY_SECONDS", "ENABLE_HOT_POST_REPLY_CHECKS",
             "MAX_HOT_POST_REPLIES_PER_CHECK", "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS",
+            "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
             "ENABLE_DAILY_MEME_POSTS", "MEME_TRIGGER_AFTER_HOUR",
             "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
             "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
