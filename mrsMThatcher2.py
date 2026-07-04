@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import fcntl
 import json
 import logging
 import mimetypes
@@ -77,6 +78,7 @@ RECENT_OWN_POST_IDS_MAX = 20
 
 # X's quote_tweets endpoint commonly expects at least 10 max_results.
 QUOTE_LOOKUP_API_MAX_RESULTS = 10
+QUOTE_LOOKUP_MAX_PAGES_PER_POST = 3
 
 QUOTE_CHECK_STATUS_CHECKED = "checked"
 QUOTE_CHECK_STATUS_POSTED = "posted"
@@ -103,6 +105,7 @@ REPLY_CHECK_EVERY_SECONDS = 900
 MAX_AUTO_REPLIES_PER_DAY = 24
 MAX_REPLIES_PER_AUTHOR_PER_DAY = 1
 MAX_MENTIONS_PER_CHECK = 5
+MENTIONS_MAX_PAGES_PER_CHECK = 3
 
 # Optional hot-post reply lane. This reuses the same watched post ID file
 # as the quote-tweet lane, but looks for ordinary replies in that post
@@ -110,6 +113,7 @@ MAX_MENTIONS_PER_CHECK = 5
 ENABLE_HOT_POST_REPLY_CHECKS = True
 MAX_HOT_POST_REPLIES_PER_CHECK = 10
 HOT_POST_REPLY_SEARCH_API_MAX_RESULTS = 10
+HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK = 3
 HOT_POST_REPLY_USE_SINCE_ID = True
 HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS = 12
 
@@ -189,6 +193,7 @@ if TEST_MODE and path_is_same_or_child(LOG_FILE, PRODUCTION_BASE_DIR):
     sys.exit(2)
 LOCAL_CONFIG_FILE = BASE_DIR / "mrsMThatcher.local.json"
 CONTROL_FILE = BASE_DIR / "mrsMThatcher.control.json"
+LOCK_FILE = BASE_DIR / "mrsMThatcher.lock"
 STATE_BACKUP_COUNT = 5
 
 # Re-read before each quote-tweet check; edit this file while the bot is running.
@@ -238,6 +243,31 @@ def setup_logging() -> logging.Logger:
 
 
 log = setup_logging()
+_LOCK_FH = None
+
+
+def acquire_instance_lock() -> None:
+    """Prevent two bot processes from sharing one mutable state directory."""
+    global _LOCK_FH
+
+    if _LOCK_FH is not None:
+        return
+
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+    fh = open(LOCK_FILE, "a+")
+    try:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log.critical("Another MrsMThatcher instance already holds lock %s", LOCK_FILE)
+        fh.close()
+        sys.exit(2)
+
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"pid={os.getpid()}\n")
+    fh.flush()
+    _LOCK_FH = fh
+    log.info("Acquired instance lock %s", LOCK_FILE)
 
 
 def redact_secret(value: str, visible: int = 4) -> str:
@@ -308,6 +338,9 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "QUOTE_POST_LOOKBACK_MAIN_POSTS",
     "RECENT_OWN_POST_IDS_MAX",
     "QUOTE_LOOKUP_API_MAX_RESULTS",
+    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
+    "MENTIONS_MAX_PAGES_PER_CHECK",
+    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
 
     # Context/model/API behaviour
     "DRY_RUN_REPLIES",
@@ -357,6 +390,9 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "QUOTE_POST_LOOKBACK_MAIN_POSTS",
     "RECENT_OWN_POST_IDS_MAX",
     "QUOTE_LOOKUP_API_MAX_RESULTS",
+    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
+    "MENTIONS_MAX_PAGES_PER_CHECK",
+    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
     "THREAD_CONTEXT_MAX_DEPTH",
     "THREAD_CONTEXT_MAX_CHARS_PER_POST",
     "THREAD_CONTEXT_MAX_TOTAL_CHARS",
@@ -383,6 +419,9 @@ LOCAL_CONFIG_POSITIVE_INT_KEYS = {
     "QUOTE_POST_LOOKBACK_MAIN_POSTS",
     "RECENT_OWN_POST_IDS_MAX",
     "QUOTE_LOOKUP_API_MAX_RESULTS",
+    "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
+    "MENTIONS_MAX_PAGES_PER_CHECK",
+    "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
     "THREAD_CONTEXT_MAX_DEPTH",
     "THREAD_CONTEXT_MAX_CHARS_PER_POST",
     "THREAD_CONTEXT_MAX_TOTAL_CHARS",
@@ -425,6 +464,93 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
     return value
 
 
+def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
+    """Return validation errors for runtime config values.
+
+    This is intentionally conservative for local overrides. Script defaults are
+    expected to pass, and invalid local values are rolled back before startup.
+    """
+    errors: list[str] = []
+
+    def int_value(key: str) -> int:
+        return int(values.get(key, globals().get(key, 0)))
+
+    positive_keys = {
+        "POST_SLEEP_MIN",
+        "POST_SLEEP_MAX",
+        "REPLY_CHECK_EVERY_SECONDS",
+        "QUOTE_CHECK_EVERY_SECONDS",
+        "MIN_SECONDS_BETWEEN_REPLIES",
+        "MAX_AUTO_REPLIES_PER_DAY",
+        "MAX_QUOTE_REPLIES_PER_DAY",
+        "MAX_REPLIES_PER_AUTHOR_PER_DAY",
+        "MAX_HOT_POST_REPLIES_PER_CHECK",
+        "QUOTE_POST_LOOKBACK_MAIN_POSTS",
+        "RECENT_OWN_POST_IDS_MAX",
+        "QUOTE_LOOKUP_MAX_PAGES_PER_POST",
+        "MENTIONS_MAX_PAGES_PER_CHECK",
+        "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK",
+        "THREAD_CONTEXT_MAX_DEPTH",
+        "THREAD_CONTEXT_MAX_CHARS_PER_POST",
+        "THREAD_CONTEXT_MAX_TOTAL_CHARS",
+        "TWEET_CACHE_MAX_AGE_SECONDS",
+        "TWEET_CACHE_MAX_ITEMS",
+        "ERROR_WINDOW_SECONDS",
+        "MAX_X_ERRORS_PER_WINDOW",
+        "MAX_XAI_ERRORS_PER_WINDOW",
+        "COOLDOWN_AFTER_REPEATED_ERRORS_SECONDS",
+        "COOLDOWN_AFTER_429_SECONDS",
+        "MAX_REPLY_CHARS",
+        "MAX_GROK_OUTPUT_TOKENS",
+    }
+
+    for key in sorted(positive_keys):
+        try:
+            if int_value(key) <= 0:
+                errors.append(f"{key} must be positive")
+        except Exception:
+            errors.append(f"{key} must be an integer")
+
+    for key, low, high in (
+        ("MAX_MENTIONS_PER_CHECK", 5, 100),
+        ("QUOTE_LOOKUP_API_MAX_RESULTS", 10, 100),
+        ("HOT_POST_REPLY_SEARCH_API_MAX_RESULTS", 10, 100),
+    ):
+        try:
+            value = int_value(key)
+            if value < low or value > high:
+                errors.append(f"{key} must be between {low} and {high}")
+        except Exception:
+            errors.append(f"{key} must be an integer")
+
+    for key in ("MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR"):
+        try:
+            value = int_value(key)
+            if value < 0 or value > 23:
+                errors.append(f"{key} must be between 0 and 23")
+        except Exception:
+            errors.append(f"{key} must be an integer")
+
+    try:
+        value = int_value("MEME_FALLBACK_MINUTE")
+        if value < 0 or value > 59:
+            errors.append("MEME_FALLBACK_MINUTE must be between 0 and 59")
+    except Exception:
+        errors.append("MEME_FALLBACK_MINUTE must be an integer")
+
+    for min_key, max_key in (
+        ("POST_SLEEP_MIN", "POST_SLEEP_MAX"),
+        ("MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"),
+    ):
+        try:
+            if int_value(min_key) > int_value(max_key):
+                errors.append(f"{min_key} must be <= {max_key}")
+        except Exception:
+            errors.append(f"{min_key}/{max_key} must be integers")
+
+    return errors
+
+
 def apply_local_config() -> None:
     """Apply optional local JSON config overrides without editing the bot script."""
     if not LOCAL_CONFIG_FILE.exists():
@@ -464,24 +590,37 @@ def apply_local_config() -> None:
         globals()[key] = coerced
         applied[key] = coerced
 
-    for min_key, max_key in (
-        ("POST_SLEEP_MIN", "POST_SLEEP_MAX"),
-        ("MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS"),
-    ):
-        if int(globals()[min_key]) <= int(globals()[max_key]):
+    for key in list(applied):
+        trial = {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+        errors = validate_runtime_config_values(trial)
+        if not errors:
+            break
+
+        if key not in original_values:
             continue
 
-        log.error(
-            "Ignoring invalid local config timing range %s=%r > %s=%r",
-            min_key,
-            globals()[min_key],
-            max_key,
-            globals()[max_key],
+        current_value = globals()[key]
+        globals()[key] = original_values[key]
+        trial[key] = original_values[key]
+        remaining_errors = validate_runtime_config_values(
+            {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
         )
-        for key in (min_key, max_key):
-            if key in applied:
-                globals()[key] = original_values[key]
-                applied.pop(key, None)
+        if len(remaining_errors) < len(errors):
+            log.error(
+                "Ignoring unsafe local config override %s=%r: %s",
+                key,
+                current_value,
+                "; ".join(errors),
+            )
+            applied.pop(key, None)
+        else:
+            globals()[key] = current_value
+
+    final_errors = validate_runtime_config_values(
+        {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+    )
+    for error in final_errors:
+        log.error("Runtime config validation warning: %s", error)
 
     if ignored:
         log.warning("Ignoring unsupported local config key(s): %s", ", ".join(sorted(ignored)))
@@ -494,6 +633,15 @@ def apply_local_config() -> None:
 
 
 apply_local_config()
+
+RUNTIME_CONFIG_ERRORS = validate_runtime_config_values(
+    {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+)
+if RUNTIME_CONFIG_ERRORS:
+    for error in RUNTIME_CONFIG_ERRORS:
+        log.critical("Invalid runtime config: %s", error)
+    if not SELF_TEST_REQUESTED:
+        sys.exit(1)
 
 
 # ---------------------------------------------------------------------
@@ -914,6 +1062,8 @@ def default_state() -> dict:
         "xai_error_epochs": [],
         "api_cooldown_until_epoch": 0,
         "api_cooldown_reason": "",
+        "xai_api_cooldown_until_epoch": 0,
+        "xai_api_cooldown_reason": "",
         "quote_x_error_epochs": [],
         "quote_api_cooldown_until_epoch": 0,
         "quote_api_cooldown_reason": "",
@@ -1133,6 +1283,10 @@ def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
         until = int(state.get("quote_api_cooldown_until_epoch", 0) or 0)
         reason = state.get("quote_api_cooldown_reason", "Quote API cooldown")
         label = "Quote API cooldown"
+    elif scope == "xai":
+        until = int(state.get("xai_api_cooldown_until_epoch", 0) or 0)
+        reason = state.get("xai_api_cooldown_reason", "xAI API cooldown")
+        label = "xAI API cooldown"
     else:
         until = int(state.get("api_cooldown_until_epoch", 0) or 0)
         reason = state.get("api_cooldown_reason", "API cooldown")
@@ -1152,6 +1306,7 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
 
     for until_key, reason_key, label in (
         ("api_cooldown_until_epoch", "api_cooldown_reason", "API cooldown"),
+        ("xai_api_cooldown_until_epoch", "xai_api_cooldown_reason", "xAI API cooldown"),
         ("quote_api_cooldown_until_epoch", "quote_api_cooldown_reason", "Quote API cooldown"),
     ):
         until = int(state.get(until_key, 0) or 0)
@@ -1220,8 +1375,8 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
     else:
         key = "xai_error_epochs"
         max_errors = MAX_XAI_ERRORS_PER_WINDOW
-        cooldown_until_key = "api_cooldown_until_epoch"
-        cooldown_reason_key = "api_cooldown_reason"
+        cooldown_until_key = "xai_api_cooldown_until_epoch"
+        cooldown_reason_key = "xai_api_cooldown_reason"
 
     epochs = prune_error_epochs(state.get(key, []))
     epochs.append(current)
@@ -1424,6 +1579,44 @@ def x_quote_lookup_request(path: str, params: dict) -> dict:
 
     log.warning("X_BEARER_TOKEN not set; trying quote lookup with OAuth1")
     return x_request("GET", path, params=params)
+
+
+def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, label: str) -> dict:
+    combined: dict[str, object] = {"data": []}
+    users_by_id: dict[str, dict] = {}
+    next_token = ""
+
+    for page in range(1, max(1, int(max_pages)) + 1):
+        page_params = dict(params)
+        if next_token:
+            page_params["pagination_token"] = next_token
+
+        result = request_func(path, page_params)
+        page_data = result.get("data", [])
+        if isinstance(page_data, list):
+            combined["data"].extend(page_data)
+
+        for user in result.get("includes", {}).get("users", []) or []:
+            user_id = str(user.get("id", ""))
+            if user_id:
+                users_by_id[user_id] = user
+
+        next_token = str((result.get("meta", {}) or {}).get("next_token", "") or "")
+        log.info(
+            "Fetched %s page %d/%d items=%d next_token=%s",
+            label,
+            page,
+            max_pages,
+            len(page_data) if isinstance(page_data, list) else 0,
+            bool(next_token),
+        )
+        if not next_token:
+            break
+
+    if users_by_id:
+        combined["includes"] = {"users": list(users_by_id.values())}
+
+    return combined
 
 
 # ---------------------------------------------------------------------
@@ -1769,10 +1962,12 @@ def get_mentions(state: dict) -> list[dict]:
     if state.get("last_seen_mention_id"):
         params["since_id"] = str(state["last_seen_mention_id"])
 
-    result = x_request(
-        "GET",
+    result = x_paginated_get(
+        lambda path, page_params: x_request("GET", path, params=page_params),
         f"/2/users/{MY_USER_ID}/mentions",
-        params=params,
+        params,
+        max_pages=MENTIONS_MAX_PAGES_PER_CHECK,
+        label="mentions",
     )
 
     mentions = result.get("data", [])
@@ -1911,9 +2106,12 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                 )
 
         try:
-            result = x_quote_lookup_request(
+            result = x_paginated_get(
+                x_quote_lookup_request,
                 "/2/tweets/search/recent",
-                params=params,
+                params,
+                max_pages=HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK,
+                label=f"hot-post replies for {original_post_id}",
             )
         except ApiError:
             log.exception("Failed to fetch hot-post replies for post %s", original_post_id)
@@ -3049,6 +3247,9 @@ def maybe_reply_to_mentions(state: dict) -> str:
     if in_api_cooldown(state):
         log.info("Skipping mention check due to API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
+    if in_api_cooldown(state, scope="xai"):
+        log.info("Skipping mention check due to xAI API cooldown")
+        return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
 
     reset_daily_reply_count_if_needed(state)
 
@@ -3085,18 +3286,29 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
     try:
         mentions = get_mentions(state)
-        hot_post_replies = get_hot_post_reply_candidates(state)
-        mentions = dedupe_reply_candidates(mentions, hot_post_replies)
     except ApiError as e:
-        log.exception("Failed to get mention/hot-post reply candidates")
+        log.exception("Failed to get mention reply candidates")
         record_api_error(state, e, "x")
         save_state(state)
         return NORMAL_CHECK_STATUS_API_ERROR
     except Exception as e:
-        log.exception("Unexpected failure getting mention/hot-post reply candidates")
-        record_api_error(state, e, "x")
+        log.exception("Unexpected failure getting mention reply candidates")
         save_state(state)
         return NORMAL_CHECK_STATUS_API_ERROR
+
+    try:
+        hot_post_replies = get_hot_post_reply_candidates(state)
+    except ApiError as e:
+        log.exception("Failed to get optional hot-post reply candidates; continuing with mentions")
+        record_api_error(state, e, "x", scope="quote")
+        save_state(state)
+        hot_post_replies = []
+    except Exception:
+        log.exception("Unexpected failure getting optional hot-post reply candidates; continuing with mentions")
+        save_state(state)
+        hot_post_replies = []
+
+    mentions = dedupe_reply_candidates(mentions, hot_post_replies)
 
     if not mentions:
         log.info("No mention or hot-post reply candidates returned")
@@ -3454,9 +3666,12 @@ def get_quote_tweets_for_post(post_id: str) -> list[dict]:
         "user.fields": "description,username,name,public_metrics",
     }
 
-    result = x_quote_lookup_request(
+    result = x_paginated_get(
+        x_quote_lookup_request,
         f"/2/tweets/{post_id}/quote_tweets",
-        params=params,
+        params,
+        max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
+        label=f"quote tweets for {post_id}",
     )
 
     quote_tweets = result.get("data", [])
@@ -3630,7 +3845,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log.info("Skipping quote-tweet check due to runtime control file")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if in_api_cooldown(state) or in_api_cooldown(state, scope="quote"):
+    if in_api_cooldown(state) or in_api_cooldown(state, scope="xai") or in_api_cooldown(state, scope="quote"):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
@@ -4090,6 +4305,7 @@ def run_reply_lane_checks_for_tick(
 
 def main() -> None:
     random.seed()
+    acquire_instance_lock()
 
     log.info("Bot starting")
     log.info("Python executable=%s", sys.executable)
@@ -4108,6 +4324,7 @@ def main() -> None:
     log.info("Config: MAX_AUTO_REPLIES_PER_DAY=%s", MAX_AUTO_REPLIES_PER_DAY)
     log.info("Config: MAX_REPLIES_PER_AUTHOR_PER_DAY=%s", MAX_REPLIES_PER_AUTHOR_PER_DAY)
     log.info("Config: MAX_MENTIONS_PER_CHECK=%s", MAX_MENTIONS_PER_CHECK)
+    log.info("Config: MENTIONS_MAX_PAGES_PER_CHECK=%s", MENTIONS_MAX_PAGES_PER_CHECK)
     log.info("Config: MIN_SECONDS_BETWEEN_REPLIES=%s", MIN_SECONDS_BETWEEN_REPLIES)
     log.info("Config: ALWAYS_FETCH_PARENT_FOR_CONTEXT=%s", ALWAYS_FETCH_PARENT_FOR_CONTEXT)
     log.info("Config: SKIP_REPLIES_TO_OWN_AUTO_REPLIES=%s", SKIP_REPLIES_TO_OWN_AUTO_REPLIES)
@@ -4136,12 +4353,16 @@ def main() -> None:
     log.info("Config: QUOTE_CHECK_SPACING_RETRY_SECONDS=%s", QUOTE_CHECK_SPACING_RETRY_SECONDS)
     log.info("Config: QUOTE_REPLY_DELAY_SECONDS=%s", QUOTE_REPLY_DELAY_SECONDS)
     log.info("Config: MAX_QUOTE_POSTS_PER_CHECK=%s", MAX_QUOTE_POSTS_PER_CHECK)
+    log.info("Config: QUOTE_LOOKUP_API_MAX_RESULTS=%s", QUOTE_LOOKUP_API_MAX_RESULTS)
+    log.info("Config: QUOTE_LOOKUP_MAX_PAGES_PER_POST=%s", QUOTE_LOOKUP_MAX_PAGES_PER_POST)
     log.info("Config: MAX_QUOTE_REPLIES_PER_DAY=%s", MAX_QUOTE_REPLIES_PER_DAY)
     log.info("Config: QUOTE_POST_LOOKBACK_MAIN_POSTS=%s", QUOTE_POST_LOOKBACK_MAIN_POSTS)
     log.info("Config: RECENT_OWN_POST_IDS_MAX=%s", RECENT_OWN_POST_IDS_MAX)
     log.info("Config: EXTRA_QUOTE_WATCH_FILE=%s", EXTRA_QUOTE_WATCH_FILE)
     log.info("Config: MAX_EXTRA_QUOTE_WATCH_POSTS=%s", MAX_EXTRA_QUOTE_WATCH_POSTS)
     log.info("Config: HOT_POST_REPLY_USE_SINCE_ID=%s", HOT_POST_REPLY_USE_SINCE_ID)
+    log.info("Config: HOT_POST_REPLY_SEARCH_API_MAX_RESULTS=%s", HOT_POST_REPLY_SEARCH_API_MAX_RESULTS)
+    log.info("Config: HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=%s", HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK)
     log.info("Config: HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS=%s", HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS)
     log.info("Config: X_BEARER_TOKEN_SET=%s", bool(X_BEARER_TOKEN))
 
@@ -4396,6 +4617,7 @@ def run_self_test() -> int:
     require("MIN_SECONDS_BETWEEN_REPLIES positive", int(MIN_SECONDS_BETWEEN_REPLIES) > 0, str(MIN_SECONDS_BETWEEN_REPLIES))
     require("REPLY_CHECK_EVERY_SECONDS positive", int(REPLY_CHECK_EVERY_SECONDS) > 0, str(REPLY_CHECK_EVERY_SECONDS))
     require("QUOTE_CHECK_EVERY_SECONDS positive", int(QUOTE_CHECK_EVERY_SECONDS) > 0, str(QUOTE_CHECK_EVERY_SECONDS))
+    require("runtime config validates", not RUNTIME_CONFIG_ERRORS, "; ".join(RUNTIME_CONFIG_ERRORS))
 
     if failures:
         log.error("Self-test finished with %d failure(s)", failures)
@@ -4410,6 +4632,8 @@ def run_test_cycle() -> int:
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("--test-cycle requires MRS_TEST_MODE=1")
         return 2
+
+    acquire_instance_lock()
 
     log.info("Running one test cycle")
     log.info("Base dir=%s", BASE_DIR)
@@ -4471,6 +4695,8 @@ def run_test_main_tick() -> int:
     if not require_test_mode("--test-main-tick"):
         return 2
 
+    acquire_instance_lock()
+
     log.info("Running one test production reply-lane tick")
     state = load_runtime_state()
     current = now_epoch()
@@ -4511,6 +4737,8 @@ def run_test_post_quote() -> int:
     if not require_test_mode("--test-post-quote"):
         return 2
 
+    acquire_instance_lock()
+
     log.info("Running one test quote/image post cycle")
     state = load_runtime_state()
 
@@ -4542,6 +4770,8 @@ def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
     if not require_test_mode("--test-post-meme"):
         return 2
+
+    acquire_instance_lock()
 
     log.info("Running one test daily meme post cycle")
     state = load_runtime_state()

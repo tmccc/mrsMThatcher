@@ -154,6 +154,47 @@ class FakeApiServer:
                     return items
                 return [item for item in items if int(str(item.get("id", "0"))) > since_id]
 
+            def _pagination_enabled(self, path: str) -> bool:
+                if self.fake.scenario.get("enable_pagination"):
+                    return True
+                return path in set(self.fake.scenario.get("paginated_paths", []))
+
+            def _page_body(
+                self,
+                path: str,
+                items: list[dict[str, Any]],
+                query: dict[str, list[str]],
+                *,
+                extra: dict[str, Any] | None = None,
+            ) -> dict[str, Any]:
+                body: dict[str, Any] = dict(extra or {})
+                if not self._pagination_enabled(path):
+                    if items:
+                        body["data"] = items
+                    return body
+
+                try:
+                    max_results = int((query.get("max_results") or ["10"])[0])
+                except ValueError:
+                    max_results = 10
+                max_results = max(1, max_results)
+
+                try:
+                    start = int((query.get("pagination_token") or ["0"])[0])
+                except ValueError:
+                    start = 0
+
+                page = items[start : start + max_results]
+                if page:
+                    body["data"] = page
+
+                next_start = start + max_results
+                if next_start < len(items):
+                    meta = dict(body.get("meta", {}))
+                    meta["next_token"] = str(next_start)
+                    body["meta"] = meta
+                return body
+
             def do_GET(self) -> None:
                 parsed = urlparse(self.path)
                 path = parsed.path
@@ -171,18 +212,24 @@ class FakeApiServer:
 
                 if path.startswith("/2/users/") and path.endswith("/mentions"):
                     mentions = list(self.fake.scenario.get("mentions", []))
-                    self._json_response(200, {"data": self._filter_since(mentions, query)} if mentions else {})
+                    self._json_response(200, self._page_body(path, self._filter_since(mentions, query), query))
                     return
 
                 if path == "/2/tweets/search/recent":
                     replies = list(self.fake.scenario.get("search_recent", []))
-                    self._json_response(200, {"data": self._filter_since(replies, query)} if replies else {})
+                    self._json_response(200, self._page_body(path, self._filter_since(replies, query), query))
                     return
 
                 if path.startswith("/2/tweets/") and path.endswith("/quote_tweets"):
                     post_id = path.split("/")[3]
                     data = self.fake.scenario.get("quote_tweets", {}).get(post_id, {})
-                    self._json_response(200, data)
+                    body = self._page_body(
+                        path,
+                        list(data.get("data", [])),
+                        query,
+                        extra={k: v for k, v in data.items() if k != "data"},
+                    )
+                    self._json_response(200, body)
                     return
 
                 if path.startswith("/2/tweets/"):

@@ -942,6 +942,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "api_cooldown_until_epoch": latest_state.get("api_cooldown_until_epoch"),
             "api_cooldown_until_human": epoch_to_human(latest_state.get("api_cooldown_until_epoch")),
             "api_cooldown_reason": latest_state.get("api_cooldown_reason"),
+            "xai_api_cooldown_until_epoch": latest_state.get("xai_api_cooldown_until_epoch"),
+            "xai_api_cooldown_until_human": epoch_to_human(latest_state.get("xai_api_cooldown_until_epoch")),
+            "xai_api_cooldown_reason": latest_state.get("xai_api_cooldown_reason"),
             "quote_api_cooldown_until_epoch": latest_state.get("quote_api_cooldown_until_epoch"),
             "quote_api_cooldown_until_human": epoch_to_human(latest_state.get("quote_api_cooldown_until_epoch")),
             "quote_api_cooldown_reason": latest_state.get("quote_api_cooldown_reason"),
@@ -1073,7 +1076,7 @@ def refresh_derived(report: Dict[str, Any]) -> None:
 
     # Cooldown human timestamps are derived from the epoch. Recompute after
     # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.
-    for prefix in ("api_cooldown", "quote_api_cooldown"):
+    for prefix in ("api_cooldown", "xai_api_cooldown", "quote_api_cooldown"):
         epoch_key = f"{prefix}_until_epoch"
         human_key = f"{prefix}_until_human"
         reason_key = f"{prefix}_reason"
@@ -1270,6 +1273,15 @@ def render_markdown(report: Dict[str, Any]) -> str:
         )
         if st.get("api_cooldown_reason"):
             out.append(f"api_cooldown_reason     = {st.get('api_cooldown_reason')}")
+        xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), st.get("time"))
+        xai_api_cooldown_suffix = f"  {xai_api_cooldown_status}" if xai_api_cooldown_status else ""
+        xai_api_cooldown_human = st.get("xai_api_cooldown_until_human") or "none"
+        out.append(
+            f"xai_api_cooldown_until  = {st.get('xai_api_cooldown_until_epoch')}  "
+            f"{xai_api_cooldown_human}{xai_api_cooldown_suffix}"
+        )
+        if st.get("xai_api_cooldown_reason"):
+            out.append(f"xai_api_cooldown_reason = {st.get('xai_api_cooldown_reason')}")
         quote_api_cooldown_status = cooldown_state_text(st.get("quote_api_cooldown_until_epoch"), st.get("time"))
         quote_api_cooldown_suffix = f"  {quote_api_cooldown_status}" if quote_api_cooldown_status else ""
         quote_api_cooldown_human = st.get("quote_api_cooldown_until_human") or "none"

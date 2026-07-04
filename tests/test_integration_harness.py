@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import fcntl
 import io
 import json
 import os
@@ -50,7 +51,7 @@ def prepare_base_dir(
 
     config = {
         "ENABLE_DAILY_MEME_POSTS": False,
-        "MIN_SECONDS_BETWEEN_REPLIES": 0,
+        "MIN_SECONDS_BETWEEN_REPLIES": 1,
         "QUOTE_REPLY_DELAY_SECONDS": 0,
         "STATE_BACKUP_COUNT": 0,
         "MAX_MENTIONS_PER_CHECK": 10,
@@ -182,6 +183,14 @@ def event_payloads(base_dir: Path) -> list[dict]:
     return payloads
 
 
+def fake_server_post_replies(server: FakeApiServer) -> list[str]:
+    return [
+        str(post.get("reply", {}).get("in_reply_to_tweet_id"))
+        for post in server.posts
+        if post.get("reply", {}).get("in_reply_to_tweet_id")
+    ]
+
+
 @pytest.fixture
 def fake_server(request):
     scenario = load_scenario(SCENARIOS / request.param)
@@ -201,6 +210,8 @@ def normalize_for_branch_parity(value):
                 "quote_api_cooldown_reason",
                 "quote_api_cooldown_until_epoch",
                 "quote_x_error_epochs",
+                "xai_api_cooldown_reason",
+                "xai_api_cooldown_until_epoch",
             }:
                 continue
             if key in {"cached_epoch", "created_at"}:
@@ -1216,7 +1227,7 @@ def test_quote_lookup_errors_cool_down_quote_lane_only(tmp_path: Path) -> None:
                 "ENABLE_HOT_POST_REPLY_CHECKS": False,
                 "REPLY_CHECK_EVERY_SECONDS": 1,
                 "QUOTE_CHECK_EVERY_SECONDS": 1,
-                "MIN_SECONDS_BETWEEN_REPLIES": 0,
+                "MIN_SECONDS_BETWEEN_REPLIES": 1,
             },
         )
 
@@ -2281,7 +2292,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
     try:
         base_dir = prepare_base_dir(tmp_path, watch_ids=["700"])
 
-        first = run_cycle(base_dir, server)
+        first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
         assert first.returncode == 0, first.stderr + first.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"] == {}
@@ -2296,7 +2307,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "created_at": "2026-06-30T12:01:00Z",
             }
         ]
-        second = run_cycle(base_dir, server)
+        second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
         assert second.returncode == 0, second.stderr + second.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"]["700"] == "301"
@@ -2312,7 +2323,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
             }
         ]
         scenario["grok_replies"] = ["Reply after watermark."]
-        third = run_cycle(base_dir, server)
+        third = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000004"})
         assert third.returncode == 0, third.stderr + third.stdout
         assert any(req["path"] == "/2/tweets/search/recent" and req["query"].get("since_id") == ["301"] for req in server.requests)
         state = read_json(base_dir / "bot_state.json")
@@ -2330,7 +2341,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
             }
         ]
         scenario["grok_replies"] = ["SKIP"]
-        fourth = run_cycle(base_dir, server)
+        fourth = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000006"})
         assert fourth.returncode == 0, fourth.stderr + fourth.stdout
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"]["700"] == "301"
@@ -2352,7 +2363,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
         ]
         before_posts = len(server.posts)
         before_xai = len(server.xai_requests)
-        fifth = run_cycle(base_dir, server)
+        fifth = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000008"})
         assert fifth.returncode == 0, fifth.stderr + fifth.stdout
         recent_searches = [req for req in server.requests if req["path"] == "/2/tweets/search/recent"]
         assert "since_id" not in recent_searches[-1]["query"]
@@ -2657,9 +2668,52 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "Ignoring invalid local config timing range POST_SLEEP_MIN" in result.stdout
-        assert "Ignoring invalid local config timing range MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS" in result.stdout
+        assert "Ignoring unsafe local config override" in result.stdout
         assert read_json(base_dir / "bot_state.json")["replied_to_ids"] == ["100"]
+    finally:
+        server.stop()
+
+
+def test_runtime_config_validation_rejects_unsafe_domain_values(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            local_config={
+                "MAX_MENTIONS_PER_CHECK": 1,
+                "QUOTE_LOOKUP_API_MAX_RESULTS": 9,
+                "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 9,
+                "REPLY_CHECK_EVERY_SECONDS": 0,
+                "MIN_SECONDS_BETWEEN_REPLIES": 0,
+                "MEME_FALLBACK_HOUR": 99,
+                "MEME_FALLBACK_MINUTE": 99,
+            },
+        )
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert "Ignoring unsafe local config override MAX_MENTIONS_PER_CHECK" in result.stdout
+        assert "Ignoring unsafe local config override QUOTE_LOOKUP_API_MAX_RESULTS" in result.stdout
+        assert "Ignoring unsafe local config override HOT_POST_REPLY_SEARCH_API_MAX_RESULTS" in result.stdout
+        assert "Ignoring unsafe local config override REPLY_CHECK_EVERY_SECONDS" in result.stdout
+        assert "Ignoring unsafe local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
+        assert "Ignoring unsafe local config override MEME_FALLBACK_HOUR" in result.stdout
+        assert "Ignoring unsafe local config override MEME_FALLBACK_MINUTE" in result.stdout
+    finally:
+        server.stop()
+
+
+def test_instance_lock_refuses_second_process_on_same_state_dir(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        lock_path = base_dir / "mrsMThatcher.lock"
+        with open(lock_path, "w", encoding="utf-8") as lock_fh:
+            fcntl.flock(lock_fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = run_cycle(base_dir, server)
+
+        assert result.returncode == 2
+        assert "already holds lock" in result.stdout
+        assert server.posts == []
     finally:
         server.stop()
 
@@ -2744,6 +2798,148 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         seen = run_cycle(base_dir, server)
         assert seen.returncode == 0, seen.stderr + seen.stdout
         assert len(server.xai_requests) == before_xai
+    finally:
+        server.stop()
+
+
+def test_mentions_pagination_reaches_replyable_candidate_on_second_page(tmp_path: Path) -> None:
+    mentions = [
+        {"id": str(100 + i), "author_id": str(200 + i), "conversation_id": str(100 + i), "text": "@a @b @MrsMThatcher"}
+        for i in range(5)
+    ]
+    mentions.append(
+        {
+            "id": "106",
+            "author_id": "206",
+            "conversation_id": "106",
+            "text": "@MrsMThatcher This is a serious point worth answering",
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": mentions,
+            "grok_reply": "A serious point deserves a serious answer.",
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            local_config={"MAX_MENTIONS_PER_CHECK": 5, "MENTIONS_MAX_PAGES_PER_CHECK": 2},
+        )
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+
+        assert fake_server_post_replies(server) == ["106"]
+        mention_requests = [r for r in server.requests if r["path"].endswith("/mentions")]
+        assert len(mention_requests) == 2
+        assert mention_requests[1]["query"]["pagination_token"] == ["5"]
+    finally:
+        server.stop()
+
+
+def test_quote_tweet_pagination_reaches_unseen_candidate_on_second_page(tmp_path: Path) -> None:
+    quote_tweets = [
+        {
+            "id": str(1000 + i),
+            "author_id": str(3000 + i),
+            "conversation_id": str(1000 + i),
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "Already seen quote",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+        }
+        for i in range(10)
+    ]
+    quote_tweets.append(
+        {
+            "id": "1010",
+            "author_id": "3010",
+            "conversation_id": "1010",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "This quote deserves a reply",
+            "referenced_tweets": [{"type": "quoted", "id": "900"}],
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "tweets": {"900": {"id": "900", "author_id": "12345", "text": "Original post"}},
+            "quote_tweets": {"900": {"data": quote_tweets}},
+            "grok_reply": "The point answers itself neatly enough.",
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "recent_own_post_ids": ["900"],
+                "seen_quote_post_ids": [str(1000 + i) for i in range(10)],
+                "next_reply_lane_priority": "quote",
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "QUOTE_LOOKUP_API_MAX_RESULTS": 10,
+                "QUOTE_LOOKUP_MAX_PAGES_PER_POST": 2,
+            },
+        )
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+
+        assert fake_server_post_replies(server) == ["1010"]
+        quote_requests = [r for r in server.requests if r["path"] == "/2/tweets/900/quote_tweets"]
+        assert len(quote_requests) == 2
+        assert quote_requests[1]["query"]["pagination_token"] == ["10"]
+    finally:
+        server.stop()
+
+
+def test_hot_post_pagination_reaches_candidate_on_second_page(tmp_path: Path) -> None:
+    replies = [
+        {
+            "id": str(300 + i),
+            "author_id": str(400 + i),
+            "conversation_id": "700",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "already handled",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        }
+        for i in range(10)
+    ]
+    replies.append(
+        {
+            "id": "311",
+            "author_id": "411",
+            "conversation_id": "700",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "This watched post reply deserves an answer",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": [],
+            "search_recent": replies,
+            "grok_reply": "That is exactly the weakness in the argument.",
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            watch_ids=["700"],
+            state={"replied_to_ids": [str(300 + i) for i in range(10)]},
+            local_config={
+                "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 10,
+                "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK": 2,
+            },
+        )
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+
+        assert fake_server_post_replies(server) == ["311"]
+        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent"]
+        assert len(search_requests) == 2
+        assert search_requests[1]["query"]["pagination_token"] == ["10"]
     finally:
         server.stop()
 
@@ -2895,11 +3091,11 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
     try:
         base_dir = prepare_base_dir(tmp_path, local_config={"MAX_REPLIES_PER_AUTHOR_PER_DAY": 2})
 
-        first = run_cycle(base_dir, server)
+        first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
         assert first.returncode == 0, first.stderr + first.stdout
-        second = run_cycle(base_dir, server)
+        second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
         assert second.returncode == 0, second.stderr + second.stdout
-        third = run_cycle(base_dir, server)
+        third = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000004"})
         assert third.returncode == 0, third.stderr + third.stdout
 
         assert len(server.posts) == 2
@@ -3172,6 +3368,54 @@ def test_xai_failure_records_xai_error_without_posting(tmp_path: Path, fake_serv
     assert len(state["xai_error_epochs"]) == 1
     assert state["x_error_epochs"] == []
     assert fake_server.posts == []
+
+
+@pytest.mark.parametrize("fake_server", ["xai_failure.json"], indirect=True)
+def test_xai_cooldown_does_not_block_quote_image_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
+    base_dir = prepare_base_dir(tmp_path, local_config={"MAX_XAI_ERRORS_PER_WINDOW": 3})
+
+    for offset in [0, 10, 20]:
+        result = run_bot_command(
+            base_dir,
+            fake_server,
+            "--test-cycle",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(2_000_000_000 + offset)},
+        )
+        assert result.returncode == 0, result.stderr + result.stdout
+
+    state = read_json(base_dir / "bot_state.json")
+    assert len(state["xai_error_epochs"]) == 3
+    assert state["xai_api_cooldown_reason"] == "too many xai API errors in the last hour"
+    assert int(state["xai_api_cooldown_until_epoch"]) > 2_000_000_000
+    assert state["api_cooldown_until_epoch"] == 0
+
+    post_result = run_bot_command(
+        base_dir,
+        fake_server,
+        "--test-post-quote",
+        extra_env={"MRS_FAKE_NOW_EPOCH": "2000000030"},
+    )
+    assert post_result.returncode == 0, post_result.stderr + post_result.stdout
+    assert any(post.get("media", {}).get("media_ids") for post in fake_server.posts)
+
+
+def test_hot_post_search_failure_does_not_discard_mentions(tmp_path: Path) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["error_paths"] = {"/2/tweets/search/recent": 503}
+    server = FakeApiServer(scenario).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, watch_ids=["700"])
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+
+        state = read_json(base_dir / "bot_state.json")
+        assert state["replied_to_ids"] == ["100"]
+        assert len(state["quote_x_error_epochs"]) == 1
+        assert state["x_error_epochs"] == []
+        assert state["api_cooldown_until_epoch"] == 0
+        assert fake_server_post_replies(server) == ["100"]
+    finally:
+        server.stop()
 
 
 def test_test_mode_refuses_production_base_dir(tmp_path: Path) -> None:
