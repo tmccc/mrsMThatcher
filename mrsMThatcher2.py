@@ -931,6 +931,11 @@ def api_error_is_reply_not_allowed(error: Exception) -> bool:
     )
 
 
+def api_error_is_permanent_target_failure(error: Exception) -> bool:
+    """Return true for target-specific failures that should not trip breakers."""
+    return getattr(error, "status_code", None) in {403, 404}
+
+
 # ---------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------
@@ -1053,6 +1058,7 @@ def default_state() -> dict:
         "seen_quote_post_ids": [],
         "replied_to_quote_post_ids": [],
         "skipped_quote_post_ids": [],
+        "quote_lookup_pagination_tokens": {},
         "quote_spam_author_ids": [],
         "daily_quote_reply_date": None,
         "daily_quote_reply_count": 0,
@@ -1078,6 +1084,69 @@ def append_unique_capped(values: object, item: object, max_items: int) -> list[s
     return existing[-max_items:]
 
 
+def validate_state_candidate(state: dict, *, path: Path) -> bool:
+    list_keys = {
+        "replied_to_ids",
+        "dry_run_seen_mention_ids",
+        "skipped_hot_reply_ids",
+        "daily_replied_author_ids",
+        "own_auto_reply_ids",
+        "posted_meme_filenames",
+        "recent_own_post_ids",
+        "seen_quote_post_ids",
+        "replied_to_quote_post_ids",
+        "skipped_quote_post_ids",
+        "quote_spam_author_ids",
+        "x_error_epochs",
+        "xai_error_epochs",
+        "quote_x_error_epochs",
+    }
+    dict_keys = {
+        "skipped_hot_reply_records",
+        "hot_post_reply_since_ids",
+        "hot_post_reply_check_counts",
+        "daily_replied_author_counts",
+        "tweet_cache",
+        "quote_lookup_pagination_tokens",
+    }
+    int_keys = {
+        "daily_reply_count",
+        "last_meme_post_epoch",
+        "next_meme_post_epoch",
+        "meme_schedule_version",
+        "meme_anchor_quote_post_epoch",
+        "last_reply_epoch",
+        "last_quote_post_epoch",
+        "next_quote_post_epoch",
+        "daily_quote_reply_count",
+        "api_cooldown_until_epoch",
+        "xai_api_cooldown_until_epoch",
+        "quote_api_cooldown_until_epoch",
+    }
+
+    for key in list_keys:
+        if key in state and not isinstance(state[key], list):
+            log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(state[key]).__name__)
+            return False
+    for key in dict_keys:
+        if key in state and not isinstance(state[key], dict):
+            log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(state[key]).__name__)
+            return False
+    for key in int_keys:
+        if key not in state:
+            continue
+        try:
+            value = int(state[key] or 0)
+        except (TypeError, ValueError):
+            log.error("State candidate %s has invalid %s value %r; ignoring", path, key, state[key])
+            return False
+        if value < 0:
+            log.error("State candidate %s has negative %s value %r; ignoring", path, key, state[key])
+            return False
+
+    return True
+
+
 def load_state() -> dict:
     log.debug("Loading state from %s", STATE_FILE)
 
@@ -1098,6 +1167,8 @@ def load_state() -> dict:
 
         if not isinstance(state, dict):
             log.error("State file candidate %s is not a JSON object; ignoring", candidate)
+            continue
+        if not validate_state_candidate(state, path=candidate):
             continue
 
         merged = default_state()
@@ -1585,8 +1656,10 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
     combined: dict[str, object] = {"data": []}
     users_by_id: dict[str, dict] = {}
     next_token = ""
+    pages_fetched = 0
 
     for page in range(1, max(1, int(max_pages)) + 1):
+        pages_fetched = page
         page_params = dict(params)
         if next_token:
             page_params["pagination_token"] = next_token
@@ -1615,6 +1688,17 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
 
     if users_by_id:
         combined["includes"] = {"users": list(users_by_id.values())}
+    combined["_pagination"] = {
+        "pages_fetched": pages_fetched,
+        "truncated": bool(next_token),
+        "next_token": next_token or None,
+    }
+    if next_token:
+        log.warning(
+            "Pagination truncated for %s after %d page(s); more results remain",
+            label,
+            pages_fetched,
+        )
 
     return combined
 
@@ -1832,7 +1916,17 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
 
         seen_ids.add(parent_id)
 
-        parent = get_tweet_by_id_cached(parent_id, state)
+        try:
+            parent = get_tweet_by_id_cached(parent_id, state)
+        except ApiError as exc:
+            if api_error_is_permanent_target_failure(exc):
+                log.warning(
+                    "Parent tweet_id=%s is permanently unavailable with status=%s; continuing without it",
+                    parent_id,
+                    getattr(exc, "status_code", None),
+                )
+                break
+            raise
         if not parent:
             log.info("Could not fetch/cache parent tweet_id=%s", parent_id)
             break
@@ -1971,8 +2065,14 @@ def get_mentions(state: dict) -> list[dict]:
     )
 
     mentions = result.get("data", [])
+    pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
+    truncated = bool(pagination.get("truncated"))
     log.info("Fetched %d mentions", len(mentions))
     log_json_debug("Mentions returned", mentions)
+    if truncated:
+        log.warning("Mention pagination was truncated; mention watermark will not advance this cycle")
+        for mention in mentions:
+            mention["_pagination_truncated"] = True
 
     if mentions:
         for mention in mentions:
@@ -2014,6 +2114,10 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
 
     if lane_paused("disable_replies", "disable_hot_post_replies"):
         log.info("Skipping hot-post reply search due to runtime control file")
+        return []
+
+    if in_api_cooldown(state, scope="quote"):
+        log.info("Skipping hot-post reply search due to quote API cooldown")
         return []
 
     try:
@@ -2088,7 +2192,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
 
         params = {
             "query": query,
-            "max_results": max(HOT_POST_REPLY_SEARCH_API_MAX_RESULTS, MAX_HOT_POST_REPLIES_PER_CHECK),
+            "max_results": HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
             "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets",
             "expansions": "author_id",
         }
@@ -2121,6 +2225,8 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
             raise
 
         replies = result.get("data", [])
+        pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
+        pagination_truncated = bool(pagination.get("truncated"))
         log.info("Fetched %d hot-post conversation candidate(s) for post_id=%s", len(replies), original_post_id)
         log_json_debug("Hot-post reply candidates returned", replies)
 
@@ -2190,7 +2296,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                 break
 
         watermark_updated = False
-        if HOT_POST_REPLY_USE_SINCE_ID and raw_highest_id and candidates_for_this_post == 0:
+        if HOT_POST_REPLY_USE_SINCE_ID and raw_highest_id and candidates_for_this_post == 0 and not pagination_truncated:
             old_since = str(since_ids.get(original_post_id, "") or "")
             if not old_since or int(raw_highest_id) > int(old_since):
                 since_ids[original_post_id] = raw_highest_id
@@ -2201,6 +2307,11 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                     original_post_id,
                     raw_highest_id,
                 )
+        elif pagination_truncated:
+            log.warning(
+                "Not updating hot-post reply since_id for post_id=%s because pagination was truncated",
+                original_post_id,
+            )
 
         log_event(
             "hot_search",
@@ -3229,6 +3340,9 @@ def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
 
 
 def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
+    if candidate.get("_pagination_truncated"):
+        log.warning("Not advancing mention watermark for %s because mention pagination was truncated", candidate.get("id"))
+        return
     if candidate.get("_source", "mention") == "mention":
         update_last_seen_mention_id(state, str(candidate.get("id", "")))
 
@@ -3656,15 +3770,25 @@ def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
     return clean_ids[:QUOTE_POST_LOOKBACK_MAIN_POSTS]
 
 
-def get_quote_tweets_for_post(post_id: str) -> list[dict]:
+def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:
     log.info("Fetching quote tweets for post_id=%s", post_id)
 
     params = {
-        "max_results": max(QUOTE_LOOKUP_API_MAX_RESULTS, MAX_QUOTE_POSTS_PER_CHECK),
+        "max_results": QUOTE_LOOKUP_API_MAX_RESULTS,
         "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets",
         "expansions": "author_id",
         "user.fields": "description,username,name,public_metrics",
     }
+    pagination_tokens: dict[str, str] = {}
+    post_id = str(post_id)
+    if state is not None:
+        raw_tokens = state.get("quote_lookup_pagination_tokens", {})
+        if isinstance(raw_tokens, dict):
+            pagination_tokens = {str(key): str(value) for key, value in raw_tokens.items() if str(value)}
+
+    if pagination_tokens.get(post_id):
+        params["pagination_token"] = pagination_tokens[post_id]
+        log.info("Quote lookup for post_id=%s resuming with pagination_token=%s", post_id, pagination_tokens[post_id])
 
     result = x_paginated_get(
         x_quote_lookup_request,
@@ -3673,6 +3797,17 @@ def get_quote_tweets_for_post(post_id: str) -> list[dict]:
         max_pages=QUOTE_LOOKUP_MAX_PAGES_PER_POST,
         label=f"quote tweets for {post_id}",
     )
+    pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
+    if state is not None:
+        next_token = str(pagination.get("next_token") or "")
+        if next_token:
+            pagination_tokens[post_id] = next_token
+            state["quote_lookup_pagination_tokens"] = pagination_tokens
+            log.warning("Quote lookup for post_id=%s truncated; saved pagination continuation token", post_id)
+        elif post_id in pagination_tokens:
+            pagination_tokens.pop(post_id, None)
+            state["quote_lookup_pagination_tokens"] = pagination_tokens
+            log.info("Quote lookup for post_id=%s reached end of pagination; cleared continuation token", post_id)
 
     quote_tweets = result.get("data", [])
 
@@ -3906,7 +4041,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             continue
 
         try:
-            quote_tweets = get_quote_tweets_for_post(original_post_id)
+            quote_tweets = get_quote_tweets_for_post(original_post_id, state)
         except ApiError as e:
             log.exception("Failed to fetch quote tweets for post %s", original_post_id)
             record_api_error(state, e, "x", scope="quote")
@@ -3994,6 +4129,13 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             cleaned_author_profile = clean_text_for_grok_context(
                 quote_author_profile_text(quote_tweet)
             )
+
+            if not cleaned_quote_text:
+                log.info("Skipping quote tweet %s: no usable quote text after cleaning", quote_id)
+                mark_quote_tweet_skipped(state, quote_id)
+                log_event("quote_tweet_skipped", quote_tweet_id=quote_id, reason="no_usable_quote_text")
+                save_state(state)
+                continue
 
             spam_check_text = f"{cleaned_quote_text}\n{cleaned_author_profile}".strip()
 
