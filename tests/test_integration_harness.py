@@ -4331,6 +4331,35 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "Used-history migrations" in ops_digest.stdout
     assert "Used-history normalizations" in ops_digest.stdout
 
+    classified_base = prepare_base_dir(tmp_path / "digest-classified-errors")
+    (classified_base / "test.log").write_text(
+        "\n".join(
+            [
+                "2026-07-03 10:00:00 ERROR    run_self_test:4317 - SELFTEST FAIL: X_CONSUMER_KEY set",
+                "2026-07-03 10:00:00 ERROR    run_self_test:4317 - SELFTEST FAIL: X_CONSUMER_SECRET set",
+                "2026-07-03 10:00:00 ERROR    run_self_test:4317 - Self-test finished with 2 failure(s)",
+                "2026-07-03 10:15:00 ERROR    x_request:1254 - X API error 503: {\"detail\":\"Service Unavailable\"}",
+                "2026-07-03 10:15:00 WARNING  print_rate_limit_headers:1194 - Rate Limit: 40000",
+                "2026-07-03 10:15:00 WARNING  print_rate_limit_headers:1195 - Remaining: 40000",
+                "2026-07-03 10:15:00 WARNING  record_api_error:1159 - Recorded x API error. status_code=503 errors_in_window=1/3 reset_epoch=1783050931 error=X API error 503: {\"detail\":\"Service Unavailable\"}",
+                "2026-07-03 10:30:00 ERROR    x_bearer_request:1544 - X bearer API error 403: {\"detail\":\"You are not allowed to reply to this Tweet as the Tweet author has restricted who can reply\"}",
+                "2026-07-03 10:30:01 WARNING  maybe_reply_to_quote_tweets:4086 - Quote tweet 999 reply not allowed; marking quote tweet as skipped without consuming reply quota",
+                "2026-07-03 10:31:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"xai_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_until_epoch\": 0}",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    classified_digest = run_digest(classified_base)
+    assert classified_digest.returncode == 0, classified_digest.stderr
+    assert "1 operational error(s)" in classified_digest.stdout
+    assert "1 handled API restriction(s)" in classified_digest.stdout
+    assert "self-test failures: 2 check(s)" in classified_digest.stdout
+    assert "Handled API restrictions" in classified_digest.stdout
+    assert "403 restriction summary" in classified_digest.stdout
+    assert "503/5xx summary" in classified_digest.stdout
+    assert "SELFTEST FAIL: X_CONSUMER_KEY set" in classified_digest.stdout
+
     stale_base = prepare_base_dir(tmp_path / "digest-stale-cooldown")
     (stale_base / "test.log").write_text(
         "\n".join(

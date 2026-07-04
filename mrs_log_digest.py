@@ -525,7 +525,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     stats = Counter()
     events: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
+    self_test_errors: List[Dict[str, Any]] = []
     api_errors: List[Dict[str, Any]] = []
+    handled_api_restrictions: List[Dict[str, Any]] = []
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -566,8 +568,33 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 latest_state = state
                 latest_state_ts = r.ts
 
-        # Error/warning collection. Exclude routine KeyboardInterrupt from error section.
-        if r.level in {"ERROR", "CRITICAL"} or (r.level == "WARNING" and "Bot stopped by KeyboardInterrupt" not in msg):
+        is_self_test_error = (
+            msg.startswith("SELFTEST FAIL:")
+            or msg.startswith("Self-test finished with ")
+            or ("Missing X credentials." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
+            or ("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
+        )
+        is_handled_reply_restriction = (
+            "reply not allowed" in msg.lower()
+            or "marking quote tweet as skipped without consuming reply quota" in msg.lower()
+            or "not allowed to reply" in msg.lower()
+            or "author has restricted who can reply" in msg.lower()
+        )
+
+        # Error/warning collection. Exclude routine KeyboardInterrupt, expected
+        # self-test failures, and handled target restrictions from operational errors.
+        if is_self_test_error:
+            self_test_errors.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "level": r.level,
+                "where": f"{r.src}:{r.line}",
+                "message": short(msg, 900),
+            })
+        elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            # The raw X API 403 is classified below. Follow-up warnings such as
+            # "marking skipped without consuming quota" are expected handling.
+            pass
+        elif r.level in {"ERROR", "CRITICAL"} or (r.level == "WARNING" and "Bot stopped by KeyboardInterrupt" not in msg):
             errors.append({
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "level": r.level,
@@ -604,13 +631,17 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             service = "X bearer" if "X bearer API error" in msg else "X OAuth"
             endpoint = "quote_tweets" if service == "X bearer" else "mentions/hot-post"
             status_code = x_error_match.group(1)
-            api_errors.append({
+            api_error = {
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "service": service,
                 "endpoint": endpoint,
                 "status": status_code,
                 "message": short(msg, 240),
-            })
+            }
+            if status_code == "403" and is_handled_reply_restriction:
+                handled_api_restrictions.append(api_error)
+            else:
+                api_errors.append(api_error)
             if status_code == "503":
                 stats[f"x_api_503_{endpoint.replace('/', '_').replace('-', '_')}"] += 1
             elif status_code == "429":
@@ -967,9 +998,14 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     headline.append(f"{stats.get('quote_tweet_reply_posted', 0)} quote-tweet reply/replies")
     headline.append(f"{stats.get('mention_grok_skip', 0) + stats.get('hot_post_reply_grok_skip', 0) + stats.get('quote_tweet_grok_skip', 0)} Grok skip(s)")
     if serious_errors:
-        headline.append(f"{len(serious_errors)} error(s)")
+        headline.append(f"{len(serious_errors)} operational error(s)")
     else:
         headline.append("no serious errors")
+    if handled_api_restrictions:
+        headline.append(f"{len(handled_api_restrictions)} handled API restriction(s)")
+    if self_test_errors:
+        selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
+        headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
@@ -1051,12 +1087,14 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         "derived": derived,
         "api_health": {
             "errors": api_errors,
+            "handled_restrictions": handled_api_restrictions,
             "cooldown_active": cooldown_active,
             "post_cooldown_errors": post_cooldown_errors,
             "not_rate_limited": not_rate_limited,
         },
         "lifecycle": lifecycle[-12:],
         "events": events,
+        "self_test_errors": self_test_errors[-40:],
         "errors_and_warnings": errors[-40:],
     }
 
@@ -1483,9 +1521,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     api_health = report.get("api_health") or {}
     api_errors = api_health.get("errors") or []
+    handled_restrictions = api_health.get("handled_restrictions") or []
     cooldown_active = api_health.get("cooldown_active") or []
     post_cooldown_errors = api_health.get("post_cooldown_errors") or []
-    if api_errors or cooldown_active:
+    if api_errors or handled_restrictions or cooldown_active:
         out.append("## API health")
         if api_errors:
             out.append(md_table_row(["time", "service", "endpoint", "status", "window", "remaining", "message"]))
@@ -1498,6 +1537,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("status", ""),
                     item.get("errors_in_window", ""),
                     item.get("remaining", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+        if handled_restrictions:
+            out.append("Handled API restrictions:")
+            out.append(md_table_row(["time", "service", "endpoint", "status", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---"]))
+            for item in handled_restrictions:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("service", ""),
+                    item.get("endpoint", ""),
+                    item.get("status", ""),
                     item.get("message", ""),
                 ]))
             out.append("")
@@ -1522,8 +1574,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 ]))
             out.append("")
         if api_health.get("not_rate_limited"):
-            out.append("Likely cause: upstream/API-side failure, not quota exhaustion; remaining quota was non-zero on recorded error headers.")
+            out.append("503/5xx summary: likely upstream/API-side failure, not quota exhaustion; remaining quota was non-zero on recorded error headers.")
             out.append("")
+        if handled_restrictions:
+            out.append("403 restriction summary: target conversation controls disallowed the reply; handled locally without quota/cooldown impact.")
+            out.append("")
+
+    self_test_errors = report.get("self_test_errors") or []
+    if self_test_errors:
+        out.append("## Self-test failures")
+        out.append(md_table_row(["time", "level", "where", "message"]))
+        out.append(md_table_row(["---", "---", "---", "---"]))
+        for e in self_test_errors:
+            out.append(md_table_row([e.get("time"), e.get("level"), e.get("where"), e.get("message")]))
+        out.append("")
 
     errs = report.get("errors_and_warnings") or []
     out.append("## Errors / warnings")
