@@ -987,6 +987,27 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "skipped_hot_reply_count": len(latest_state.get("skipped_hot_reply_ids") or []),
         }
 
+    self_test_times = {str(item.get("time")) for item in self_test_errors}
+    api_error_times = {str(item.get("time")) for item in api_errors}
+    remaining_errors: List[Dict[str, Any]] = []
+    for item in errors:
+        message = str(item.get("message", ""))
+        timestamp = str(item.get("time", ""))
+        if timestamp in self_test_times and (
+            "Missing X credentials." in message
+            or "ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in message
+        ):
+            self_test_errors.append(item)
+            continue
+        if timestamp in api_error_times and (
+            message.startswith("Failed to get mention")
+            or message.startswith("Failed to get quote")
+            or message.startswith("Failed to fetch quote")
+        ):
+            continue
+        remaining_errors.append(item)
+    errors = remaining_errors
+
     # Build a short automatic headline.
     serious_errors = [e for e in errors if e["level"] in {"ERROR", "CRITICAL"}]
     warnings = [e for e in errors if e["level"] == "WARNING"]

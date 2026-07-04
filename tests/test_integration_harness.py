@@ -4335,10 +4335,13 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     (classified_base / "test.log").write_text(
         "\n".join(
             [
+                "2026-07-03 10:00:00 CRITICAL <module>:799 - Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, X_ACCESS_TOKEN, X_ACCESS_SECRET, X_MY_USER_ID",
+                "2026-07-03 10:00:00 CRITICAL <module>:807 - ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set.",
                 "2026-07-03 10:00:00 ERROR    run_self_test:4317 - SELFTEST FAIL: X_CONSUMER_KEY set",
                 "2026-07-03 10:00:00 ERROR    run_self_test:4317 - SELFTEST FAIL: X_CONSUMER_SECRET set",
                 "2026-07-03 10:00:00 ERROR    run_self_test:4317 - Self-test finished with 2 failure(s)",
                 "2026-07-03 10:15:00 ERROR    x_request:1254 - X API error 503: {\"detail\":\"Service Unavailable\"}",
+                "2026-07-03 10:15:00 ERROR    maybe_reply_to_mentions:3091 - Failed to get mention/hot-post reply candidates\\nTraceback omitted",
                 "2026-07-03 10:15:00 WARNING  print_rate_limit_headers:1194 - Rate Limit: 40000",
                 "2026-07-03 10:15:00 WARNING  print_rate_limit_headers:1195 - Remaining: 40000",
                 "2026-07-03 10:15:00 WARNING  record_api_error:1159 - Recorded x API error. status_code=503 errors_in_window=1/3 reset_epoch=1783050931 error=X API error 503: {\"detail\":\"Service Unavailable\"}",
