@@ -213,6 +213,8 @@ def normalize_for_branch_parity(value):
         for key, item in value.items():
             if key in {
                 "last_reply_check_epoch",
+                "hot_post_reply_pagination_tokens",
+                "mention_pagination",
                 "quote_api_cooldown_reason",
                 "quote_api_cooldown_until_epoch",
                 "quote_lookup_pagination_tokens",
@@ -2137,6 +2139,95 @@ def test_startup_self_test_does_not_rotate_backups_when_scheduler_epochs_are_cle
     assert read_json(base_dir / "bot_state.json.bak2") == {"sentinel": "bak2"}
 
 
+def test_self_test_uses_separate_log_when_log_file_not_overridden(tmp_path: Path) -> None:
+    base_dir = prepare_base_dir(tmp_path)
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_TEST_MODE": "1",
+            "MRS_BASE_DIR": str(base_dir),
+            "X_API_BASE_URL": "http://127.0.0.1:1",
+            "X_UPLOAD_BASE_URL": "http://127.0.0.1:1",
+            "XAI_API_BASE_URL": "http://127.0.0.1:1/v1",
+            "X_CONSUMER_KEY": "dummy",
+            "X_CONSUMER_SECRET": "dummy",
+            "X_ACCESS_TOKEN": "dummy",
+            "X_ACCESS_SECRET": "dummy",
+            "X_MY_USER_ID": "12345",
+            "XAI_API_KEY": "dummy",
+            "X_BEARER_TOKEN": "dummy",
+            "LOG_LEVEL": "INFO",
+        }
+    )
+
+    result = subprocess.run(
+        [sys.executable, str(BOT), "--self-test"],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert (base_dir / "mrsMThatcher.selftest.log").exists()
+    assert not (base_dir / "mrsMThatcher.log").exists()
+
+
+def test_launcher_restarts_after_child_exits_nonzero(tmp_path: Path) -> None:
+    work_dir = tmp_path / "launcher-work"
+    work_dir.mkdir()
+    env_file = tmp_path / "empty.env"
+    env_file.write_text("", encoding="utf-8")
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "count=0\n"
+        "if [[ -f \"$MRS_FAKE_COUNT_FILE\" ]]; then count=$(cat \"$MRS_FAKE_COUNT_FILE\"); fi\n"
+        "count=$((count + 1))\n"
+        "echo \"$count\" > \"$MRS_FAKE_COUNT_FILE\"\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_WORK_DIR": str(work_dir),
+            "MRS_ENV_FILE": str(env_file),
+            "MRS_BOT_SCRIPT": str(fake_bot),
+            "MRS_RESTART_SLEEP_SECONDS": "0.05",
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+    proc = subprocess.Popen(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if count_file.exists() and int(count_file.read_text(encoding="utf-8").strip() or "0") >= 2:
+                break
+            time.sleep(0.05)
+        assert count_file.exists()
+        assert int(count_file.read_text(encoding="utf-8").strip()) >= 2
+        assert proc.poll() is None
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
 def test_launcher_matches_master_on_promotion_branch() -> None:
     branch = subprocess.check_output(
         ["git", "branch", "--show-current"],
@@ -2525,6 +2616,61 @@ def test_state_recovery_skips_semantically_invalid_primary_state(tmp_path: Path)
         server.stop()
 
 
+def test_state_recovery_normalises_numeric_strings_without_crashing(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "daily_reply_date": datetime.now().strftime("%Y-%m-%d"),
+                "daily_reply_count": "1",
+                "last_reply_epoch": "0",
+                "x_error_epochs": ["1", "2"],
+            },
+        )
+
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert isinstance(state["daily_reply_count"], int)
+        assert state["daily_reply_count"] >= 2
+        assert state["x_error_epochs"] == [1, 2]
+    finally:
+        server.stop()
+
+
+def test_state_recovery_rejects_nested_malformed_cache_before_backup(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, local_config={"STATE_BACKUP_COUNT": 1})
+        write_json(base_dir / "bot_state.json", {"tweet_cache": {"123": []}, "replied_to_ids": []})
+        write_json(base_dir / "bot_state.json.bak1", {"replied_to_ids": ["from-bak1"], "last_reply_epoch": 0})
+
+        result = run_cycle(base_dir, server)
+        assert result.returncode == 0, result.stderr + result.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert "from-bak1" in state["replied_to_ids"]
+        assert "Recovered state from backup" in result.stdout
+    finally:
+        server.stop()
+
+
+def test_existing_state_all_unusable_fails_closed(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path, local_config={"STATE_BACKUP_COUNT": 2})
+        (base_dir / "bot_state.json").write_text("{bad", encoding="utf-8")
+        (base_dir / "bot_state.json.bak1").write_text("{also bad", encoding="utf-8")
+        write_json(base_dir / "bot_state.json.bak2", {"tweet_cache": {"123": []}})
+
+        result = run_cycle(base_dir, server)
+        assert result.returncode != 0
+        assert server.posts == []
+        assert "refusing to start with empty state" in (result.stdout + result.stderr)
+    finally:
+        server.stop()
+
+
 def test_state_recovery_skips_corrupted_backups_and_missing_backups(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
@@ -2569,10 +2715,8 @@ def test_state_recovery_skips_corrupted_backups_and_missing_backups(tmp_path: Pa
         server.scenario["mentions"][0]["id"] = "102"
         server.scenario["grok_replies"] = ["Default state after all backups fail."]
         missing = run_cycle(missing_base, server)
-        assert missing.returncode == 0, missing.stderr + missing.stdout
-        state = read_json(missing_base / "bot_state.json")
-        assert "102" in state["replied_to_ids"]
-        assert "No usable state file or backup found" in missing.stdout
+        assert missing.returncode != 0
+        assert "refusing to start with empty state" in (missing.stdout + missing.stderr)
     finally:
         server.stop()
 
@@ -2590,9 +2734,8 @@ def test_missing_and_malformed_state_fail_safely(tmp_path: Path) -> None:
         server.scenario["mentions"][0]["id"] = "101"
         server.scenario["grok_replies"] = ["Recovered from malformed state."]
         malformed = run_cycle(base_dir, server)
-        assert malformed.returncode == 0, malformed.stderr + malformed.stdout
-        state = read_json(base_dir / "bot_state.json")
-        assert "101" in state["replied_to_ids"]
+        assert malformed.returncode != 0
+        assert "refusing to start with empty state" in (malformed.stdout + malformed.stderr)
     finally:
         server.stop()
 
@@ -3088,6 +3231,49 @@ def test_mentions_truncated_pagination_does_not_advance_watermark(tmp_path: Path
         server.stop()
 
 
+def test_mentions_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> None:
+    mentions = [
+        {"id": str(100 + i), "author_id": str(200 + i), "conversation_id": str(100 + i), "text": "@a @b @MrsMThatcher"}
+        for i in range(15)
+    ]
+    mentions.append(
+        {
+            "id": "116",
+            "author_id": "216",
+            "conversation_id": "116",
+            "text": "@MrsMThatcher A fourth-page mention deserves an answer",
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": mentions,
+            "grok_reply": "The fourth-page point is still worth answering.",
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            local_config={"MAX_MENTIONS_PER_CHECK": 5, "MENTIONS_MAX_PAGES_PER_CHECK": 3},
+        )
+        first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
+        assert first.returncode == 0, first.stderr + first.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert state.get("last_seen_mention_id") is None
+        assert state["mention_pagination"]["next_token"] == "15"
+        assert fake_server_post_replies(server) == []
+
+        second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert fake_server_post_replies(server) == ["116"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["mention_pagination"] == {}
+        mention_requests = [r for r in server.requests if r["path"].endswith("/mentions")]
+        assert mention_requests[3]["query"]["pagination_token"] == ["15"]
+    finally:
+        server.stop()
+
+
 def test_hot_post_truncated_pagination_does_not_advance_since_id(tmp_path: Path) -> None:
     replies = [
         {
@@ -3114,6 +3300,64 @@ def test_hot_post_truncated_pagination_does_not_advance_since_id(tmp_path: Path)
         state = read_json(base_dir / "bot_state.json")
         assert state["hot_post_reply_since_ids"] == {}
         assert "Not updating hot-post reply since_id" in result.stdout
+    finally:
+        server.stop()
+
+
+def test_hot_post_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> None:
+    replies = [
+        {
+            "id": str(300 + i),
+            "author_id": str(400 + i),
+            "conversation_id": "700",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "already handled",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        }
+        for i in range(30)
+    ]
+    replies.append(
+        {
+            "id": "330",
+            "author_id": "430",
+            "conversation_id": "700",
+            "created_at": "2026-01-01T00:00:00.000Z",
+            "text": "Fourth-page watched reply deserves an answer",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        }
+    )
+    server = FakeApiServer(
+        {
+            "enable_pagination": True,
+            "mentions": [],
+            "search_recent": replies,
+            "grok_reply": "That watched reply deserves a short answer.",
+        }
+    ).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            watch_ids=["700"],
+            state={"replied_to_ids": [str(300 + i) for i in range(30)]},
+            local_config={
+                "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS": 10,
+                "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK": 3,
+            },
+        )
+        first = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000000"})
+        assert first.returncode == 0, first.stderr + first.stdout
+        state = read_json(base_dir / "bot_state.json")
+        assert state["hot_post_reply_since_ids"] == {}
+        assert state["hot_post_reply_pagination_tokens"]["700"] == "30"
+        assert fake_server_post_replies(server) == []
+
+        second = run_bot_command(base_dir, server, "--test-cycle", extra_env={"MRS_FAKE_NOW_EPOCH": "2000000002"})
+        assert second.returncode == 0, second.stderr + second.stdout
+        assert fake_server_post_replies(server) == ["330"]
+        state = read_json(base_dir / "bot_state.json")
+        assert state["hot_post_reply_pagination_tokens"] == {}
+        search_requests = [r for r in server.requests if r["path"] == "/2/tweets/search/recent"]
+        assert search_requests[3]["query"]["pagination_token"] == ["30"]
     finally:
         server.stop()
 
@@ -4371,6 +4615,37 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "MENTIONS_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
     assert "QUOTE_LOOKUP_MAX_PAGES_PER_POST=3" in classified_digest.stdout
     assert "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
+
+    same_second_base = prepare_base_dir(tmp_path / "digest-same-second")
+    same_second_state = same_second_base / ".digest_state.json"
+    log_path = same_second_base / "test.log"
+    log_path.write_text(
+        "2026-07-03 10:00:00 ERROR    first:1 - First same-second error\n",
+        encoding="utf-8",
+    )
+    first_same_second = run_digest(same_second_base, state_file=same_second_state)
+    assert first_same_second.returncode == 0, first_same_second.stderr
+    assert "First same-second error" in first_same_second.stdout
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("2026-07-03 10:00:00 ERROR    second:2 - Second same-second error\n")
+    second_same_second = run_digest(same_second_base, state_file=same_second_state)
+    assert second_same_second.returncode == 0, second_same_second.stderr
+    assert "Second same-second error" in second_same_second.stdout
+    assert "First same-second error" not in second_same_second.stdout
+
+    xai_cooldown_base = prepare_base_dir(tmp_path / "digest-xai-cooldown")
+    (xai_cooldown_base / "test.log").write_text(
+        "2026-07-03 12:00:00 DEBUG    save_state:994 - State being saved: "
+        "{\"api_cooldown_until_epoch\": 0, "
+        "\"xai_api_cooldown_until_epoch\": 4102444800, "
+        "\"xai_api_cooldown_reason\": \"too many xai API errors in the last hour\", "
+        "\"quote_api_cooldown_until_epoch\": 0}\n",
+        encoding="utf-8",
+    )
+    xai_cooldown_digest = run_digest(xai_cooldown_base)
+    assert xai_cooldown_digest.returncode == 0, xai_cooldown_digest.stderr
+    assert "xAI cooldown active now" in xai_cooldown_digest.stdout
+    assert "no API cooldown" not in xai_cooldown_digest.stdout
 
     stale_base = prepare_base_dir(tmp_path / "digest-stale-cooldown")
     (stale_base / "test.log").write_text(

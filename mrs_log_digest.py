@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
 import json
 import re
 import sys
@@ -61,22 +62,6 @@ def dt_text(value: datetime) -> str:
     return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def load_resume_time(state_file: Path) -> Optional[datetime]:
-    if not state_file.exists():
-        return None
-    try:
-        data = json.loads(state_file.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(f"WARNING: could not read state file {state_file}: {e}", file=sys.stderr)
-        return None
-    value = data.get("last_log_entry_time")
-    try:
-        return parse_dt(value)
-    except Exception as e:
-        print(f"WARNING: ignoring invalid resume timestamp in {state_file}: {value!r} ({e})", file=sys.stderr)
-        return None
-
-
 def read_resume_data(state_file: Path) -> Dict[str, Any]:
     """Read the digest resume file.
 
@@ -94,7 +79,7 @@ def read_resume_data(state_file: Path) -> Dict[str, Any]:
         return {}
 
 
-def save_resume_time(state_file: Path, last_ts: datetime, report: Dict[str, Any], logs: List[Path]) -> None:
+def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"], report: Dict[str, Any], logs: List[Path]) -> None:
     old = read_resume_data(state_file)
 
     latest_state = merge_context(
@@ -110,9 +95,15 @@ def save_resume_time(state_file: Path, last_ts: datetime, report: Dict[str, Any]
     # rendering annotations for this run, not durable bot facts.
     latest_state_clean = strip_internal_context_markers(latest_state)
     latest_config_clean = strip_internal_context_markers(latest_config)
+    boundary_fingerprints = [
+        record_fingerprint(record)
+        for record in records
+        if record.ts == last_ts
+    ]
 
     data = {
         "last_log_entry_time": dt_text(last_ts),
+        "last_log_entry_fingerprints": boundary_fingerprints,
         "last_run_record_count": report.get("summary", {}).get("record_count"),
         "last_run_time_start": report.get("summary", {}).get("time_start"),
         "last_run_time_end": report.get("summary", {}).get("time_end"),
@@ -176,6 +167,19 @@ class Record:
     msg: str
     path: str
     ordinal: int
+
+
+def record_fingerprint(record: Record) -> str:
+    body = "\x1f".join(
+        [
+            dt_text(record.ts),
+            record.level,
+            record.src,
+            str(record.line),
+            record.msg,
+        ]
+    )
+    return hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
 
 
 def iter_records(path: Path) -> Iterable[Record]:
@@ -1030,6 +1034,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
+    xai_cooldown_until_epoch = int_or_none(latest_state_summary.get("xai_api_cooldown_until_epoch"))
     quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
     window_start_epoch = int(records[0].ts.timestamp()) if records else None
@@ -1044,12 +1049,17 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             return f"{label} cooldown occurred, now expired"
         return None
 
-    cooldown_label = (
-        cooldown_headline(cooldown_until_epoch, label="API")
-        or cooldown_headline(quote_cooldown_until_epoch, label="quote API")
-    )
-    if cooldown_label:
-        headline.append(cooldown_label)
+    cooldown_labels = [
+        label
+        for label in (
+            cooldown_headline(cooldown_until_epoch, label="API"),
+            cooldown_headline(xai_cooldown_until_epoch, label="xAI"),
+            cooldown_headline(quote_cooldown_until_epoch, label="quote API"),
+        )
+        if label
+    ]
+    if cooldown_labels:
+        headline.extend(cooldown_labels)
     elif stats.get("api_cooldown_entered", 0):
         headline.append("API cooldown occurred")
     else:
@@ -1702,21 +1712,44 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     since_source = None
     since_exclusive = False
+    resume_boundary_fingerprints: set[str] = set()
 
     if args.since:
         since = parse_dt(args.since)
         since_source = "manual --since"
         since_exclusive = False
     elif not args.no_state and not args.reset_state:
-        since = load_resume_time(args.state_file)
+        resume_data = read_resume_data(args.state_file)
+        since = None
+        if resume_data:
+            try:
+                since = parse_dt(resume_data.get("last_log_entry_time"))
+            except Exception as e:
+                print(
+                    f"WARNING: ignoring invalid resume timestamp in {args.state_file}: "
+                    f"{resume_data.get('last_log_entry_time')!r} ({e})",
+                    file=sys.stderr,
+                )
+                since = None
+            resume_boundary_fingerprints = {
+                str(value)
+                for value in resume_data.get("last_log_entry_fingerprints", [])
+                if value
+            }
         if since:
             since_source = "saved resume state"
-            since_exclusive = True
+            since_exclusive = not bool(resume_boundary_fingerprints)
     else:
         since = None
 
     until = parse_dt(args.until)
     records = read_records(logs, since, until, since_exclusive=since_exclusive)
+    if since is not None and resume_boundary_fingerprints:
+        records = [
+            record
+            for record in records
+            if not (record.ts == since and record_fingerprint(record) in resume_boundary_fingerprints)
+        ]
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     report = analyse(records, max_text=args.max_text)
 
@@ -1731,6 +1764,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     report["requested_since"] = dt_text(since) if since else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
+    report["resume_boundary_fingerprint_count"] = len(resume_boundary_fingerprints)
     report["resume_state_file"] = None if args.no_state else str(args.state_file)
     report["state_updated"] = False
 
@@ -1756,7 +1790,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if records and not args.no_state and not args.no_update_state:
         last_ts = records[-1].ts
-        save_resume_time(args.state_file, last_ts, report, logs)
+        save_resume_time(args.state_file, last_ts, records, report, logs)
         report["state_updated"] = True
         report["saved_last_log_entry_time"] = dt_text(last_ts)
     elif not records:

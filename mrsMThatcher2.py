@@ -185,6 +185,8 @@ PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"
 LOG_FILE = Path(os.getenv("MRS_LOG_FILE", str(BASE_DIR / "mrsMThatcher.log"))).expanduser()
+if SELF_TEST_REQUESTED and "MRS_LOG_FILE" not in os.environ:
+    LOG_FILE = BASE_DIR / "mrsMThatcher.selftest.log"
 if TEST_MODE and path_is_same_or_child(LOG_FILE, PRODUCTION_BASE_DIR):
     print(
         f"Refusing to run in MRS_TEST_MODE with production LOG_FILE={LOG_FILE}",
@@ -1023,11 +1025,13 @@ def save_used_set(path: Path, value: set) -> None:
 def default_state() -> dict:
     return {
         "last_seen_mention_id": None,
+        "mention_pagination": {},
         "replied_to_ids": [],
         "dry_run_seen_mention_ids": [],
         "skipped_hot_reply_ids": [],
         "skipped_hot_reply_records": {},
         "hot_post_reply_since_ids": {},
+        "hot_post_reply_pagination_tokens": {},
         "hot_post_reply_check_counts": {},
 
         "daily_reply_date": None,
@@ -1084,7 +1088,110 @@ def append_unique_capped(values: object, item: object, max_items: int) -> list[s
     return existing[-max_items:]
 
 
-def validate_state_candidate(state: dict, *, path: Path) -> bool:
+def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
+    if isinstance(value, bool):
+        log.error("State candidate %s has invalid %s boolean value %r; ignoring", path, key, value)
+        return None
+    try:
+        number = int(value or 0)
+    except (TypeError, ValueError):
+        log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
+        return None
+    if number < 0:
+        log.error("State candidate %s has negative %s value %r; ignoring", path, key, value)
+        return None
+    return number
+
+
+def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
+    if not isinstance(value, list):
+        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+        return None
+    return [str(item) for item in value if item is not None]
+
+
+def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
+    if not isinstance(value, list):
+        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+        return None
+    out: list[int] = []
+    for item in value:
+        number = normalise_state_int(item, key=key, path=path)
+        if number is None:
+            return None
+        out.append(number)
+    return out
+
+
+def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+        return None
+    return {str(k): str(v) for k, v in value.items() if v is not None}
+
+
+def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] | None:
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+        return None
+    out: dict[str, int] = {}
+    for item_key, item_value in value.items():
+        number = normalise_state_int(item_value, key=f"{key}.{item_key}", path=path)
+        if number is None:
+            return None
+        out[str(item_key)] = number
+    return out
+
+
+def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, dict] | None:
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+        return None
+    out: dict[str, dict] = {}
+    for item_key, item_value in value.items():
+        if not isinstance(item_value, dict):
+            log.error(
+                "State candidate %s has invalid %s.%s type %s; ignoring",
+                path,
+                key,
+                item_key,
+                type(item_value).__name__,
+            )
+            return None
+        out[str(item_key)] = dict(item_value)
+    return out
+
+
+def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | None:
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid tweet_cache type %s; ignoring", path, type(value).__name__)
+        return None
+    out: dict[str, dict] = {}
+    for tweet_id, entry in value.items():
+        if not isinstance(entry, dict):
+            log.error(
+                "State candidate %s has invalid tweet_cache.%s type %s; ignoring",
+                path,
+                tweet_id,
+                type(entry).__name__,
+            )
+            return None
+        out[str(tweet_id)] = dict(entry)
+    return out
+
+
+def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        log.error("State candidate %s has invalid mention_pagination type %s; ignoring", path, type(value).__name__)
+        return None
+    out: dict[str, str] = {}
+    for key in ("base_since_id", "next_token"):
+        if value.get(key):
+            out[key] = str(value[key])
+    return out
+
+
+def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
     list_keys = {
         "replied_to_ids",
         "dry_run_seen_mention_ids",
@@ -1097,18 +1204,15 @@ def validate_state_candidate(state: dict, *, path: Path) -> bool:
         "replied_to_quote_post_ids",
         "skipped_quote_post_ids",
         "quote_spam_author_ids",
-        "x_error_epochs",
-        "xai_error_epochs",
-        "quote_x_error_epochs",
     }
-    dict_keys = {
-        "skipped_hot_reply_records",
+    int_list_keys = {"x_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
+    string_map_keys = {
         "hot_post_reply_since_ids",
-        "hot_post_reply_check_counts",
-        "daily_replied_author_counts",
-        "tweet_cache",
+        "hot_post_reply_pagination_tokens",
         "quote_lookup_pagination_tokens",
     }
+    int_map_keys = {"hot_post_reply_check_counts", "daily_replied_author_counts"}
+    record_map_keys = {"skipped_hot_reply_records"}
     int_keys = {
         "daily_reply_count",
         "last_meme_post_epoch",
@@ -1124,27 +1228,58 @@ def validate_state_candidate(state: dict, *, path: Path) -> bool:
         "quote_api_cooldown_until_epoch",
     }
 
+    normalised = default_state()
+    normalised.update(state)
+
     for key in list_keys:
-        if key in state and not isinstance(state[key], list):
-            log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(state[key]).__name__)
-            return False
-    for key in dict_keys:
-        if key in state and not isinstance(state[key], dict):
-            log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(state[key]).__name__)
-            return False
+        if key in state:
+            value = normalise_string_list(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value
+    for key in int_list_keys:
+        if key in state:
+            value = normalise_int_list(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value
+    for key in string_map_keys:
+        if key in state:
+            value = normalise_string_map(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value
+    for key in int_map_keys:
+        if key in state:
+            value = normalise_int_map(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value
+    for key in record_map_keys:
+        if key in state:
+            value = normalise_record_map(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value
+    if "tweet_cache" in state:
+        value = normalise_tweet_cache(state["tweet_cache"], path=path)
+        if value is None:
+            return None
+        normalised["tweet_cache"] = value
+    if "mention_pagination" in state:
+        value = normalise_mention_pagination(state["mention_pagination"], path=path)
+        if value is None:
+            return None
+        normalised["mention_pagination"] = value
     for key in int_keys:
         if key not in state:
             continue
-        try:
-            value = int(state[key] or 0)
-        except (TypeError, ValueError):
-            log.error("State candidate %s has invalid %s value %r; ignoring", path, key, state[key])
-            return False
-        if value < 0:
-            log.error("State candidate %s has negative %s value %r; ignoring", path, key, state[key])
-            return False
+        value = normalise_state_int(state[key], key=key, path=path)
+        if value is None:
+            return None
+        normalised[key] = value
 
-    return True
+    return normalised
 
 
 def load_state() -> dict:
@@ -1153,10 +1288,12 @@ def load_state() -> dict:
     candidates = [STATE_FILE]
     candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
 
+    existing_candidates = False
     for candidate in candidates:
         if not candidate.exists():
             log.warning("State file candidate does not exist: %s", candidate)
             continue
+        existing_candidates = True
 
         try:
             with open(candidate, "r") as f:
@@ -1168,17 +1305,21 @@ def load_state() -> dict:
         if not isinstance(state, dict):
             log.error("State file candidate %s is not a JSON object; ignoring", candidate)
             continue
-        if not validate_state_candidate(state, path=candidate):
+        normalised = normalise_state_candidate(state, path=candidate)
+        if normalised is None:
             continue
 
-        merged = default_state()
-        merged.update(state)
         if candidate != STATE_FILE:
             log.warning("Recovered state from backup %s", candidate)
-        log_json_debug("Loaded state", merged)
-        return merged
+        log_json_debug("Loaded state", normalised)
+        return normalised
 
-    log.error("No usable state file or backup found; using default state")
+    if existing_candidates:
+        message = "Existing state file(s) found but no usable state or backup; refusing to start with empty state"
+        log.critical(message)
+        raise RuntimeError(message)
+
+    log.error("No state file or backup found; using default state")
     return default_state()
 
 
@@ -2041,9 +2182,10 @@ def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
 # ---------------------------------------------------------------------
 
 def get_mentions(state: dict) -> list[dict]:
+    base_since_id = str(state.get("last_seen_mention_id") or "")
     log.info(
         "Fetching mentions. last_seen_mention_id=%s max_results=%s",
-        state.get("last_seen_mention_id"),
+        base_since_id or None,
         MAX_MENTIONS_PER_CHECK,
     )
 
@@ -2053,8 +2195,18 @@ def get_mentions(state: dict) -> list[dict]:
         "expansions": "author_id",
     }
 
-    if state.get("last_seen_mention_id"):
-        params["since_id"] = str(state["last_seen_mention_id"])
+    if base_since_id:
+        params["since_id"] = base_since_id
+
+    mention_pagination = state.get("mention_pagination", {})
+    if not isinstance(mention_pagination, dict):
+        mention_pagination = {}
+    resume_token = ""
+    if str(mention_pagination.get("base_since_id", "")) == base_since_id:
+        resume_token = str(mention_pagination.get("next_token", "") or "")
+    if resume_token:
+        params["pagination_token"] = resume_token
+        log.info("Resuming mention pagination from saved cursor")
 
     result = x_paginated_get(
         lambda path, page_params: x_request("GET", path, params=page_params),
@@ -2071,8 +2223,18 @@ def get_mentions(state: dict) -> list[dict]:
     log_json_debug("Mentions returned", mentions)
     if truncated:
         log.warning("Mention pagination was truncated; mention watermark will not advance this cycle")
+        next_token = str(pagination.get("next_token") or "")
+        if next_token:
+            state["mention_pagination"] = {
+                "base_since_id": base_since_id,
+                "next_token": next_token,
+            }
+            save_state(state)
         for mention in mentions:
             mention["_pagination_truncated"] = True
+    elif mention_pagination:
+        state["mention_pagination"] = {}
+        save_state(state)
 
     if mentions:
         for mention in mentions:
@@ -2140,6 +2302,10 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
     if not isinstance(check_counts, dict):
         check_counts = {}
 
+    pagination_tokens = state.get("hot_post_reply_pagination_tokens", {})
+    if not isinstance(pagination_tokens, dict):
+        pagination_tokens = {}
+
     candidates: list[dict] = []
     state_changed = False
 
@@ -2150,17 +2316,29 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         for post_id, value in check_counts.items()
         if str(post_id) in watched_post_id_set
     }
-    if pruned_since_ids != since_ids or pruned_check_counts != check_counts:
+    pruned_pagination_tokens = {
+        str(post_id): value
+        for post_id, value in pagination_tokens.items()
+        if str(post_id) in watched_post_id_set
+    }
+    if (
+        pruned_since_ids != since_ids
+        or pruned_check_counts != check_counts
+        or pruned_pagination_tokens != pagination_tokens
+    ):
         log.info(
-            "Pruned hot-post reply tracking maps. since_ids=%d->%d check_counts=%d->%d",
+            "Pruned hot-post reply tracking maps. since_ids=%d->%d check_counts=%d->%d pagination_tokens=%d->%d",
             len(since_ids),
             len(pruned_since_ids),
             len(check_counts),
             len(pruned_check_counts),
+            len(pagination_tokens),
+            len(pruned_pagination_tokens),
         )
         state_changed = True
     since_ids = pruned_since_ids
     check_counts = pruned_check_counts
+    pagination_tokens = pruned_pagination_tokens
 
     log.info(
         "Hot-post reply check loaded %d watched post(s) from %s: %s",
@@ -2185,6 +2363,9 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         full_rescan = False
         if HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS > 0:
             full_rescan = current_count == HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS
+        if full_rescan and original_post_id in pagination_tokens:
+            pagination_tokens.pop(original_post_id, None)
+            state_changed = True
 
         # conversation_id finds replies in the original post's conversation.
         # We exclude this account and retweets; later filtering keeps only actual replies.
@@ -2209,6 +2390,11 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                     since_id_used,
                 )
 
+        resume_token = str(pagination_tokens.get(original_post_id, "") or "")
+        if resume_token and not full_rescan:
+            params["pagination_token"] = resume_token
+            log.info("Resuming hot-post reply pagination for post_id=%s", original_post_id)
+
         try:
             result = x_paginated_get(
                 x_quote_lookup_request,
@@ -2227,6 +2413,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         replies = result.get("data", [])
         pagination = result.get("_pagination", {}) if isinstance(result.get("_pagination", {}), dict) else {}
         pagination_truncated = bool(pagination.get("truncated"))
+        next_pagination_token = str(pagination.get("next_token") or "")
         log.info("Fetched %d hot-post conversation candidate(s) for post_id=%s", len(replies), original_post_id)
         log_json_debug("Hot-post reply candidates returned", replies)
 
@@ -2312,6 +2499,12 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
                 "Not updating hot-post reply since_id for post_id=%s because pagination was truncated",
                 original_post_id,
             )
+            if next_pagination_token:
+                pagination_tokens[original_post_id] = next_pagination_token
+                state_changed = True
+        elif original_post_id in pagination_tokens:
+            pagination_tokens.pop(original_post_id, None)
+            state_changed = True
 
         log_event(
             "hot_search",
@@ -2327,6 +2520,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
 
     state["hot_post_reply_since_ids"] = since_ids
     state["hot_post_reply_check_counts"] = check_counts
+    state["hot_post_reply_pagination_tokens"] = pagination_tokens
 
     if state_changed:
         save_state(state)

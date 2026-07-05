@@ -1,9 +1,13 @@
 #!/bin/bash
-set -euo pipefail
+set -uo pipefail
 
-cd /disks/disk1/etc/mrsMThatcher
+WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
+ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
+BOT_SCRIPT=${MRS_BOT_SCRIPT:-/usr/local/bin/mrsMThatcher2.py}
+RESTART_SLEEP_SECONDS=${MRS_RESTART_SLEEP_SECONDS:-60}
 
-ENV_FILE=/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
+cd "$WORK_DIR"
+
 if [[ ! -r "$ENV_FILE" ]]; then
   echo "Missing readable environment file: $ENV_FILE" >&2
   exit 2
@@ -14,6 +18,9 @@ source "$ENV_FILE"
 set +a
 
 while true; do
-  /usr/local/bin/mrsMThatcher2.py >/dev/null 2>&1
-  sleep 60
+  rc=0
+  "$BOT_SCRIPT" >/dev/null 2>&1 || rc=$?
+  printf '%s MrsMThatcher exited rc=%s; restarting in %s seconds\n' \
+    "$(date '+%F %T')" "$rc" "$RESTART_SLEEP_SECONDS" >&2
+  sleep "$RESTART_SLEEP_SECONDS"
 done
