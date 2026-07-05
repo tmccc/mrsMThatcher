@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -euo pipefail
 
 WORK_DIR=${MRS_WORK_DIR:-/disks/disk1/etc/mrsMThatcher}
 ENV_FILE=${MRS_ENV_FILE:-/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env}
@@ -18,8 +18,11 @@ source "$ENV_FILE"
 set +a
 
 while true; do
-  rc=0
-  "$BOT_SCRIPT" >/dev/null 2>&1 || rc=$?
+  if "$BOT_SCRIPT" >/dev/null 2>&1; then
+    rc=0
+  else
+    rc=$?
+  fi
   printf '%s MrsMThatcher exited rc=%s; restarting in %s seconds\n' \
     "$(date '+%F %T')" "$rc" "$RESTART_SLEEP_SECONDS" >&2
   sleep "$RESTART_SLEEP_SECONDS"

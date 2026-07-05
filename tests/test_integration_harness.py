@@ -2228,6 +2228,41 @@ def test_launcher_restarts_after_child_exits_nonzero(tmp_path: Path) -> None:
             proc.kill()
 
 
+def test_launcher_setup_failure_exits_before_starting_child(tmp_path: Path) -> None:
+    count_file = tmp_path / "count.txt"
+    fake_bot = tmp_path / "fake-bot.sh"
+    fake_bot.write_text(
+        "#!/bin/bash\n"
+        "echo started >> \"$MRS_FAKE_COUNT_FILE\"\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    fake_bot.chmod(0o755)
+
+    env = base_test_env()
+    env.update(
+        {
+            "MRS_WORK_DIR": str(tmp_path / "does-not-exist"),
+            "MRS_ENV_FILE": str(tmp_path / "missing.env"),
+            "MRS_BOT_SCRIPT": str(fake_bot),
+            "MRS_RESTART_SLEEP_SECONDS": "0.05",
+            "MRS_FAKE_COUNT_FILE": str(count_file),
+        }
+    )
+    result = subprocess.run(
+        [str(ROOT / "runMrsMThatcher2")],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=5,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert not count_file.exists()
+
+
 def test_launcher_matches_master_on_promotion_branch() -> None:
     branch = subprocess.check_output(
         ["git", "branch", "--show-current"],
@@ -4632,6 +4667,22 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert second_same_second.returncode == 0, second_same_second.stderr
     assert "Second same-second error" in second_same_second.stdout
     assert "First same-second error" not in second_same_second.stdout
+    third_same_second = run_digest(same_second_base, state_file=same_second_state)
+    assert third_same_second.returncode == 0, third_same_second.stderr
+    assert "First same-second error" not in third_same_second.stdout
+    assert "Second same-second error" not in third_same_second.stdout
+    assert "no matching records" in third_same_second.stdout
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("2026-07-03 10:00:00 ERROR    third:3 - Third same-second error\n")
+    fourth_same_second = run_digest(same_second_base, state_file=same_second_state)
+    assert fourth_same_second.returncode == 0, fourth_same_second.stderr
+    assert "Third same-second error" in fourth_same_second.stdout
+    assert "First same-second error" not in fourth_same_second.stdout
+    assert "Second same-second error" not in fourth_same_second.stdout
+    fifth_same_second = run_digest(same_second_base, state_file=same_second_state)
+    assert fifth_same_second.returncode == 0, fifth_same_second.stderr
+    assert "Third same-second error" not in fifth_same_second.stdout
+    assert "no matching records" in fifth_same_second.stdout
 
     xai_cooldown_base = prepare_base_dir(tmp_path / "digest-xai-cooldown")
     (xai_cooldown_base / "test.log").write_text(

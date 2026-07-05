@@ -95,15 +95,25 @@ def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"
     # rendering annotations for this run, not durable bot facts.
     latest_state_clean = strip_internal_context_markers(latest_state)
     latest_config_clean = strip_internal_context_markers(latest_config)
-    boundary_fingerprints = [
+    boundary_fingerprints = {
         record_fingerprint(record)
         for record in records
         if record.ts == last_ts
-    ]
+    }
+    try:
+        old_last_ts = parse_dt(old.get("last_log_entry_time"))
+    except Exception:
+        old_last_ts = None
+    if old_last_ts == last_ts:
+        boundary_fingerprints.update(
+            str(value)
+            for value in old.get("last_log_entry_fingerprints", [])
+            if value
+        )
 
     data = {
         "last_log_entry_time": dt_text(last_ts),
-        "last_log_entry_fingerprints": boundary_fingerprints,
+        "last_log_entry_fingerprints": sorted(boundary_fingerprints),
         "last_run_record_count": report.get("summary", {}).get("record_count"),
         "last_run_time_start": report.get("summary", {}).get("time_start"),
         "last_run_time_end": report.get("summary", {}).get("time_end"),
