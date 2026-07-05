@@ -1069,9 +1069,12 @@ def default_state() -> dict:
         "last_quote_tweet_check_epoch": 0,
 
         "x_error_epochs": [],
+        "x_write_error_epochs": [],
         "xai_error_epochs": [],
         "api_cooldown_until_epoch": 0,
         "api_cooldown_reason": "",
+        "x_write_api_cooldown_until_epoch": 0,
+        "x_write_api_cooldown_reason": "",
         "xai_api_cooldown_until_epoch": 0,
         "xai_api_cooldown_reason": "",
         "quote_x_error_epochs": [],
@@ -1205,7 +1208,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "skipped_quote_post_ids",
         "quote_spam_author_ids",
     }
-    int_list_keys = {"x_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
+    int_list_keys = {"x_error_epochs", "x_write_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
     string_map_keys = {
         "hot_post_reply_since_ids",
         "hot_post_reply_pagination_tokens",
@@ -1224,6 +1227,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "next_quote_post_epoch",
         "daily_quote_reply_count",
         "api_cooldown_until_epoch",
+        "x_write_api_cooldown_until_epoch",
         "xai_api_cooldown_until_epoch",
         "quote_api_cooldown_until_epoch",
     }
@@ -1499,10 +1503,14 @@ def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
         until = int(state.get("xai_api_cooldown_until_epoch", 0) or 0)
         reason = state.get("xai_api_cooldown_reason", "xAI API cooldown")
         label = "xAI API cooldown"
+    elif scope == "write":
+        until = int(state.get("x_write_api_cooldown_until_epoch", 0) or 0)
+        reason = state.get("x_write_api_cooldown_reason", "X write API cooldown")
+        label = "X write API cooldown"
     else:
         until = int(state.get("api_cooldown_until_epoch", 0) or 0)
-        reason = state.get("api_cooldown_reason", "API cooldown")
-        label = "API cooldown"
+        reason = state.get("api_cooldown_reason", "X read API cooldown")
+        label = "X read API cooldown"
 
     if until <= now_epoch():
         return False
@@ -1517,7 +1525,8 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
     current = now_epoch()
 
     for until_key, reason_key, label in (
-        ("api_cooldown_until_epoch", "api_cooldown_reason", "API cooldown"),
+        ("api_cooldown_until_epoch", "api_cooldown_reason", "X read API cooldown"),
+        ("x_write_api_cooldown_until_epoch", "x_write_api_cooldown_reason", "X write API cooldown"),
         ("xai_api_cooldown_until_epoch", "xai_api_cooldown_reason", "xAI API cooldown"),
         ("quote_api_cooldown_until_epoch", "quote_api_cooldown_reason", "Quote API cooldown"),
     ):
@@ -1579,6 +1588,11 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
         max_errors = MAX_X_ERRORS_PER_WINDOW
         cooldown_until_key = "quote_api_cooldown_until_epoch"
         cooldown_reason_key = "quote_api_cooldown_reason"
+    elif service == "x" and scope == "write":
+        key = "x_write_error_epochs"
+        max_errors = MAX_X_ERRORS_PER_WINDOW
+        cooldown_until_key = "x_write_api_cooldown_until_epoch"
+        cooldown_reason_key = "x_write_api_cooldown_reason"
     elif service == "x":
         key = "x_error_epochs"
         max_errors = MAX_X_ERRORS_PER_WINDOW
@@ -3553,7 +3567,10 @@ def maybe_reply_to_mentions(state: dict) -> str:
         return NORMAL_CHECK_STATUS_DISABLED
 
     if in_api_cooldown(state):
-        log.info("Skipping mention check due to API cooldown")
+        log.info("Skipping mention check due to X read API cooldown")
+        return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
+    if in_api_cooldown(state, scope="write"):
+        log.info("Skipping mention check due to X write API cooldown")
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
     if in_api_cooldown(state, scope="xai"):
         log.info("Skipping mention check due to xAI API cooldown")
@@ -3786,12 +3803,12 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 return NORMAL_CHECK_STATUS_CHECKED
 
             log.exception("Failed to post generated reply")
-            record_api_error(state, e, "x")
+            record_api_error(state, e, "x", scope="write")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
         except Exception as e:
             log.exception("Unexpected failure posting generated reply")
-            record_api_error(state, e, "x")
+            record_api_error(state, e, "x", scope="write")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
 
@@ -4174,7 +4191,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
         log.info("Skipping quote-tweet check due to runtime control file")
         return QUOTE_CHECK_STATUS_DISABLED
 
-    if in_api_cooldown(state) or in_api_cooldown(state, scope="xai") or in_api_cooldown(state, scope="quote"):
+    if in_api_cooldown(state, scope="write") or in_api_cooldown(state, scope="xai") or in_api_cooldown(state, scope="quote"):
         log.info("Skipping quote-tweet check due to API cooldown")
         return QUOTE_CHECK_STATUS_SKIPPED_COOLDOWN
 
@@ -4429,12 +4446,12 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                     return QUOTE_CHECK_STATUS_CHECKED
 
                 log.exception("Failed to post generated quote-tweet reply")
-                record_api_error(state, e, "x")
+                record_api_error(state, e, "x", scope="write")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
             except Exception as e:
                 log.exception("Unexpected failure posting generated quote-tweet reply")
-                record_api_error(state, e, "x")
+                record_api_error(state, e, "x", scope="write")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
@@ -4765,15 +4782,15 @@ def main() -> None:
                 log.warning("Skipping quote/image post due to runtime control file; retrying in 5 minutes")
                 state["next_quote_post_epoch"] = current + 300
                 save_state(state)
-            elif in_api_cooldown(state):
-                log.warning("Skipping quote/image post due to API cooldown")
+            elif in_api_cooldown(state, scope="write"):
+                log.warning("Skipping quote/image post due to X write API cooldown")
                 schedule_next_quote_post(state, current)
             else:
                 try:
                     post_random_quote(lines_used, images_used, state)
                 except ApiError as e:
                     log.exception("Quote/image posting failed due to API error")
-                    record_api_error(state, e, "x")
+                    record_api_error(state, e, "x", scope="write")
                 except Exception:
                     log.exception("Quote/image posting failed unexpectedly")
 
@@ -4809,10 +4826,10 @@ def main() -> None:
                     state["next_meme_schedule_date"] = epoch_date_str(current + 1800)
                     state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
                     save_state(state)
-                elif in_api_cooldown(state):
-                    log.warning("Skipping daily meme post due to API cooldown")
+                elif in_api_cooldown(state, scope="write"):
+                    log.warning("Skipping daily meme post due to X write API cooldown")
                     state["next_meme_post_epoch"] = current + 3600
-                    state["next_meme_schedule_mode"] = "delayed_api_cooldown"
+                    state["next_meme_schedule_mode"] = "delayed_write_api_cooldown"
                     state["next_meme_schedule_date"] = epoch_date_str(current + 3600)
                     state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
                     save_state(state)
@@ -4821,7 +4838,7 @@ def main() -> None:
                         post_next_meme(state)
                     except ApiError as e:
                         log.exception("Daily meme posting failed due to API error")
-                        record_api_error(state, e, "x")
+                        record_api_error(state, e, "x", scope="write")
                         state["next_meme_post_epoch"] = current + 3600
                         state["next_meme_schedule_mode"] = "delayed_api_error"
                         state["next_meme_schedule_date"] = epoch_date_str(current + 3600)
@@ -5090,7 +5107,7 @@ def run_test_post_quote() -> int:
         post_random_quote(lines_used, images_used, state)
     except ApiError as exc:
         log.exception("Test quote/image post failed due to API error")
-        record_api_error(state, exc, "x")
+        record_api_error(state, exc, "x", scope="write")
         save_state(state)
         return 1
     except Exception:
@@ -5121,7 +5138,7 @@ def run_test_post_meme() -> int:
         post_next_meme(state)
     except ApiError as exc:
         log.exception("Test daily meme post failed due to API error")
-        record_api_error(state, exc, "x")
+        record_api_error(state, exc, "x", scope="write")
         save_state(state)
         return 1
     except Exception:

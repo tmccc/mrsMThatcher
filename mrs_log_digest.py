@@ -989,6 +989,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "api_cooldown_until_epoch": latest_state.get("api_cooldown_until_epoch"),
             "api_cooldown_until_human": epoch_to_human(latest_state.get("api_cooldown_until_epoch")),
             "api_cooldown_reason": latest_state.get("api_cooldown_reason"),
+            "x_write_api_cooldown_until_epoch": latest_state.get("x_write_api_cooldown_until_epoch"),
+            "x_write_api_cooldown_until_human": epoch_to_human(latest_state.get("x_write_api_cooldown_until_epoch")),
+            "x_write_api_cooldown_reason": latest_state.get("x_write_api_cooldown_reason"),
             "xai_api_cooldown_until_epoch": latest_state.get("xai_api_cooldown_until_epoch"),
             "xai_api_cooldown_until_human": epoch_to_human(latest_state.get("xai_api_cooldown_until_epoch")),
             "xai_api_cooldown_reason": latest_state.get("xai_api_cooldown_reason"),
@@ -1044,6 +1047,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
+    x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
     xai_cooldown_until_epoch = int_or_none(latest_state_summary.get("xai_api_cooldown_until_epoch"))
     quote_cooldown_until_epoch = int_or_none(latest_state_summary.get("quote_api_cooldown_until_epoch"))
     latest_state_time = parse_dt(latest_state_summary.get("time"))
@@ -1062,7 +1066,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     cooldown_labels = [
         label
         for label in (
-            cooldown_headline(cooldown_until_epoch, label="API"),
+            cooldown_headline(cooldown_until_epoch, label="X read API"),
+            cooldown_headline(x_write_cooldown_until_epoch, label="X write API"),
             cooldown_headline(xai_cooldown_until_epoch, label="xAI"),
             cooldown_headline(quote_cooldown_until_epoch, label="quote API"),
         )
@@ -1349,11 +1354,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
         api_cooldown_suffix = f"  {api_cooldown_status}" if api_cooldown_status else ""
         api_cooldown_human = st.get("api_cooldown_until_human") or "none"
         out.append(
-            f"api_cooldown_until      = {st.get('api_cooldown_until_epoch')}  "
+            f"x_read_api_cooldown_until = {st.get('api_cooldown_until_epoch')}  "
             f"{api_cooldown_human}{api_cooldown_suffix}"
         )
         if st.get("api_cooldown_reason"):
-            out.append(f"api_cooldown_reason     = {st.get('api_cooldown_reason')}")
+            out.append(f"x_read_api_cooldown_reason = {st.get('api_cooldown_reason')}")
+        x_write_api_cooldown_status = cooldown_state_text(st.get("x_write_api_cooldown_until_epoch"), st.get("time"))
+        x_write_api_cooldown_suffix = f"  {x_write_api_cooldown_status}" if x_write_api_cooldown_status else ""
+        x_write_api_cooldown_human = st.get("x_write_api_cooldown_until_human") or "none"
+        out.append(
+            f"x_write_api_cooldown_until = {st.get('x_write_api_cooldown_until_epoch')}  "
+            f"{x_write_api_cooldown_human}{x_write_api_cooldown_suffix}"
+        )
+        if st.get("x_write_api_cooldown_reason"):
+            out.append(f"x_write_api_cooldown_reason = {st.get('x_write_api_cooldown_reason')}")
         xai_api_cooldown_status = cooldown_state_text(st.get("xai_api_cooldown_until_epoch"), st.get("time"))
         xai_api_cooldown_suffix = f"  {xai_api_cooldown_status}" if xai_api_cooldown_status else ""
         xai_api_cooldown_human = st.get("xai_api_cooldown_until_human") or "none"

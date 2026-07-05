@@ -219,9 +219,14 @@ def normalize_for_branch_parity(value):
                 "quote_api_cooldown_until_epoch",
                 "quote_lookup_pagination_tokens",
                 "quote_x_error_epochs",
+                "x_write_api_cooldown_reason",
+                "x_write_api_cooldown_until_epoch",
+                "x_write_error_epochs",
                 "xai_api_cooldown_reason",
                 "xai_api_cooldown_until_epoch",
             }:
+                continue
+            if key in {"daily_quote_reply_count", "daily_quote_reply_date"}:
                 continue
             if key in {"cached_epoch", "created_at"}:
                 continue
@@ -3753,8 +3758,9 @@ def test_media_v2_rate_limit_does_not_fallback_to_v1_upload(tmp_path: Path) -> N
         assert server.path_counts.get("/1.1/media/upload.json", 0) == 0
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
-        assert state["api_cooldown_reason"] == "x returned 429/rate limit"
-        assert int(state["api_cooldown_until_epoch"]) > 0
+        assert state["x_write_api_cooldown_reason"] == "write/x returned 429/rate limit"
+        assert int(state["x_write_api_cooldown_until_epoch"]) > 0
+        assert state["api_cooldown_until_epoch"] == 0
     finally:
         server.stop()
 
@@ -3774,7 +3780,8 @@ def test_quote_image_post_missing_created_post_id_fails_without_marking_assets_u
         state = read_json(base_dir / "bot_state.json")
         assert not state.get("last_main_post_id")
         assert state.get("recent_own_post_ids", []) == []
-        assert len(state["x_error_epochs"]) == 1
+        assert len(state["x_write_error_epochs"]) == 1
+        assert state["x_error_epochs"] == []
     finally:
         server.stop()
 
@@ -3823,7 +3830,8 @@ def test_daily_meme_post_missing_created_post_id_fails_without_recording_or_resc
         assert not state.get("last_main_post_id")
         assert state.get("posted_meme_filenames", []) == []
         assert not state.get("next_meme_post_epoch")
-        assert len(state["x_error_epochs"]) == 1
+        assert len(state["x_write_error_epochs"]) == 1
+        assert state["x_error_epochs"] == []
     finally:
         server.stop()
 
@@ -3859,7 +3867,8 @@ def test_made_with_ai_network_failure_does_not_retry_ambiguous_post(tmp_path: Pa
         assert server.posts == []
         state = read_json(base_dir / "bot_state.json")
         assert state.get("last_seen_mention_id") is None
-        assert state["x_error_epochs"]
+        assert state["x_write_error_epochs"]
+        assert state["x_error_epochs"] == []
     finally:
         server.stop()
 
@@ -3901,6 +3910,102 @@ def test_repeated_x_errors_enter_api_cooldown(tmp_path: Path, fake_server: FakeA
     assert state["api_cooldown_reason"] == "too many x API errors in the last hour"
     assert int(state["api_cooldown_until_epoch"]) > int(datetime.now().timestamp())
     assert fake_server.posts == []
+
+
+@pytest.mark.parametrize("fake_server", ["repeated_x_errors.json"], indirect=True)
+def test_x_read_cooldown_does_not_block_quote_image_posting(tmp_path: Path, fake_server: FakeApiServer) -> None:
+    base_dir = prepare_base_dir(tmp_path)
+
+    for _ in range(3):
+        result = run_cycle(base_dir, fake_server)
+        assert result.returncode == 0, result.stderr + result.stdout
+
+    state = read_json(base_dir / "bot_state.json")
+    assert len(state["x_error_epochs"]) == 3
+    assert int(state["api_cooldown_until_epoch"]) > int(datetime.now().timestamp())
+    assert state["x_write_api_cooldown_until_epoch"] == 0
+
+    post_result = run_bot_command(base_dir, fake_server, "--test-post-quote")
+    assert post_result.returncode == 0, post_result.stderr + post_result.stdout
+    assert any(post.get("media", {}).get("media_ids") for post in fake_server.posts)
+
+
+def test_x_read_cooldown_does_not_block_due_daily_meme(tmp_path: Path) -> None:
+    server = FakeApiServer(load_scenario(SCENARIOS / "repeated_x_errors.json")).start()
+    try:
+        base_dir = prepare_base_dir(
+            tmp_path,
+            meme=True,
+            local_config={"ENABLE_DAILY_MEME_POSTS": True, "MEME_POST_TEXT": "meme"},
+            state={
+                "next_quote_post_epoch": 2_000_100_000,
+                "last_quote_post_epoch": 1_999_900_000,
+                "next_meme_post_epoch": 2_000_000_000,
+                "meme_schedule_version": 2,
+                "next_meme_schedule_mode": "test_due",
+                "next_meme_schedule_date": "2033-05-18",
+            },
+        )
+
+        for offset in [0, 10, 20]:
+            result = run_bot_command(
+                base_dir,
+                server,
+                "--test-cycle",
+                extra_env={"MRS_FAKE_NOW_EPOCH": str(2_000_000_000 + offset)},
+            )
+            assert result.returncode == 0, result.stderr + result.stdout
+
+        state = read_json(base_dir / "bot_state.json")
+        assert int(state["api_cooldown_until_epoch"]) > 2_000_000_000
+        assert state["x_write_api_cooldown_until_epoch"] == 0
+
+        env = base_test_env()
+        env.update(
+            {
+                "MRS_TEST_MODE": "1",
+                "MRS_BASE_DIR": str(base_dir),
+                "MRS_LOG_FILE": str(base_dir / "test.log"),
+                "X_API_BASE_URL": server.url,
+                "X_UPLOAD_BASE_URL": server.url,
+                "XAI_API_BASE_URL": f"{server.url}/v1",
+                "X_CONSUMER_KEY": "dummy",
+                "X_CONSUMER_SECRET": "dummy",
+                "X_ACCESS_TOKEN": "dummy",
+                "X_ACCESS_SECRET": "dummy",
+                "X_MY_USER_ID": "12345",
+                "XAI_API_KEY": "dummy",
+                "X_BEARER_TOKEN": "dummy",
+                "LOG_LEVEL": "INFO",
+                "MRS_FAKE_NOW_EPOCH": "2000000030",
+            }
+        )
+        proc = subprocess.Popen(
+            [sys.executable, str(BOT)],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                if any(post.get("text") == "meme" for post in server.posts):
+                    break
+                if proc.poll() is not None:
+                    stdout, stderr = proc.communicate(timeout=1)
+                    raise AssertionError(stdout + stderr)
+                time.sleep(0.1)
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+        assert any(post.get("text") == "meme" for post in server.posts)
+    finally:
+        server.stop()
 
 
 @pytest.mark.parametrize("fake_server", ["xai_failure.json"], indirect=True)
@@ -4718,8 +4823,8 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert stale_digest.returncode == 0, stale_digest.stderr
     assert "no API cooldown" in stale_digest.stdout
     assert "API cooldown occurred" not in stale_digest.stdout
-    assert "api_cooldown_until      = 1" in stale_digest.stdout
-    assert "api_cooldown_reason     = old cooldown" in stale_digest.stdout
+    assert "x_read_api_cooldown_until = 1" in stale_digest.stdout
+    assert "x_read_api_cooldown_reason = old cooldown" in stale_digest.stdout
     assert "expired" in stale_digest.stdout
     assert "mention_fetch_attempts         = 1" in stale_digest.stdout
     assert "mention_checks_skipped_spacing = 1" in stale_digest.stdout
@@ -4755,7 +4860,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     )
     cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
     assert cleared_digest.returncode == 0, cleared_digest.stderr
-    assert "api_cooldown_until      = 0  none" in cleared_digest.stdout
+    assert "x_read_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "quote_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "2026-07-03 05:55:42" not in cleared_digest.stdout
     assert "old cooldown" not in cleared_digest.stdout
