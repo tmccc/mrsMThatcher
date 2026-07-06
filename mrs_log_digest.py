@@ -40,7 +40,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 LOG_RE = re.compile(
     r"^(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
     r"(?P<level>[A-Z]+)\s+"
-    r"(?P<src>[^:]+):(?P<line>\d+) - (?P<msg>.*)$"
+    r"(?P<src>[^:]+?)(?::(?P<line>\d+))? - (?P<msg>.*)$"
 )
 
 
@@ -208,7 +208,7 @@ def iter_records(path: Path) -> Iterable[Record]:
                     "ts": datetime.strptime(m.group("ts"), "%Y-%m-%d %H:%M:%S"),
                     "level": m.group("level"),
                     "src": m.group("src").strip(),
-                    "line": int(m.group("line")),
+                    "line": int(m.group("line") or 0),
                     "msg": m.group("msg"),
                     "path": str(path),
                     "ordinal": ordinal,
@@ -755,6 +755,86 @@ def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tu
     return incidents, suppressed
 
 
+def int_usage_value(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except Exception:
+        return 0
+
+
+def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    marker = "xAI usage="
+    if marker not in msg:
+        return None, None
+    raw = msg.split(marker, 1)[1].strip()
+    try:
+        parsed = ast.literal_eval(raw)
+    except Exception as exc:
+        return None, f"could not parse xAI usage dictionary: {exc}"
+    if not isinstance(parsed, dict):
+        return None, f"xAI usage payload was {type(parsed).__name__}, not dict"
+    return parsed, None
+
+
+def xai_usage_context_from_pending(pending_mention: Dict[str, Any], pending_qt: Dict[str, Any]) -> Dict[str, Any]:
+    if pending_qt:
+        return {
+            "lane": "quote-tweet",
+            "context_id": pending_qt.get("quote_tweet_id", ""),
+            "author_id": pending_qt.get("author_id", ""),
+        }
+    if pending_mention:
+        return {
+            "lane": "mention",
+            "context_id": pending_mention.get("mention_id") or pending_mention.get("hot_post_reply_id") or "",
+            "author_id": pending_mention.get("author_id", ""),
+        }
+    return {"lane": "unknown", "context_id": "", "author_id": ""}
+
+
+def unknown_xai_usage_context() -> Dict[str, Any]:
+    return {"lane": "unknown", "context_id": "", "author_id": ""}
+
+
+def summarize_xai_usage_event(
+    record: Record,
+    usage: Dict[str, Any],
+    context: Dict[str, Any],
+) -> Dict[str, Any]:
+    prompt_details = usage.get("prompt_tokens_details")
+    if not isinstance(prompt_details, dict):
+        prompt_details = {}
+    completion_details = usage.get("completion_tokens_details")
+    if not isinstance(completion_details, dict):
+        completion_details = {}
+    return {
+        "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
+        "lane": context.get("lane", "unknown"),
+        "context_id": context.get("context_id", ""),
+        "author_id": context.get("author_id", ""),
+        "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
+        "cached_tokens": int_usage_value(prompt_details.get("cached_tokens")),
+        "reasoning_tokens": int_usage_value(completion_details.get("reasoning_tokens")),
+        "completion_tokens": int_usage_value(usage.get("completion_tokens")),
+        "total_tokens": int_usage_value(usage.get("total_tokens")),
+        "num_sources_used": int_usage_value(usage.get("num_sources_used")),
+        "cost_in_usd_ticks": int_usage_value(usage.get("cost_in_usd_ticks")),
+    }
+
+
+def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
+    return {
+        "successful_xai_calls": len(events),
+        "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
+        "cached_tokens": sum(int_usage_value(item.get("cached_tokens")) for item in events),
+        "reasoning_tokens": sum(int_usage_value(item.get("reasoning_tokens")) for item in events),
+        "completion_tokens": sum(int_usage_value(item.get("completion_tokens")) for item in events),
+        "total_tokens": sum(int_usage_value(item.get("total_tokens")) for item in events),
+        "sources_used": sum(int_usage_value(item.get("num_sources_used")) for item in events),
+        "cost_in_usd_ticks": sum(int_usage_value(item.get("cost_in_usd_ticks")) for item in events),
+    }
+
+
 def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     stats = Counter()
     events: List[Dict[str, Any]] = []
@@ -766,6 +846,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     confirmed_post_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
+    xai_usage_events: List[Dict[str, Any]] = []
+    xai_usage_parse_errors: List[Dict[str, Any]] = []
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -777,6 +859,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     pending_meme: Dict[str, Any] = {}
     pending_mention: Dict[str, Any] = {}
     pending_qt: Dict[str, Any] = {}
+    active_xai_context: Optional[Dict[str, Any]] = None
     last_created_post: Dict[str, Any] = {}
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> None:
@@ -904,6 +987,28 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "_fingerprint": record_fingerprint(r),
             })
 
+        if r.src == "ask_grok_for_reply" and msg.startswith("Asking Grok for reply."):
+            active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
+
+        usage, usage_error = parse_xai_usage_from_msg(msg)
+        if usage is not None:
+            xai_usage_events.append(
+                summarize_xai_usage_event(
+                    r,
+                    usage,
+                    active_xai_context or unknown_xai_usage_context(),
+                )
+            )
+            stats["xai_usage_successes"] += 1
+        elif usage_error is not None:
+            xai_usage_parse_errors.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "where": f"{r.src}:{r.line}",
+                "message": short(msg, 500),
+                "error": usage_error,
+            })
+            stats["xai_usage_parse_errors"] += 1
+
         # Stable structured EVENT lines are used only to enrich pending state;
         # older human-readable success lines still define the final digest event.
         if msg.startswith("EVENT "):
@@ -1023,6 +1128,12 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "status": m.group(1) if m else "",
                 "message": short(msg, 240),
             })
+            active_xai_context = None
+        if r.src == "ask_grok_for_reply" and (
+            msg.startswith("Grok generated usable reply:")
+            or msg.startswith("Grok chose to skip")
+        ):
+            active_xai_context = None
         if api_errors:
             if msg.startswith("Rate Limit:"):
                 api_errors[-1]["rate_limit"] = msg.split(":", 1)[1].strip()
@@ -1242,6 +1353,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 pending_mention = {"mention_id": m.group(1), "source": "unknown"}
             pending_mention["reply"] = lit(m.group(2))
             pending_mention["generated_at"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            active_xai_context = None
             continue
 
         m = re.search(r"Recorded and cached own auto-reply id=(\d+)", msg)
@@ -1285,6 +1397,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                     incoming_text=pending_mention.get("incoming_text", ""),
                 )
             pending_mention = {}
+            active_xai_context = None
             continue
 
         m = re.search(r"Skipping (mention|hot_post_reply) (\d+): (.*)$", msg)
@@ -1312,6 +1425,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                     reason=reason,
                 )
             pending_mention = {}
+            active_xai_context = None
             continue
 
         m = re.search(r"Skipping hot-post candidate (\d+): (.*)$", msg, re.S)
@@ -1337,6 +1451,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 pending_qt = {"quote_tweet_id": m.group(1)}
             pending_qt["reply"] = lit(m.group(2))
             pending_qt["generated_at"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+            active_xai_context = None
             continue
 
         m = re.search(r"Recorded and cached own quote-tweet auto-reply id=(\d+)", msg)
@@ -1362,6 +1477,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 incoming_text=pending_qt.get("incoming_text", ""),
             )
             pending_qt = {}
+            active_xai_context = None
             continue
 
         m = re.search(r"Skipping quote tweet (\d+): (.*)$", msg, re.S)
@@ -1377,6 +1493,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 add_event("quote_tweet_skipped", r.ts, quote_tweet_id=m.group(1), reason=reason)
             else:
                 add_event("quote_tweet_skipped", r.ts, quote_tweet_id=m.group(1), reason=reason)
+            active_xai_context = None
             continue
 
         # Other interesting skip/rate/cap messages.
@@ -1556,6 +1673,11 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "incidents": media_upload_incidents,
             "handled_fallbacks": handled_media_fallbacks,
             "unrecovered_failures": unrecovered_media,
+        },
+        "xai_usage": {
+            "events": xai_usage_events,
+            "totals": xai_usage_totals(xai_usage_events),
+            "parse_errors": xai_usage_parse_errors,
         },
         "lifecycle": lifecycle[-12:],
         "events": events,
@@ -1990,6 +2112,65 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"quote_tweet_checks_no_post     = {lane.get('quote_tweet_checks_no_post')}")
         out.append("```")
         out.append("")
+
+    xai_usage = report.get("xai_usage") or {}
+    xai_events = xai_usage.get("events") or []
+    xai_parse_errors = xai_usage.get("parse_errors") or []
+    if xai_events or xai_parse_errors:
+        out.append("## xAI usage")
+        if xai_events:
+            out.append(md_table_row([
+                "time",
+                "lane",
+                "context_id",
+                "prompt",
+                "cached",
+                "reasoning",
+                "completion",
+                "total",
+                "sources",
+                "cost_ticks",
+            ]))
+            out.append(md_table_row(["---"] * 10))
+            for item in xai_events:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("lane", ""),
+                    item.get("context_id", ""),
+                    item.get("prompt_tokens", 0),
+                    item.get("cached_tokens", 0),
+                    item.get("reasoning_tokens", 0),
+                    item.get("completion_tokens", 0),
+                    item.get("total_tokens", 0),
+                    item.get("num_sources_used", 0),
+                    item.get("cost_in_usd_ticks", 0),
+                ]))
+            out.append("")
+            totals = xai_usage.get("totals") or {}
+            out.append("Totals:")
+            out.append("```text")
+            out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
+            out.append(f"prompt_tokens        = {totals.get('prompt_tokens', 0)}")
+            out.append(f"cached_tokens        = {totals.get('cached_tokens', 0)}")
+            out.append(f"reasoning_tokens     = {totals.get('reasoning_tokens', 0)}")
+            out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
+            out.append(f"total_tokens         = {totals.get('total_tokens', 0)}")
+            out.append(f"sources_used         = {totals.get('sources_used', 0)}")
+            out.append(f"cost_in_usd_ticks    = {totals.get('cost_in_usd_ticks', 0)}")
+            out.append("```")
+            out.append("")
+        if xai_parse_errors:
+            out.append("Malformed xAI usage records:")
+            out.append(md_table_row(["time", "where", "error", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---"]))
+            for item in xai_parse_errors:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("where", ""),
+                    item.get("error", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
 
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})

@@ -5158,3 +5158,106 @@ def test_digest_does_not_double_count_repeated_media_chain_lines(tmp_path: Path)
     assert digest.returncode == 0, digest.stderr
     assert "1 handled media-upload fallback(s)" in digest.stdout
     assert "operational error(s)" not in digest.stdout
+
+
+def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 15:46:26 INFO maybe_reply_to_mentions - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
+            "2026-07-06 15:46:27 INFO ask_grok_for_reply - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
+            "2026-07-06 15:46:37 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 533, 'completion_tokens': 20, 'total_tokens': 1314, 'prompt_tokens_details': {'text_tokens': 533, 'audio_tokens': 0, 'image_tokens': 0, 'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 761, 'audio_tokens': 0, 'accepted_prediction_tokens': 0, 'rejected_prediction_tokens': 0}, 'num_sources_used': 0, 'cost_in_usd_ticks': 24843500}",
+            "2026-07-06 15:46:37 INFO maybe_reply_to_mentions - Generated reply to mention 123: 'A reply.'",
+            "2026-07-06 15:47:00 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 539, 'completion_tokens': 18, 'total_tokens': 1109, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 552}, 'num_sources_used': 2, 'cost_in_usd_ticks': 19643500}",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "## xAI usage" in digest.stdout
+    assert "| 2026-07-06 15:46:37 | mention | 123 | 533 | 128 | 761 | 20 | 1314 | 0 | 24843500 |" in digest.stdout
+    assert "| 2026-07-06 15:47:00 | unknown |  | 539 | 128 | 552 | 18 | 1109 | 2 | 19643500 |" in digest.stdout
+    assert "successful_xai_calls = 2" in digest.stdout
+    assert "prompt_tokens        = 1072" in digest.stdout
+    assert "cached_tokens        = 256" in digest.stdout
+    assert "reasoning_tokens     = 1313" in digest.stdout
+    assert "completion_tokens    = 38" in digest.stdout
+    assert "total_tokens         = 2423" in digest.stdout
+    assert "sources_used         = 2" in digest.stdout
+    assert "cost_in_usd_ticks    = 44487000" in digest.stdout
+    assert "mention reply/replies" in digest.stdout
+
+
+def test_digest_reports_xai_usage_unknown_context_and_malformed_records(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-unknown-malformed"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 14:45:54 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': 539, 'completion_tokens': 18, 'total_tokens': 1109, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 552}, 'num_sources_used': 0, 'cost_in_usd_ticks': 19643500}",
+            "2026-07-06 14:46:00 INFO ask_grok_for_reply - xAI usage={'prompt_tokens': bad",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "## xAI usage" in digest.stdout
+    assert "| 2026-07-06 14:45:54 | unknown |  | 539 | 128 | 552 | 18 | 1109 | 0 | 19643500 |" in digest.stdout
+    assert "successful_xai_calls = 1" in digest.stdout
+    assert "Malformed xAI usage records" in digest.stdout
+    assert "could not parse xAI usage dictionary" in digest.stdout
+
+
+def test_digest_associates_xai_usage_with_quote_tweet_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-quote-tweet"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 12:00:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=999 author_id=777 original_post_id=555 text='Interesting'",
+            "2026-07-06 12:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            "2026-07-06 12:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
+            "2026-07-06 12:00:03 INFO ask_grok_for_reply:5414 - Grok generated usable reply: 'A reply.'",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "| 2026-07-06 12:00:02 | quote-tweet | 999 | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
+
+
+def test_digest_does_not_reuse_completed_mention_xai_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-stale-mention"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 15:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
+            "2026-07-06 15:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
+            "2026-07-06 15:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
+            "2026-07-06 15:00:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention 123: 'A reply.'",
+            "2026-07-06 15:00:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "| 2026-07-06 15:00:02 | mention | 123 | 10 | 1 | 8 | 2 | 20 | 0 | 100 |" in digest.stdout
+    assert "| 2026-07-06 15:00:04 | unknown |  | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in digest.stdout
+
+
+def test_digest_does_not_reuse_completed_quote_tweet_xai_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-stale-quote-tweet"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 12:00:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=999 author_id=777 original_post_id=555 text='Interesting'",
+            "2026-07-06 12:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            "2026-07-06 12:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
+            "2026-07-06 12:00:03 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet 999: 'A reply.'",
+            "2026-07-06 12:00:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 101, 'completion_tokens': 6, 'total_tokens': 151, 'prompt_tokens_details': {'cached_tokens': 26}, 'completion_tokens_details': {'reasoning_tokens': 46}, 'num_sources_used': 0, 'cost_in_usd_ticks': 124}",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "| 2026-07-06 12:00:02 | quote-tweet | 999 | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
+    assert "| 2026-07-06 12:00:04 | unknown |  | 101 | 26 | 46 | 6 | 151 | 0 | 124 |" in digest.stdout
