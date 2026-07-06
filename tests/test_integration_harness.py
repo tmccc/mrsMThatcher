@@ -240,6 +240,11 @@ def run_digest(base_dir: Path, *, state_file: Path | None = None) -> subprocess.
     )
 
 
+def write_digest_log(base_dir: Path, lines: list[str]) -> None:
+    base_dir.mkdir(parents=True, exist_ok=True)
+    (base_dir / "test.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def event_payloads(base_dir: Path) -> list[dict]:
     payloads = []
     log_path = base_dir / "test.log"
@@ -5009,3 +5014,144 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "quote_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "2026-07-03 05:55:42" not in cleared_digest.stdout
     assert "old cooldown" not in cleared_digest.stdout
+
+
+def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_path: Path) -> None:
+    present_base = tmp_path / "digest-present-meme-count"
+    meme_names = [f"{idx:03d}_meme.png" for idx in range(20)]
+    write_digest_log(
+        present_base,
+        [
+            "2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: "
+            + json.dumps({"posted_meme_filenames": meme_names}),
+        ],
+    )
+    present_digest = run_digest(present_base)
+    assert present_digest.returncode == 0, present_digest.stderr
+    assert "posted_meme_count       = 20" in present_digest.stdout
+
+    empty_base = tmp_path / "digest-empty-meme-count"
+    write_digest_log(
+        empty_base,
+        [
+            '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"posted_meme_filenames": []}',
+        ],
+    )
+    empty_digest = run_digest(empty_base)
+    assert empty_digest.returncode == 0, empty_digest.stderr
+    assert "posted_meme_count       = 0" in empty_digest.stdout
+
+    absent_base = tmp_path / "digest-absent-meme-count"
+    write_digest_log(
+        absent_base,
+        [
+            '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"daily_reply_count": 1}',
+        ],
+    )
+    absent_digest = run_digest(absent_base)
+    assert absent_digest.returncode == 0, absent_digest.stderr
+    assert "posted_meme_count       = unknown (not present in latest snapshot)" in absent_digest.stdout
+    assert "posted_meme_count       = 0" not in absent_digest.stdout
+
+
+def test_digest_can_use_bot_state_for_authoritative_current_state_metrics(tmp_path: Path) -> None:
+    base = tmp_path / "digest-authoritative-state"
+    meme_names = [f"{idx:03d}_meme.png" for idx in range(20)]
+    write_digest_log(
+        base,
+        [
+            '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"daily_reply_count": 1}',
+        ],
+    )
+    write_json(base / "bot_state.json", {"posted_meme_filenames": meme_names, "daily_reply_count": 2})
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "authoritative current state" in digest.stdout
+    assert "posted_meme_count       = 20" in digest.stdout
+    assert "posted_meme_count       = unknown" not in digest.stdout
+
+
+def test_digest_groups_handled_media_v2_fallback_as_one_warning(tmp_path: Path) -> None:
+    base = tmp_path / "digest-media-fallback-handled"
+    media_file = "/tmp/016_impact18_share17_gradeA_post_as_is_Image150.png"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-06 15:20:24 INFO     post_next_meme:5180 - Posting meme image: {media_file}",
+            f"2026-07-06 15:20:24 INFO     upload_media_v2:2970 - Uploading media via X API v2: {media_file}",
+            "2026-07-06 15:21:24 ERROR    x_request:1967 - X request failed before receiving response\nrequests.exceptions.ReadTimeout: HTTPSConnectionPool(host='api.x.com', port=443): Read timed out. (read timeout=60.0)",
+            "2026-07-06 15:21:24 ERROR    upload_media:3054 - v2 media upload failed; trying v1.1 fallback\nApiError: HTTPSConnectionPool(host='api.x.com', port=443): Read timed out. (read timeout=60.0)",
+            f"2026-07-06 15:21:24 INFO     upload_media_v1_1:3000 - Uploading media via legacy v1.1 fallback: {media_file}",
+            "2026-07-06 15:21:25 INFO     upload_media_v1_1:3043 - Uploaded media via v1.1. media_id=2074136638502866945",
+            "2026-07-06 15:21:25 INFO     create_post:3113 - Created X post successfully. response={'data': {'text': 'https://t.co/AvJDHwMiV6', 'id': '2074136641040499171'}}",
+            '2026-07-06 15:21:25 INFO     log_event:330 - EVENT {"event":"main_post_posted","filename":"016_impact18_share17_gradeA_post_as_is_Image150.png","lane":"daily_meme","post_id":"2074136641040499171"}',
+            "2026-07-06 15:21:25 INFO     post_next_meme:5281 - Daily meme posted successfully. posted_id=2074136641040499171 file=016_impact18_share17_gradeA_post_as_is_Image150.png",
+        ],
+    )
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "1 handled media-upload fallback(s)" in digest.stdout
+    assert "2 operational error(s)" not in digest.stdout
+    assert "no serious errors" in digest.stdout
+    assert "Media upload incidents" in digest.stdout
+    assert "handled_fallbacks     = 1" in digest.stdout
+    assert "unrecovered_failures  = 0" in digest.stdout
+    assert "v2 upload failed; v1.1 fallback succeeded and final post completed" in digest.stdout
+    assert "Read timed out. (read timeout=60.0)" in digest.stdout
+
+
+def test_digest_counts_unrecovered_media_fallback_as_one_incident(tmp_path: Path) -> None:
+    base = tmp_path / "digest-media-fallback-unrecovered"
+    media_file = "/tmp/meme.png"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-06 15:20:24 INFO     upload_media_v2:2970 - Uploading media via X API v2: {media_file}",
+            "2026-07-06 15:21:24 ERROR    x_request:1967 - X request failed before receiving response\nrequests.exceptions.ReadTimeout: timed out",
+            "2026-07-06 15:21:24 ERROR    upload_media:3054 - v2 media upload failed; trying v1.1 fallback",
+            "2026-07-06 15:21:25 ERROR    upload_media_v1_1:3043 - v1.1 media upload failed: configured failure",
+        ],
+    )
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "1 unrecovered media-upload failure(s)" in digest.stdout
+    assert "handled_fallbacks     = 0" in digest.stdout
+    assert "unrecovered_failures  = 1" in digest.stdout
+    assert "2 operational error(s)" not in digest.stdout
+    assert "Media upload incidents" in digest.stdout
+
+
+def test_digest_keeps_unrelated_nearby_errors_separate(tmp_path: Path) -> None:
+    base = tmp_path / "digest-unrelated-errors"
+    write_digest_log(
+        base,
+        [
+            "2026-07-06 15:21:24 ERROR    first:1 - First unrelated failure",
+            "2026-07-06 15:21:25 ERROR    second:2 - Second unrelated failure",
+        ],
+    )
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "2 operational error(s)" in digest.stdout
+    assert "First unrelated failure" in digest.stdout
+    assert "Second unrelated failure" in digest.stdout
+
+
+def test_digest_does_not_double_count_repeated_media_chain_lines(tmp_path: Path) -> None:
+    base = tmp_path / "digest-media-repeated-chain"
+    media_file = "/tmp/meme.png"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-06 15:20:24 INFO     upload_media_v2:2970 - Uploading media via X API v2: {media_file}",
+            "2026-07-06 15:21:24 ERROR    x_request:1967 - X request failed before receiving response\nrequests.exceptions.ReadTimeout: timed out",
+            "2026-07-06 15:21:24 ERROR    x_request:1968 - X request failed before receiving response\nrequests.exceptions.ReadTimeout: timed out",
+            "2026-07-06 15:21:24 ERROR    upload_media:3054 - v2 media upload failed; trying v1.1 fallback",
+            "2026-07-06 15:21:25 INFO     upload_media_v1_1:3043 - Uploaded media via v1.1. media_id=2074136638502866945",
+            "2026-07-06 15:21:25 INFO     post_random_quote:5281 - Quote/image posted successfully. posted_id=2074136641040499171",
+        ],
+    )
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "1 handled media-upload fallback(s)" in digest.stdout
+    assert "operational error(s)" not in digest.stdout

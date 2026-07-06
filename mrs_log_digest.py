@@ -330,6 +330,114 @@ def short(value: Any, n: int) -> str:
     return s[: max(0, n - 1)] + "…"
 
 
+UNKNOWN_MISSING_STATE_FIELD = "unknown (not present in latest snapshot)"
+UNKNOWN_INVALID_STATE_FIELD = "unknown (invalid in latest snapshot)"
+
+
+def state_list_count(state: Dict[str, Any], key: str) -> Any:
+    if key not in state:
+        return UNKNOWN_MISSING_STATE_FIELD
+    value = state.get(key)
+    if isinstance(value, list):
+        return len(value)
+    return UNKNOWN_INVALID_STATE_FIELD
+
+
+def state_list_tail(state: Dict[str, Any], key: str, count: int) -> Optional[List[Any]]:
+    if key not in state:
+        return None
+    value = state.get(key)
+    if isinstance(value, list):
+        return value[-count:]
+    return None
+
+
+def state_list_head(state: Dict[str, Any], key: str, count: int) -> Optional[List[Any]]:
+    if key not in state:
+        return None
+    value = state.get(key)
+    if isinstance(value, list):
+        return value[:count]
+    return None
+
+
+def summarize_latest_state(
+    latest_state: Dict[str, Any],
+    latest_state_ts: Optional[datetime],
+    *,
+    source: str = "log snapshot",
+    source_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    summary = {
+        "time": latest_state_ts.strftime("%Y-%m-%d %H:%M:%S") if latest_state_ts else None,
+        "_state_source": source,
+        "daily_reply_date": latest_state.get("daily_reply_date"),
+        "daily_reply_count": latest_state.get("daily_reply_count"),
+        "daily_quote_reply_date": latest_state.get("daily_quote_reply_date"),
+        "daily_quote_reply_count": latest_state.get("daily_quote_reply_count"),
+        "last_seen_mention_id": latest_state.get("last_seen_mention_id"),
+        "last_main_post_id": latest_state.get("last_main_post_id"),
+        "last_reply_epoch": latest_state.get("last_reply_epoch"),
+        "last_reply_human": epoch_to_human(latest_state.get("last_reply_epoch")),
+        "last_quote_post_epoch": latest_state.get("last_quote_post_epoch"),
+        "last_quote_post_human": epoch_to_human(latest_state.get("last_quote_post_epoch")),
+        "next_quote_post_epoch": latest_state.get("next_quote_post_epoch"),
+        "next_quote_post_human": epoch_to_human(latest_state.get("next_quote_post_epoch")),
+        "next_meme_post_epoch": latest_state.get("next_meme_post_epoch"),
+        "next_meme_post_human": epoch_to_human(latest_state.get("next_meme_post_epoch")),
+        "next_meme_schedule_mode": latest_state.get("next_meme_schedule_mode"),
+        "next_meme_schedule_date": latest_state.get("next_meme_schedule_date"),
+        "meme_anchor_quote_post_epoch": latest_state.get("meme_anchor_quote_post_epoch"),
+        "meme_anchor_quote_post_human": epoch_to_human(latest_state.get("meme_anchor_quote_post_epoch")),
+        "meme_schedule_version": latest_state.get("meme_schedule_version"),
+        "api_cooldown_until_epoch": latest_state.get("api_cooldown_until_epoch"),
+        "api_cooldown_until_human": epoch_to_human(latest_state.get("api_cooldown_until_epoch")),
+        "api_cooldown_reason": latest_state.get("api_cooldown_reason"),
+        "x_write_api_cooldown_until_epoch": latest_state.get("x_write_api_cooldown_until_epoch"),
+        "x_write_api_cooldown_until_human": epoch_to_human(latest_state.get("x_write_api_cooldown_until_epoch")),
+        "x_write_api_cooldown_reason": latest_state.get("x_write_api_cooldown_reason"),
+        "xai_api_cooldown_until_epoch": latest_state.get("xai_api_cooldown_until_epoch"),
+        "xai_api_cooldown_until_human": epoch_to_human(latest_state.get("xai_api_cooldown_until_epoch")),
+        "xai_api_cooldown_reason": latest_state.get("xai_api_cooldown_reason"),
+        "quote_api_cooldown_until_epoch": latest_state.get("quote_api_cooldown_until_epoch"),
+        "quote_api_cooldown_until_human": epoch_to_human(latest_state.get("quote_api_cooldown_until_epoch")),
+        "quote_api_cooldown_reason": latest_state.get("quote_api_cooldown_reason"),
+        "quote_spam_author_count": state_list_count(latest_state, "quote_spam_author_ids"),
+        "posted_meme_count": state_list_count(latest_state, "posted_meme_filenames"),
+        "posted_meme_filenames_tail": state_list_tail(latest_state, "posted_meme_filenames", 8),
+        "recent_own_post_ids_head": state_list_head(latest_state, "recent_own_post_ids", 5),
+        "next_reply_lane_priority": latest_state.get("next_reply_lane_priority"),
+        "skipped_hot_reply_count": state_list_count(latest_state, "skipped_hot_reply_ids"),
+    }
+    if latest_state.get("_partial"):
+        summary["_partial"] = True
+    if source_path is not None:
+        summary["_state_source_path"] = str(source_path)
+    return summary
+
+
+def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[str, Any]], Optional[Path], Optional[datetime]]:
+    seen_dirs: set[Path] = set()
+    for log in logs:
+        directory = log.parent.resolve()
+        if directory in seen_dirs:
+            continue
+        seen_dirs.add(directory)
+        path = directory / "bot_state.json"
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                print(f"WARNING: ignoring non-object bot state {path}", file=sys.stderr)
+                continue
+            mtime = datetime.fromtimestamp(path.stat().st_mtime)
+            return data, path, mtime
+        except Exception as e:
+            print(f"WARNING: could not read authoritative bot state {path}: {e}", file=sys.stderr)
+    return None, None, None
+
+
 INTERNAL_CONTEXT_KEYS = {
     "_carried_forward",
     "_filled_from_previous",
@@ -337,6 +445,8 @@ INTERNAL_CONTEXT_KEYS = {
     "_carried_from_log_backscan",
     "_log_backscan_timestamp",
     "_partial",
+    "_state_source",
+    "_state_source_path",
 }
 
 
@@ -535,6 +645,116 @@ def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
     return out if len(out) > 1 else None
 
 
+def seconds_between(a: datetime, b: datetime) -> float:
+    return abs((a - b).total_seconds())
+
+
+def is_media_v2_request_failure(record: Record) -> bool:
+    return (
+        record.level in {"ERROR", "CRITICAL"}
+        and record.src == "x_request"
+        and "X request failed before receiving response" in record.msg
+    )
+
+
+def is_media_fallback_warning(record: Record) -> bool:
+    return (
+        record.level in {"ERROR", "CRITICAL", "WARNING"}
+        and "v2 media upload failed; trying v1.1 fallback" in record.msg
+    )
+
+
+def is_media_v1_success(record: Record) -> bool:
+    return "Uploaded media via v1.1." in record.msg
+
+
+def is_media_v1_failure(record: Record) -> bool:
+    return (
+        record.level in {"ERROR", "CRITICAL"}
+        and record.src in {"upload_media", "upload_media_v1_1", "x_request"}
+        and (
+            "v1.1" in record.msg
+            or "legacy v1.1" in record.msg
+            or "media upload failed" in record.msg
+        )
+    )
+
+
+def is_main_post_success(record: Record) -> bool:
+    return (
+        "Quote/image posted successfully." in record.msg
+        or "Daily meme posted successfully." in record.msg
+        or ('EVENT {"event":"main_post_posted"' in record.msg)
+    )
+
+
+def find_recent_media_path(records: List[Record], index: int) -> Optional[str]:
+    for earlier in reversed(records[max(0, index - 20):index + 1]):
+        m = re.search(r"Uploading media via X API v2: (.+)$", earlier.msg)
+        if m:
+            return m.group(1).strip()
+        m = re.search(r"Detected MIME type for (.+?):", earlier.msg)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tuple[List[Dict[str, Any]], set[str]]:
+    incidents: List[Dict[str, Any]] = []
+    suppressed: set[str] = set()
+    used_fallbacks: set[int] = set()
+
+    for idx, record in enumerate(records):
+        if not is_media_fallback_warning(record) or idx in used_fallbacks:
+            continue
+        used_fallbacks.add(idx)
+        media_path = find_recent_media_path(records, idx)
+        prior_failures = [
+            candidate
+            for candidate in records[max(0, idx - 8):idx]
+            if is_media_v2_request_failure(candidate) and seconds_between(candidate.ts, record.ts) <= 90
+        ]
+        later = [
+            candidate
+            for candidate in records[idx + 1:idx + 40]
+            if 0 <= (candidate.ts - record.ts).total_seconds() <= 180
+        ]
+        v1_success = next((candidate for candidate in later if is_media_v1_success(candidate)), None)
+        post_success = next((candidate for candidate in later if is_main_post_success(candidate)), None)
+        v1_failures = [candidate for candidate in later if is_media_v1_failure(candidate) and candidate is not v1_success]
+
+        chain_records = [record, *prior_failures]
+        if v1_success:
+            chain_records.append(v1_success)
+        if post_success:
+            chain_records.append(post_success)
+        chain_records.extend(v1_failures)
+        for item in chain_records:
+            suppressed.add(record_fingerprint(item))
+
+        handled = bool(v1_success and post_success and not v1_failures)
+        status = "handled" if handled else "unrecovered"
+        detail = "v2 upload failed"
+        if prior_failures:
+            detail = short(prior_failures[-1].msg, max_text)
+        incidents.append({
+            "time": record.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "status": status,
+            "media": media_path or "",
+            "v2_failure": detail,
+            "fallback": short(record.msg, max_text),
+            "v1_result": "succeeded" if v1_success else ("failed" if v1_failures else "not observed"),
+            "post_result": "succeeded" if post_success else "not observed",
+            "summary": (
+                "v2 upload failed; v1.1 fallback succeeded and final post completed"
+                if handled
+                else "v2 upload failed and media/post completion was not observed"
+            ),
+        })
+
+    return incidents, suppressed
+
+
 def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     stats = Counter()
     events: List[Dict[str, Any]] = []
@@ -545,6 +765,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     receipt_events: List[Dict[str, Any]] = []
     confirmed_post_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
+    media_upload_incidents: List[Dict[str, Any]] = []
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -680,6 +901,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
+                "_fingerprint": record_fingerprint(r),
             })
 
         # Stable structured EVENT lines are used only to enrich pending state;
@@ -1170,53 +1392,17 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
 
     latest_state_summary: Dict[str, Any] = {}
     if latest_state is not None:
-        latest_state_summary = {
-            "time": latest_state_ts.strftime("%Y-%m-%d %H:%M:%S") if latest_state_ts else None,
-            "daily_reply_date": latest_state.get("daily_reply_date"),
-            "daily_reply_count": latest_state.get("daily_reply_count"),
-            "daily_quote_reply_date": latest_state.get("daily_quote_reply_date"),
-            "daily_quote_reply_count": latest_state.get("daily_quote_reply_count"),
-            "last_seen_mention_id": latest_state.get("last_seen_mention_id"),
-            "last_main_post_id": latest_state.get("last_main_post_id"),
-            "last_reply_epoch": latest_state.get("last_reply_epoch"),
-            "last_reply_human": epoch_to_human(latest_state.get("last_reply_epoch")),
-            "last_quote_post_epoch": latest_state.get("last_quote_post_epoch"),
-            "last_quote_post_human": epoch_to_human(latest_state.get("last_quote_post_epoch")),
-            "next_quote_post_epoch": latest_state.get("next_quote_post_epoch"),
-            "next_quote_post_human": epoch_to_human(latest_state.get("next_quote_post_epoch")),
-            "next_meme_post_epoch": latest_state.get("next_meme_post_epoch"),
-            "next_meme_post_human": epoch_to_human(latest_state.get("next_meme_post_epoch")),
-            "next_meme_schedule_mode": latest_state.get("next_meme_schedule_mode"),
-            "next_meme_schedule_date": latest_state.get("next_meme_schedule_date"),
-            "meme_anchor_quote_post_epoch": latest_state.get("meme_anchor_quote_post_epoch"),
-            "meme_anchor_quote_post_human": epoch_to_human(latest_state.get("meme_anchor_quote_post_epoch")),
-            "meme_schedule_version": latest_state.get("meme_schedule_version"),
-            "api_cooldown_until_epoch": latest_state.get("api_cooldown_until_epoch"),
-            "api_cooldown_until_human": epoch_to_human(latest_state.get("api_cooldown_until_epoch")),
-            "api_cooldown_reason": latest_state.get("api_cooldown_reason"),
-            "x_write_api_cooldown_until_epoch": latest_state.get("x_write_api_cooldown_until_epoch"),
-            "x_write_api_cooldown_until_human": epoch_to_human(latest_state.get("x_write_api_cooldown_until_epoch")),
-            "x_write_api_cooldown_reason": latest_state.get("x_write_api_cooldown_reason"),
-            "xai_api_cooldown_until_epoch": latest_state.get("xai_api_cooldown_until_epoch"),
-            "xai_api_cooldown_until_human": epoch_to_human(latest_state.get("xai_api_cooldown_until_epoch")),
-            "xai_api_cooldown_reason": latest_state.get("xai_api_cooldown_reason"),
-            "quote_api_cooldown_until_epoch": latest_state.get("quote_api_cooldown_until_epoch"),
-            "quote_api_cooldown_until_human": epoch_to_human(latest_state.get("quote_api_cooldown_until_epoch")),
-            "quote_api_cooldown_reason": latest_state.get("quote_api_cooldown_reason"),
-            "quote_spam_author_count": len(latest_state.get("quote_spam_author_ids") or []),
-            "posted_meme_count": len(latest_state.get("posted_meme_filenames") or []),
-            "posted_meme_filenames_tail": list((latest_state.get("posted_meme_filenames") or [])[-8:]),
-            "recent_own_post_ids_head": list((latest_state.get("recent_own_post_ids") or [])[:5]),
-            "next_reply_lane_priority": latest_state.get("next_reply_lane_priority"),
-            "skipped_hot_reply_count": len(latest_state.get("skipped_hot_reply_ids") or []),
-        }
+        latest_state_summary = summarize_latest_state(latest_state, latest_state_ts)
 
     self_test_times = {str(item.get("time")) for item in self_test_errors}
     api_error_times = {str(item.get("time")) for item in api_errors}
+    media_upload_incidents, media_suppressed_fingerprints = correlate_media_upload_incidents(records, max_text)
     remaining_errors: List[Dict[str, Any]] = []
     for item in errors:
         message = str(item.get("message", ""))
         timestamp = str(item.get("time", ""))
+        if item.get("_fingerprint") in media_suppressed_fingerprints:
+            continue
         if timestamp in self_test_times and (
             "Missing X credentials." in message
             or "ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in message
@@ -1248,6 +1434,12 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         headline.append("no serious errors")
     if handled_api_restrictions:
         headline.append(f"{len(handled_api_restrictions)} handled API restriction(s)")
+    handled_media_fallbacks = [item for item in media_upload_incidents if item.get("status") == "handled"]
+    unrecovered_media = [item for item in media_upload_incidents if item.get("status") != "handled"]
+    if handled_media_fallbacks:
+        headline.append(f"{len(handled_media_fallbacks)} handled media-upload fallback(s)")
+    if unrecovered_media:
+        headline.append(f"{len(unrecovered_media)} unrecovered media-upload failure(s)")
     if self_test_errors:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
@@ -1360,6 +1552,11 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "confirmed_post_recovery": confirmed_post_recovery,
         },
         "asset_health": asset_health,
+        "media_upload": {
+            "incidents": media_upload_incidents,
+            "handled_fallbacks": handled_media_fallbacks,
+            "unrecovered_failures": unrecovered_media,
+        },
         "lifecycle": lifecycle[-12:],
         "events": events,
         "self_test_errors": self_test_errors[-40:],
@@ -1555,10 +1752,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
     st = report.get("latest_state") or {}
     if st:
         out.append("## Latest state")
+        state_source = st.get("_state_source")
+        state_source_path = st.get("_state_source_path")
         if st.get("_carried_forward"):
             out.append(f"State timestamp: `{st.get('time')}` (carried forward from previous digest state)")
         elif st.get("_filled_from_previous"):
             out.append(f"State timestamp: `{st.get('time')}` (current snapshot with missing fields filled from previous digest state)")
+        elif state_source == "bot_state.json":
+            path_text = f" `{state_source_path}`" if state_source_path else ""
+            out.append(f"State timestamp: `{st.get('time')}` (authoritative current state from{path_text})")
+        elif st.get("_partial"):
+            out.append(f"State timestamp: `{st.get('time')}` (partial/truncated log snapshot)")
         else:
             out.append(f"State timestamp: `{st.get('time')}`")
         out.append("")
@@ -1626,6 +1830,37 @@ def render_markdown(report: Dict[str, Any]) -> str:
             for name in st["posted_meme_filenames_tail"]:
                 out.append(str(name))
             out.append("```")
+        out.append("")
+
+    media_upload = report.get("media_upload") or {}
+    media_incidents = media_upload.get("incidents") or []
+    if media_incidents:
+        out.append("## Media upload incidents")
+        out.append("```text")
+        out.append(f"handled_fallbacks     = {len(media_upload.get('handled_fallbacks') or [])}")
+        out.append(f"unrecovered_failures  = {len(media_upload.get('unrecovered_failures') or [])}")
+        out.append("```")
+        out.append(md_table_row(["time", "status", "media", "v1.1 result", "post result", "summary"]))
+        out.append(md_table_row(["---", "---", "---", "---", "---", "---"]))
+        for item in media_incidents:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("status", ""),
+                item.get("media", ""),
+                item.get("v1_result", ""),
+                item.get("post_result", ""),
+                item.get("summary", ""),
+            ]))
+        out.append("")
+        out.append("Details:")
+        out.append(md_table_row(["time", "v2 failure", "fallback log"]))
+        out.append(md_table_row(["---", "---", "---"]))
+        for item in media_incidents:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("v2_failure", ""),
+                item.get("fallback", ""),
+            ]))
         out.append("")
 
     cfg = report.get("latest_config") or {}
@@ -2066,6 +2301,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     report["resume_boundary_fingerprint_count"] = len(resume_boundary_fingerprints)
     report["resume_state_file"] = None if args.no_state else str(args.state_file)
     report["state_updated"] = False
+
+    authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
+    if authoritative_state is not None:
+        report["latest_state"] = summarize_latest_state(
+            authoritative_state,
+            authoritative_state_ts,
+            source="bot_state.json",
+            source_path=authoritative_state_path,
+        )
 
     # v5: if this incremental window has no startup Config lines, scan earlier
     # records in the same log files for the most recent Config values before
