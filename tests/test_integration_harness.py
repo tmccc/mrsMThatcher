@@ -4856,6 +4856,51 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "QUOTE_LOOKUP_MAX_PAGES_PER_POST=3" in classified_digest.stdout
     assert "HOT_POST_REPLY_SEARCH_MAX_PAGES_PER_CHECK=3" in classified_digest.stdout
 
+    main_post_recovery_base = prepare_base_dir(tmp_path / "digest-main-post-recovery")
+    (main_post_recovery_base / "test.log").write_text(
+        "\n".join(
+            [
+                "2026-07-03 11:00:00 INFO     main:6600 - Config: MAX_QUOTE_IMAGE_PAIR_ATTEMPTS=25",
+                "2026-07-03 11:00:00 INFO     main:6601 - Config: IMAGE_STRONG_MISMATCH_PENALTY=-10000.0",
+                "2026-07-03 11:01:00 INFO     select_quote_candidate:4230 - Selected quote line_no=12 quote_hash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa weight=1.50 seasonal_boost=True",
+                "2026-07-03 11:01:01 INFO     choose_matched_unused_image:4490 - Image cycle status: used_count=4 currently_eligible=10 remaining_count=6 seasonally_excluded=1 stale_excluded=2 cycle_reset=False",
+                "2026-07-03 11:01:02 INFO     choose_matched_unused_image:4534 - Selected matched image basename=t09.jpg image_no=8 score=7.25 components={'topic': 3.0}",
+                "2026-07-03 11:01:03 INFO     post_random_quote:4730 - EVENT {\"event\":\"main_post_posted\",\"image_basename\":\"t09.jpg\",\"image_no\":8,\"image_score\":7.25,\"lane\":\"quote_image\",\"line_no\":12,\"post_id\":\"2073000000000000001\"}",
+                "2026-07-03 11:01:04 INFO     post_random_quote:4740 - Quote text='A metadata matched quote.'",
+                "2026-07-03 11:01:05 WARNING  write_regular_post_receipt:3501 - Wrote confirmed regular-post receipt pending local reconciliation: /tmp/regular_post_receipt.json",
+                "2026-07-03 11:01:06 INFO     remove_regular_post_receipt:3602 - Removed reconciled regular-post receipt: /tmp/regular_post_receipt.json",
+                "2026-07-03 11:01:07 INFO     post_random_quote:4741 - Quote/image posted successfully. posted_id=2073000000000000001",
+                "2026-07-03 11:02:00 WARNING  quote_candidates_for_current_cycle:4187 - Skipping unanalysed current quote line_no=99 quote_hash=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb until quote analysis is refreshed",
+                "2026-07-03 11:02:01 WARNING  quote_candidates_for_current_cycle:4281 - Quote cycle is exhausted by currently nonselectable quote(s); resetting quote cycle. unused_non_empty=1 full_selectable=12 full_hard_excluded=0",
+                "2026-07-03 11:03:00 CRITICAL post_random_quote:4671 - Confirmed regular quote/image post_id=2073000000000000002 but failed writing recovery receipt; in-memory used histories remain marked",
+                "2026-07-03 11:04:00 CRITICAL run_test_post_quote:7005 - REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. Test quote/image local persistence/recovery needs attention.",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    main_post_recovery_digest = run_digest(main_post_recovery_base)
+    assert main_post_recovery_digest.returncode == 0, main_post_recovery_digest.stderr
+    assert "1 quote/image post(s)" in main_post_recovery_digest.stdout
+    assert "2 confirmed-post recovery warning(s)" in main_post_recovery_digest.stdout
+    assert "1 asset metadata warning(s)" in main_post_recovery_digest.stdout
+    assert "Main-post recovery" in main_post_recovery_digest.stdout
+    assert "regular_written" in main_post_recovery_digest.stdout
+    assert "regular_removed" in main_post_recovery_digest.stdout
+    assert "Confirmed remote posts with local recovery/persistence trouble" in main_post_recovery_digest.stdout
+    assert "DO NOT RETRY MANUALLY" in main_post_recovery_digest.stdout
+    assert "Asset metadata health" in main_post_recovery_digest.stdout
+    assert "Skipping unanalysed current quote" in main_post_recovery_digest.stdout
+    assert "Regular quote selections" in main_post_recovery_digest.stdout
+    assert "Matched image selections" in main_post_recovery_digest.stdout
+    assert "Image cycle status" in main_post_recovery_digest.stdout
+    assert "Quote cycle resets" in main_post_recovery_digest.stdout
+    assert "t09.jpg" in main_post_recovery_digest.stdout
+    assert "7.25" in main_post_recovery_digest.stdout
+    assert "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS=25" in main_post_recovery_digest.stdout
+    assert "IMAGE_STRONG_MISMATCH_PENALTY=-10000.0" in main_post_recovery_digest.stdout
+    assert "2 operational error(s)" not in main_post_recovery_digest.stdout
+
     same_second_base = prepare_base_dir(tmp_path / "digest-same-second")
     same_second_state = same_second_base / ".digest_state.json"
     log_path = same_second_base / "test.log"

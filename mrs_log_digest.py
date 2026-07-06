@@ -542,6 +542,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     self_test_errors: List[Dict[str, Any]] = []
     api_errors: List[Dict[str, Any]] = []
     handled_api_restrictions: List[Dict[str, Any]] = []
+    receipt_events: List[Dict[str, Any]] = []
+    confirmed_post_recovery: List[Dict[str, Any]] = []
+    asset_health: List[Dict[str, Any]] = []
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -564,6 +567,28 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 ev[k] = v
         events.append(ev)
         stats[kind] += 1
+
+    def add_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
+        item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": kind,
+            "level": r.level,
+            "message": short(r.msg, 500),
+        }
+        item.update(kwargs)
+        receipt_events.append(item)
+        stats[f"receipt_{kind}"] += 1
+
+    def add_asset_health(kind: str, r: Record, **kwargs: Any) -> None:
+        item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": kind,
+            "level": r.level,
+            "message": short(r.msg, 500),
+        }
+        item.update(kwargs)
+        asset_health.append(item)
+        stats[f"asset_{kind}"] += 1
 
     for r in records:
         msg = r.msg
@@ -594,6 +619,36 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             or "not allowed to reply" in msg.lower()
             or "author has restricted who can reply" in msg.lower()
         )
+        is_receipt_routine = (
+            "Wrote confirmed regular-post receipt pending local reconciliation" in msg
+            or "Wrote confirmed meme-post receipt pending local reconciliation" in msg
+            or "Removed reconciled regular-post receipt" in msg
+            or "Removed reconciled meme-post receipt" in msg
+            or "Reconciling confirmed regular quote/image post receipt" in msg
+            or "Reconciling confirmed meme post receipt" in msg
+            or "Reconciled regular quote/image receipt; not creating a second regular post" in msg
+            or "Reconciled meme post receipt; not creating a second meme post" in msg
+        )
+        is_confirmed_post_recovery = (
+            "Confirmed regular quote/image post_id=" in msg
+            or "Confirmed meme post_id=" in msg
+            or "Confirmed regular quote/image post " in msg
+            or "Confirmed meme post " in msg
+            or "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY" in msg
+        )
+        is_asset_metadata_warning = (
+            "Quote analysis" in msg
+            or "quote analysis" in msg
+            or "Image analysis" in msg
+            or "image analysis" in msg
+            or "Skipping unanalysed current quote" in msg
+            or "Image metadata stale" in msg
+            or "absent from image analysis" in msg
+            or "no valid per-image analysis" in msg
+            or "Could not hash current image" in msg
+            or "No analysed currently eligible regular-post images" in msg
+            or "Image used-history still contains legacy integer entries" in msg
+        )
 
         # Error/warning collection. Exclude routine KeyboardInterrupt, expected
         # self-test failures, and handled target restrictions from operational errors.
@@ -604,6 +659,17 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
             })
+        elif is_confirmed_post_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            confirmed_post_recovery.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "level": r.level,
+                "where": f"{r.src}:{r.line}",
+                "message": short(msg, 900),
+            })
+        elif is_receipt_routine and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            pass
+        elif is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            pass
         elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             # The raw X API 403 is classified below. Follow-up warnings such as
             # "marking skipped without consuming quota" are expected handling.
@@ -615,6 +681,69 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
             })
+
+        # Stable structured EVENT lines are used only to enrich pending state;
+        # older human-readable success lines still define the final digest event.
+        if msg.startswith("EVENT "):
+            event_obj = try_parse_json_object_from_msg(msg)
+            if event_obj and event_obj.get("event") == "main_post_posted":
+                if event_obj.get("lane") == "quote_image":
+                    pending_quote.update({
+                        "post_id": event_obj.get("post_id"),
+                        "line_no": event_obj.get("line_no"),
+                        "image_no": event_obj.get("image_no"),
+                        "image_basename": event_obj.get("image_basename"),
+                        "image_score": event_obj.get("image_score"),
+                    })
+                elif event_obj.get("lane") == "daily_meme":
+                    pending_meme.update({
+                        "post_id": event_obj.get("post_id"),
+                        "file": event_obj.get("filename"),
+                    })
+            continue
+
+        if "Wrote confirmed regular-post receipt pending local reconciliation" in msg:
+            add_receipt_event("regular_written", r, lane="quote_image")
+            continue
+        if "Wrote confirmed meme-post receipt pending local reconciliation" in msg:
+            add_receipt_event("meme_written", r, lane="daily_meme")
+            continue
+        if "Removed reconciled regular-post receipt" in msg:
+            add_receipt_event("regular_removed", r, lane="quote_image")
+            continue
+        if "Removed reconciled meme-post receipt" in msg:
+            add_receipt_event("meme_removed", r, lane="daily_meme")
+            continue
+        m = re.search(r"Reconciling confirmed regular quote/image post receipt post_id=([^\s]+) quote_hash=([^\s]+) image=([^\s]+)", msg)
+        if m:
+            add_receipt_event("regular_reconciled", r, lane="quote_image", post_id=m.group(1), quote_hash=m.group(2), image=m.group(3))
+            continue
+        m = re.search(r"Reconciling confirmed meme post receipt post_id=([^\s]+) meme=([^\s]+)", msg)
+        if m:
+            add_receipt_event("meme_reconciled", r, lane="daily_meme", post_id=m.group(1), file=m.group(2))
+            continue
+        if "Reconciled regular quote/image receipt; not creating a second regular post" in msg:
+            add_receipt_event("regular_replay_suppressed_second_post", r, lane="quote_image")
+            continue
+        if "Reconciled meme post receipt; not creating a second meme post" in msg:
+            add_receipt_event("meme_replay_suppressed_second_post", r, lane="daily_meme")
+            continue
+        if "Both regular and meme confirmed-post receipts exist" in msg:
+            add_receipt_event("simultaneous_receipts_blocked", r, lane="main")
+            continue
+        if "regular-post receipt blocks" in msg or "meme-post receipt blocks" in msg:
+            lane = "daily_meme" if "meme-post" in msg else "quote_image"
+            add_receipt_event("invalid_or_unresolved_blocked", r, lane=lane)
+            continue
+
+        if is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            kind = "metadata_warning"
+            if "Quote analysis" in msg or "quote analysis" in msg or "Skipping unanalysed current quote" in msg:
+                kind = "quote_metadata_warning"
+            elif "Image analysis" in msg or "image analysis" in msg or "Image metadata" in msg or "image analysis" in msg:
+                kind = "image_metadata_warning"
+            add_asset_health(kind, r)
+            continue
 
         if ("API cooldown active" in msg or "due to API cooldown" in msg or "Skipping quote-tweet check due to API cooldown" in msg or "Skipping mention check due to API cooldown" in msg):
             stats["cooldown_mentions"] += 1
@@ -733,6 +862,79 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 stats["quote_tweet_checks_no_post"] += 1
 
         # Quote/image posts.
+        m = re.search(
+            r"Selected quote line_no=(\d+) quote_hash=([0-9a-fA-F]+) weight=([0-9.]+) seasonal_boost=(True|False)",
+            msg,
+        )
+        if m:
+            pending_quote.update({
+                "line_no": int(m.group(1)),
+                "quote_hash": m.group(2),
+                "quote_weight": m.group(3),
+                "seasonal_boost": m.group(4),
+            })
+            add_event(
+                "quote_selected",
+                r.ts,
+                line_no=int(m.group(1)),
+                quote_hash=m.group(2),
+                weight=m.group(3),
+                seasonal_boost=m.group(4),
+            )
+            continue
+
+        m = re.search(
+            r"Image cycle status: used_count=(\d+) currently_eligible=(\d+) remaining_count=(\d+) seasonally_excluded=(\d+) stale_excluded=(\d+) cycle_reset=(True|False)",
+            msg,
+        )
+        if m:
+            add_event(
+                "image_cycle_status",
+                r.ts,
+                used_count=int(m.group(1)),
+                currently_eligible=int(m.group(2)),
+                remaining_count=int(m.group(3)),
+                seasonally_excluded=int(m.group(4)),
+                stale_excluded=int(m.group(5)),
+                cycle_reset=m.group(6),
+            )
+            continue
+
+        m = re.search(r"Selected matched image basename=([^\s]+) image_no=(\d+) score=([^\s]+) components=(.*)$", msg)
+        if m:
+            pending_quote.update({
+                "image_basename": m.group(1),
+                "image_no": int(m.group(2)),
+                "image_score": m.group(3),
+                "image_components": m.group(4).strip(),
+            })
+            add_event(
+                "matched_image_selected",
+                r.ts,
+                image=m.group(1),
+                image_no=int(m.group(2)),
+                score=m.group(3),
+                components=m.group(4).strip(),
+            )
+            continue
+
+        m = re.search(r"Quote cycle is seasonally exhausted: (\d+) unused quote\(s\) are hard-excluded today; resetting quote cycle", msg)
+        if m:
+            add_event("quote_cycle_reset", r.ts, reason="seasonal_exhaustion", affected=m.group(1))
+            continue
+
+        m = re.search(r"Quote cycle is exhausted by currently nonselectable quote\(s\); resetting quote cycle\. unused_non_empty=(\d+) full_selectable=(\d+) full_hard_excluded=(\d+)", msg)
+        if m:
+            add_event(
+                "quote_cycle_reset",
+                r.ts,
+                reason="nonselectable_exhaustion",
+                affected=m.group(1),
+                full_selectable=m.group(2),
+                full_hard_excluded=m.group(3),
+            )
+            continue
+
         m = re.search(r"Selected line_no=(\d+) text=(.*)$", msg, re.S)
         if m:
             pending_quote["line_no"] = int(m.group(1))
@@ -761,6 +963,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 post_id=m.group(1),
                 line_no=pending_quote.get("line_no"),
                 image_no=pending_quote.get("image_no"),
+                image_basename=pending_quote.get("image_basename"),
+                image_score=pending_quote.get("image_score"),
+                quote_hash=pending_quote.get("quote_hash"),
                 text=pending_quote.get("text", ""),
                 image=pending_quote.get("image", ""),
             )
@@ -1046,6 +1251,16 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     if self_test_errors:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
+    if confirmed_post_recovery:
+        headline.append(f"{len(confirmed_post_recovery)} confirmed-post recovery warning(s)")
+    blocking_receipts = [
+        item for item in receipt_events
+        if item.get("kind") in {"invalid_or_unresolved_blocked", "simultaneous_receipts_blocked"}
+    ]
+    if blocking_receipts:
+        headline.append(f"{len(blocking_receipts)} receipt block(s)")
+    if asset_health:
+        headline.append(f"{len(asset_health)} asset metadata warning(s)")
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
     xai_cooldown_until_epoch = int_or_none(latest_state_summary.get("xai_api_cooldown_until_epoch"))
@@ -1140,6 +1355,11 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "post_cooldown_errors": post_cooldown_errors,
             "not_rate_limited": not_rate_limited,
         },
+        "main_post_recovery": {
+            "receipt_events": receipt_events,
+            "confirmed_post_recovery": confirmed_post_recovery,
+        },
+        "asset_health": asset_health,
         "lifecycle": lifecycle[-12:],
         "events": events,
         "self_test_errors": self_test_errors[-40:],
@@ -1560,8 +1780,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([ev.get(c, "") for c in cols]))
         out.append("")
 
-    section("quote_image_posted", "Quote/image posts", ["time", "post_id", "line_no", "image_no", "text"])
+    section("quote_image_posted", "Quote/image posts", ["time", "post_id", "line_no", "quote_hash", "image_basename", "image_no", "image_score", "text"])
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
+    section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
+    section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
+    section("image_cycle_status", "Image cycle status", ["time", "used_count", "currently_eligible", "remaining_count", "seasonally_excluded", "stale_excluded", "cycle_reset"])
+    section("quote_cycle_reset", "Quote cycle resets", ["time", "reason", "affected", "full_selectable", "full_hard_excluded"])
     section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])
     section("hot_post_reply_posted", "Hot-post replies", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reply", "reply_post_id"])
     section("quote_tweet_reply_posted", "Quote-tweet replies", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text", "reply", "reply_post_id"])
@@ -1575,6 +1799,54 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("api_cooldown_entered", "API cooldowns entered", ["time", "reason", "until"])
     section("used_history_migrated", "Used-history migrations", ["time", "legacy_file", "json_file"])
     section("used_history_normalized", "Used-history normalizations", ["time", "json_file"])
+
+    recovery = report.get("main_post_recovery") or {}
+    receipt_events = recovery.get("receipt_events") or []
+    confirmed_post_recovery = recovery.get("confirmed_post_recovery") or []
+    if receipt_events or confirmed_post_recovery:
+        out.append("## Main-post recovery")
+        if receipt_events:
+            out.append("Receipt lifecycle:")
+            out.append(md_table_row(["time", "level", "lane", "kind", "post_id", "quote_hash", "image/file", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
+            for item in receipt_events:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("level", ""),
+                    item.get("lane", ""),
+                    item.get("kind", ""),
+                    item.get("post_id", ""),
+                    item.get("quote_hash", ""),
+                    item.get("image", item.get("file", "")),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+        if confirmed_post_recovery:
+            out.append("Confirmed remote posts with local recovery/persistence trouble:")
+            out.append(md_table_row(["time", "level", "where", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---"]))
+            for item in confirmed_post_recovery:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("level", ""),
+                    item.get("where", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+
+    asset_health = report.get("asset_health") or []
+    if asset_health:
+        out.append("## Asset metadata health")
+        out.append(md_table_row(["time", "level", "kind", "message"]))
+        out.append(md_table_row(["---", "---", "---", "---"]))
+        for item in asset_health:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("level", ""),
+                item.get("kind", ""),
+                item.get("message", ""),
+            ]))
+        out.append("")
 
     api_health = report.get("api_health") or {}
     api_errors = api_health.get("errors") or []
@@ -1692,6 +1964,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             "MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS", "MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS",
             "MEME_FALLBACK_HOUR", "MEME_FALLBACK_MINUTE",
             "MEME_MIN_SECONDS_AFTER_QUOTE_POST", "MEME_SCHEDULE_VERSION",
+            "MAX_QUOTE_IMAGE_PAIR_ATTEMPTS",
+            "QUOTE_ANALYSIS_FILE", "IMAGE_ANALYSIS_FILE", "QUOTE_ANALYSIS_OVERRIDES_FILE",
+            "IMAGE_STRONG_MISMATCH_PENALTY",
             "POST_SLEEP_MIN", "POST_SLEEP_MAX",
         ]
         out.append("```text")
