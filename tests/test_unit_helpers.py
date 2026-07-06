@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import hashlib
 import os
-import pickle
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -98,22 +97,21 @@ def test_used_history_json_round_trip(tmp_path: Path) -> None:
     assert bot.load_used_set(path) == {1, 2, 3, 11}
 
 
-def test_used_history_migrates_from_legacy_pickle_when_json_missing(tmp_path: Path) -> None:
+def test_used_history_refuses_legacy_pickle_when_json_missing(tmp_path: Path) -> None:
     json_path = tmp_path / "used.json"
     pickle_path = tmp_path / "used.pickle"
-    with open(pickle_path, "wb") as f:
-        pickle.dump({4, 5}, f)
+    pickle_path.write_bytes(b"legacy pickle no longer trusted")
 
-    assert bot.load_used_set(json_path, legacy_pickle_path=pickle_path) == {4, 5}
-    assert json.loads(json_path.read_text(encoding="utf-8")) == [4, 5]
+    with pytest.raises(bot.CorruptUsedHistoryError):
+        bot.load_used_set(json_path, legacy_pickle_path=pickle_path)
+    assert not json_path.exists()
 
 
 def test_used_history_bad_json_with_legacy_pickle_fails_closed(tmp_path: Path) -> None:
     json_path = tmp_path / "used.json"
     pickle_path = tmp_path / "used.pickle"
     json_path.write_text("{bad json", encoding="utf-8")
-    with open(pickle_path, "wb") as f:
-        pickle.dump([6, 7], f)
+    pickle_path.write_bytes(b"legacy pickle no longer trusted")
 
     with pytest.raises(bot.CorruptUsedHistoryError):
         bot.load_used_set(json_path, legacy_pickle_path=pickle_path)
@@ -127,13 +125,10 @@ def test_used_history_json_order_is_normalized_on_load(tmp_path: Path) -> None:
     assert json.loads(json_path.read_text(encoding="utf-8")) == [1, 2, 11]
 
 
-def test_used_history_missing_with_corrupt_pickle_returns_empty_set(tmp_path: Path) -> None:
+def test_used_history_missing_without_legacy_pickle_returns_empty_set(tmp_path: Path) -> None:
     json_path = tmp_path / "missing.json"
-    pickle_path = tmp_path / "bad.pickle"
-    pickle_path.write_bytes(b"not a pickle")
 
     assert bot.load_used_set(json_path) == set()
-    assert bot.load_used_set(json_path, legacy_pickle_path=pickle_path) == set()
 
 
 def test_choose_unused_line_returns_non_empty_line_and_marks_empty_lines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1588,8 +1583,7 @@ def test_corrupt_current_used_history_does_not_reduce_to_stale_pickle(tmp_path: 
     json_path = tmp_path / "lines_used.json"
     pickle_path = tmp_path / "lines_used.pickle"
     json_path.write_text("{bad", encoding="utf-8")
-    with open(pickle_path, "wb") as f:
-        pickle.dump({"stale"}, f)
+    pickle_path.write_bytes(b"legacy pickle no longer trusted")
 
     with pytest.raises(bot.CorruptUsedHistoryError):
         bot.load_used_set(json_path, legacy_pickle_path=pickle_path)
@@ -2449,6 +2443,297 @@ def test_load_state_rejects_absurd_epoch_primary_and_recovers_backup(tmp_path: P
 
     assert recovered["replied_to_ids"] == ["from-bak1"]
     assert recovered["next_quote_post_epoch"] == 1_800_000_000
+
+
+def test_load_state_rejects_malformed_tweet_cache_epoch_and_recovers_backup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+    bot.atomic_write_json(
+        state_file,
+        {"tweet_cache": {"123": {"cached_epoch": "banana"}}},
+    )
+    bot.atomic_write_json(
+        tmp_path / "bot_state.json.bak1",
+        {"replied_to_ids": ["from-bak1"], "tweet_cache": {}},
+    )
+
+    recovered = bot.load_state()
+
+    assert recovered["replied_to_ids"] == ["from-bak1"]
+    assert recovered["tweet_cache"] == {}
+
+
+@pytest.mark.parametrize(
+    "cache_entry",
+    [
+        {"referenced_tweets": "banana"},
+        {"referenced_tweets": ["banana"]},
+    ],
+)
+def test_load_state_rejects_malformed_tweet_cache_references(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    cache_entry: dict,
+) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    bot.atomic_write_json(state_file, {"tweet_cache": {"123": cache_entry}})
+    bot.atomic_write_json(tmp_path / "bot_state.json.bak1", {"tweet_cache": {"456": {"cached_epoch": 1_800_000_000}}})
+
+    recovered = bot.load_state()
+
+    assert "123" not in recovered["tweet_cache"]
+    assert recovered["tweet_cache"]["456"]["cached_epoch"] == 1_800_000_000
+
+
+def test_tweet_cache_normalisation_stringifies_scalars_and_preserves_valid_context(tmp_path: Path) -> None:
+    state = {
+        "tweet_cache": {
+            123: {
+                "id": 123,
+                "author_id": 456,
+                "conversation_id": 789,
+                "text": 12345,
+                "image_summary": 67890,
+                "created_at": 111,
+                "post_type": 222,
+                "cached_epoch": "1800000000",
+                "referenced_tweets": [{"type": 333, "id": 444, "extra": 555}],
+            }
+        }
+    }
+
+    normalised = bot.normalise_state_candidate(state, path=tmp_path / "bot_state.json")
+
+    assert normalised is not None
+    entry = normalised["tweet_cache"]["123"]
+    assert entry["id"] == "123"
+    assert entry["author_id"] == "456"
+    assert entry["conversation_id"] == "789"
+    assert entry["text"] == "12345"
+    assert entry["image_summary"] == "67890"
+    assert entry["created_at"] == "111"
+    assert entry["post_type"] == "222"
+    assert entry["cached_epoch"] == 1_800_000_000
+    assert entry["referenced_tweets"] == [{"type": "333", "id": "444", "extra": "555"}]
+
+
+def test_valid_tweet_cache_round_trips_through_state_loading(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    bot.atomic_write_json(
+        state_file,
+        {
+            "tweet_cache": {
+                "123": {
+                    "id": "123",
+                    "author_id": "456",
+                    "conversation_id": "789",
+                    "text": "Useful cached context",
+                    "image_summary": "A useful image summary",
+                    "created_at": "2026-07-06T10:00:00",
+                    "post_type": "quote",
+                    "cached_epoch": 1_800_000_000,
+                    "referenced_tweets": [{"type": "replied_to", "id": "111"}],
+                }
+            }
+        },
+    )
+
+    recovered = bot.load_state()
+
+    assert recovered["tweet_cache"]["123"] == {
+        "id": "123",
+        "author_id": "456",
+        "conversation_id": "789",
+        "text": "Useful cached context",
+        "image_summary": "A useful image summary",
+        "created_at": "2026-07-06T10:00:00",
+        "post_type": "quote",
+        "cached_epoch": 1_800_000_000,
+        "referenced_tweets": [{"type": "replied_to", "id": "111"}],
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("false", False),
+        ("1", True),
+        ("0", False),
+        ("yes", True),
+        ("no", False),
+        ("on", True),
+        ("off", False),
+        ("banana", False),
+        ([], False),
+        ({}, False),
+        (None, False),
+        ("", False),
+    ],
+)
+def test_control_bool_parses_explicit_values(value: object, expected: bool) -> None:
+    assert bot.control_bool({"disable_meme_posts": value}, "disable_meme_posts") is expected
+
+
+def test_control_bool_missing_value_is_false() -> None:
+    assert bot.control_bool({}, "disable_meme_posts") is False
+
+
+@pytest.mark.parametrize("post_id", ["123456", 123456])
+def test_create_post_accepts_valid_numeric_ids(monkeypatch: pytest.MonkeyPatch, post_id: object) -> None:
+    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": post_id}})
+
+    assert bot.create_post("hello") == {"data": {"id": post_id}}
+
+
+@pytest.mark.parametrize("response", [{"data": {"id": "banana"}}, {"data": {"id": ""}}, {"data": {}}, {}])
+def test_create_post_rejects_invalid_or_missing_ids(monkeypatch: pytest.MonkeyPatch, response: dict) -> None:
+    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: response)
+
+    with pytest.raises(bot.ApiError):
+        bot.create_post("hello")
+
+
+def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher hello",
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda state: [mention])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda mention, state: ("context", True))
+    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda context: "A reply.")
+    monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": "banana"}})
+    monkeypatch.setattr(bot, "save_state", lambda state: None)
+
+    status = bot.maybe_reply_to_mentions(state)
+
+    assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert state["daily_reply_count"] == 0
+    assert state["replied_to_ids"] == []
+    assert state["own_auto_reply_ids"] == []
+    assert state["tweet_cache"] == {}
+
+
+def test_cache_tweet_uses_fake_clock_for_generated_created_at(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixed_epoch = 1_800_000_000
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+
+    cached = bot.cache_tweet(
+        state,
+        tweet_id="123",
+        text="hello",
+        author_id="456",
+    )
+
+    assert cached["cached_epoch"] == fixed_epoch
+    assert cached["created_at"] == datetime.fromtimestamp(fixed_epoch).isoformat()
+
+
+def test_cache_tweet_normalises_safe_scalar_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    fixed_epoch = 1_800_000_000
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+
+    cached = bot.cache_tweet(
+        state,
+        tweet_id=123,
+        text=["not", "a", "string"],
+        author_id=456,
+        conversation_id=789,
+        referenced_tweets=[{"type": 1, "id": 2}],
+        created_at=111,
+        image_summary=222,
+        post_type=333,
+    )
+
+    assert cached == {
+        "id": "123",
+        "author_id": "456",
+        "conversation_id": "789",
+        "created_at": "111",
+        "referenced_tweets": [{"type": "1", "id": "2"}],
+        "text": "['not', 'a', 'string']",
+        "cached_epoch": fixed_epoch,
+        "image_summary": "222",
+        "post_type": "333",
+    }
+
+
+@pytest.mark.parametrize("referenced_tweets", ["banana", ["banana"]])
+def test_cache_tweet_rejects_malformed_referenced_tweets(referenced_tweets: object) -> None:
+    state = bot.default_state()
+
+    with pytest.raises(ValueError):
+        bot.cache_tweet(
+            state,
+            tweet_id="123",
+            text="hello",
+            author_id="456",
+            referenced_tweets=referenced_tweets,
+        )
+
+    assert state["tweet_cache"] == {}
+
+
+def test_load_state_rejects_malformed_last_seen_mention_id_and_recovers_backup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 1)
+    bot.atomic_write_json(state_file, {"last_seen_mention_id": []})
+    bot.atomic_write_json(tmp_path / "bot_state.json.bak1", {"last_seen_mention_id": "123"})
+
+    recovered = bot.load_state()
+
+    assert recovered["last_seen_mention_id"] == "123"
+
+
+def test_load_state_normalises_optional_scalar_ids(tmp_path: Path) -> None:
+    state = {
+        "last_seen_mention_id": 123,
+        "last_main_post_id": 456,
+        "last_regular_image_filename": 789,
+    }
+
+    normalised = bot.normalise_state_candidate(state, path=tmp_path / "bot_state.json")
+
+    assert normalised is not None
+    assert normalised["last_seen_mention_id"] == "123"
+    assert normalised["last_main_post_id"] == "456"
+    assert normalised["last_regular_image_filename"] == "789"
+
+
+def test_quote_tweet_missing_created_at_is_not_old_enough() -> None:
+    assert bot.quote_tweet_is_old_enough({"id": "123"}) is False
+    assert bot.quote_tweet_is_old_enough({"id": "123", "created_at": "not a date"}) is False
 
 
 @pytest.mark.parametrize(

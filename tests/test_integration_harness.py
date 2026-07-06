@@ -11,7 +11,7 @@ import subprocess
 import sys
 import tarfile
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pytest

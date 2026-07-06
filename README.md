@@ -69,8 +69,10 @@ python3 mrsMThatcher2.py --test-post-meme
 
 The test-only commands require `MRS_TEST_MODE=1`. They use `MRS_BASE_DIR` for
 state, local config, control files, quote lines, images, meme files, and
-used-history JSON files. Legacy pickle history is read only as a migration
-fallback. They use `MRS_LOG_FILE` for logs.
+used-history JSON files. Legacy pickle history files are no longer automatically
+deserialised; if JSON history is missing while a legacy pickle exists, the bot
+fails closed until JSON history is restored or migrated manually from a trusted
+backup. They use `MRS_LOG_FILE` for logs.
 
 Production defaults are unchanged when these environment variables are unset:
 
@@ -152,8 +154,8 @@ cp extra_quote_watch_post_ids.example.txt extra_quote_watch_post_ids.txt
 The real `mrsMThatcher.local.json` and `extra_quote_watch_post_ids.txt` are
 ignored because they are host-local operational inputs. Generated runtime state
 and logs such as `bot_state.json*`, `lines_used.json`, `images_used.json`,
-legacy `*.pickle` history files, and `mrsMThatcher.log*` are also intentionally
-ignored.
+legacy `*.pickle` history artefacts, and `mrsMThatcher.log*` are also
+intentionally ignored.
 
 ## Launcher And Private Environment
 

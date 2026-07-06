@@ -10,7 +10,6 @@ import json
 import logging
 import mimetypes
 import os
-import pickle
 import random
 import re
 import shutil
@@ -744,7 +743,21 @@ def load_control() -> dict:
 
 
 def control_bool(data: dict, key: str) -> bool:
-    return bool(data.get(key))
+    value = data.get(key)
+    if value in (None, ""):
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if not normalized:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    log.warning("Ignoring invalid runtime control boolean %s=%r; failing open", key, value)
+    return False
 
 
 def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
@@ -976,7 +989,7 @@ def coerce_used_set(value: object, *, path: Path) -> set:
     if isinstance(value, list):
         return set(value)
 
-    raise ValueError(f"Used-history file {path} must contain a JSON list or legacy pickle set/list")
+    raise ValueError(f"Used-history file {path} must contain a JSON list")
 
 
 def used_set_to_sorted_list(value: set) -> list:
@@ -987,26 +1000,6 @@ def used_set_to_sorted_list(value: set) -> list:
             return (1, str(item))
 
     return sorted(value, key=sort_key)
-
-
-def load_legacy_pickle_set(path: Path) -> set:
-    log.debug("Loading legacy pickle set from %s", path)
-
-    try:
-        with open(path, "rb") as f:
-            value = pickle.load(f)
-        converted = coerce_used_set(value, path=path)
-        log.warning("Loaded %d entries from legacy pickle file %s; will write JSON going forward", len(converted), path)
-        return converted
-    except FileNotFoundError:
-        log.info("Legacy pickle file does not exist: %s", path)
-        return set()
-    except OSError:
-        log.exception("OS error loading legacy pickle file %s; using empty set", path)
-        return set()
-    except Exception:
-        log.exception("Failed loading legacy pickle file %s; using empty set", path)
-        return set()
 
 
 def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
@@ -1030,12 +1023,14 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
         log.exception("Failed loading existing used-history JSON file %s; refusing stale legacy fallback", path)
         raise CorruptUsedHistoryError(f"Existing used-history JSON is corrupt or invalid: {path}")
 
-    if legacy_pickle_path is not None:
-        migrated = load_legacy_pickle_set(legacy_pickle_path)
-        if migrated:
-            save_used_set(path, migrated)
-            log.info("Migrated legacy pickle file %s to JSON file %s", legacy_pickle_path, path)
-        return migrated
+    if legacy_pickle_path is not None and legacy_pickle_path.exists():
+        log.critical(
+            "Used-history JSON %s is missing but legacy pickle %s exists; refusing unsafe pickle fallback. "
+            "Restore the JSON history or migrate manually from a trusted backup.",
+            path,
+            legacy_pickle_path,
+        )
+        raise CorruptUsedHistoryError(f"Used-history JSON missing while legacy pickle exists: {path}")
     return set()
 
 
@@ -1222,6 +1217,61 @@ def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, di
     return out
 
 
+def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
+    cached_epoch = normalise_state_epoch(entry.get("cached_epoch", 0), key=f"tweet_cache.{tweet_id}.cached_epoch", path=path)
+    if cached_epoch is None:
+        return None
+
+    referenced_tweets = entry.get("referenced_tweets", [])
+    if not isinstance(referenced_tweets, list):
+        log.error(
+            "State candidate %s has invalid tweet_cache.%s.referenced_tweets type %s; ignoring",
+            path,
+            tweet_id,
+            type(referenced_tweets).__name__,
+        )
+        return None
+    normalized_refs: list[dict[str, str]] = []
+    for index, ref in enumerate(referenced_tweets):
+        if not isinstance(ref, dict):
+            log.error(
+                "State candidate %s has invalid tweet_cache.%s.referenced_tweets[%d] type %s; ignoring",
+                path,
+                tweet_id,
+                index,
+                type(ref).__name__,
+            )
+            return None
+        normalized_ref: dict[str, str] = {}
+        if ref.get("type") is not None:
+            normalized_ref["type"] = str(ref.get("type"))
+        if ref.get("id") is not None:
+            normalized_ref["id"] = str(ref.get("id"))
+        for key, ref_value in ref.items():
+            if key in {"type", "id"} or ref_value is None:
+                continue
+            normalized_ref[str(key)] = str(ref_value)
+        normalized_refs.append(normalized_ref)
+
+    entry_id = entry.get("id")
+    normalized_id = str(entry_id if entry_id is not None else tweet_id)
+    conversation_id = entry.get("conversation_id")
+    normalized_entry: dict[str, object] = {
+        "id": normalized_id,
+        "author_id": str(entry.get("author_id") or ""),
+        "conversation_id": str(conversation_id if conversation_id is not None else normalized_id),
+        "created_at": str(entry.get("created_at") or ""),
+        "referenced_tweets": normalized_refs,
+        "text": str(entry.get("text") or ""),
+        "cached_epoch": cached_epoch,
+    }
+    if entry.get("image_summary") is not None:
+        normalized_entry["image_summary"] = str(entry.get("image_summary"))
+    if entry.get("post_type") is not None:
+        normalized_entry["post_type"] = str(entry.get("post_type"))
+    return normalized_entry
+
+
 def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | None:
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid tweet_cache type %s; ignoring", path, type(value).__name__)
@@ -1236,7 +1286,10 @@ def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | Non
                 type(entry).__name__,
             )
             return None
-        out[str(tweet_id)] = dict(entry)
+        normalized_entry = normalise_tweet_cache_entry(tweet_id, entry, path=path)
+        if normalized_entry is None:
+            return None
+        out[str(tweet_id)] = normalized_entry
     return out
 
 
@@ -1249,6 +1302,25 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
         if value.get(key):
             out[key] = str(value[key])
     return out
+
+
+def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
+    if value is None:
+        return ""
+    if isinstance(value, (str, int)):
+        return str(value)
+    log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
+    return None
+
+
+def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str | None:
+    if value in (None, ""):
+        return ""
+    text = str(value)
+    if text.isdigit():
+        return text
+    log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
+    return None
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
@@ -1346,6 +1418,15 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
     }
     int_map_keys = {"hot_post_reply_check_counts", "daily_replied_author_counts"}
     record_map_keys = {"skipped_hot_reply_records"}
+    optional_scalar_keys = {
+        "daily_reply_date",
+        "daily_quote_reply_date",
+        "last_regular_image_filename",
+    }
+    optional_numeric_id_keys = {
+        "last_seen_mention_id",
+        "last_main_post_id",
+    }
     int_keys = {
         "daily_reply_count",
         "meme_schedule_version",
@@ -1397,6 +1478,18 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
             if value is None:
                 return None
             normalised[key] = value
+    for key in optional_scalar_keys:
+        if key in state:
+            value = normalise_optional_scalar(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value or None
+    for key in optional_numeric_id_keys:
+        if key in state:
+            value = normalise_optional_numeric_id(state[key], key=key, path=path)
+            if value is None:
+                return None
+            normalised[key] = value or None
     if "tweet_cache" in state:
         value = normalise_tweet_cache(state["tweet_cache"], path=path)
         if value is None:
@@ -1498,9 +1591,14 @@ def fsync_file(path: Path) -> None:
 
 
 def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
-    shutil.copy2(src, dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(f"{dst.name}.tmp")
+    shutil.copyfile(src, tmp)
+    shutil.copystat(src, tmp)
     if durable:
-        fsync_file(dst)
+        fsync_file(tmp)
+    os.replace(tmp, dst)
+    if durable:
         fsync_parent_dir(dst, strict=True)
 
 
@@ -2112,7 +2210,7 @@ def cache_tweet(
         "id": tweet_id,
         "author_id": str(author_id),
         "conversation_id": str(conversation_id or tweet_id),
-        "created_at": created_at or datetime.now().isoformat(),
+        "created_at": created_at or current_datetime().isoformat(),
         "referenced_tweets": referenced_tweets or [],
         "text": text or "",
         "cached_epoch": now_epoch(),
@@ -2124,6 +2222,11 @@ def cache_tweet(
     if post_type:
         cached_tweet["post_type"] = post_type
 
+    normalised_tweet = normalise_tweet_cache_entry(tweet_id, cached_tweet, path=STATE_FILE)
+    if normalised_tweet is None:
+        raise ValueError(f"Refusing to cache malformed tweet entry id={tweet_id}")
+
+    cached_tweet = normalised_tweet
     cache[tweet_id] = cached_tweet
     state["tweet_cache"] = cache
 
@@ -2992,8 +3095,8 @@ def create_post(
 
     def validate_created_post_response(result: dict) -> dict:
         post_id = result.get("data", {}).get("id") if isinstance(result, dict) else None
-        if not post_id:
-            raise ApiError(f"X post creation response did not include data.id: {result}", service="x")
+        if not valid_post_id(post_id):
+            raise ApiError(f"X post creation response did not include a valid numeric data.id: {result}", service="x")
         return result
 
     def made_with_ai_field_rejected(error: ApiError) -> bool:
@@ -4224,7 +4327,6 @@ def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes
 
     lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
     hashes_by_line = current_quote_hashes_by_line(lines)
-    all_hashes = set(hashes_by_line.values())
     available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
 
     log.debug("Available unused lines=%d", len(available_lines))
@@ -5505,7 +5607,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
         record_api_error(state, e, "x")
         save_state(state)
         return NORMAL_CHECK_STATUS_API_ERROR
-    except Exception as e:
+    except Exception:
         log.exception("Unexpected failure getting mention reply candidates")
         save_state(state)
         return NORMAL_CHECK_STATUS_API_ERROR
@@ -5931,10 +6033,10 @@ def quote_tweet_is_old_enough(quote_tweet: dict) -> bool:
 
     if created_epoch is None:
         log.warning(
-            "Quote tweet %s has no usable created_at; treating as old enough",
+            "Quote tweet %s has no usable created_at; treating as too recent so it can be retried later",
             quote_tweet.get("id"),
         )
-        return True
+        return False
 
     age = now_epoch() - created_epoch
     log.debug(
