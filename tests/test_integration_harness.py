@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import fcntl
+import hashlib
 import io
 import json
 import os
@@ -23,6 +24,69 @@ BOT = ROOT / "mrsMThatcher2.py"
 DIGEST = ROOT / "mrs_log_digest.py"
 SCENARIOS = ROOT / "tests" / "fixtures" / "scenarios"
 PRODUCTION_BASE_DIR = Path("/disks/disk1/etc/mrsMThatcher")
+
+
+def collapse_quote_whitespace(text: str) -> str:
+    return " ".join(str(text or "").split())
+
+
+def sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def write_minimal_asset_analysis(base_dir: Path) -> None:
+    quote_text = "A test quote."
+    quote_hash = hashlib.sha256(collapse_quote_whitespace(quote_text).encode("utf-8")).hexdigest()
+    write_json(
+        base_dir / "quote_analysis.json",
+        {
+            "analysis_kind": "quotes",
+            "schema_version": 2,
+            "source": {"source_sha256": hashlib.sha256((quote_text + "\n").encode("utf-8")).hexdigest()},
+            "line_index": {"1": quote_hash},
+            "items": {
+                quote_hash: {
+                    "quote_hash": quote_hash,
+                    "text": quote_text,
+                    "line_numbers": [1],
+                    "analysis": {
+                        "archive_image_preferences": {},
+                        "primary_topics": [],
+                        "secondary_topics": [],
+                        "tone": [],
+                        "visual_energy": "low",
+                        "seasonality": {"hard_exclude_outside_windows": False, "preferred_windows": [], "relevance": "none"},
+                    },
+                }
+            },
+        },
+    )
+    write_json(base_dir / "quote_analysis_overrides.json", {"quote_overrides": {}})
+    image_path = base_dir / "images" / "t01.jpg"
+    image_hash = sha256_bytes(image_path.read_bytes())
+    write_json(
+        base_dir / "image_analysis.json",
+        {
+            "analysis_kind": "images",
+            "schema_version": 3,
+            "path_index": {"t01.jpg": image_hash},
+            "items": {
+                image_hash: {
+                    "image_hash": image_hash,
+                    "paths": ["t01.jpg"],
+                    "analysis": {
+                        "description": "A test image",
+                        "pairing": {},
+                        "themes": [],
+                        "tone": [],
+                        "visual_energy": "low",
+                        "quality": {},
+                        "seasonality": {"avoid_outside_season_or_occasion": False},
+                    },
+                }
+            },
+        },
+    )
 
 
 def read_json(path: Path) -> dict:
@@ -54,6 +118,7 @@ def prepare_base_dir(
     (base_dir / "mrsMThatcher.txt").write_text("A test quote.\n", encoding="utf-8")
     (base_dir / "images").mkdir()
     (base_dir / "images" / "t01.jpg").write_bytes(b"fake image bytes")
+    write_minimal_asset_analysis(base_dir)
 
     config = {
         "ENABLE_DAILY_MEME_POSTS": False,
@@ -214,7 +279,9 @@ def normalize_for_branch_parity(value):
             if key in {
                 "last_reply_check_epoch",
                 "hot_post_reply_pagination_tokens",
+                "last_regular_image_filename",
                 "mention_pagination",
+                "next_quote_post_epoch",
                 "quote_api_cooldown_reason",
                 "quote_api_cooldown_until_epoch",
                 "quote_lookup_pagination_tokens",
@@ -3734,6 +3801,38 @@ def test_quote_image_post_uploads_media_records_state_and_schedules_meme(tmp_pat
     assert int(state["next_meme_post_epoch"]) == int(state["last_quote_post_epoch"]) + 60
     assert (base_dir / "lines_used.json").exists()
     assert (base_dir / "images_used.json").exists()
+    assert read_json(base_dir / "images_used.json") == ["t01.jpg"]
+    assert state["last_regular_image_filename"] == "t01.jpg"
+
+
+def test_test_post_quote_replays_receipt_without_second_post(tmp_path: Path) -> None:
+    server = FakeApiServer({"next_post_id": 950000}).start()
+    try:
+        base_dir = prepare_base_dir(tmp_path)
+        quote_hash = hashlib.sha256(collapse_quote_whitespace("A test quote.").encode("utf-8")).hexdigest()
+        write_json(
+            base_dir / "regular_post_receipt.json",
+            {
+                "schema_version": 1,
+                "post_id": "940001",
+                "quote_hash": quote_hash,
+                "image_basename": "t01.jpg",
+                "quote_post_epoch": 1_800_000_000,
+                "next_quote_post_epoch": 1_800_007_200,
+                "text": "A test quote.",
+            },
+        )
+
+        result = run_bot_command(base_dir, server, "--test-post-quote")
+
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert server.posts == []
+        assert not (base_dir / "regular_post_receipt.json").exists()
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_main_post_id"] == "940001"
+        assert state["next_quote_post_epoch"] == 1_800_007_200
+    finally:
+        server.stop()
 
 
 @pytest.mark.parametrize("fake_server", ["media_v2_fallback.json"], indirect=True)
@@ -3829,7 +3928,8 @@ def test_daily_meme_post_missing_created_post_id_fails_without_recording_or_resc
         state = read_json(base_dir / "bot_state.json")
         assert not state.get("last_main_post_id")
         assert state.get("posted_meme_filenames", []) == []
-        assert not state.get("next_meme_post_epoch")
+        assert int(state.get("next_meme_post_epoch", 0)) > 0
+        assert state.get("next_meme_schedule_mode") in {"fallback_startup", "fallback_migrated"}
         assert len(state["x_write_error_epochs"]) == 1
         assert state["x_error_epochs"] == []
     finally:
@@ -3942,7 +4042,7 @@ def test_x_read_cooldown_does_not_block_due_daily_meme(tmp_path: Path) -> None:
                 "last_quote_post_epoch": 1_999_900_000,
                 "next_meme_post_epoch": 2_000_000_000,
                 "meme_schedule_version": 2,
-                "next_meme_schedule_mode": "test_due",
+                "next_meme_schedule_mode": "fallback",
                 "next_meme_schedule_date": "2033-05-18",
             },
         )

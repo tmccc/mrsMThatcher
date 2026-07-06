@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "description": "Manual runtime corrections applied on top of quote_analysis.json. The raw AI analysis file must remain untouched.",
+  "quote_overrides": {
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428": {
+      "expected_line_numbers": [
+        175
+      ],
+      "expected_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+      "reason": "The late-November anniversary is a useful preference, but this reflective quotation remains suitable outside that window and should not be hard-excluded.",
+      "analysis_patch": {
+        "seasonality": {
+          "hard_exclude_outside_windows": false
+        }
+      }
+    },
+    "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649": {
+      "expected_line_numbers": [
+        190
+      ],
+      "expected_text": "We had to fight the enemy without in the Falklands. We always have to be aware of the enemy within, which is much more difficult to fight and more dangerous to liberty.",
+      "reason": "The Falklands anniversary is a useful preference, but the main 'enemy within' argument is usable throughout the year and should not be hard-excluded outside April-June.",
+      "analysis_patch": {
+        "seasonality": {
+          "hard_exclude_outside_windows": false
+        }
+      }
+    }
+  }
+}

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import html
+import copy
 import fcntl
+import hashlib
 import json
 import logging
 import mimetypes
@@ -38,6 +40,14 @@ TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
 
 POST_SLEEP_MIN = 7200
 POST_SLEEP_MAX = 9000
+
+QUOTE_SEASON_SOFT_WEIGHT = 4.0
+QUOTE_SEASON_STRONG_WEIGHT = 12.0
+QUOTE_SEASON_DATE_SPECIFIC_WEIGHT = 16.0
+QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER = 1.35
+
+IMAGE_STRONG_MISMATCH_PENALTY = -10_000.0
+MAX_QUOTE_IMAGE_PAIR_ATTEMPTS = 25
 
 # ---------------------------------------------------------------------
 # Daily anti-socialist meme posting
@@ -178,9 +188,27 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
 
 LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
 IMAGE_GLOB = str(BASE_DIR / "images/t*")
+QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
+IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
+QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
+REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
+MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
+MEME_SCHEDULE_MODES = {
+    "",
+    "fallback",
+    "fallback_startup",
+    "fallback_migrated",
+    "after_first_quote_after_midday",
+    "delayed_runtime_control",
+    "delayed_recent_quote",
+    "delayed_write_api_cooldown",
+    "delayed_api_error",
+    "delayed_exception",
+}
+MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
 PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"
@@ -996,9 +1024,11 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
     except FileNotFoundError:
         log.warning("Used-history JSON file does not exist yet: %s", path)
     except OSError:
-        log.exception("OS error loading used-history JSON file %s; using legacy/empty set", path)
+        log.exception("OS error loading existing used-history JSON file %s; refusing stale legacy fallback", path)
+        raise CorruptUsedHistoryError(f"Existing used-history JSON is unreadable: {path}")
     except Exception:
-        log.exception("Failed loading used-history JSON file %s; using legacy/empty set", path)
+        log.exception("Failed loading existing used-history JSON file %s; refusing stale legacy fallback", path)
+        raise CorruptUsedHistoryError(f"Existing used-history JSON is corrupt or invalid: {path}")
 
     if legacy_pickle_path is not None:
         migrated = load_legacy_pickle_set(legacy_pickle_path)
@@ -1009,7 +1039,7 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
     return set()
 
 
-def save_used_set(path: Path, value: set) -> None:
+def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
     log.debug("Saving %d entries to used-history JSON %s", len(value), path)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1019,7 +1049,12 @@ def save_used_set(path: Path, value: set) -> None:
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(serializable, f, indent=2)
         f.write("\n")
-    tmp.replace(path)
+        if durable:
+            f.flush()
+            os.fsync(f.fileno())
+    os.replace(tmp, path)
+    if durable:
+        fsync_parent_dir(path, strict=durable)
 
 
 def default_state() -> dict:
@@ -1054,6 +1089,7 @@ def default_state() -> dict:
         "last_reply_check_epoch": 0,
         "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
+        "last_regular_image_filename": None,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
 
@@ -1106,6 +1142,16 @@ def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
     return number
 
 
+def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
+    number = normalise_state_int(value, key=key, path=path)
+    if number is None:
+        return None
+    if number > MAX_REASONABLE_STATE_EPOCH:
+        log.error("State candidate %s has impossible epoch %s=%r; ignoring", path, key, value)
+        return None
+    return number
+
+
 def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
     if not isinstance(value, list):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
@@ -1123,6 +1169,17 @@ def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | No
         if number is None:
             return None
         out.append(number)
+    return out
+
+
+def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | None:
+    out = normalise_int_list(value, key=key, path=path)
+    if out is None:
+        return None
+    for number in out:
+        if number > MAX_REASONABLE_STATE_EPOCH:
+            log.error("State candidate %s has impossible %s epoch item %r; ignoring", path, key, number)
+            return None
     return out
 
 
@@ -1194,6 +1251,79 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
     return out
 
 
+def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
+    next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
+    if not next_epoch:
+        return True
+    if not valid_receipt_epoch(next_epoch):
+        log.error("State candidate %s has receipt-incompatible active meme target epoch %s; ignoring", path, next_epoch)
+        return False
+
+    mode = str(state.get("next_meme_schedule_mode", "") or "")
+    schedule_date = str(state.get("next_meme_schedule_date", "") or "")
+    anchor_epoch = int(state.get("meme_anchor_quote_post_epoch", 0) or 0)
+
+    if mode not in MEME_SCHEDULE_MODES or not mode:
+        log.error("State candidate %s has invalid meme schedule mode %r; ignoring", path, mode)
+        return False
+
+    if mode == "after_first_quote_after_midday":
+        if anchor_epoch <= 0:
+            log.error("State candidate %s has quote-anchored meme schedule without anchor; ignoring", path)
+            return False
+        if not valid_receipt_epoch(anchor_epoch):
+            log.error("State candidate %s has receipt-incompatible meme anchor epoch %s; ignoring", path, anchor_epoch)
+            return False
+        if next_epoch <= anchor_epoch:
+            log.error("State candidate %s has quote-anchored meme target not after anchor; ignoring", path)
+            return False
+        expected_date = safe_epoch_date_str(anchor_epoch)
+        if not expected_date or schedule_date != expected_date:
+            log.error(
+                "State candidate %s has quote-anchored meme schedule_date=%r expected=%r; ignoring",
+                path,
+                schedule_date,
+                expected_date,
+            )
+            return False
+        return True
+
+    if anchor_epoch:
+        log.error("State candidate %s has non-quote meme schedule with stale quote anchor; ignoring", path)
+        return False
+    expected_date = safe_epoch_date_str(next_epoch)
+    if not expected_date or schedule_date != expected_date:
+        log.error(
+            "State candidate %s has meme schedule_date=%r expected=%r for mode=%s; ignoring",
+            path,
+            schedule_date,
+            expected_date,
+            mode,
+        )
+        return False
+    return True
+
+
+def validate_meme_schedule_version_for_candidate(state: dict, *, path: Path) -> bool:
+    version = int(state.get("meme_schedule_version", 0) or 0)
+    if version > MEME_SCHEDULE_VERSION:
+        log.error(
+            "State candidate %s has future meme_schedule_version=%s > supported=%s; ignoring",
+            path,
+            version,
+            MEME_SCHEDULE_VERSION,
+        )
+        return False
+    if version < MEME_SCHEDULE_VERSION:
+        log.info(
+            "State candidate %s has old meme_schedule_version=%s; deferring schedule validation to migration",
+            path,
+            version,
+        )
+        return True
+    return validate_meme_schedule_state(state, path=path)
+
+
 def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
     list_keys = {
         "replied_to_ids",
@@ -1208,7 +1338,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "skipped_quote_post_ids",
         "quote_spam_author_ids",
     }
-    int_list_keys = {"x_error_epochs", "x_write_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
+    epoch_list_keys = {"x_error_epochs", "x_write_error_epochs", "xai_error_epochs", "quote_x_error_epochs"}
     string_map_keys = {
         "hot_post_reply_since_ids",
         "hot_post_reply_pagination_tokens",
@@ -1218,14 +1348,16 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
     record_map_keys = {"skipped_hot_reply_records"}
     int_keys = {
         "daily_reply_count",
+        "meme_schedule_version",
+        "daily_quote_reply_count",
+    }
+    epoch_keys = {
         "last_meme_post_epoch",
         "next_meme_post_epoch",
-        "meme_schedule_version",
         "meme_anchor_quote_post_epoch",
         "last_reply_epoch",
         "last_quote_post_epoch",
         "next_quote_post_epoch",
-        "daily_quote_reply_count",
         "api_cooldown_until_epoch",
         "x_write_api_cooldown_until_epoch",
         "xai_api_cooldown_until_epoch",
@@ -1241,9 +1373,9 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
             if value is None:
                 return None
             normalised[key] = value
-    for key in int_list_keys:
+    for key in epoch_list_keys:
         if key in state:
-            value = normalise_int_list(state[key], key=key, path=path)
+            value = normalise_epoch_list(state[key], key=key, path=path)
             if value is None:
                 return None
             normalised[key] = value
@@ -1282,6 +1414,16 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         if value is None:
             return None
         normalised[key] = value
+    for key in epoch_keys:
+        if key not in state:
+            continue
+        value = normalise_state_epoch(state[key], key=key, path=path)
+        if value is None:
+            return None
+        normalised[key] = value
+
+    if not validate_meme_schedule_version_for_candidate(normalised, path=path):
+        return None
 
     return normalised
 
@@ -1350,25 +1492,45 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
     return value, False
 
 
-def rotate_state_backups() -> None:
-    if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
+def fsync_file(path: Path) -> None:
+    with open(path, "rb") as f:
+        os.fsync(f.fileno())
+
+
+def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
+    shutil.copy2(src, dst)
+    if durable:
+        fsync_file(dst)
+        fsync_parent_dir(dst, strict=True)
+
+
+def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
+    if STATE_BACKUP_COUNT <= 1 or not STATE_FILE.exists():
         return
 
     try:
-        for i in range(STATE_BACKUP_COUNT, 1, -1):
+        for i in range(STATE_BACKUP_COUNT, 2, -1):
             older = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i - 1}")
             newer = STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
             if older.exists():
                 older.replace(newer)
 
-        bak1 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
-        shutil.copy2(STATE_FILE, bak1)
-        log.debug("State backup written: %s", bak1)
+        bak2 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak2")
+        copy_state_backup(STATE_FILE, bak2, durable=durable)
+        log.debug("Previous state backup written: %s", bak2)
     except Exception:
         log.exception("Failed rotating state backups; continuing with state save")
 
 
-def save_state(state: dict) -> None:
+def write_latest_state_backup(*, durable: bool = False) -> None:
+    if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
+        return
+    bak1 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
+    copy_state_backup(STATE_FILE, bak1, durable=durable)
+    log.debug("Latest committed state backup written: %s", bak1)
+
+
+def save_state(state: dict, *, durable: bool = False) -> None:
     log.debug("Saving state to %s", STATE_FILE)
     log_json_debug("State being saved", state)
 
@@ -1377,9 +1539,15 @@ def save_state(state: dict) -> None:
     tmp = STATE_FILE.with_suffix(".tmp")
     with open(tmp, "w") as f:
         json.dump(state, f, indent=2, sort_keys=True)
+        if durable:
+            f.flush()
+            os.fsync(f.fileno())
 
-    rotate_state_backups()
-    tmp.replace(STATE_FILE)
+    rotate_state_backups_before_commit(durable=durable)
+    os.replace(tmp, STATE_FILE)
+    if durable:
+        fsync_parent_dir(STATE_FILE, strict=durable)
+    write_latest_state_backup(durable=durable)
 
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
@@ -2856,9 +3024,1186 @@ def create_post(
 # Quote/image posting
 # ---------------------------------------------------------------------
 
-def choose_unused_line(lines_used: set) -> tuple[int, str]:
-    log.debug("Choosing unused line. Already used=%d", len(lines_used))
+class NoEligibleImageForQuote(RuntimeError):
+    pass
 
+
+class QuoteSpecificImageMismatch(NoEligibleImageForQuote):
+    pass
+
+
+class GlobalImageUnavailable(NoEligibleImageForQuote):
+    pass
+
+
+class InvalidRegularPostReceipt(RuntimeError):
+    pass
+
+
+class UnresolvedRegularPostReceipt(RuntimeError):
+    pass
+
+
+class InvalidMemePostReceipt(RuntimeError):
+    pass
+
+
+class UnresolvedMemePostReceipt(RuntimeError):
+    pass
+
+
+class ConfirmedPostLocalPersistenceError(RuntimeError):
+    # This covers failures after a valid remote post id is known. A hard crash
+    # after receiving that id but before durable receipt fsync can still leave
+    # no replay record. Separately, if X accepts a post but no response reaches
+    # this process, there is no known post id to receipt.
+    pass
+
+
+class CorruptUsedHistoryError(RuntimeError):
+    pass
+
+
+class UnsafeImageHistoryMigration(RuntimeError):
+    pass
+
+
+class StaleImageMetadata(RuntimeError):
+    pass
+
+TOKEN_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in",
+    "is", "it", "of", "on", "or", "our", "the", "their", "this", "to", "with",
+}
+
+
+def load_json_object(path: Path, *, label: str) -> dict | None:
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        log.warning("%s file missing: %s", label, path)
+        return None
+    except Exception:
+        log.exception("Failed loading %s file: %s", label, path)
+        return None
+    if not isinstance(data, dict):
+        log.warning("%s file is not a JSON object: %s", label, path)
+        return None
+    return data
+
+
+def collapse_quote_whitespace(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip())
+
+
+def quote_text_hash(text: str) -> str:
+    return hashlib.sha256(collapse_quote_whitespace(text).encode("utf-8")).hexdigest()
+
+
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def deep_merge_dict(base: dict, patch: dict) -> dict:
+    merged = json.loads(json.dumps(base))
+    for key, value in patch.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge_dict(merged[key], value)
+        else:
+            merged[key] = json.loads(json.dumps(value))
+    return merged
+
+
+def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -> dict:
+    if not overrides:
+        return raw_analysis
+
+    merged = json.loads(json.dumps(raw_analysis))
+    quote_overrides = overrides.get("quote_overrides", {})
+    if not isinstance(quote_overrides, dict):
+        log.warning("Quote analysis override file has invalid quote_overrides")
+        return merged
+
+    items = merged.get("items", {})
+    for quote_hash, override in quote_overrides.items():
+        if not isinstance(override, dict):
+            log.warning("Skipping quote override %s: override is not an object", quote_hash)
+            continue
+
+        item = items.get(str(quote_hash))
+        if not isinstance(item, dict):
+            log.warning("Skipping quote override %s: quote hash does not exist", quote_hash)
+            continue
+
+        expected_text = override.get("expected_text")
+        if expected_text is not None and expected_text != item.get("text"):
+            log.warning("Skipping quote override %s: expected_text does not match current quote text", quote_hash)
+            continue
+
+        line_numbers = {int(value) for value in item.get("line_numbers", []) if str(value).isdigit()}
+        expected_lines = override.get("expected_line_numbers", [])
+        try:
+            expected_line_numbers = {int(value) for value in expected_lines}
+        except Exception:
+            log.warning("Skipping quote override %s: expected_line_numbers is invalid", quote_hash)
+            continue
+        if not expected_line_numbers.issubset(line_numbers):
+            log.warning(
+                "Skipping quote override %s: expected lines %s not present in record lines %s",
+                quote_hash,
+                sorted(expected_line_numbers),
+                sorted(line_numbers),
+            )
+            continue
+
+        patch = override.get("analysis_patch")
+        if not isinstance(patch, dict):
+            log.warning("Skipping quote override %s: analysis_patch is not an object", quote_hash)
+            continue
+
+        analysis = item.get("analysis")
+        if not isinstance(analysis, dict):
+            log.warning("Skipping quote override %s: raw analysis is not an object", quote_hash)
+            continue
+        item["analysis"] = deep_merge_dict(analysis, patch)
+        log.info("Applied quote analysis override for hash=%s reason=%s", quote_hash, override.get("reason"))
+
+    return merged
+
+
+def load_quote_analysis() -> dict | None:
+    raw = load_json_object(QUOTE_ANALYSIS_FILE, label="quote analysis")
+    if raw is None:
+        return None
+    if raw.get("analysis_kind") != "quotes":
+        log.error("Quote analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
+        return None
+    if raw.get("schema_version") != 2:
+        log.error("Quote analysis file has unsupported schema_version=%r", raw.get("schema_version"))
+        return None
+    if not isinstance(raw.get("items"), dict):
+        log.error("Quote analysis file has invalid or missing items object: %s", QUOTE_ANALYSIS_FILE)
+        return None
+    overrides = load_json_object(QUOTE_ANALYSIS_OVERRIDES_FILE, label="quote analysis override")
+    return apply_quote_analysis_overrides(raw, overrides)
+
+
+def load_image_analysis() -> dict | None:
+    raw = load_json_object(IMAGE_ANALYSIS_FILE, label="image analysis")
+    if raw is None:
+        return None
+    if raw.get("analysis_kind") != "images":
+        log.error("Image analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
+        return None
+    if raw.get("schema_version") != 3:
+        log.error("Image analysis file has unsupported schema_version=%r", raw.get("schema_version"))
+        return None
+    if not isinstance(raw.get("items"), dict) or not isinstance(raw.get("path_index"), dict):
+        log.error("Image analysis file has invalid required structure: %s", IMAGE_ANALYSIS_FILE)
+        return None
+    return raw
+
+
+def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
+    if start_mm_dd <= end_mm_dd:
+        return start_mm_dd <= mm_dd <= end_mm_dd
+    return mm_dd >= start_mm_dd or mm_dd <= end_mm_dd
+
+
+def any_window_matches_today(windows: object, today_mm_dd: str) -> bool:
+    if not isinstance(windows, list):
+        return False
+    for window in windows:
+        if not isinstance(window, dict):
+            continue
+        start = str(window.get("start_mm_dd", "") or "")
+        end = str(window.get("end_mm_dd", "") or "")
+        if re.fullmatch(r"\d{2}-\d{2}", start) and re.fullmatch(r"\d{2}-\d{2}", end):
+            if mm_dd_in_window(today_mm_dd, start, end):
+                return True
+    return False
+
+
+def quote_season_status(analysis: dict | None, *, today_mm_dd: str) -> dict:
+    seasonality = (analysis or {}).get("seasonality", {}) if isinstance(analysis, dict) else {}
+    if not isinstance(seasonality, dict):
+        seasonality = {}
+    windows = seasonality.get("preferred_windows", [])
+    in_window = any_window_matches_today(windows, today_mm_dd)
+    hard_excluded = bool(seasonality.get("hard_exclude_outside_windows")) and bool(windows) and not in_window
+    relevance = str(seasonality.get("relevance", "none") or "none")
+    return {
+        "in_window": in_window,
+        "hard_excluded": hard_excluded,
+        "relevance": relevance,
+    }
+
+
+def quote_candidate_weight(analysis: dict | None, *, today_mm_dd: str) -> tuple[float, dict]:
+    status = quote_season_status(analysis, today_mm_dd=today_mm_dd)
+    if status["hard_excluded"]:
+        return 0.0, status
+
+    weight = 1.0
+    if status["in_window"]:
+        if status["relevance"] == "date_specific":
+            weight *= QUOTE_SEASON_DATE_SPECIFIC_WEIGHT
+        elif status["relevance"] == "strong":
+            weight *= QUOTE_SEASON_STRONG_WEIGHT
+        elif status["relevance"] == "soft":
+            weight *= QUOTE_SEASON_SOFT_WEIGHT
+
+    scores = (analysis or {}).get("scores", {}) if isinstance(analysis, dict) else {}
+    if isinstance(scores, dict):
+        values = []
+        for key in ("general_post_suitability", "standalone_clarity", "visual_matchability"):
+            try:
+                values.append(max(0.0, min(100.0, float(scores.get(key, 50)))))
+            except Exception:
+                pass
+        if values:
+            quality = sum(values) / len(values)
+            weight *= 1.0 + ((quality - 50.0) / 50.0) * (QUOTE_QUALITY_WEIGHT_MAX_MULTIPLIER - 1.0)
+            weight = max(0.2, weight)
+
+    return weight, status
+
+
+def weighted_random_choice(candidates: list[dict]) -> dict:
+    total = sum(float(candidate.get("weight", 0.0)) for candidate in candidates)
+    if total <= 0:
+        return random.choice(candidates)
+    target = random.uniform(0.0, total)
+    running = 0.0
+    for candidate in candidates:
+        running += float(candidate.get("weight", 0.0))
+        if running >= target:
+            return candidate
+    return candidates[-1]
+
+
+def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: str = "") -> dict | None:
+    if not isinstance(quote_analysis, dict):
+        return None
+    item = (quote_analysis.get("items") or {}).get(str(quote_hash), {})
+    if not isinstance(item, dict):
+        log.warning("Quote metadata missing for current quote hash=%s text=%r", quote_hash, collapse_quote_whitespace(text)[:120])
+        return None
+    analysed_text = item.get("text")
+    if analysed_text is not None and quote_text_hash(str(analysed_text)) != quote_hash:
+        log.warning("Quote metadata stale for hash=%s: analysed text does not match hash", quote_hash)
+        return None
+    analysis = item.get("analysis")
+    if not isinstance(analysis, dict):
+        log.warning("Quote metadata missing analysis object for hash=%s", quote_hash)
+        return None
+    return analysis
+
+
+def quote_metadata_for_line(quote_analysis: dict | None, line_no: int) -> tuple[str | None, dict | None]:
+    try:
+        with open(LINES_FILE, encoding="utf-8") as f:
+            lines = f.readlines()
+        text = lines[line_no].rstrip()
+    except Exception:
+        return None, None
+    quote_hash = quote_text_hash(text)
+    return quote_hash, quote_metadata_for_hash(quote_analysis, quote_hash, text)
+
+
+def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
+    result: dict[int, str] = {}
+    for line_no, line in enumerate(lines):
+        if line.rstrip():
+            result[line_no] = quote_text_hash(line)
+    return result
+
+
+def quote_used_history_has_legacy_indices(value: set) -> bool:
+    return any(re.fullmatch(r"-?\d+", str(item)) for item in value)
+
+
+def quote_source_matches_analysis(quote_analysis: dict | None, lines: list[str]) -> bool:
+    if not isinstance(quote_analysis, dict):
+        return False
+    source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
+    expected = source.get("source_sha256")
+    if not expected:
+        return False
+    current = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
+    return str(expected) == current
+
+
+def normalise_quote_used_hashes(raw_used: set, lines: list[str], quote_analysis: dict | None = None) -> tuple[set, bool]:
+    hashes_by_line = current_quote_hashes_by_line(lines)
+    normalised: set[str] = set()
+    changed = False
+    can_migrate_indices = quote_source_matches_analysis(quote_analysis, lines)
+
+    for item in raw_used:
+        item_text = str(item)
+        if re.fullmatch(r"[0-9a-fA-F]{64}", item_text):
+            normalised.add(item_text.lower())
+            if item_text != item_text.lower():
+                changed = True
+            continue
+        try:
+            line_no = int(item)
+        except Exception:
+            log.warning("Dropping unrecognised quote used-history entry: %r", item)
+            changed = True
+            continue
+        if not can_migrate_indices:
+            normalised.add(item)
+            continue
+        if line_no in hashes_by_line:
+            normalised.add(hashes_by_line[line_no])
+        else:
+            log.warning("Dropping out-of-range quote line used-history entry: %r", item)
+        changed = True
+
+    return normalised, changed or normalised != {str(item) for item in raw_used}
+
+
+def load_quote_used_hashes(lines: list[str]) -> set[str]:
+    raw = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
+    quote_analysis = load_quote_analysis()
+    normalised, changed = normalise_quote_used_hashes(raw, lines, quote_analysis)
+    if quote_used_history_has_legacy_indices(normalised):
+        log.critical(
+            "Quote used-history contains legacy integer entries but current quote source does not match analysed source; refusing destructive migration"
+        )
+        return normalised
+    if changed or LINES_USED_FILE.exists():
+        save_used_set(LINES_USED_FILE, normalised)
+        log.info("Quote used-history normalised to %d quote hash(es)", len(normalised))
+    return normalised
+
+
+def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False) -> None:
+    save_used_set(path, {str(item) for item in value}, durable=durable)
+
+
+def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
+    source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
+    expected_source_sha = source.get("source_sha256")
+    if expected_source_sha:
+        current_source_sha = hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()
+        if str(expected_source_sha) != current_source_sha:
+            log.warning(
+                "Quote source SHA differs from analysed source: current=%s analysed=%s; per-quote hashes will be used",
+                current_source_sha,
+                expected_source_sha,
+            )
+
+
+def current_image_paths() -> list[str]:
+    images = glob(IMAGE_GLOB)
+    images.sort()
+    return [path for path in images if Path(path).is_file()]
+
+
+def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    serializable = sorted(str(item) for item in value)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(serializable, f, indent=2)
+        f.write("\n")
+        if durable:
+            f.flush()
+            os.fsync(f.fileno())
+    os.replace(tmp, path)
+    if durable:
+        fsync_parent_dir(path, strict=durable)
+
+
+def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
+    try:
+        fd = os.open(str(path.parent), os.O_RDONLY)
+    except Exception:
+        if strict:
+            raise
+        log.debug("Could not open parent directory for fsync: %s", path.parent, exc_info=True)
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(value, f, indent=2, sort_keys=True)
+        f.write("\n")
+        if durable:
+            f.flush()
+            os.fsync(f.fileno())
+    os.replace(tmp, path)
+    if durable:
+        fsync_parent_dir(path, strict=durable)
+
+
+def valid_post_id(value: object) -> bool:
+    return bool(re.fullmatch(r"\d{1,30}", str(value or "")))
+
+
+def valid_receipt_epoch(value: object) -> bool:
+    try:
+        epoch = int(value)
+    except Exception:
+        return False
+    return 1_500_000_000 <= epoch <= 4_102_444_800
+
+
+def receipt_int(value: object, default: int | None = None) -> int | None:
+    if value in (None, "") and default is not None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def receipt_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def safe_epoch_date_str(epoch: int) -> str | None:
+    try:
+        return epoch_date_str(epoch)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+
+
+def valid_receipt_basename(value: object) -> bool:
+    basename = str(value or "")
+    return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
+
+
+def write_regular_post_receipt(receipt: dict) -> None:
+    if REGULAR_POST_RECEIPT_FILE.exists():
+        raise UnresolvedRegularPostReceipt(f"Refusing to overwrite unresolved regular-post receipt: {REGULAR_POST_RECEIPT_FILE}")
+    if MEME_POST_RECEIPT_FILE.exists():
+        raise UnresolvedMemePostReceipt(f"Refusing regular post while unresolved meme-post receipt exists: {MEME_POST_RECEIPT_FILE}")
+    if not regular_post_receipt_is_semantically_valid(receipt):
+        raise RuntimeError("Internal error: generated regular-post receipt failed semantic validation")
+    atomic_write_json(REGULAR_POST_RECEIPT_FILE, receipt, durable=True)
+    log.warning("Wrote confirmed regular-post receipt pending local reconciliation: %s", REGULAR_POST_RECEIPT_FILE)
+
+
+def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
+    if data.get("schema_version") != 1:
+        return False
+    post_id = str(data.get("post_id") or "")
+    quote_hash = str(data.get("quote_hash") or "")
+    image_basename = str(data.get("image_basename") or "")
+    text = data.get("text")
+    quote_post_epoch = receipt_int(data.get("quote_post_epoch"))
+    next_quote_post_epoch = receipt_int(data.get("next_quote_post_epoch"))
+
+    if not valid_post_id(post_id):
+        return False
+    if not re.fullmatch(r"[0-9a-f]{64}", quote_hash):
+        return False
+    if quote_post_epoch is None or not valid_receipt_epoch(quote_post_epoch):
+        return False
+    if next_quote_post_epoch is None or not valid_receipt_epoch(next_quote_post_epoch):
+        return False
+    if next_quote_post_epoch <= quote_post_epoch:
+        return False
+    if not valid_receipt_basename(image_basename):
+        return False
+    if not isinstance(text, str) or not text.strip():
+        return False
+    if quote_text_hash(text) != quote_hash:
+        return False
+    next_meme_epoch = receipt_int(data.get("next_meme_post_epoch", 0), default=0)
+    if next_meme_epoch is None:
+        return False
+    if next_meme_epoch:
+        if not valid_receipt_epoch(next_meme_epoch):
+            return False
+        mode = str(data.get("next_meme_schedule_mode") or "")
+        if mode not in MEME_SCHEDULE_MODES or not mode:
+            return False
+        anchor_int = receipt_int(data.get("meme_anchor_quote_post_epoch", 0), default=0)
+        if anchor_int is None:
+            return False
+        changed_by_quote = receipt_bool(data.get("meme_schedule_changed_by_quote"))
+        if changed_by_quote is None:
+            return False
+        schedule_date = str(data.get("next_meme_schedule_date") or "")
+        if mode == "after_first_quote_after_midday":
+            if changed_by_quote:
+                if anchor_int != quote_post_epoch:
+                    return False
+                if next_meme_epoch <= quote_post_epoch:
+                    return False
+                if schedule_date != safe_epoch_date_str(quote_post_epoch):
+                    return False
+            else:
+                if anchor_int <= 0:
+                    return False
+                if schedule_date != safe_epoch_date_str(anchor_int):
+                    return False
+                if next_meme_epoch <= anchor_int:
+                    return False
+        else:
+            if changed_by_quote:
+                return False
+            if anchor_int:
+                return False
+            if schedule_date != safe_epoch_date_str(next_meme_epoch):
+                return False
+    elif data.get("meme_schedule_changed_by_quote") not in (None, False):
+        return False
+    return True
+
+
+def load_regular_post_receipt() -> tuple[str, dict | None]:
+    try:
+        with open(REGULAR_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return "absent", None
+    except Exception:
+        log.exception("Malformed regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
+        return "invalid", None
+    if not isinstance(data, dict) or data.get("schema_version") != 1:
+        log.critical("Invalid regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
+        return "invalid", None
+    required = ("post_id", "quote_hash", "image_basename", "quote_post_epoch", "next_quote_post_epoch")
+    if not all(data.get(key) for key in required):
+        log.critical("Incomplete regular-post receipt blocks main posting until repaired: %s", REGULAR_POST_RECEIPT_FILE)
+        return "invalid", None
+    if not regular_post_receipt_is_semantically_valid(data):
+        log.critical(
+            "Semantically invalid or unsupported-version regular-post receipt blocks main posting until repaired; "
+            "do not continue an upgrade while a confirmed-post receipt exists: %s",
+            REGULAR_POST_RECEIPT_FILE,
+        )
+        return "invalid", None
+    return "valid", data
+
+
+def remove_regular_post_receipt() -> None:
+    try:
+        REGULAR_POST_RECEIPT_FILE.unlink()
+        log.info("Removed reconciled regular-post receipt: %s", REGULAR_POST_RECEIPT_FILE)
+        fsync_parent_dir(REGULAR_POST_RECEIPT_FILE, strict=True)
+    except FileNotFoundError:
+        pass
+
+
+def write_meme_post_receipt(receipt: dict) -> None:
+    if MEME_POST_RECEIPT_FILE.exists():
+        raise UnresolvedMemePostReceipt(f"Refusing to overwrite unresolved meme-post receipt: {MEME_POST_RECEIPT_FILE}")
+    if REGULAR_POST_RECEIPT_FILE.exists():
+        raise UnresolvedRegularPostReceipt(f"Refusing meme post while unresolved regular-post receipt exists: {REGULAR_POST_RECEIPT_FILE}")
+    if not meme_post_receipt_is_semantically_valid(receipt):
+        raise RuntimeError("Internal error: generated meme-post receipt failed semantic validation")
+    atomic_write_json(MEME_POST_RECEIPT_FILE, receipt, durable=True)
+    log.warning("Wrote confirmed meme-post receipt pending local reconciliation: %s", MEME_POST_RECEIPT_FILE)
+
+
+def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
+    if data.get("schema_version") != 1:
+        return False
+    if not valid_post_id(data.get("post_id")):
+        return False
+    if not valid_receipt_basename(data.get("meme_basename")):
+        return False
+    meme_post_epoch = receipt_int(data.get("meme_post_epoch"))
+    next_meme_post_epoch = receipt_int(data.get("next_meme_post_epoch"))
+    if meme_post_epoch is None or not valid_receipt_epoch(meme_post_epoch):
+        return False
+    if next_meme_post_epoch is None or not valid_receipt_epoch(next_meme_post_epoch):
+        return False
+    if next_meme_post_epoch <= meme_post_epoch:
+        return False
+    mode = str(data.get("next_meme_schedule_mode") or "fallback")
+    if mode not in MEME_SCHEDULE_MODES or mode == "after_first_quote_after_midday":
+        return False
+    return True
+
+
+def load_meme_post_receipt() -> tuple[str, dict | None]:
+    try:
+        with open(MEME_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return "absent", None
+    except Exception:
+        log.exception("Malformed meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
+        return "invalid", None
+    if not isinstance(data, dict) or data.get("schema_version") != 1:
+        log.critical("Invalid meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
+        return "invalid", None
+    required = ("post_id", "meme_basename", "meme_post_epoch", "next_meme_post_epoch")
+    if not all(data.get(key) for key in required):
+        log.critical("Incomplete meme-post receipt blocks the bot until repaired: %s", MEME_POST_RECEIPT_FILE)
+        return "invalid", None
+    if not meme_post_receipt_is_semantically_valid(data):
+        log.critical(
+            "Semantically invalid or unsupported-version meme-post receipt blocks the bot until repaired; "
+            "do not continue an upgrade while a confirmed-post receipt exists: %s",
+            MEME_POST_RECEIPT_FILE,
+        )
+        return "invalid", None
+    return "valid", data
+
+
+def remove_meme_post_receipt() -> None:
+    try:
+        MEME_POST_RECEIPT_FILE.unlink()
+        log.info("Removed reconciled meme-post receipt: %s", MEME_POST_RECEIPT_FILE)
+        fsync_parent_dir(MEME_POST_RECEIPT_FILE, strict=True)
+    except FileNotFoundError:
+        pass
+
+
+def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
+    post_id = str(receipt["post_id"])
+    meme_basename = str(receipt["meme_basename"])
+    meme_post_epoch = int(receipt["meme_post_epoch"])
+    next_meme_post_epoch = int(receipt["next_meme_post_epoch"])
+    text = str(receipt.get("text") or MEME_POST_TEXT)
+    image_summary = str(receipt.get("image_summary") or "")
+
+    state["last_main_post_id"] = post_id
+    state["last_meme_post_epoch"] = meme_post_epoch
+    posted = set(str(x) for x in state.get("posted_meme_filenames", []))
+    posted.add(meme_basename)
+    state["posted_meme_filenames"] = sorted(posted)
+    state["next_meme_post_epoch"] = next_meme_post_epoch
+    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
+    state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or "fallback")
+    state["next_meme_schedule_date"] = epoch_date_str(next_meme_post_epoch)
+    state["meme_anchor_quote_post_epoch"] = 0
+    cache_tweet(
+        state,
+        tweet_id=post_id,
+        text=text,
+        author_id=str(MY_USER_ID),
+        conversation_id=post_id,
+        referenced_tweets=[],
+        image_summary=image_summary,
+        post_type="daily_meme",
+    )
+    record_recent_own_post(state, post_id)
+
+
+def reconcile_meme_post_receipt(state: dict) -> bool:
+    status, receipt = load_meme_post_receipt()
+    if status == "absent":
+        return False
+    if status == "invalid" or receipt is None:
+        raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
+    log.warning(
+        "Reconciling confirmed meme post receipt post_id=%s meme=%s",
+        receipt.get("post_id"),
+        receipt.get("meme_basename"),
+    )
+    apply_meme_post_receipt(receipt, state)
+    save_state(state, durable=True)
+    remove_meme_post_receipt()
+    return True
+
+
+def block_if_unresolved_meme_post_receipt() -> None:
+    status, _receipt = load_meme_post_receipt()
+    if status == "absent":
+        return
+    if status == "invalid":
+        raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
+    raise UnresolvedMemePostReceipt(f"Unresolved meme-post receipt must be reconciled before another main post: {MEME_POST_RECEIPT_FILE}")
+
+
+def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
+    post_id = str(receipt["post_id"])
+    quote_hash = str(receipt["quote_hash"])
+    image_basename = str(receipt["image_basename"])
+    quote_post_epoch = int(receipt["quote_post_epoch"])
+    next_quote_post_epoch = int(receipt["next_quote_post_epoch"])
+    text = str(receipt.get("text") or "")
+
+    lines_used.add(quote_hash)
+    images_used.add(image_basename)
+    last_quote_epoch = int(state.get("last_quote_post_epoch", 0) or 0)
+    last_meme_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
+    receipt_is_newest_main = quote_post_epoch >= max(last_quote_epoch, last_meme_epoch)
+    if receipt_is_newest_main:
+        state["last_main_post_id"] = post_id
+    else:
+        log.warning(
+            "Receipt post_id=%s epoch=%s is older than known main-post state quote=%s meme=%s; not moving last_main_post_id backwards",
+            post_id,
+            quote_post_epoch,
+            last_quote_epoch,
+            last_meme_epoch,
+        )
+    if quote_post_epoch >= last_quote_epoch:
+        state["last_quote_post_epoch"] = quote_post_epoch
+        state["last_regular_image_filename"] = image_basename
+        state["next_quote_post_epoch"] = next_quote_post_epoch
+    if receipt_is_newest_main:
+        if receipt.get("next_meme_post_epoch"):
+            state["next_meme_post_epoch"] = int(receipt["next_meme_post_epoch"])
+            state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
+            state["next_meme_schedule_mode"] = str(receipt.get("next_meme_schedule_mode") or state.get("next_meme_schedule_mode") or "")
+            state["next_meme_schedule_date"] = str(receipt.get("next_meme_schedule_date") or epoch_date_str(int(receipt["next_meme_post_epoch"])))
+            state["meme_anchor_quote_post_epoch"] = int(receipt.get("meme_anchor_quote_post_epoch") or 0)
+        else:
+            maybe_schedule_meme_after_quote_post(state, quote_post_epoch, save=False)
+    if text:
+        cache_tweet(
+            state,
+            tweet_id=post_id,
+            text=text,
+            author_id=str(MY_USER_ID),
+            conversation_id=post_id,
+            referenced_tweets=[],
+            post_type="quote",
+        )
+    record_recent_own_post(state, post_id)
+
+
+def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
+    save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=durable)
+    save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=durable)
+    save_state(state, durable=durable)
+
+
+def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> list[str]:
+    failures: list[str] = []
+    for name, func in (
+        ("quote_history", lambda: save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=True)),
+        ("image_history", lambda: save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=True)),
+        ("state", lambda: save_state(state, durable=True)),
+    ):
+        try:
+            func()
+        except Exception:
+            failures.append(name)
+            log.critical("Emergency persistence component failed after confirmed regular post: %s", name, exc_info=True)
+    return failures
+
+
+def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dict) -> bool:
+    status, receipt = load_regular_post_receipt()
+    if status == "absent":
+        return False
+    if status == "invalid" or receipt is None:
+        raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")
+    log.warning(
+        "Reconciling confirmed regular quote/image post receipt post_id=%s quote_hash=%s image=%s",
+        receipt.get("post_id"),
+        receipt.get("quote_hash"),
+        receipt.get("image_basename"),
+    )
+    apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+    remove_regular_post_receipt()
+    return True
+
+
+def block_if_unresolved_regular_post_receipt() -> None:
+    status, _receipt = load_regular_post_receipt()
+    if status == "absent":
+        return
+    if status == "invalid":
+        raise InvalidRegularPostReceipt(f"Invalid regular-post receipt blocks main posting: {REGULAR_POST_RECEIPT_FILE}")
+    raise UnresolvedRegularPostReceipt(f"Unresolved regular-post receipt must be reconciled before another main post: {REGULAR_POST_RECEIPT_FILE}")
+
+
+def both_main_post_receipts_exist() -> bool:
+    return REGULAR_POST_RECEIPT_FILE.exists() and MEME_POST_RECEIPT_FILE.exists()
+
+
+def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict) -> dict[str, bool]:
+    if both_main_post_receipts_exist():
+        log.critical(
+            "Both regular and meme confirmed-post receipts exist; refusing automatic reconciliation until manually inspected: %s %s",
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+        )
+        raise InvalidRegularPostReceipt("Both main-post receipts exist; manual recovery required")
+    return {
+        "regular": reconcile_regular_post_receipt(lines_used, images_used, state),
+        "meme": reconcile_meme_post_receipt(state),
+    }
+
+
+def block_if_unresolved_main_post_receipt() -> None:
+    if both_main_post_receipts_exist():
+        log.critical(
+            "Both regular and meme confirmed-post receipts exist; refusing main posting until manually inspected: %s %s",
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+        )
+        raise InvalidRegularPostReceipt("Both main-post receipts exist; manual recovery required")
+    block_if_unresolved_regular_post_receipt()
+    block_if_unresolved_meme_post_receipt()
+
+
+def image_used_history_has_legacy_indices(images_used: set) -> bool:
+    return any(re.fullmatch(r"-?\d+", str(item)) for item in images_used)
+
+
+def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
+    if not isinstance(image_analysis, dict):
+        return False
+    expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
+    visible = {Path(path).name for path in images}
+    return bool(expected) and visible == expected
+
+
+def normalise_image_used_basenames(images_used: set, images: list[str], image_analysis: dict | None = None) -> tuple[set, bool]:
+    basenames = [Path(path).name for path in images]
+    migrated: set = set()
+    changed = False
+    can_migrate_indices = image_corpus_verified_for_legacy_migration(images, image_analysis)
+
+    for item in images_used:
+        item_text = str(item)
+        if not re.fullmatch(r"-?\d+", item_text):
+            migrated.add(item_text)
+            continue
+        if not can_migrate_indices:
+            migrated.add(item)
+            continue
+        try:
+            index = int(item)
+        except Exception:
+            migrated.add(item)
+            continue
+        if 0 <= index < len(basenames):
+            migrated.add(basenames[index])
+            changed = True
+        else:
+            migrated.add(item)
+
+    if {str(item) for item in migrated} != {str(item) for item in images_used}:
+        changed = True
+    return migrated, changed
+
+
+def load_image_used_basenames(images: list[str]) -> set:
+    raw = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
+    image_analysis = load_image_analysis()
+    normalised, changed = normalise_image_used_basenames(raw, images, image_analysis)
+    if image_used_history_has_legacy_indices(normalised) and images:
+        log.critical(
+            "Image used-history contains legacy integer entries but current image corpus is not verified complete; refusing destructive migration"
+        )
+        return normalised
+    if images and (changed or IMAGES_USED_FILE.exists()):
+        save_image_used_basenames(IMAGES_USED_FILE, normalised)
+        log.info("Image used-history normalised to %d basename(s)", len(normalised))
+    elif not images and changed:
+        log.warning("Image scan is empty; preserving image used-history without rewriting %s", IMAGES_USED_FILE)
+    return normalised
+
+
+def normalise_tag(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def as_string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value if item is not None]
+    if value is None:
+        return []
+    return [str(value)]
+
+
+def meaningful_tokens(value: object) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", str(value or "").lower())
+    return {word for word in words if len(word) >= 4 and word not in TOKEN_STOPWORDS}
+
+
+def phrase_matches_text(phrase: str, text: str) -> bool:
+    phrase_tokens = meaningful_tokens(phrase)
+    if not phrase_tokens:
+        return False
+    text_tokens = meaningful_tokens(text)
+    required = max(1, min(len(phrase_tokens), int(round(len(phrase_tokens) * 0.65))))
+    return len(phrase_tokens & text_tokens) >= required
+
+
+def hard_mismatch_tokens(value: object) -> set[str]:
+    tokens = meaningful_tokens(value)
+    normalised: set[str] = set()
+    for token in tokens:
+        if token.endswith("s") and len(token) > 4:
+            normalised.add(token[:-1])
+        else:
+            normalised.add(token)
+    return normalised
+
+
+def hard_mismatch_phrase_matches_text(phrase: str, text: str) -> bool:
+    phrase_tokens = hard_mismatch_tokens(phrase)
+    if not phrase_tokens:
+        return False
+    text_tokens = hard_mismatch_tokens(text)
+    if len(phrase_tokens) <= 2:
+        required = len(phrase_tokens)
+    else:
+        required = int((len(phrase_tokens) * 65 + 99) // 100)
+    return len(phrase_tokens & text_tokens) >= required
+
+
+def image_text_corpus(image_analysis: dict) -> str:
+    parts: list[str] = []
+    for key in ("description", "scene_summary"):
+        if image_analysis.get(key):
+            parts.append(str(image_analysis.get(key)))
+    for key in ("visible_elements", "themes", "scene_types"):
+        parts.extend(as_string_list(image_analysis.get(key)))
+    historical = image_analysis.get("historical_context", {})
+    if isinstance(historical, dict):
+        parts.extend(as_string_list(historical.get("visible_symbols")))
+        if historical.get("event_or_context_hint"):
+            parts.append(str(historical.get("event_or_context_hint")))
+    return " ".join(parts)
+
+
+def build_image_topic_idf(image_analysis: dict | None) -> dict[str, float]:
+    if not isinstance(image_analysis, dict):
+        return {}
+    docs: list[set[str]] = []
+    for item in (image_analysis.get("items") or {}).values():
+        analysis = item.get("analysis") if isinstance(item, dict) else None
+        if not isinstance(analysis, dict):
+            continue
+        pairing = analysis.get("pairing", {}) if isinstance(analysis.get("pairing"), dict) else {}
+        tags = set()
+        for value in as_string_list(pairing.get("best_for_topics")) + as_string_list(analysis.get("themes")):
+            tag = normalise_tag(value)
+            if tag:
+                tags.add(tag)
+        docs.append(tags)
+    total = max(1, len(docs))
+    df: dict[str, int] = {}
+    for doc in docs:
+        for tag in doc:
+            df[tag] = df.get(tag, 0) + 1
+    return {tag: 1.0 + (total / (count + 1)) ** 0.5 for tag, count in df.items()}
+
+
+def visual_energy_score(quote_energy: str, image_energy: str) -> float:
+    order = {"low": 0, "medium": 1, "high": 2}
+    if quote_energy not in order or image_energy not in order:
+        return 0.0
+    distance = abs(order[quote_energy] - order[image_energy])
+    if distance == 0:
+        return 8.0
+    if distance == 1:
+        return 2.0
+    return -8.0
+
+
+def image_is_out_of_season(image_analysis: dict, today_mm_dd: str) -> bool:
+    seasonality = image_analysis.get("seasonality", {})
+    if not isinstance(seasonality, dict) or not seasonality.get("avoid_outside_season_or_occasion"):
+        return False
+    occasions = {normalise_tag(value) for value in as_string_list(seasonality.get("occasions"))}
+    visible_season = normalise_tag(seasonality.get("visible_season"))
+    if "christmas" in occasions:
+        return not mm_dd_in_window(today_mm_dd, "12-10", "12-28")
+    if visible_season == "winter":
+        return not mm_dd_in_window(today_mm_dd, "12-01", "02-28")
+    if visible_season == "spring":
+        return not mm_dd_in_window(today_mm_dd, "03-01", "05-31")
+    if visible_season == "summer":
+        return not mm_dd_in_window(today_mm_dd, "06-01", "08-31")
+    if visible_season == "autumn":
+        return not mm_dd_in_window(today_mm_dd, "09-01", "11-30")
+    return False
+
+
+def score_image_for_quote(quote_analysis: dict | None, image_analysis: dict | None, idf: dict[str, float] | None = None) -> tuple[float, dict[str, float], bool]:
+    if not isinstance(quote_analysis, dict) or not isinstance(image_analysis, dict):
+        return 0.0, {"fallback": 0.0}, True
+
+    idf = idf or {}
+    components: dict[str, float] = {}
+    total = 0.0
+
+    pairing = image_analysis.get("pairing", {}) if isinstance(image_analysis.get("pairing"), dict) else {}
+    people = image_analysis.get("people", {}) if isinstance(image_analysis.get("people"), dict) else {}
+    historical = image_analysis.get("historical_context", {}) if isinstance(image_analysis.get("historical_context"), dict) else {}
+    prefs = quote_analysis.get("archive_image_preferences", {}) if isinstance(quote_analysis.get("archive_image_preferences"), dict) else {}
+
+    image_best_topics = {normalise_tag(value) for value in as_string_list(pairing.get("best_for_topics"))}
+    image_themes = {normalise_tag(value) for value in as_string_list(image_analysis.get("themes"))}
+    image_weak_topics = {normalise_tag(value) for value in as_string_list(pairing.get("weak_for_topics"))}
+
+    topic_score = 0.0
+    for value in as_string_list(quote_analysis.get("primary_topics")):
+        tag = normalise_tag(value)
+        weight = idf.get(tag, 1.0)
+        if tag in image_best_topics:
+            topic_score += 5.0 * weight
+        if tag in image_themes:
+            topic_score += 7.0 * weight
+        if tag in image_weak_topics:
+            topic_score -= 5.0 * weight
+    for value in as_string_list(quote_analysis.get("secondary_topics")):
+        tag = normalise_tag(value)
+        weight = idf.get(tag, 1.0)
+        if tag in image_best_topics:
+            topic_score += 2.5 * weight
+        if tag in image_themes:
+            topic_score += 3.5 * weight
+        if tag in image_weak_topics:
+            topic_score -= 3.0 * weight
+    components["topics"] = topic_score
+    total += topic_score
+
+    quote_tones = {normalise_tag(value) for value in as_string_list(quote_analysis.get("tone"))}
+    image_tones = {normalise_tag(value) for value in as_string_list(image_analysis.get("tone"))}
+    best_tones = {normalise_tag(value) for value in as_string_list(pairing.get("best_for_tones"))}
+    image_moods = {normalise_tag(value) for value in as_string_list(people.get("primary_subject_moods"))}
+    preferred_moods = {normalise_tag(value) for value in as_string_list(prefs.get("preferred_subject_moods"))}
+    tone_score = 3.0 * len(quote_tones & best_tones) + 2.0 * len(quote_tones & image_tones) + 2.0 * len(preferred_moods & image_moods)
+    components["tone_mood"] = tone_score
+    total += tone_score
+
+    energy_score = visual_energy_score(str(quote_analysis.get("visual_energy", "")), str(image_analysis.get("visual_energy", "")))
+    components["visual_energy"] = energy_score
+    total += energy_score
+
+    text_corpus = image_text_corpus(image_analysis)
+    scene_score = 0.0
+    image_scenes = {normalise_tag(value) for value in as_string_list(image_analysis.get("scene_types"))}
+    image_activities = {normalise_tag(value) for value in as_string_list(people.get("primary_subject_activities"))}
+    image_symbols = {normalise_tag(value) for value in as_string_list(historical.get("visible_symbols")) + as_string_list(image_analysis.get("visible_elements"))}
+    for value in as_string_list(prefs.get("preferred_scenes")):
+        tag = normalise_tag(value)
+        if tag in image_scenes:
+            scene_score += 6.0
+        elif phrase_matches_text(value, text_corpus):
+            scene_score += 2.0
+    for value in as_string_list(prefs.get("preferred_activities")):
+        if normalise_tag(value) in image_activities or phrase_matches_text(value, text_corpus):
+            scene_score += 4.0
+    for value in as_string_list(prefs.get("preferred_visible_symbols")) + as_string_list(prefs.get("visual_affinities")):
+        if normalise_tag(value) in image_symbols or phrase_matches_text(value, text_corpus):
+            scene_score += 4.0
+    components["scene_activity_symbols"] = scene_score
+    total += scene_score
+
+    historical_score = 0.0
+    qhist = quote_analysis.get("historical_context", {}) if isinstance(quote_analysis.get("historical_context"), dict) else {}
+    refs = (
+        as_string_list(qhist.get("referenced_events"))
+        + as_string_list(qhist.get("referenced_people"))
+        + as_string_list(qhist.get("referenced_places"))
+    )
+    matched_ref = any(phrase_matches_text(ref, text_corpus) for ref in refs)
+    if matched_ref:
+        historical_score += 14.0
+    if qhist.get("needs_historical_image_match") and not matched_ref and str(historical.get("specificity", "general")) == "general":
+        historical_score -= 4.0
+    components["historical"] = historical_score
+    total += historical_score
+
+    mismatch_score = 0.0
+    for phrase in as_string_list(prefs.get("strong_visual_mismatches")):
+        if hard_mismatch_phrase_matches_text(phrase, text_corpus):
+            components["strong_mismatch"] = IMAGE_STRONG_MISMATCH_PENALTY
+            return IMAGE_STRONG_MISMATCH_PENALTY, components, False
+    for phrase in as_string_list(prefs.get("weak_visual_mismatches")):
+        if phrase_matches_text(phrase, text_corpus):
+            mismatch_score -= 5.0
+    components["mismatches"] = mismatch_score
+    total += mismatch_score
+
+    quality = image_analysis.get("quality", {}) if isinstance(image_analysis.get("quality"), dict) else {}
+    quality_values = []
+    for key in ("overall", "crop_suitability_for_x"):
+        try:
+            quality_values.append(float(quality.get(key, 50)))
+        except Exception:
+            pass
+    for key in ("general_reusability", "semantic_specificity"):
+        try:
+            quality_values.append(float(pairing.get(key, 50)))
+        except Exception:
+            pass
+    quality_score = ((sum(quality_values) / len(quality_values)) - 50.0) / 50.0 * 4.0 if quality_values else 0.0
+    components["quality"] = quality_score
+    total += quality_score
+
+    return total, components, True
+
+
+def concise_components(components: dict[str, float]) -> str:
+    return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
+
+
+def build_quote_candidates(
+    lines: list[str],
+    available_lines: list[int],
+    quote_analysis: dict | None,
+    today_mm_dd: str,
+    *,
+    excluded_quote_hashes: set[str] | None = None,
+) -> tuple[list[dict], int, int]:
+    hard_excluded = 0
+    non_empty = 0
+    candidates: list[dict] = []
+    excluded_quote_hashes = excluded_quote_hashes or set()
+    seen_hashes: set[str] = set()
+
+    for line_no in available_lines:
+        tweet = lines[line_no].rstrip()
+        if not tweet:
+            log.debug("Skipping empty line_no=%d", line_no)
+            continue
+        quote_hash = quote_text_hash(tweet)
+        if quote_hash in seen_hashes:
+            log.debug("Skipping duplicate quote line_no=%d quote_hash=%s", line_no, quote_hash)
+            continue
+        seen_hashes.add(quote_hash)
+        if quote_hash in excluded_quote_hashes:
+            continue
+        non_empty += 1
+
+        analysis = quote_metadata_for_hash(quote_analysis, quote_hash, tweet)
+        if analysis is None:
+            log.warning("Skipping unanalysed current quote line_no=%d quote_hash=%s until quote analysis is refreshed", line_no, quote_hash)
+            continue
+        weight, season_status = quote_candidate_weight(analysis, today_mm_dd=today_mm_dd)
+        if weight <= 0:
+            hard_excluded += 1
+            continue
+        candidates.append(
+            {
+                "line_no": line_no,
+                "text": tweet,
+                "quote_hash": quote_hash,
+                "analysis": analysis,
+                "weight": weight,
+                "season_status": season_status,
+            }
+        )
+    return candidates, hard_excluded, non_empty
+
+
+def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
     with open(LINES_FILE) as f:
         lines = f.readlines()
 
@@ -2867,86 +4212,503 @@ def choose_unused_line(lines_used: set) -> tuple[int, str]:
     if not lines:
         raise RuntimeError(f"No lines found in {LINES_FILE}")
 
-    all_lines = set(range(len(lines)))
-    available_lines = list(all_lines.difference(lines_used))
+    quote_analysis = load_quote_analysis()
+    if quote_analysis is None:
+        raise RuntimeError(f"Quote analysis unavailable or invalid; refusing regular quote posting from {LINES_FILE}")
+    validate_quote_analysis_against_lines(quote_analysis, lines)
+    return lines, quote_analysis, current_datetime().strftime("%m-%d")
+
+
+def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> list[dict]:
+    log.debug("Choosing unused line. Already used=%d", len(lines_used))
+
+    lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
+    hashes_by_line = current_quote_hashes_by_line(lines)
+    all_hashes = set(hashes_by_line.values())
+    available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
 
     log.debug("Available unused lines=%d", len(available_lines))
 
     if not available_lines:
         log.info("All lines used; clearing line history")
         lines_used.clear()
-        available_lines = list(all_lines)
+        available_lines = list(hashes_by_line)
 
-    random.shuffle(available_lines)
+    candidates, hard_excluded, non_empty = build_quote_candidates(
+        lines,
+        available_lines,
+        quote_analysis,
+        today_mm_dd,
+        excluded_quote_hashes=excluded_quote_hashes,
+    )
 
-    for line_no in available_lines:
-        tweet = lines[line_no].rstrip()
-        if tweet:
-            log.debug("Selected line_no=%d text=%r", line_no, tweet)
-            return line_no, tweet
+    log.info(
+        "Quote candidate pool: unused_non_empty=%d hard_excluded_by_date=%d",
+        len(candidates),
+        hard_excluded,
+    )
 
-        log.debug("Skipping empty line_no=%d", line_no)
-        lines_used.add(line_no)
+    if not candidates and non_empty > 0 and hard_excluded == non_empty:
+        log.warning(
+            "Quote cycle is seasonally exhausted: %d unused quote(s) are hard-excluded today; resetting quote cycle",
+            hard_excluded,
+        )
+        lines_used.clear()
+        available_lines = list(hashes_by_line)
+        candidates, hard_excluded, non_empty = build_quote_candidates(
+            lines,
+            available_lines,
+            quote_analysis,
+            today_mm_dd,
+            excluded_quote_hashes=excluded_quote_hashes,
+        )
+        log.info(
+            "Quote candidate pool after seasonal reset: unused_non_empty=%d hard_excluded_by_date=%d",
+            len(candidates),
+            hard_excluded,
+        )
 
+    if not candidates and non_empty > 0:
+        full_candidates, full_hard_excluded, full_non_empty = build_quote_candidates(
+            lines,
+            list(hashes_by_line),
+            quote_analysis,
+            today_mm_dd,
+            excluded_quote_hashes=excluded_quote_hashes,
+        )
+        if full_candidates:
+            log.warning(
+                "Quote cycle is exhausted by currently nonselectable quote(s); resetting quote cycle. "
+                "unused_non_empty=%d full_selectable=%d full_hard_excluded=%d",
+                non_empty,
+                len(full_candidates),
+                full_hard_excluded,
+            )
+            lines_used.clear()
+            candidates = full_candidates
+        elif full_non_empty:
+            log.warning(
+                "No currently selectable analysed quote exists in full corpus. non_empty=%d hard_excluded=%d",
+                full_non_empty,
+                full_hard_excluded,
+            )
+
+    if candidates:
+        return candidates
     raise RuntimeError(f"No non-empty lines found in {LINES_FILE}")
 
 
-def choose_unused_image(images_used: set) -> tuple[int, str]:
-    log.debug("Choosing unused image. Already used=%d", len(images_used))
+def select_quote_candidate(candidates: list[dict]) -> dict:
+    chosen = weighted_random_choice(candidates)
+    log.info(
+        "Selected quote line_no=%d quote_hash=%s weight=%.2f seasonal_boost=%s",
+        chosen["line_no"],
+        chosen.get("quote_hash"),
+        chosen.get("weight", 0.0),
+        bool(chosen.get("season_status", {}).get("in_window")),
+    )
+    log.debug("Selected quote text=%r", chosen["text"])
+    return chosen
 
-    images = glob(IMAGE_GLOB)
-    images.sort()
 
-    log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
+def choose_unused_line_candidate(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> dict:
+    return select_quote_candidate(quote_candidates_for_current_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes))
 
+
+def choose_unused_line(lines_used: set) -> tuple[int, str]:
+    chosen = choose_unused_line_candidate(lines_used)
+    return int(chosen["line_no"]), str(chosen["text"])
+
+
+def available_image_basenames(images: list[str], images_used: set[str], state: dict | None = None) -> tuple[list[str], bool]:
     if not images:
         raise RuntimeError(f"No images found matching {IMAGE_GLOB}")
 
-    all_images = set(range(len(images)))
-    available_images = list(all_images.difference(images_used))
+    basenames = [Path(path).name for path in images]
+    all_basenames = set(basenames)
+    available = sorted(all_basenames.difference(images_used))
+    cycle_reset = False
 
-    log.debug("Available unused images=%d", len(available_images))
-
-    if not available_images:
+    if not available:
         log.info("All images used; clearing image history")
         images_used.clear()
-        available_images = list(all_images)
+        available = sorted(all_basenames)
+        cycle_reset = True
 
-    image_no = random.choice(available_images)
-    image = images[image_no]
+        last_name = str((state or {}).get("last_regular_image_filename") or "")
+        if len(available) > 1 and last_name in available:
+            available.remove(last_name)
+            log.info("Temporarily excluded last regular image at cycle boundary: %s", last_name)
 
-    log.debug("Selected image_no=%d path=%s", image_no, image)
-    return image_no, image
+    return available, cycle_reset
+
+
+def available_currently_eligible_image_basenames(
+    eligible_basenames: set[str],
+    images_used: set[str],
+    state: dict | None = None,
+) -> tuple[list[str], bool]:
+    if not eligible_basenames:
+        raise NoEligibleImageForQuote("No currently eligible regular-post images are available")
+
+    available = sorted(eligible_basenames.difference(images_used))
+    cycle_reset = False
+
+    if not available:
+        log.info("All currently eligible regular-post images used; resetting eligible image cycle")
+        for basename in eligible_basenames:
+            images_used.discard(basename)
+        available = sorted(eligible_basenames)
+        cycle_reset = True
+
+        last_name = str((state or {}).get("last_regular_image_filename") or "")
+        if len(available) > 1 and last_name in available:
+            available.remove(last_name)
+            log.info("Temporarily excluded last regular image at eligible-cycle boundary: %s", last_name)
+
+    return available, cycle_reset
+
+
+def choose_random_unused_image(images_used: set, state: dict | None = None) -> dict:
+    log.debug("Choosing random unused image. Already used=%d", len(images_used))
+
+    images = current_image_paths()
+    log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
+
+    normalised, changed = normalise_image_used_basenames(images_used, images)
+    if changed:
+        images_used.clear()
+        images_used.update(normalised)
+
+    available, cycle_reset = available_image_basenames(images, images_used, state)
+    selected_basename = random.choice(available)
+    image_by_name = {Path(path).name: path for path in images}
+    selected_path = image_by_name[selected_basename]
+    image_no = images.index(selected_path)
+
+    log.info(
+        "Selected random image basename=%s image_no=%d cycle_reset=%s used_count=%d remaining_count=%d",
+        selected_basename,
+        image_no,
+        cycle_reset,
+        len(images_used),
+        len(available),
+    )
+    return {
+        "image_no": image_no,
+        "path": selected_path,
+        "basename": selected_basename,
+        "score": None,
+        "components": {},
+        "cycle_reset": cycle_reset,
+    }
+
+
+def choose_unused_image(images_used: set) -> tuple[int, str]:
+    chosen = choose_random_unused_image(images_used)
+    return int(chosen["image_no"]), str(chosen["path"])
+
+
+def current_image_sha256(path: str) -> str:
+    return file_sha256(Path(path))
+
+
+def image_metadata_for_basename(image_analysis: dict | None, basename: str, path: str | None = None) -> tuple[str | None, dict | None]:
+    if not isinstance(image_analysis, dict):
+        return None, None
+    image_hash = (image_analysis.get("path_index") or {}).get(basename)
+    if not image_hash:
+        log.warning("Image %s is absent from image analysis; excluding until analysed", basename)
+        raise StaleImageMetadata(f"Image metadata missing for {basename}")
+    image_hash = str(image_hash)
+    if path is not None:
+        try:
+            current_hash = current_image_sha256(path)
+        except Exception:
+            log.exception("Could not hash current image for metadata validation: %s", path)
+            raise StaleImageMetadata(f"Image content could not be verified for {basename}")
+        if current_hash != image_hash:
+            log.warning(
+                "Image metadata stale for basename=%s: current_hash=%s analysed_hash=%s; excluding until reanalysed",
+                basename,
+                current_hash,
+                image_hash,
+            )
+            raise StaleImageMetadata(f"Image metadata stale for {basename}")
+    item = (image_analysis.get("items") or {}).get(str(image_hash), {})
+    analysis = item.get("analysis") if isinstance(item, dict) else None
+    if not isinstance(analysis, dict):
+        log.warning("Image %s has no valid per-image analysis for hash=%s; excluding until reanalysed", basename, image_hash)
+        raise StaleImageMetadata(f"Image analysis missing or invalid for {basename}")
+    return str(image_hash), analysis
+
+
+def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dict) -> dict:
+    images = current_image_paths()
+    log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
+    if not images:
+        raise RuntimeError(f"No images found matching {IMAGE_GLOB}")
+
+    image_analysis = load_image_analysis()
+    normalised, changed = normalise_image_used_basenames(images_used, images, image_analysis)
+    if changed:
+        images_used.clear()
+        images_used.update(normalised)
+        save_image_used_basenames(IMAGES_USED_FILE, normalised)
+    if image_used_history_has_legacy_indices(images_used):
+        raise UnsafeImageHistoryMigration(
+            "Image used-history still contains legacy integer entries; refusing regular image posting until full analysed corpus is visible"
+        )
+
+    image_by_name = {Path(path).name: path for path in images}
+
+    if image_analysis is None:
+        raise GlobalImageUnavailable("Image analysis unavailable or invalid; refusing regular quote/image posting")
+
+    today_mm_dd = current_datetime().strftime("%m-%d")
+    idf = build_image_topic_idf(image_analysis)
+    eligible_basenames: set[str] = set()
+    seasonally_excluded = 0
+    stale_excluded = 0
+    for basename in image_by_name:
+        try:
+            _, analysis = image_metadata_for_basename(image_analysis, basename, image_by_name[basename])
+        except StaleImageMetadata:
+            stale_excluded += 1
+            continue
+        if analysis is not None and image_is_out_of_season(analysis, today_mm_dd):
+            seasonally_excluded += 1
+            log.info("Skipping image %s: seasonal image outside appropriate window", basename)
+            continue
+        eligible_basenames.add(basename)
+
+    if not eligible_basenames:
+        raise GlobalImageUnavailable("No analysed currently eligible regular-post images are available")
+
+    available, cycle_reset = available_currently_eligible_image_basenames(eligible_basenames, images_used, state)
+    log.info(
+        "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d cycle_reset=%s",
+        len(images_used),
+        len(eligible_basenames),
+        len(available),
+        seasonally_excluded,
+        stale_excluded,
+        cycle_reset,
+    )
+
+    if not available:
+        raise GlobalImageUnavailable("No currently unused eligible regular-post images are available")
+
+    scored: list[dict] = []
+    for basename in available:
+        try:
+            image_hash, analysis = image_metadata_for_basename(image_analysis, basename, image_by_name[basename])
+        except StaleImageMetadata:
+            log.info("Skipping image %s: stale analysed content", basename)
+            continue
+        score, components, eligible = score_image_for_quote(quote_choice.get("analysis"), analysis, idf)
+        if not eligible:
+            log.info("Skipping image %s: strong visual mismatch with selected quote", basename)
+            continue
+        path = image_by_name[basename]
+        scored.append(
+            {
+                "image_no": images.index(path),
+                "path": path,
+                "basename": basename,
+                "image_hash": image_hash,
+                "score": score,
+                "components": components,
+                "cycle_reset": cycle_reset,
+            }
+        )
+
+    if not scored:
+        raise QuoteSpecificImageMismatch("No metadata-eligible regular-post images matched the selected quote")
+
+    best_score = max(float(item["score"]) for item in scored)
+    tied = [item for item in scored if float(item["score"]) == best_score]
+    chosen = random.choice(tied)
+
+    log.info(
+        "Selected matched image basename=%s image_no=%d score=%.2f components=%s",
+        chosen["basename"],
+        chosen["image_no"],
+        chosen["score"],
+        concise_components(chosen["components"]),
+    )
+    for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
+        log.debug(
+            "Image match candidate basename=%s score=%.2f components=%s",
+            item["basename"],
+            item["score"],
+            concise_components(item["components"]),
+        )
+    return chosen
 
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     log.info("Starting quote/image post cycle")
 
-    line_no, tweet = choose_unused_line(lines_used)
-    image_no, image = choose_unused_image(images_used)
+    receipt_status = reconcile_main_post_receipts(lines_used, images_used, state)
+    if receipt_status.get("regular"):
+        log.warning("Reconciled regular quote/image receipt; not creating a second regular post in the same call")
+        return
+    original_lines_used = set(lines_used)
+    original_images_used = set(images_used)
 
-    log.info("Posting quote/image. line_no=%d image_no=%d image=%s", line_no, image_no, image)
-    log.debug("Quote text=%r", tweet)
+    try:
+        if quote_used_history_has_legacy_indices(lines_used):
+            raise CorruptUsedHistoryError(
+                "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
+            )
 
-    media_id = upload_media(image)
+        attempted_quote_hashes: set[str] = set()
+        quote_choice = None
+        image_choice = None
+        attempts = 0
+        while attempts < MAX_QUOTE_IMAGE_PAIR_ATTEMPTS:
+            attempts += 1
+            try:
+                quote_choice = choose_unused_line_candidate(lines_used, excluded_quote_hashes=attempted_quote_hashes)
+            except RuntimeError:
+                if attempted_quote_hashes:
+                    break
+                raise
+            attempted_quote_hashes.add(str(quote_choice["quote_hash"]))
+            try:
+                image_choice = choose_matched_unused_image(images_used, quote_choice, state)
+                if attempts > 1:
+                    log.info(
+                        "Selected alternate quote/image pair after %d attempt(s). line_no=%s image=%s",
+                        attempts,
+                        quote_choice.get("line_no"),
+                        image_choice.get("basename"),
+                    )
+                break
+            except QuoteSpecificImageMismatch as exc:
+                log.warning(
+                    "Selected quote line_no=%s quote_hash=%s could not be paired with any currently eligible unused image: %s",
+                    quote_choice.get("line_no"),
+                    quote_choice.get("quote_hash"),
+                    exc,
+                )
+                quote_choice = None
+                image_choice = None
 
-    response = create_post(
-        text=tweet,
-        media_ids=[media_id],
-        reply_to_id=None,
-        made_with_ai=False,
-    )
+        if quote_choice is None or image_choice is None:
+            raise RuntimeError(
+                f"No eligible regular quote/image pair found after {attempts} attempt(s); used histories unchanged"
+            )
 
-    posted_id = response.get("data", {}).get("id")
-    log.debug("Posted_id=%s", posted_id)
+        line_no = int(quote_choice["line_no"])
+        quote_hash = str(quote_choice["quote_hash"])
+        tweet = str(quote_choice["text"])
+        image_no = int(image_choice["image_no"])
+        image = str(image_choice["path"])
+        image_basename = str(image_choice["basename"])
+        quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
+        meme_delay = (
+            random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
+            if ENABLE_DAILY_MEME_POSTS
+            else None
+        )
 
-    if posted_id:
+        log.info(
+            "Posting quote/image. line_no=%d quote_hash=%s image_no=%d image=%s image_score=%s",
+            line_no,
+            quote_hash,
+            image_no,
+            image,
+            image_choice.get("score"),
+        )
+        log.debug("Quote text=%r", tweet)
+
+        media_id = upload_media(image)
+        response = create_post(
+            text=tweet,
+            media_ids=[media_id],
+            reply_to_id=None,
+            made_with_ai=False,
+        )
+        posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
+        log.debug("Posted_id=%s", posted_id)
+
+        if not valid_post_id(posted_id):
+            raise RuntimeError("Quote/image post did not return a valid post id; used histories unchanged")
+    except Exception:
+        lines_used.clear()
+        lines_used.update(original_lines_used)
+        images_used.clear()
+        images_used.update(original_images_used)
+        raise
+
+    try:
         quote_post_epoch = now_epoch()
+        state["next_quote_post_epoch"] = int(quote_post_epoch) + int(quote_delay)
+        quote_schedule_fields, _quote_delay = next_quote_schedule_fields(quote_post_epoch, delay=quote_delay)
+        meme_schedule_fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch, delay=meme_delay)
+        meme_schedule_changed_by_quote = bool(meme_schedule_fields)
+        receipt = {
+            "schema_version": 1,
+            "post_id": str(posted_id),
+            "quote_hash": quote_hash,
+            "line_no": line_no,
+            "source_line_number": line_no + 1,
+            "text": tweet,
+            "image_basename": image_basename,
+            "quote_post_epoch": quote_post_epoch,
+            "next_quote_post_epoch": int(quote_schedule_fields["next_quote_post_epoch"]),
+            "next_meme_post_epoch": int(meme_schedule_fields.get("next_meme_post_epoch", state.get("next_meme_post_epoch", 0) or 0) or 0),
+            "next_meme_schedule_mode": str(meme_schedule_fields.get("next_meme_schedule_mode", state.get("next_meme_schedule_mode", "")) or ""),
+            "next_meme_schedule_date": str(meme_schedule_fields.get("next_meme_schedule_date", state.get("next_meme_schedule_date", "")) or ""),
+            "meme_anchor_quote_post_epoch": int(meme_schedule_fields.get("meme_anchor_quote_post_epoch", state.get("meme_anchor_quote_post_epoch", 0) or 0) or 0),
+            "meme_schedule_changed_by_quote": meme_schedule_changed_by_quote,
+        }
+        write_regular_post_receipt(receipt)
+    except Exception as exc:
+        log.critical(
+            "Confirmed regular quote/image post_id=%s but failed writing recovery receipt; in-memory used histories remain marked",
+            posted_id,
+            exc_info=True,
+        )
+        lines_used.add(quote_hash)
+        images_used.add(image_basename)
+        state["last_main_post_id"] = str(posted_id)
+        if "quote_post_epoch" in locals():
+            state["last_quote_post_epoch"] = quote_post_epoch
+        state["last_regular_image_filename"] = image_basename
+        if "quote_schedule_fields" in locals():
+            apply_state_fields(state, quote_schedule_fields)
+        if "meme_schedule_fields" in locals():
+            apply_state_fields(state, meme_schedule_fields)
+        try:
+            cache_tweet(
+                state,
+                tweet_id=str(posted_id),
+                text=tweet,
+                author_id=str(MY_USER_ID),
+                conversation_id=str(posted_id),
+                referenced_tweets=[],
+                post_type="quote",
+            )
+            record_recent_own_post(state, str(posted_id))
+        except Exception:
+            log.critical("Emergency in-memory cache/recent update failed after confirmed regular post", exc_info=True)
+        failures = emergency_persist_confirmed_regular_post(lines_used, images_used, state)
+        failure_text = ", ".join(failures) if failures else "receipt"
+        raise ConfirmedPostLocalPersistenceError(
+            f"Confirmed regular quote/image post {posted_id} but failed local recovery receipt/persistence: {failure_text}"
+        ) from exc
+
+    try:
+        lines_used.add(quote_hash)
+        images_used.add(image_basename)
         state["last_main_post_id"] = str(posted_id)
         state["last_quote_post_epoch"] = quote_post_epoch
-
-        maybe_schedule_meme_after_quote_post(state, quote_post_epoch)
-
+        state["last_regular_image_filename"] = image_basename
+        apply_state_fields(state, quote_schedule_fields)
+        apply_state_fields(state, meme_schedule_fields)
         cache_tweet(
             state,
             tweet_id=str(posted_id),
@@ -2956,17 +4718,24 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             referenced_tweets=[],
             post_type="quote",
         )
-
         record_recent_own_post(state, str(posted_id))
-        save_state(state)
+        save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+        remove_regular_post_receipt()
+    except Exception as exc:
+        log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
+        raise ConfirmedPostLocalPersistenceError(
+            f"Confirmed regular quote/image post {posted_id} but protected local persistence failed"
+        ) from exc
 
-    lines_used.add(line_no)
-    save_used_set(LINES_USED_FILE, lines_used)
-
-    images_used.add(image_no)
-    save_used_set(IMAGES_USED_FILE, images_used)
-
-    log_event("main_post_posted", lane="quote_image", post_id=posted_id, line_no=line_no, image_no=image_no)
+    log_event(
+        "main_post_posted",
+        lane="quote_image",
+        post_id=posted_id,
+        line_no=line_no,
+        image_no=image_no,
+        image_basename=image_basename,
+        image_score=image_choice.get("score"),
+    )
     log.info("Quote/image posted successfully. posted_id=%s", posted_id)
 
 
@@ -3130,20 +4899,52 @@ def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
     return int(target.timestamp())
 
 
-def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> None:
+def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> dict:
+    next_epoch = next_meme_fallback_epoch(state, from_epoch)
+    return {
+        "next_meme_post_epoch": next_epoch,
+        "meme_schedule_version": MEME_SCHEDULE_VERSION,
+        "next_meme_schedule_mode": mode,
+        "next_meme_schedule_date": epoch_date_str(next_epoch),
+        "meme_anchor_quote_post_epoch": 0,
+    }
+
+
+def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
+    if mode not in MEME_SCHEDULE_MODES or mode in {"", "after_first_quote_after_midday"}:
+        raise ValueError(f"Unsupported non-quote meme delay schedule mode: {mode}")
+    return {
+        "next_meme_post_epoch": int(epoch),
+        "meme_schedule_version": MEME_SCHEDULE_VERSION,
+        "next_meme_schedule_mode": mode,
+        "next_meme_schedule_date": epoch_date_str(int(epoch)),
+        "meme_anchor_quote_post_epoch": 0,
+    }
+
+
+def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = True) -> None:
+    apply_state_fields(state, meme_delay_schedule_fields(epoch, mode))
+    if save:
+        save_state(state)
+
+
+def apply_state_fields(state: dict, fields: dict) -> None:
+    for key, value in fields.items():
+        state[key] = value
+
+
+def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: str = "fallback", *, save: bool = True) -> None:
     """
     Schedule the fallback daily meme time. This is deliberately later than the
     preferred organic timing. If a quote/image post happens after midday first,
     maybe_schedule_meme_after_quote_post() will replace this fallback with a
     random 35-75 minute delay after that post.
     """
-    next_epoch = next_meme_fallback_epoch(state, from_epoch)
-    state["next_meme_post_epoch"] = next_epoch
-    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-    state["next_meme_schedule_mode"] = mode
-    state["next_meme_schedule_date"] = epoch_date_str(next_epoch)
-    state["meme_anchor_quote_post_epoch"] = 0
-    save_state(state)
+    fields = next_meme_schedule_fields(state, from_epoch, mode)
+    apply_state_fields(state, fields)
+    next_epoch = int(fields["next_meme_post_epoch"])
+    if save:
+        save_state(state)
 
     log.info(
         "Next meme fallback scheduled at %s mode=%s",
@@ -3184,9 +4985,9 @@ def ensure_meme_schedule_initialized(state: dict) -> None:
     )
 
 
-def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None) -> None:
+def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
     if not ENABLE_DAILY_MEME_POSTS:
-        return
+        return {}
 
     if quote_post_epoch is None:
         quote_post_epoch = now_epoch()
@@ -3199,33 +5000,48 @@ def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | No
             "Quote/image post was before meme trigger hour %02d:00; not scheduling daily meme from it",
             MEME_TRIGGER_AFTER_HOUR,
         )
-        return
+        return {}
 
     if meme_posted_on_date(state, quote_date):
         log.info("Daily meme already posted on %s; not scheduling another", quote_date)
-        return
+        return {}
 
     next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
     next_mode = str(state.get("next_meme_schedule_mode", "") or "")
 
     if next_epoch:
-        next_date = epoch_date_str(next_epoch)
-        if next_date == quote_date and next_mode == "after_first_quote_after_midday":
+        next_schedule_date = str(state.get("next_meme_schedule_date", "") or "")
+        if next_schedule_date == quote_date and next_mode == "after_first_quote_after_midday":
             log.info(
                 "Daily meme already scheduled from first post after midday at %s; not rescheduling",
                 datetime.fromtimestamp(next_epoch).strftime("%Y-%m-%d %H:%M:%S"),
             )
-            return
+            return {}
 
-    delay = random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
+    if delay is None:
+        delay = random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
     scheduled_epoch = int(quote_post_epoch) + delay
+    return {
+        "next_meme_post_epoch": scheduled_epoch,
+        "meme_schedule_version": MEME_SCHEDULE_VERSION,
+        "next_meme_schedule_mode": "after_first_quote_after_midday",
+        "next_meme_schedule_date": quote_date,
+        "meme_anchor_quote_post_epoch": int(quote_post_epoch),
+    }
 
-    state["next_meme_post_epoch"] = scheduled_epoch
-    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-    state["next_meme_schedule_mode"] = "after_first_quote_after_midday"
-    state["next_meme_schedule_date"] = quote_date
-    state["meme_anchor_quote_post_epoch"] = int(quote_post_epoch)
-    save_state(state)
+
+def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
+    fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch)
+    if not fields:
+        return
+    apply_state_fields(state, fields)
+    if save:
+        save_state(state)
+
+    if quote_post_epoch is None:
+        quote_post_epoch = now_epoch()
+    scheduled_epoch = int(fields["next_meme_post_epoch"])
+    delay = scheduled_epoch - int(quote_post_epoch)
 
     log.info(
         "Daily meme scheduled for %s: %d seconds after first quote/image post after %02d:00",
@@ -3237,6 +5053,17 @@ def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | No
 
 def post_next_meme(state: dict) -> None:
     log.info("Starting daily meme post cycle")
+    if both_main_post_receipts_exist():
+        log.critical(
+            "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+        )
+        raise InvalidMemePostReceipt("Both main-post receipts exist; manual recovery required")
+    if reconcile_meme_post_receipt(state):
+        log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
+        return
+    block_if_unresolved_regular_post_receipt()
 
     meme_path = choose_next_meme(state)
 
@@ -3260,17 +5087,73 @@ def post_next_meme(state: dict) -> None:
         made_with_ai=False,
     )
 
-    posted_id = response.get("data", {}).get("id")
+    posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
     log.debug("Posted meme id=%s", posted_id)
 
-    if posted_id:
-        state["last_main_post_id"] = str(posted_id)
-        state["last_meme_post_epoch"] = now_epoch()
+    if not valid_post_id(posted_id):
+        raise RuntimeError("Daily meme post did not return a valid post id; meme state unchanged")
 
+    try:
+        meme_post_epoch = now_epoch()
+        apply_state_fields(state, meme_delay_schedule_fields(int(meme_post_epoch) + 3600, "delayed_exception"))
+        planned_state = copy.deepcopy(state)
+        planned_state["last_meme_post_epoch"] = meme_post_epoch
+        planned_posted = set(str(x) for x in planned_state.get("posted_meme_filenames", []))
+        planned_posted.add(meme_path.name)
+        planned_state["posted_meme_filenames"] = sorted(planned_posted)
+        meme_schedule_fields = next_meme_schedule_fields(planned_state, meme_post_epoch, mode="fallback")
+        receipt = {
+            "schema_version": 1,
+            "post_id": str(posted_id),
+            "meme_basename": meme_path.name,
+            "meme_post_epoch": meme_post_epoch,
+            "next_meme_post_epoch": int(meme_schedule_fields["next_meme_post_epoch"]),
+            "next_meme_schedule_mode": str(meme_schedule_fields.get("next_meme_schedule_mode") or "fallback"),
+            "text": MEME_POST_TEXT,
+            "image_summary": image_summary,
+        }
+        write_meme_post_receipt(receipt)
+    except Exception as exc:
+        log.critical(
+            "Confirmed meme post_id=%s but failed writing recovery receipt; attempting direct durable state save",
+            posted_id,
+            exc_info=True,
+        )
+        try:
+            state["last_main_post_id"] = str(posted_id)
+            if "meme_post_epoch" in locals():
+                state["last_meme_post_epoch"] = meme_post_epoch
+            posted = set(str(x) for x in state.get("posted_meme_filenames", []))
+            posted.add(meme_path.name)
+            state["posted_meme_filenames"] = sorted(posted)
+            if "meme_schedule_fields" in locals():
+                apply_state_fields(state, meme_schedule_fields)
+            try:
+                cache_tweet(
+                    state,
+                    tweet_id=str(posted_id),
+                    text=MEME_POST_TEXT,
+                    author_id=str(MY_USER_ID),
+                    conversation_id=str(posted_id),
+                    referenced_tweets=[],
+                    image_summary=image_summary,
+                    post_type="daily_meme",
+                )
+                record_recent_own_post(state, str(posted_id))
+            except Exception:
+                log.critical("Emergency in-memory cache/recent update failed after confirmed meme post", exc_info=True)
+            save_state(state, durable=True)
+        except Exception:
+            log.critical("Emergency state persistence failed after confirmed meme post", exc_info=True)
+        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but failed writing recovery receipt") from exc
+
+    try:
+        state["last_main_post_id"] = str(posted_id)
+        state["last_meme_post_epoch"] = meme_post_epoch
         posted = set(str(x) for x in state.get("posted_meme_filenames", []))
         posted.add(meme_path.name)
         state["posted_meme_filenames"] = sorted(posted)
-
+        apply_state_fields(state, meme_schedule_fields)
         cache_tweet(
             state,
             tweet_id=str(posted_id),
@@ -3281,14 +5164,20 @@ def post_next_meme(state: dict) -> None:
             image_summary=image_summary,
             post_type="daily_meme",
         )
-
         record_recent_own_post(state, str(posted_id))
-        save_state(state)
+        save_state(state, durable=True)
+    except Exception:
+        log.critical("Confirmed meme post_id=%s but durable state save failed; receipt remains for reconciliation", posted_id, exc_info=True)
+        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
+    try:
+        remove_meme_post_receipt()
+    except Exception as exc:
+        log.critical("Confirmed meme post_id=%s but receipt removal failed after durable state save", posted_id, exc_info=True)
+        raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but receipt removal failed") from exc
 
     log_event("main_post_posted", lane="daily_meme", post_id=posted_id, filename=meme_path.name)
     log.info("Daily meme posted successfully. posted_id=%s file=%s", posted_id, meme_path.name)
 
-    schedule_next_meme_post(state)
 
 
 # ---------------------------------------------------------------------
@@ -4512,13 +6401,20 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 # Main loop
 # ---------------------------------------------------------------------
 
-def schedule_next_quote_post(state: dict, from_epoch: int | None = None) -> None:
+def next_quote_schedule_fields(from_epoch: int | None = None, *, delay: int | None = None) -> tuple[dict, int]:
     if from_epoch is None:
         from_epoch = now_epoch()
 
-    delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
-    state["next_quote_post_epoch"] = from_epoch + delay
-    save_state(state)
+    if delay is None:
+        delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
+    return {"next_quote_post_epoch": int(from_epoch) + delay}, delay
+
+
+def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save: bool = True) -> None:
+    fields, delay = next_quote_schedule_fields(from_epoch)
+    apply_state_fields(state, fields)
+    if save:
+        save_state(state)
 
     log.info(
         "Next quote/image post in %d seconds at %s",
@@ -4726,9 +6622,12 @@ def main() -> None:
         meme_candidates_at_start = list_meme_candidates()
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
-    lines_used = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
-    images_used = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
+    with open(LINES_FILE, encoding="utf-8") as f:
+        quote_lines_for_history = f.readlines()
+    lines_used = load_quote_used_hashes(quote_lines_for_history)
+    images_used = load_image_used_basenames(current_image_paths())
     state = load_runtime_state()
+    reconcile_main_post_receipts(lines_used, images_used, state)
 
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
@@ -4786,15 +6685,21 @@ def main() -> None:
                 log.warning("Skipping quote/image post due to X write API cooldown")
                 schedule_next_quote_post(state, current)
             else:
+                quote_posted = False
                 try:
                     post_random_quote(lines_used, images_used, state)
+                    quote_posted = True
+                except ConfirmedPostLocalPersistenceError:
+                    quote_posted = True
+                    log.exception("Quote/image post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
                 except ApiError as e:
                     log.exception("Quote/image posting failed due to API error")
                     record_api_error(state, e, "x", scope="write")
                 except Exception:
                     log.exception("Quote/image posting failed unexpectedly")
 
-                schedule_next_quote_post(state, current)
+                if not quote_posted:
+                    schedule_next_quote_post(state, current)
         else:
             log.debug(
                 "Not due to post quote/image. seconds_until_next=%s",
@@ -4811,46 +6716,28 @@ def main() -> None:
 
                 if lane_paused("disable_meme_posts"):
                     log.warning("Skipping daily meme post due to runtime control file; retrying in 5 minutes")
-                    state["next_meme_post_epoch"] = current + 300
-                    state["next_meme_schedule_mode"] = "delayed_runtime_control"
-                    state["next_meme_schedule_date"] = epoch_date_str(current + 300)
-                    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-                    save_state(state)
+                    set_meme_delay_schedule(state, epoch=current + 300, mode="delayed_runtime_control")
                 elif seconds_since_quote < MEME_MIN_SECONDS_AFTER_QUOTE_POST:
                     log.info(
                         "Meme post due, but delaying because last quote post was %d seconds ago",
                         seconds_since_quote,
                     )
-                    state["next_meme_post_epoch"] = current + 1800
-                    state["next_meme_schedule_mode"] = "delayed_recent_quote"
-                    state["next_meme_schedule_date"] = epoch_date_str(current + 1800)
-                    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-                    save_state(state)
+                    set_meme_delay_schedule(state, epoch=current + 1800, mode="delayed_recent_quote")
                 elif in_api_cooldown(state, scope="write"):
                     log.warning("Skipping daily meme post due to X write API cooldown")
-                    state["next_meme_post_epoch"] = current + 3600
-                    state["next_meme_schedule_mode"] = "delayed_write_api_cooldown"
-                    state["next_meme_schedule_date"] = epoch_date_str(current + 3600)
-                    state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-                    save_state(state)
+                    set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_write_api_cooldown")
                 else:
                     try:
                         post_next_meme(state)
+                    except ConfirmedPostLocalPersistenceError:
+                        log.exception("Daily meme post was confirmed remotely but local recovery/persistence failed; not scheduling an error retry")
                     except ApiError as e:
                         log.exception("Daily meme posting failed due to API error")
                         record_api_error(state, e, "x", scope="write")
-                        state["next_meme_post_epoch"] = current + 3600
-                        state["next_meme_schedule_mode"] = "delayed_api_error"
-                        state["next_meme_schedule_date"] = epoch_date_str(current + 3600)
-                        state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-                        save_state(state)
+                        set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_api_error")
                     except Exception:
                         log.exception("Daily meme posting failed unexpectedly")
-                        state["next_meme_post_epoch"] = current + 3600
-                        state["next_meme_schedule_mode"] = "delayed_exception"
-                        state["next_meme_schedule_date"] = epoch_date_str(current + 3600)
-                        state["meme_schedule_version"] = MEME_SCHEDULE_VERSION
-                        save_state(state)
+                        set_meme_delay_schedule(state, epoch=current + 3600, mode="delayed_exception")
             else:
                 log.debug(
                     "Not due to post daily meme. seconds_until_next=%s",
@@ -5085,6 +6972,11 @@ def require_test_mode(command_name: str) -> bool:
     return True
 
 
+def prepare_test_main_post_state(state: dict) -> None:
+    if ENABLE_DAILY_MEME_POSTS:
+        ensure_meme_schedule_initialized(state)
+
+
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
     if not require_test_mode("--test-post-quote"):
@@ -5094,17 +6986,28 @@ def run_test_post_quote() -> int:
 
     log.info("Running one test quote/image post cycle")
     state = load_runtime_state()
+    prepare_test_main_post_state(state)
 
     if lane_paused("disable_quote_posts"):
         log.warning("Skipping test quote/image post due to runtime control file")
         save_state(state)
         return 0
 
-    lines_used = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
-    images_used = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
+    with open(LINES_FILE, encoding="utf-8") as f:
+        quote_lines_for_history = f.readlines()
+    lines_used = load_quote_used_hashes(quote_lines_for_history)
+    images_used = load_image_used_basenames(current_image_paths())
 
     try:
         post_random_quote(lines_used, images_used, state)
+    except ConfirmedPostLocalPersistenceError:
+        log.critical(
+            "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
+            "Test quote/image local persistence/recovery needs attention.",
+            exc_info=True,
+        )
+        save_state(state)
+        return 3
     except ApiError as exc:
         log.exception("Test quote/image post failed due to API error")
         record_api_error(state, exc, "x", scope="write")
@@ -5128,6 +7031,7 @@ def run_test_post_meme() -> int:
 
     log.info("Running one test daily meme post cycle")
     state = load_runtime_state()
+    prepare_test_main_post_state(state)
 
     if lane_paused("disable_meme_posts"):
         log.warning("Skipping test daily meme post due to runtime control file")
@@ -5136,6 +7040,14 @@ def run_test_post_meme() -> int:
 
     try:
         post_next_meme(state)
+    except ConfirmedPostLocalPersistenceError:
+        log.critical(
+            "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY. "
+            "Test daily meme local persistence/recovery needs attention.",
+            exc_info=True,
+        )
+        save_state(state)
+        return 3
     except ApiError as exc:
         log.exception("Test daily meme post failed due to API error")
         record_api_error(state, exc, "x", scope="write")
