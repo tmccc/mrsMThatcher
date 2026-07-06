@@ -497,7 +497,7 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     """Return validation errors for runtime config values.
 
     This is intentionally conservative for local overrides. Script defaults are
-    expected to pass, and invalid local values are rolled back before startup.
+    expected to pass, and invalid local override sets are rejected atomically.
     """
     errors: list[str] = []
 
@@ -597,13 +597,9 @@ def apply_local_config() -> None:
         log.error("Local config file %s is not a JSON object; ignoring it", LOCAL_CONFIG_FILE)
         return
 
-    applied: dict[str, object] = {}
     ignored: list[str] = []
-    original_values = {
-        key: globals()[key]
-        for key in data
-        if key in LOCAL_CONFIG_ALLOWED_KEYS and key in globals()
-    }
+    proposed: dict[str, object] = {}
+    coercion_errors: list[str] = []
 
     for key, value in data.items():
         if key not in LOCAL_CONFIG_ALLOWED_KEYS or key not in globals():
@@ -614,49 +610,44 @@ def apply_local_config() -> None:
             coerced = _coerce_local_config_value(key, value, globals()[key])
         except Exception as exc:
             log.error("Ignoring invalid local config override %s=%r: %s", key, value, exc)
+            coercion_errors.append(f"{key}: {exc}")
             continue
 
-        globals()[key] = coerced
-        applied[key] = coerced
-
-    for key in list(applied):
-        trial = {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
-        errors = validate_runtime_config_values(trial)
-        if not errors:
-            break
-
-        if key not in original_values:
-            continue
-
-        current_value = globals()[key]
-        globals()[key] = original_values[key]
-        trial[key] = original_values[key]
-        remaining_errors = validate_runtime_config_values(
-            {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
-        )
-        if len(remaining_errors) < len(errors):
-            log.error(
-                "Ignoring unsafe local config override %s=%r: %s",
-                key,
-                current_value,
-                "; ".join(errors),
-            )
-            applied.pop(key, None)
-        else:
-            globals()[key] = current_value
-
-    final_errors = validate_runtime_config_values(
-        {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
-    )
-    for error in final_errors:
-        log.error("Runtime config validation warning: %s", error)
+        proposed[key] = coerced
 
     if ignored:
         log.warning("Ignoring unsupported local config key(s): %s", ", ".join(sorted(ignored)))
 
-    if applied:
-        log.info("Applied %d local config override(s) from %s", len(applied), LOCAL_CONFIG_FILE)
-        log_json_debug("Local config overrides applied", applied)
+    if coercion_errors:
+        log.error(
+            "Ignoring local config override set from %s; no overrides applied because %d supported value(s) were invalid: %s",
+            LOCAL_CONFIG_FILE,
+            len(coercion_errors),
+            "; ".join(coercion_errors),
+        )
+        return
+
+    if proposed:
+        original_values = {
+            name: globals()[name]
+            for name in LOCAL_CONFIG_ALLOWED_KEYS
+            if name in globals()
+        }
+        candidate = dict(original_values)
+        candidate.update(proposed)
+        validation_errors = validate_runtime_config_values(candidate)
+        if validation_errors:
+            log.error(
+                "Ignoring local config override set from %s; no overrides applied because candidate config is invalid: %s",
+                LOCAL_CONFIG_FILE,
+                "; ".join(validation_errors),
+            )
+            return
+
+        for key, value in proposed.items():
+            globals()[key] = value
+        log.info("Applied %d local config override(s) from %s", len(proposed), LOCAL_CONFIG_FILE)
+        log_json_debug("Local config overrides applied", proposed)
     else:
         log.info("Local config file present but no valid overrides applied: %s", LOCAL_CONFIG_FILE)
 

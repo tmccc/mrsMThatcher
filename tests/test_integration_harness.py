@@ -3001,7 +3001,8 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "Ignoring unsafe local config override" in result.stdout
+        assert "Ignoring local config override set" in result.stdout
+        assert "no overrides applied" in result.stdout
         assert read_json(base_dir / "bot_state.json")["replied_to_ids"] == ["100"]
     finally:
         server.stop()
@@ -3024,13 +3025,15 @@ def test_runtime_config_validation_rejects_unsafe_domain_values(tmp_path: Path) 
         )
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
-        assert "Ignoring unsafe local config override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "Ignoring unsafe local config override QUOTE_LOOKUP_API_MAX_RESULTS" in result.stdout
-        assert "Ignoring unsafe local config override HOT_POST_REPLY_SEARCH_API_MAX_RESULTS" in result.stdout
-        assert "Ignoring unsafe local config override REPLY_CHECK_EVERY_SECONDS" in result.stdout
-        assert "Ignoring unsafe local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
-        assert "Ignoring unsafe local config override MEME_FALLBACK_HOUR" in result.stdout
-        assert "Ignoring unsafe local config override MEME_FALLBACK_MINUTE" in result.stdout
+        assert "Ignoring local config override set" in result.stdout
+        assert "no overrides applied because candidate config is invalid" in result.stdout
+        assert "MAX_MENTIONS_PER_CHECK must be between 5 and 100" in result.stdout
+        assert "QUOTE_LOOKUP_API_MAX_RESULTS must be between 10 and 100" in result.stdout
+        assert "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100" in result.stdout
+        assert "REPLY_CHECK_EVERY_SECONDS must be positive" in result.stdout
+        assert "MIN_SECONDS_BETWEEN_REPLIES must be positive" in result.stdout
+        assert "MEME_FALLBACK_HOUR must be between 0 and 23" in result.stdout
+        assert "MEME_FALLBACK_MINUTE must be between 0 and 59" in result.stdout
     finally:
         server.stop()
 

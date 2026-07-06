@@ -3322,3 +3322,139 @@ def test_local_config_coercion_rejects_negative_and_nonpositive_timings() -> Non
 
     with pytest.raises(ValueError):
         bot._coerce_local_config_value("MAX_AUTO_REPLIES_PER_DAY", 0, bot.MAX_AUTO_REPLIES_PER_DAY)
+
+
+def apply_local_config_for_test(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    data: dict[str, object],
+    *,
+    initial: dict[str, object] | None = None,
+) -> dict[str, object]:
+    config_file = tmp_path / "mrsMThatcher.local.json"
+    config_file.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", config_file)
+    for key, value in (initial or {}).items():
+        monkeypatch.setattr(bot, key, value)
+    before = {
+        key: getattr(bot, key)
+        for key in bot.LOCAL_CONFIG_ALLOWED_KEYS
+        if hasattr(bot, key)
+    }
+    bot.apply_local_config()
+    return before
+
+
+def test_local_config_interacting_invalid_overrides_are_atomic(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {"POST_SLEEP_MIN": 10000, "POST_SLEEP_MAX": 5000},
+        initial={"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 9000},
+    )
+
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+
+
+def test_local_config_valid_multi_key_override_applies_atomically(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {
+            "POST_SLEEP_MIN": 8000,
+            "POST_SLEEP_MAX": 8200,
+            "ENABLE_DAILY_MEME_POSTS": False,
+            "MAX_MENTIONS_PER_CHECK": 10,
+        },
+        initial={
+            "POST_SLEEP_MIN": 7200,
+            "POST_SLEEP_MAX": 9000,
+            "ENABLE_DAILY_MEME_POSTS": True,
+            "MAX_MENTIONS_PER_CHECK": 5,
+        },
+    )
+
+    assert bot.POST_SLEEP_MIN == 8000
+    assert bot.POST_SLEEP_MAX == 8200
+    assert bot.ENABLE_DAILY_MEME_POSTS is False
+    assert bot.MAX_MENTIONS_PER_CHECK == 10
+
+
+def test_local_config_coercion_failure_rejects_whole_transaction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {"POST_SLEEP_MIN": 8000, "POST_SLEEP_MAX": 8200, "ENABLE_AUTO_REPLIES": "maybe"},
+        initial={
+            "POST_SLEEP_MIN": 7200,
+            "POST_SLEEP_MAX": 9000,
+            "ENABLE_AUTO_REPLIES": True,
+        },
+    )
+
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+    assert bot.ENABLE_AUTO_REPLIES is before["ENABLE_AUTO_REPLIES"] is True
+
+
+def test_local_config_mixed_valid_and_invalid_values_do_not_partially_commit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {"POST_SLEEP_MIN": 8000, "POST_SLEEP_MAX": 8200, "MAX_MENTIONS_PER_CHECK": 1},
+        initial={
+            "POST_SLEEP_MIN": 7200,
+            "POST_SLEEP_MAX": 9000,
+            "MAX_MENTIONS_PER_CHECK": 5,
+        },
+    )
+
+    assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
+    assert bot.POST_SLEEP_MAX == before["POST_SLEEP_MAX"] == 9000
+    assert bot.MAX_MENTIONS_PER_CHECK == before["MAX_MENTIONS_PER_CHECK"] == 5
+
+
+def test_local_config_unsupported_key_cannot_override_arbitrary_globals(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    original_func = bot.log_json_debug
+    apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {"log_json_debug": None, "X_API_BASE_URL": "https://evil.invalid", "POST_SLEEP_MIN": 7300, "POST_SLEEP_MAX": 7400},
+        initial={"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 9000},
+    )
+
+    assert bot.log_json_debug is original_func
+    assert bot.POST_SLEEP_MIN == 7300
+    assert bot.POST_SLEEP_MAX == 7400
+    assert not hasattr(bot, "X_API_BASE_URL")
+
+
+def test_local_config_existing_production_style_overrides_still_work(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {
+            "ENABLE_AUTO_REPLIES": True,
+            "MIN_SECONDS_BETWEEN_REPLIES": 3600,
+            "MAX_AUTO_REPLIES_PER_DAY": 24,
+            "MAX_QUOTE_REPLIES_PER_DAY": 12,
+            "POST_SLEEP_MIN": 7200,
+            "POST_SLEEP_MAX": 9000,
+        },
+        initial={
+            "ENABLE_AUTO_REPLIES": False,
+            "MIN_SECONDS_BETWEEN_REPLIES": 1,
+            "MAX_AUTO_REPLIES_PER_DAY": 2,
+            "MAX_QUOTE_REPLIES_PER_DAY": 1,
+            "POST_SLEEP_MIN": 100,
+            "POST_SLEEP_MAX": 200,
+        },
+    )
+
+    assert bot.ENABLE_AUTO_REPLIES is True
+    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 3600
+    assert bot.MAX_AUTO_REPLIES_PER_DAY == 24
+    assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
+    assert bot.POST_SLEEP_MIN == 7200
+    assert bot.POST_SLEEP_MAX == 9000
