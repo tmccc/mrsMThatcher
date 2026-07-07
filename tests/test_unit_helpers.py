@@ -39,11 +39,16 @@ for key, value in ORIGINAL_ENV.items():
     else:
         os.environ[key] = value
 
+from tests.fake_api_server import FakeApiServer, load_scenario  # noqa: E402
+
+SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
+
 
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme_post_receipt.json")
+    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
 
 
 def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None = None) -> dict:
@@ -2637,6 +2642,485 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     assert state["replied_to_ids"] == []
     assert state["own_auto_reply_ids"] == []
     assert state["tweet_cache"] == {}
+
+
+def test_confirmed_mention_reply_save_failure_replays_after_restart(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    scenario["grok_replies"] = [
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        state_file = tmp_path / "bot_state.json"
+        control_file = tmp_path / "mrsMThatcher.control.json"
+        watch_file = tmp_path / "extra_quote_watch_post_ids.txt"
+
+        monkeypatch.setattr(bot, "STATE_FILE", state_file)
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        original_save_state = bot.save_state
+        initial_state = bot.default_state()
+        initial_state.update(
+            {
+                "last_seen_mention_id": "99",
+                "daily_reply_date": bot.current_datetime().strftime("%Y-%m-%d"),
+                "daily_reply_count": 0,
+                "last_reply_epoch": 0,
+                "replied_to_ids": [],
+                "daily_replied_author_ids": [],
+                "daily_replied_author_counts": {},
+                "own_auto_reply_ids": [],
+                "tweet_cache": {},
+            }
+        )
+        original_save_state(initial_state)
+
+        def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
+            if server.posts:
+                raise OSError("injected post-success save failure")
+            original_save_state(state, **kwargs)
+
+        monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
+        first_state = bot.load_state()
+
+        with pytest.raises(OSError, match="injected post-success save failure"):
+            bot.maybe_reply_to_mentions(first_state)
+
+        assert len(server.posts) == 1
+        first_reply_id = "900000"
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
+
+        durable_after_failed_save = json.loads(state_file.read_text(encoding="utf-8"))
+        assert "100" not in durable_after_failed_save.get("replied_to_ids", [])
+        assert durable_after_failed_save.get("last_seen_mention_id") == "99"
+        assert durable_after_failed_save.get("daily_reply_count") == 0
+        assert durable_after_failed_save.get("last_reply_epoch") == 0
+        assert durable_after_failed_save.get("daily_replied_author_counts", {}) == {}
+        assert first_reply_id not in durable_after_failed_save.get("own_auto_reply_ids", [])
+
+        monkeypatch.setattr(bot, "save_state", original_save_state)
+        restarted_state = bot.load_state()
+        assert "100" not in restarted_state.get("replied_to_ids", [])
+        assert restarted_state.get("last_seen_mention_id") == "99"
+
+        second_status = bot.maybe_reply_to_mentions(restarted_state)
+
+        assert second_status == bot.NORMAL_CHECK_STATUS_CHECKED
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["100"]
+    finally:
+        server.stop()
+
+
+def test_confirmed_reply_receipt_reconciliation_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    state_file = tmp_path / "bot_state.json"
+    monkeypatch.setattr(bot, "STATE_FILE", state_file)
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+    state["last_seen_mention_id"] = "99"
+    receipt = {
+        "schema_version": 1,
+        "target_id": "100",
+        "reply_post_id": "900000",
+        "author_id": "200",
+        "reply_epoch": fixed_epoch,
+        "daily_reply_date": state["daily_reply_date"],
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "A reply.",
+    }
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+    assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    assert state["daily_reply_count"] == 1
+    assert state["daily_replied_author_counts"] == {"200": 1}
+    assert state["replied_to_ids"].count("100") == 1
+    assert state["own_auto_reply_ids"].count("900000") == 1
+    assert state["last_seen_mention_id"] == "100"
+
+
+def test_confirmed_quote_tweet_reply_receipt_reconciliation_is_idempotent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+    state["daily_quote_reply_date"] = state["daily_reply_date"]
+    receipt = {
+        "schema_version": 1,
+        "target_id": "910",
+        "reply_post_id": "900000",
+        "author_id": "310",
+        "reply_epoch": fixed_epoch,
+        "daily_reply_date": state["daily_reply_date"],
+        "daily_quote_reply_date": state["daily_quote_reply_date"],
+        "candidate_source": "quote_tweet",
+        "conversation_id": "910",
+        "reply_text": "A reply.",
+        "original_post_id": "900",
+    }
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    assert state["daily_reply_count"] == 1
+    assert state["daily_quote_reply_count"] == 1
+    assert state["daily_replied_author_counts"] == {"310": 1}
+    assert state["replied_to_quote_post_ids"].count("910") == 1
+    assert state["seen_quote_post_ids"].count("910") == 1
+    assert state["own_auto_reply_ids"].count("900000") == 1
+
+
+def test_confirmed_reply_receipt_persistence_failure_keeps_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    receipt = {
+        "schema_version": 1,
+        "target_id": "100",
+        "reply_post_id": "900000",
+        "author_id": "200",
+        "reply_epoch": fixed_epoch,
+        "daily_reply_date": datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d"),
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "A reply.",
+    }
+    state = bot.default_state()
+    state["daily_reply_date"] = receipt["daily_reply_date"]
+
+    bot.write_confirmed_reply_receipt(receipt)
+    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: (_ for _ in ()).throw(OSError("state failed")))
+
+    with pytest.raises(bot.ConfirmedReplyLocalPersistenceError):
+        bot.reconcile_confirmed_reply_receipt(state)
+
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+    assert "100" in state["replied_to_ids"]
+
+
+def test_confirmed_reply_normal_success_uses_durable_state_before_receipt_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        original_save_state = bot.save_state
+        save_calls: list[bool] = []
+        receipt_remove_seen = False
+
+        def tracking_save_state(state: dict, **kwargs: object) -> None:
+            save_calls.append(bool(kwargs.get("durable", False)))
+            original_save_state(state, **kwargs)
+
+        def tracking_remove_receipt(receipt: dict | None = None) -> None:
+            nonlocal receipt_remove_seen
+            assert save_calls and save_calls[-1] is True
+            receipt_remove_seen = True
+            bot.CONFIRMED_REPLY_RECEIPT_FILE.unlink()
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+        monkeypatch.setattr(bot, "save_state", tracking_save_state)
+        monkeypatch.setattr(bot, "remove_confirmed_reply_receipt", tracking_remove_receipt)
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
+        assert receipt_remove_seen is True
+    finally:
+        server.stop()
+
+
+def test_confirmed_reply_latest_backup_recovers_suppression_after_primary_corruption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "normal_mention_reply.json")
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        state_file = tmp_path / "bot_state.json"
+        monkeypatch.setattr(bot, "STATE_FILE", state_file)
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
+        assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+        latest_backup = json.loads((state_file.with_name("bot_state.json.bak1")).read_text(encoding="utf-8"))
+        assert "100" in latest_backup["replied_to_ids"]
+
+        state_file.write_text("{bad json", encoding="utf-8")
+        recovered = bot.load_state()
+
+        assert "100" in recovered["replied_to_ids"]
+        assert recovered["last_seen_mention_id"] == "100"
+        assert recovered["own_auto_reply_ids"] == ["900000"]
+        assert recovered["daily_reply_count"] == 1
+    finally:
+        server.stop()
+
+
+def test_malformed_confirmed_reply_receipt_blocks_mention_replies(tmp_path: Path) -> None:
+    bot.CONFIRMED_REPLY_RECEIPT_FILE.write_text("{bad json", encoding="utf-8")
+    state = bot.default_state()
+
+    with pytest.raises(bot.InvalidConfirmedReplyReceipt):
+        bot.reconcile_confirmed_reply_receipt(state)
+
+    assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+
+
+def test_confirmed_quote_tweet_reply_save_failure_replays_after_restart(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["grok_replies"] = [
+        "A point is useful only when it survives contact with reality. This one rather does.",
+        "A point is useful only when it survives contact with reality. This one rather does.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        state_file = tmp_path / "bot_state.json"
+        monkeypatch.setattr(bot, "STATE_FILE", state_file)
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 0)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        original_save_state = bot.save_state
+        initial_state = bot.default_state()
+        initial_state.update(
+            {
+                "recent_own_post_ids": ["900"],
+                "daily_reply_date": bot.current_datetime().strftime("%Y-%m-%d"),
+                "daily_quote_reply_date": bot.current_datetime().strftime("%Y-%m-%d"),
+                "daily_reply_count": 0,
+                "daily_quote_reply_count": 0,
+                "last_reply_epoch": 0,
+                "replied_to_quote_post_ids": [],
+                "seen_quote_post_ids": [],
+                "daily_replied_author_ids": [],
+                "daily_replied_author_counts": {},
+                "own_auto_reply_ids": [],
+                "tweet_cache": {},
+            }
+        )
+        original_save_state(initial_state)
+
+        def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
+            if server.posts:
+                raise OSError("injected quote post-success save failure")
+            original_save_state(state, **kwargs)
+
+        monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
+        first_state = bot.load_state()
+
+        with pytest.raises(OSError, match="injected quote post-success save failure"):
+            bot.maybe_reply_to_quote_tweets(first_state)
+
+        assert len(server.posts) == 1
+        first_reply_id = "900000"
+        assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "910"
+
+        durable_after_failed_save = json.loads(state_file.read_text(encoding="utf-8"))
+        assert "910" not in durable_after_failed_save.get("replied_to_quote_post_ids", [])
+        assert "910" not in durable_after_failed_save.get("seen_quote_post_ids", [])
+        assert durable_after_failed_save.get("daily_reply_count") == 0
+        assert durable_after_failed_save.get("daily_quote_reply_count") == 0
+        assert durable_after_failed_save.get("last_reply_epoch") == 0
+        assert durable_after_failed_save.get("daily_replied_author_counts", {}) == {}
+        assert first_reply_id not in durable_after_failed_save.get("own_auto_reply_ids", [])
+
+        monkeypatch.setattr(bot, "save_state", original_save_state)
+        restarted_state = bot.load_state()
+        second_status = bot.maybe_reply_to_quote_tweets(restarted_state)
+
+        assert second_status == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["910"]
+    finally:
+        server.stop()
+
+
+def test_quote_tweet_receipt_reconciled_by_mention_lane_counts_quote_reply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["grok_replies"] = [
+        "A point is useful only when it survives contact with reality. This one rather does.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        reply_date = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
+        prior_date = "2033-05-17"
+        state_file = tmp_path / "bot_state.json"
+        monkeypatch.setattr(bot, "STATE_FILE", state_file)
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 0)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        original_save_state = bot.save_state
+        initial_state = bot.default_state()
+        initial_state.update(
+            {
+                "recent_own_post_ids": ["900"],
+                "daily_reply_date": reply_date,
+                "daily_quote_reply_date": prior_date,
+                "daily_reply_count": 0,
+                "daily_quote_reply_count": 0,
+                "last_reply_epoch": 0,
+                "replied_to_ids": [],
+                "replied_to_quote_post_ids": [],
+                "seen_quote_post_ids": [],
+                "daily_replied_author_ids": [],
+                "daily_replied_author_counts": {},
+                "own_auto_reply_ids": [],
+                "tweet_cache": {},
+            }
+        )
+        original_save_state(initial_state)
+
+        def fail_first_post_success_save(state: dict, **kwargs: object) -> None:
+            if server.posts:
+                raise OSError("injected quote post-success save failure")
+            original_save_state(state, **kwargs)
+
+        monkeypatch.setattr(bot, "save_state", fail_first_post_success_save)
+        first_state = bot.load_state()
+
+        with pytest.raises(OSError, match="injected quote post-success save failure"):
+            bot.maybe_reply_to_quote_tweets(first_state)
+
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["910"]
+        durable_after_failed_save = json.loads(state_file.read_text(encoding="utf-8"))
+        assert durable_after_failed_save["daily_quote_reply_date"] == reply_date
+        assert durable_after_failed_save["daily_quote_reply_count"] == 0
+        assert bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+
+        monkeypatch.setattr(bot, "save_state", original_save_state)
+        restarted_state = bot.load_state()
+
+        assert bot.maybe_reply_to_mentions(restarted_state) == bot.NORMAL_CHECK_STATUS_CHECKED
+        assert not bot.CONFIRMED_REPLY_RECEIPT_FILE.exists()
+        assert restarted_state["daily_quote_reply_date"] == reply_date
+        assert restarted_state["daily_quote_reply_count"] == 1
+
+        bot.reset_daily_quote_reply_count_if_needed(restarted_state)
+        assert restarted_state["daily_quote_reply_date"] == reply_date
+        assert restarted_state["daily_quote_reply_count"] == 1
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["910"]
+    finally:
+        server.stop()
 
 
 def test_cache_tweet_uses_fake_clock_for_generated_created_at(monkeypatch: pytest.MonkeyPatch) -> None:

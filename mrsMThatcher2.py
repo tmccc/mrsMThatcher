@@ -195,6 +195,7 @@ LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
 REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
+CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 MEME_SCHEDULE_MODES = {
     "",
     "fallback",
@@ -3154,6 +3155,18 @@ class ConfirmedPostLocalPersistenceError(RuntimeError):
     pass
 
 
+class InvalidConfirmedReplyReceipt(RuntimeError):
+    pass
+
+
+class ConfirmedReplyLocalPersistenceError(RuntimeError):
+    # This covers failures after a valid remote reply id is known. A hard crash
+    # after receiving that id but before durable receipt fsync can still leave
+    # no replay record. Separately, if X accepts a reply but no response reaches
+    # this process, there is no known reply id to receipt.
+    pass
+
+
 class CorruptUsedHistoryError(RuntimeError):
     pass
 
@@ -5537,6 +5550,200 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
         update_last_seen_mention_id(state, str(candidate.get("id", "")))
 
 
+def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    if not isinstance(data, dict):
+        return False
+    if data.get("schema_version") != 1:
+        return False
+    if not valid_post_id(data.get("target_id")):
+        return False
+    if not valid_post_id(data.get("reply_post_id")):
+        return False
+    author_id = data.get("author_id")
+    if author_id is None or isinstance(author_id, (dict, list)):
+        return False
+    if receipt_int(data.get("reply_epoch")) is None or not valid_receipt_epoch(data.get("reply_epoch")):
+        return False
+    source = str(data.get("candidate_source") or "")
+    if source not in {"mention", "hot_post_reply", "quote_tweet"}:
+        return False
+    text = data.get("reply_text")
+    if text is not None and not isinstance(text, str):
+        return False
+    conversation_id = data.get("conversation_id")
+    if conversation_id is not None and isinstance(conversation_id, (dict, list)):
+        return False
+    daily_reply_date = data.get("daily_reply_date")
+    if daily_reply_date is not None and not isinstance(daily_reply_date, str):
+        return False
+    daily_quote_reply_date = data.get("daily_quote_reply_date")
+    if daily_quote_reply_date is not None and not isinstance(daily_quote_reply_date, str):
+        return False
+    original_post_id = data.get("original_post_id")
+    if original_post_id is not None and isinstance(original_post_id, (dict, list)):
+        return False
+    return True
+
+
+def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
+    try:
+        with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return "absent", None
+    except Exception:
+        log.exception(
+            "Malformed confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", None
+    if not isinstance(data, dict):
+        log.critical(
+            "Invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", None
+    if not confirmed_reply_receipt_is_semantically_valid(data):
+        log.critical(
+            "Semantically invalid confirmed-reply receipt blocks auto-reply processing until repaired: %s",
+            CONFIRMED_REPLY_RECEIPT_FILE,
+        )
+        return "invalid", data
+    return "valid", data
+
+
+def write_confirmed_reply_receipt(receipt: dict) -> None:
+    if CONFIRMED_REPLY_RECEIPT_FILE.exists():
+        raise InvalidConfirmedReplyReceipt(
+            f"Refusing to overwrite unresolved confirmed-reply receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+    if not confirmed_reply_receipt_is_semantically_valid(receipt):
+        raise RuntimeError("Internal error: generated confirmed-reply receipt failed semantic validation")
+    atomic_write_json(CONFIRMED_REPLY_RECEIPT_FILE, receipt, durable=True)
+    log.warning(
+        "Wrote confirmed reply receipt pending local reconciliation source=%s target_id=%s reply_post_id=%s path=%s",
+        receipt.get("candidate_source", "mention"),
+        receipt.get("target_id"),
+        receipt.get("reply_post_id"),
+        CONFIRMED_REPLY_RECEIPT_FILE,
+    )
+
+
+def remove_confirmed_reply_receipt(receipt: dict | None = None) -> None:
+    try:
+        CONFIRMED_REPLY_RECEIPT_FILE.unlink()
+        if receipt:
+            log.info(
+                "Removed reconciled confirmed-reply receipt source=%s target_id=%s reply_post_id=%s path=%s",
+                receipt.get("candidate_source", "mention"),
+                receipt.get("target_id"),
+                receipt.get("reply_post_id"),
+                CONFIRMED_REPLY_RECEIPT_FILE,
+            )
+        else:
+            log.info("Removed reconciled confirmed-reply receipt: %s", CONFIRMED_REPLY_RECEIPT_FILE)
+        fsync_parent_dir(CONFIRMED_REPLY_RECEIPT_FILE, strict=True)
+    except FileNotFoundError:
+        return
+
+
+def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
+    target_id = str(receipt["target_id"])
+    reply_post_id = str(receipt["reply_post_id"])
+    author_id = str(receipt.get("author_id") or "")
+    reply_epoch = int(receipt["reply_epoch"])
+    candidate_source = str(receipt.get("candidate_source") or "mention")
+    conversation_id = str(receipt.get("conversation_id") or target_id)
+    reply_text = str(receipt.get("reply_text") or "")
+    receipt_reply_date = str(receipt.get("daily_reply_date") or epoch_date_str(reply_epoch))
+    receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
+
+    if candidate_source == "quote_tweet":
+        replied_to_ids = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
+        already_recorded = target_id in replied_to_ids
+        mark_quote_tweet_replied(state, target_id)
+    else:
+        replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
+        already_recorded = target_id in replied_to_ids
+        state["replied_to_ids"] = append_unique_capped(
+            state.get("replied_to_ids", []),
+            target_id,
+            1000,
+        )
+
+    state["own_auto_reply_ids"] = append_unique_capped(
+        state.get("own_auto_reply_ids", []),
+        reply_post_id,
+        1000,
+    )
+
+    if not already_recorded and state.get("daily_reply_date") == receipt_reply_date:
+        state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
+        if author_id:
+            mark_daily_author_replied(state, author_id)
+    if (
+        candidate_source == "quote_tweet"
+        and not already_recorded
+        and state.get("daily_quote_reply_date") == receipt_quote_reply_date
+    ):
+        state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
+
+    try:
+        state["last_reply_epoch"] = max(int(state.get("last_reply_epoch", 0) or 0), reply_epoch)
+    except Exception:
+        state["last_reply_epoch"] = reply_epoch
+
+    if candidate_source == "mention":
+        update_last_seen_mention_id(state, target_id)
+
+    cache_tweet(
+        state,
+        tweet_id=reply_post_id,
+        text=reply_text,
+        author_id=str(MY_USER_ID),
+        conversation_id=conversation_id,
+        referenced_tweets=[
+            {
+                "type": "replied_to",
+                "id": target_id,
+            }
+        ],
+        post_type="auto_reply",
+    )
+
+
+def reconcile_confirmed_reply_receipt(state: dict) -> bool:
+    status, receipt = load_confirmed_reply_receipt()
+    if status == "absent":
+        return False
+    if status == "invalid" or receipt is None:
+        raise InvalidConfirmedReplyReceipt(
+            f"Invalid confirmed-reply receipt blocks auto-reply processing: {CONFIRMED_REPLY_RECEIPT_FILE}"
+        )
+
+    log.warning(
+        "Reconciling confirmed reply receipt source=%s target_id=%s reply_post_id=%s",
+        receipt.get("candidate_source", "mention"),
+        receipt.get("target_id"),
+        receipt.get("reply_post_id"),
+    )
+    apply_confirmed_reply_receipt(state, receipt)
+    try:
+        save_state(state, durable=True)
+    except Exception as exc:
+        log.critical(
+            "Confirmed reply receipt was applied in memory but state save failed; receipt remains for retry",
+            exc_info=True,
+        )
+        raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt reconciliation state save failed") from exc
+    try:
+        remove_confirmed_reply_receipt(receipt)
+    except Exception as exc:
+        log.critical("Confirmed reply receipt state was saved but receipt removal failed", exc_info=True)
+        raise ConfirmedReplyLocalPersistenceError("Confirmed reply receipt removal failed") from exc
+    return True
+
+
 def maybe_reply_to_mentions(state: dict) -> str:
     log.info("Starting mention reply check")
 
@@ -5559,6 +5766,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
         return NORMAL_CHECK_STATUS_SKIPPED_COOLDOWN
 
     reset_daily_reply_count_if_needed(state)
+    if reconcile_confirmed_reply_receipt(state):
+        log.warning("Reconciled confirmed reply receipt before checking new mention candidates")
 
     daily_replied_author_counts = daily_author_reply_counts(state)
 
@@ -5794,45 +6003,60 @@ def maybe_reply_to_mentions(state: dict) -> str:
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
 
-        state["daily_reply_count"] += 1
-        state["last_reply_epoch"] = current
-
-        replied_to_ids.add(mention_id)
-        state["replied_to_ids"] = append_unique_capped(
-            state.get("replied_to_ids", []),
-            mention_id,
-            1000,
-        )
-
-        mark_daily_author_replied(state, author_id)
-
         own_reply_id = reply_response.get("data", {}).get("id")
-        if own_reply_id:
-            state["own_auto_reply_ids"] = append_unique_capped(
-                state.get("own_auto_reply_ids", []),
+        receipt = {
+            "schema_version": 1,
+            "target_id": mention_id,
+            "reply_post_id": str(own_reply_id),
+            "author_id": author_id,
+            "reply_epoch": current,
+            "daily_reply_date": str(state.get("daily_reply_date") or epoch_date_str(current)),
+            "candidate_source": candidate_source,
+            "conversation_id": str(mention.get("conversation_id", mention_id)),
+            "reply_text": reply_text,
+        }
+        try:
+            write_confirmed_reply_receipt(receipt)
+        except Exception as exc:
+            log.critical(
+                "Confirmed reply id=%s to target=%s but failed writing recovery receipt; "
+                "attempting direct durable state save",
                 own_reply_id,
-                1000,
+                mention_id,
+                exc_info=True,
             )
+            apply_confirmed_reply_receipt(state, receipt)
+            try:
+                save_state(state, durable=True)
+            except Exception as save_exc:
+                log.critical(
+                    "Confirmed reply id=%s to target=%s but both receipt write and emergency state save failed",
+                    own_reply_id,
+                    mention_id,
+                    exc_info=True,
+                )
+                raise ConfirmedReplyLocalPersistenceError(
+                    f"Confirmed reply {own_reply_id} to {mention_id} but failed recovery receipt and emergency state save"
+                ) from save_exc
+            raise ConfirmedReplyLocalPersistenceError(
+                f"Confirmed reply {own_reply_id} to {mention_id} but failed recovery receipt"
+            ) from exc
 
-            cache_tweet(
-                state,
-                tweet_id=str(own_reply_id),
-                text=reply_text,
-                author_id=str(MY_USER_ID),
-                conversation_id=str(mention.get("conversation_id", mention_id)),
-                referenced_tweets=[
-                    {
-                        "type": "replied_to",
-                        "id": str(mention_id),
-                    }
-                ],
-                post_type="auto_reply",
+        apply_confirmed_reply_receipt(state, receipt)
+        log.info("Recorded and cached own auto-reply id=%s", own_reply_id)
+        save_state(state, durable=True)
+        try:
+            remove_confirmed_reply_receipt(receipt)
+        except Exception as exc:
+            log.critical(
+                "Confirmed reply id=%s to target=%s was saved but receipt removal failed",
+                own_reply_id,
+                mention_id,
+                exc_info=True,
             )
-
-            log.info("Recorded and cached own auto-reply id=%s", own_reply_id)
-
-        mark_mention_seen_if_applicable(state, mention)
-        save_state(state)
+            raise ConfirmedReplyLocalPersistenceError(
+                f"Confirmed reply {own_reply_id} to {mention_id} but receipt removal failed"
+            ) from exc
 
         log_event(
             "reply_posted",
@@ -6179,6 +6403,8 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
     reset_daily_reply_count_if_needed(state)
     reset_daily_quote_reply_count_if_needed(state)
+    if reconcile_confirmed_reply_receipt(state):
+        log.warning("Reconciled confirmed reply receipt before checking new quote-tweet candidates")
 
     if int(state.get("daily_reply_count", 0) or 0) >= MAX_AUTO_REPLIES_PER_DAY:
         log.info("Skipping quote-tweet check: total daily reply cap reached")
@@ -6437,40 +6663,62 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
 
-            state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
-            state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
-            state["last_reply_epoch"] = current
-
-            mark_quote_tweet_replied(state, quote_id)
-
-            mark_daily_author_replied(state, author_id)
-
             own_reply_id = reply_response.get("data", {}).get("id")
-            if own_reply_id:
-                state["own_auto_reply_ids"] = append_unique_capped(
-                    state.get("own_auto_reply_ids", []),
+            receipt = {
+                "schema_version": 1,
+                "target_id": quote_id,
+                "reply_post_id": str(own_reply_id),
+                "author_id": author_id,
+                "reply_epoch": current,
+                "daily_reply_date": str(state.get("daily_reply_date") or epoch_date_str(current)),
+                "daily_quote_reply_date": str(state.get("daily_quote_reply_date") or epoch_date_str(current)),
+                "candidate_source": "quote_tweet",
+                "conversation_id": str(quote_tweet.get("conversation_id", quote_id)),
+                "reply_text": reply_text,
+                "original_post_id": str(original_post_id),
+            }
+            try:
+                write_confirmed_reply_receipt(receipt)
+            except Exception as exc:
+                log.critical(
+                    "Confirmed quote-tweet reply id=%s to target=%s but failed writing recovery receipt; "
+                    "attempting direct durable state save",
                     own_reply_id,
-                    1000,
+                    quote_id,
+                    exc_info=True,
                 )
+                apply_confirmed_reply_receipt(state, receipt)
+                try:
+                    save_state(state, durable=True)
+                except Exception as save_exc:
+                    log.critical(
+                        "Confirmed quote-tweet reply id=%s to target=%s but both receipt write and emergency state save failed",
+                        own_reply_id,
+                        quote_id,
+                        exc_info=True,
+                    )
+                    raise ConfirmedReplyLocalPersistenceError(
+                        f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but failed recovery receipt and emergency state save"
+                    ) from save_exc
+                raise ConfirmedReplyLocalPersistenceError(
+                    f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but failed recovery receipt"
+                ) from exc
 
-                cache_tweet(
-                    state,
-                    tweet_id=str(own_reply_id),
-                    text=reply_text,
-                    author_id=str(MY_USER_ID),
-                    conversation_id=str(quote_tweet.get("conversation_id", quote_id)),
-                    referenced_tweets=[
-                        {
-                            "type": "replied_to",
-                            "id": str(quote_id),
-                        }
-                    ],
-                    post_type="auto_reply",
+            apply_confirmed_reply_receipt(state, receipt)
+            log.info("Recorded and cached own quote-tweet auto-reply id=%s", own_reply_id)
+            save_state(state, durable=True)
+            try:
+                remove_confirmed_reply_receipt(receipt)
+            except Exception as exc:
+                log.critical(
+                    "Confirmed quote-tweet reply id=%s to target=%s was saved but receipt removal failed",
+                    own_reply_id,
+                    quote_id,
+                    exc_info=True,
                 )
-
-                log.info("Recorded and cached own quote-tweet auto-reply id=%s", own_reply_id)
-
-            save_state(state)
+                raise ConfirmedReplyLocalPersistenceError(
+                    f"Confirmed quote-tweet reply {own_reply_id} to {quote_id} but receipt removal failed"
+                ) from exc
 
             log_event(
                 "reply_posted",

@@ -844,6 +844,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     handled_api_restrictions: List[Dict[str, Any]] = []
     receipt_events: List[Dict[str, Any]] = []
     confirmed_post_recovery: List[Dict[str, Any]] = []
+    confirmed_reply_receipts: List[Dict[str, Any]] = []
+    confirmed_reply_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     xai_usage_events: List[Dict[str, Any]] = []
@@ -859,6 +861,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     pending_meme: Dict[str, Any] = {}
     pending_mention: Dict[str, Any] = {}
     pending_qt: Dict[str, Any] = {}
+    pending_confirmed_reply_receipt: Dict[str, Any] = {}
     active_xai_context: Optional[Dict[str, Any]] = None
     last_created_post: Dict[str, Any] = {}
 
@@ -882,6 +885,29 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         item.update(kwargs)
         receipt_events.append(item)
         stats[f"receipt_{kind}"] += 1
+
+    def add_confirmed_reply_receipt_event(kind: str, r: Record, **kwargs: Any) -> None:
+        nonlocal pending_confirmed_reply_receipt
+        if kind == "removed" and pending_confirmed_reply_receipt:
+            for key in ("lane", "target_id", "reply_post_id"):
+                kwargs.setdefault(key, pending_confirmed_reply_receipt.get(key, ""))
+        item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "kind": kind,
+            "level": r.level,
+            "message": short(r.msg, 500),
+        }
+        item.update(kwargs)
+        confirmed_reply_receipts.append(item)
+        stats[f"confirmed_reply_receipt_{kind}"] += 1
+        if kind in {"written", "reconciled"}:
+            pending_confirmed_reply_receipt = {
+                key: item.get(key, "")
+                for key in ("lane", "target_id", "reply_post_id")
+                if item.get(key, "")
+            }
+        elif kind == "removed":
+            pending_confirmed_reply_receipt = {}
 
     def add_asset_health(kind: str, r: Record, **kwargs: Any) -> None:
         item = {
@@ -926,10 +952,14 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         is_receipt_routine = (
             "Wrote confirmed regular-post receipt pending local reconciliation" in msg
             or "Wrote confirmed meme-post receipt pending local reconciliation" in msg
+            or "Wrote confirmed reply receipt pending local reconciliation" in msg
             or "Removed reconciled regular-post receipt" in msg
             or "Removed reconciled meme-post receipt" in msg
+            or "Removed reconciled confirmed-reply receipt" in msg
             or "Reconciling confirmed regular quote/image post receipt" in msg
             or "Reconciling confirmed meme post receipt" in msg
+            or "Reconciling confirmed reply receipt" in msg
+            or "Reconciled confirmed reply receipt before checking" in msg
             or "Reconciled regular quote/image receipt; not creating a second regular post" in msg
             or "Reconciled meme post receipt; not creating a second meme post" in msg
         )
@@ -939,6 +969,15 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             or "Confirmed regular quote/image post " in msg
             or "Confirmed meme post " in msg
             or "REMOTE X POST WAS CONFIRMED; DO NOT RETRY MANUALLY" in msg
+        )
+        is_confirmed_reply_recovery = (
+            "Malformed confirmed-reply receipt blocks" in msg
+            or "Invalid confirmed-reply receipt blocks" in msg
+            or "Semantically invalid confirmed-reply receipt blocks" in msg
+            or "Confirmed reply receipt was applied in memory but state save failed" in msg
+            or "Confirmed reply receipt state was saved but receipt removal failed" in msg
+            or "Confirmed reply id=" in msg
+            or "Confirmed quote-tweet reply id=" in msg
         )
         is_asset_metadata_warning = (
             "Quote analysis" in msg
@@ -965,6 +1004,13 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             })
         elif is_confirmed_post_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             confirmed_post_recovery.append({
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "level": r.level,
+                "where": f"{r.src}:{r.line}",
+                "message": short(msg, 900),
+            })
+        elif is_confirmed_reply_recovery and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            confirmed_reply_recovery.append({
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
@@ -1035,11 +1081,33 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         if "Wrote confirmed meme-post receipt pending local reconciliation" in msg:
             add_receipt_event("meme_written", r, lane="daily_meme")
             continue
+        m = re.search(
+            r"Wrote confirmed reply receipt pending local reconciliation"
+            r"(?: source=([^\s]+) target_id=([^\s]+) reply_post_id=([^\s]+))?",
+            msg,
+        )
+        if m:
+            kwargs: Dict[str, Any] = {}
+            if m.group(1):
+                kwargs.update({"lane": m.group(1), "target_id": m.group(2), "reply_post_id": m.group(3)})
+            add_confirmed_reply_receipt_event("written", r, **kwargs)
+            continue
         if "Removed reconciled regular-post receipt" in msg:
             add_receipt_event("regular_removed", r, lane="quote_image")
             continue
         if "Removed reconciled meme-post receipt" in msg:
             add_receipt_event("meme_removed", r, lane="daily_meme")
+            continue
+        m = re.search(
+            r"Removed reconciled confirmed-reply receipt"
+            r"(?: source=([^\s]+) target_id=([^\s]+) reply_post_id=([^\s]+))?",
+            msg,
+        )
+        if m:
+            kwargs = {}
+            if m.group(1):
+                kwargs.update({"lane": m.group(1), "target_id": m.group(2), "reply_post_id": m.group(3)})
+            add_confirmed_reply_receipt_event("removed", r, **kwargs)
             continue
         m = re.search(r"Reconciling confirmed regular quote/image post receipt post_id=([^\s]+) quote_hash=([^\s]+) image=([^\s]+)", msg)
         if m:
@@ -1048,6 +1116,27 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         m = re.search(r"Reconciling confirmed meme post receipt post_id=([^\s]+) meme=([^\s]+)", msg)
         if m:
             add_receipt_event("meme_reconciled", r, lane="daily_meme", post_id=m.group(1), file=m.group(2))
+            continue
+        m = re.search(
+            r"Reconciling confirmed reply receipt"
+            r"(?: source=([^\s]+))? target_id=([^\s]+) reply_post_id=([^\s]+)",
+            msg,
+        )
+        if m:
+            lane = m.group(1) or pending_confirmed_reply_receipt.get("lane", "")
+            add_confirmed_reply_receipt_event(
+                "reconciled",
+                r,
+                lane=lane,
+                target_id=m.group(2),
+                reply_post_id=m.group(3),
+            )
+            continue
+        if "Reconciled confirmed reply receipt before checking new mention candidates" in msg:
+            add_confirmed_reply_receipt_event("replay_suppressed_mention_check", r, lane="mention")
+            continue
+        if "Reconciled confirmed reply receipt before checking new quote-tweet candidates" in msg:
+            add_confirmed_reply_receipt_event("replay_suppressed_quote_tweet_check", r, lane="quote_tweet")
             continue
         if "Reconciled regular quote/image receipt; not creating a second regular post" in msg:
             add_receipt_event("regular_replay_suppressed_second_post", r, lane="quote_image")
@@ -1061,6 +1150,9 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         if "regular-post receipt blocks" in msg or "meme-post receipt blocks" in msg:
             lane = "daily_meme" if "meme-post" in msg else "quote_image"
             add_receipt_event("invalid_or_unresolved_blocked", r, lane=lane)
+            continue
+        if "confirmed-reply receipt blocks" in msg:
+            add_confirmed_reply_receipt_event("invalid_or_malformed_blocked", r)
             continue
 
         if is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
@@ -1562,6 +1654,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
     if confirmed_post_recovery:
         headline.append(f"{len(confirmed_post_recovery)} confirmed-post recovery warning(s)")
+    if confirmed_reply_recovery:
+        headline.append(f"{len(confirmed_reply_recovery)} confirmed-reply recovery warning(s)")
     blocking_receipts = [
         item for item in receipt_events
         if item.get("kind") in {"invalid_or_unresolved_blocked", "simultaneous_receipts_blocked"}
@@ -1667,6 +1761,10 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         "main_post_recovery": {
             "receipt_events": receipt_events,
             "confirmed_post_recovery": confirmed_post_recovery,
+        },
+        "confirmed_reply_recovery": {
+            "receipt_events": confirmed_reply_receipts,
+            "warnings": confirmed_reply_recovery,
         },
         "asset_health": asset_health,
         "media_upload": {
@@ -2242,6 +2340,39 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row(["time", "level", "where", "message"]))
             out.append(md_table_row(["---", "---", "---", "---"]))
             for item in confirmed_post_recovery:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("level", ""),
+                    item.get("where", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+
+    reply_recovery = report.get("confirmed_reply_recovery") or {}
+    reply_receipt_events = reply_recovery.get("receipt_events") or []
+    reply_recovery_warnings = reply_recovery.get("warnings") or []
+    if reply_receipt_events or reply_recovery_warnings:
+        out.append("## Confirmed-reply recovery")
+        if reply_receipt_events:
+            out.append("Receipt lifecycle:")
+            out.append(md_table_row(["time", "level", "lane", "kind", "target_id", "reply_post_id", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
+            for item in reply_receipt_events:
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("level", ""),
+                    item.get("lane", ""),
+                    item.get("kind", ""),
+                    item.get("target_id", ""),
+                    item.get("reply_post_id", ""),
+                    item.get("message", ""),
+                ]))
+            out.append("")
+        if reply_recovery_warnings:
+            out.append("Confirmed replies with local recovery/persistence trouble:")
+            out.append(md_table_row(["time", "level", "where", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---"]))
+            for item in reply_recovery_warnings:
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("level", ""),

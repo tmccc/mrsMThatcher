@@ -5160,6 +5160,90 @@ def test_digest_does_not_double_count_repeated_media_chain_lines(tmp_path: Path)
     assert "operational error(s)" not in digest.stdout
 
 
+def test_digest_reports_confirmed_reply_receipt_lifecycle(tmp_path: Path) -> None:
+    base = tmp_path / "digest-confirmed-reply-recovery"
+    write_digest_log(
+        base,
+        [
+            "2026-07-07 05:48:25 WARNING  write_confirmed_reply_receipt:5614 - Wrote confirmed reply receipt pending local reconciliation source=mention target_id=123 reply_post_id=999 path=/tmp/confirmed_reply_receipt.json",
+            "2026-07-07 06:02:11 WARNING  reconcile_confirmed_reply_receipt:5690 - Reconciling confirmed reply receipt source=mention target_id=123 reply_post_id=999",
+            "2026-07-07 06:02:11 INFO     remove_confirmed_reply_receipt:5621 - Removed reconciled confirmed-reply receipt source=mention target_id=123 reply_post_id=999 path=/tmp/confirmed_reply_receipt.json",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "## Confirmed-reply recovery" in digest.stdout
+    assert "written" in digest.stdout
+    assert "reconciled" in digest.stdout
+    assert "removed" in digest.stdout
+    assert "| 2026-07-07 05:48:25 | WARNING | mention | written | 123 | 999 |" in digest.stdout
+    assert "| 2026-07-07 06:02:11 | INFO | mention | removed | 123 | 999 |" in digest.stdout
+    assert "123" in digest.stdout
+    assert "999" in digest.stdout
+    assert "operational error(s)" not in digest.stdout
+
+
+def test_digest_reports_pending_confirmed_reply_receipt(tmp_path: Path) -> None:
+    base = tmp_path / "digest-confirmed-reply-pending"
+    write_digest_log(
+        base,
+        [
+            "2026-07-07 05:48:25 WARNING  write_confirmed_reply_receipt:5614 - Wrote confirmed reply receipt pending local reconciliation: /tmp/confirmed_reply_receipt.json",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "## Confirmed-reply recovery" in digest.stdout
+    assert "written" in digest.stdout
+    assert "operational error(s)" not in digest.stdout
+
+
+def test_digest_reports_confirmed_reply_recovery_failures(tmp_path: Path) -> None:
+    base = tmp_path / "digest-confirmed-reply-failures"
+    write_digest_log(
+        base,
+        [
+            "2026-07-07 06:02:11 WARNING  reconcile_confirmed_reply_receipt:5690 - Reconciling confirmed reply receipt target_id=123 reply_post_id=999",
+            "2026-07-07 06:02:12 CRITICAL reconcile_confirmed_reply_receipt:5700 - Confirmed reply receipt was applied in memory but state save failed; receipt remains for retry",
+            "2026-07-07 06:03:12 CRITICAL reconcile_confirmed_reply_receipt:5708 - Confirmed reply receipt state was saved but receipt removal failed",
+            "2026-07-07 06:04:12 CRITICAL load_confirmed_reply_receipt:5580 - Malformed confirmed-reply receipt blocks auto-reply processing until repaired: /tmp/confirmed_reply_receipt.json",
+            "2026-07-07 06:05:12 CRITICAL load_confirmed_reply_receipt:5589 - Invalid confirmed-reply receipt blocks auto-reply processing until repaired: /tmp/confirmed_reply_receipt.json",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "4 confirmed-reply recovery warning(s)" in digest.stdout
+    assert "Confirmed replies with local recovery/persistence trouble" in digest.stdout
+    assert "state save failed" in digest.stdout
+    assert "receipt removal failed" in digest.stdout
+    assert "Malformed confirmed-reply receipt" in digest.stdout
+    assert "Invalid confirmed-reply receipt" in digest.stdout
+
+
+def test_digest_reports_confirmed_reply_emergency_persistence_paths(tmp_path: Path) -> None:
+    base = tmp_path / "digest-confirmed-reply-emergency"
+    write_digest_log(
+        base,
+        [
+            "2026-07-07 06:10:00 CRITICAL maybe_reply_to_mentions:5980 - Confirmed reply id=999 to target=123 but failed writing recovery receipt; attempting direct durable state save",
+            "2026-07-07 06:11:00 CRITICAL maybe_reply_to_mentions:5990 - Confirmed reply id=1000 to target=124 but both receipt write and emergency state save failed",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "2 confirmed-reply recovery warning(s)" in digest.stdout
+    assert "failed writing recovery receipt" in digest.stdout
+    assert "both receipt write and emergency state save failed" in digest.stdout
+
+
 def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
     base = tmp_path / "digest-xai-usage"
     write_digest_log(
