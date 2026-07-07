@@ -777,7 +777,9 @@ def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Option
 
 
 def xai_usage_context_from_pending(pending_mention: Dict[str, Any], pending_qt: Dict[str, Any]) -> Dict[str, Any]:
-    if pending_qt:
+    mention_seq = pending_mention.get("considered_seq", -1) if pending_mention else -1
+    quote_seq = pending_qt.get("considered_seq", -1) if pending_qt else -1
+    if pending_qt and quote_seq >= mention_seq:
         return {
             "lane": "quote-tweet",
             "context_id": pending_qt.get("quote_tweet_id", ""),
@@ -931,7 +933,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         reply_media_context.append(item)
         stats["reply_media_context_events"] += 1
 
-    for r in records:
+    for record_index, r in enumerate(records):
         msg = r.msg
 
         # Lifecycle/config/state
@@ -1484,6 +1486,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "author_id": m.group(3),
                 "incoming_text": lit(m.group(4)),
                 "considered_at": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "considered_seq": record_index,
             }
             continue
 
@@ -1582,6 +1585,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 "original_post_id": m.group(3),
                 "incoming_text": lit(m.group(4)),
                 "considered_at": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "considered_seq": record_index,
             }
             continue
 
@@ -1633,6 +1637,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
                 add_event("quote_tweet_skipped", r.ts, quote_tweet_id=m.group(1), reason=reason)
             else:
                 add_event("quote_tweet_skipped", r.ts, quote_tweet_id=m.group(1), reason=reason)
+            pending_qt = {}
             active_xai_context = None
             continue
 

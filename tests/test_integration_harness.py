@@ -5374,3 +5374,102 @@ def test_digest_does_not_reuse_completed_quote_tweet_xai_context(tmp_path: Path)
     assert digest.returncode == 0, digest.stderr
     assert "| 2026-07-06 12:00:02 | quote-tweet | 999 | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
     assert "| 2026-07-06 12:00:04 | unknown |  | 101 | 26 | 46 | 6 | 151 | 0 | 124 |" in digest.stdout
+
+
+def test_digest_does_not_attribute_mention_xai_usage_to_stale_locally_skipped_quote_tweet(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-stale-quote-to-mention"
+    quote_a = "2074443670913184251"
+    quote_b = "2074425517856428052"
+    mention_c = "2074472113872769394"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-07 12:51:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_a} author_id=777 original_post_id=555 text='Now the Brits arrest you for tweets.'",
+            "2026-07-07 12:51:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            "2026-07-07 12:51:04 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 100, 'completion_tokens': 5, 'total_tokens': 150, 'prompt_tokens_details': {'cached_tokens': 25}, 'completion_tokens_details': {'reasoning_tokens': 45}, 'num_sources_used': 1, 'cost_in_usd_ticks': 123}",
+            f"2026-07-07 12:51:04 INFO maybe_reply_to_quote_tweets:4020 - No usable reply generated for quote tweet {quote_a}",
+            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=888 original_post_id=555 text='Proprio quello che mancava nel 1978.'",
+            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4010 - Skipping quote tweet {quote_b}: already seen/replied/skipped",
+            f"2026-07-07 13:35:11 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_c} author_id=999 text='@MrsMThatcher Me too, GOAT ♥️♥️'",
+            "2026-07-07 13:35:12 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher Me too, GOAT ♥️♥️'",
+            "2026-07-07 13:35:20 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 458, 'completion_tokens': 11, 'total_tokens': 1147, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 678}, 'num_sources_used': 0, 'cost_in_usd_ticks': 2160600}",
+            f"2026-07-07 13:35:21 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_c}: 'Many do. It saves a great deal of time.'",
+            "2026-07-07 13:35:22 INFO maybe_reply_to_mentions:3100 - Reply posted successfully",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert f"| 2026-07-07 12:51:04 | quote-tweet | {quote_a} | 100 | 25 | 45 | 5 | 150 | 1 | 123 |" in digest.stdout
+    assert f"| 2026-07-07 13:35:20 | mention | {mention_c} | 458 | 128 | 678 | 11 | 1147 | 0 | 2160600 |" in digest.stdout
+    assert f"| 2026-07-07 13:35:20 | quote-tweet | {quote_b} |" not in digest.stdout
+
+
+def test_digest_local_quote_tweet_skip_does_not_create_xai_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-local-quote-skip"
+    quote_b = "2074425517856428052"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=888 original_post_id=555 text='Proprio quello che mancava nel 1978.'",
+            f"2026-07-07 12:51:05 INFO maybe_reply_to_quote_tweets:4010 - Skipping quote tweet {quote_b}: already seen/replied/skipped",
+            "2026-07-07 13:00:00 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 12, 'completion_tokens': 3, 'total_tokens': 40, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 25}, 'num_sources_used': 0, 'cost_in_usd_ticks': 44}",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "| 2026-07-07 13:00:00 | unknown |  | 12 | 2 | 25 | 3 | 40 | 0 | 44 |" in digest.stdout
+    assert f"| 2026-07-07 13:00:00 | quote-tweet | {quote_b} |" not in digest.stdout
+
+
+def test_digest_local_mention_skip_does_not_poison_later_quote_tweet_xai_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-local-mention-skip"
+    mention_a = "111"
+    quote_b = "222"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-07 10:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_a} author_id=456 text='@MrsMThatcher spam'",
+            f"2026-07-07 10:00:01 INFO maybe_reply_to_mentions:3078 - Skipping mention {mention_a}: spam/not worth replying",
+            f"2026-07-07 10:01:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=777 original_post_id=555 text='Interesting'",
+            "2026-07-07 10:01:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            "2026-07-07 10:01:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 20, 'completion_tokens': 4, 'total_tokens': 60, 'prompt_tokens_details': {'cached_tokens': 3}, 'completion_tokens_details': {'reasoning_tokens': 36}, 'num_sources_used': 1, 'cost_in_usd_ticks': 55}",
+            f"2026-07-07 10:01:03 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet {quote_b}: 'A reply.'",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert f"| 2026-07-07 10:01:02 | quote-tweet | {quote_b} | 20 | 3 | 36 | 4 | 60 | 1 | 55 |" in digest.stdout
+    assert f"| 2026-07-07 10:01:02 | mention | {mention_a} |" not in digest.stdout
+
+
+def test_digest_keeps_consecutive_mixed_lane_xai_contexts_in_order(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-usage-consecutive-mixed"
+    mention_a = "301"
+    quote_b = "302"
+    mention_c = "303"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-07 11:00:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_a} author_id=401 text='@MrsMThatcher one'",
+            "2026-07-07 11:00:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher one'",
+            "2026-07-07 11:00:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 30, 'completion_tokens': 3, 'total_tokens': 70, 'prompt_tokens_details': {'cached_tokens': 4}, 'completion_tokens_details': {'reasoning_tokens': 37}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
+            f"2026-07-07 11:00:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_a}: 'Reply one.'",
+            f"2026-07-07 11:01:00 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={quote_b} author_id=402 original_post_id=555 text='Two'",
+            "2026-07-07 11:01:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            "2026-07-07 11:01:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 31, 'completion_tokens': 4, 'total_tokens': 71, 'prompt_tokens_details': {'cached_tokens': 5}, 'completion_tokens_details': {'reasoning_tokens': 36}, 'num_sources_used': 1, 'cost_in_usd_ticks': 102}",
+            f"2026-07-07 11:01:03 INFO maybe_reply_to_quote_tweets:4020 - No usable reply generated for quote tweet {quote_b}",
+            f"2026-07-07 11:02:00 INFO maybe_reply_to_mentions:3000 - Considering mention id={mention_c} author_id=403 text='@MrsMThatcher three'",
+            "2026-07-07 11:02:01 INFO ask_grok_for_reply:5315 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher three'",
+            "2026-07-07 11:02:02 INFO ask_grok_for_reply:5396 - xAI usage={'prompt_tokens': 32, 'completion_tokens': 5, 'total_tokens': 72, 'prompt_tokens_details': {'cached_tokens': 6}, 'completion_tokens_details': {'reasoning_tokens': 35}, 'num_sources_used': 0, 'cost_in_usd_ticks': 103}",
+            f"2026-07-07 11:02:03 INFO maybe_reply_to_mentions:3050 - Generated reply to mention {mention_c}: 'Reply three.'",
+        ],
+    )
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert f"| 2026-07-07 11:00:02 | mention | {mention_a} | 30 | 4 | 37 | 3 | 70 | 0 | 101 |" in digest.stdout
+    assert f"| 2026-07-07 11:01:02 | quote-tweet | {quote_b} | 31 | 5 | 36 | 4 | 71 | 1 | 102 |" in digest.stdout
+    assert f"| 2026-07-07 11:02:02 | mention | {mention_c} | 32 | 6 | 35 | 5 | 72 | 0 | 103 |" in digest.stdout
