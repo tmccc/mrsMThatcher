@@ -302,6 +302,13 @@ def normalize_for_branch_parity(value):
                 continue
             if key in {"cached_epoch", "created_at"}:
                 continue
+            if (
+                key == "content"
+                and isinstance(item, str)
+                and item.startswith("You write replies for a Margaret Thatcher quotation account on X.")
+            ):
+                normalized[key] = "[grok-system-prompt]"
+                continue
             normalized[key] = normalize_for_branch_parity(item)
         if (
             "replied_to_ids" in normalized
@@ -5242,6 +5249,28 @@ def test_digest_reports_confirmed_reply_emergency_persistence_paths(tmp_path: Pa
     assert "2 confirmed-reply recovery warning(s)" in digest.stdout
     assert "failed writing recovery receipt" in digest.stdout
     assert "both receipt write and emergency state save failed" in digest.stdout
+
+
+def test_digest_reports_reply_media_context(tmp_path: Path) -> None:
+    base = tmp_path / "digest-reply-media-context"
+    write_digest_log(
+        base,
+        [
+            "2026-07-07 07:00:00 INFO     reply_media_context_for_candidate:2350 - Reply media context lane=mention target_id=123 photos=1 mode=multimodal status=supplied",
+            "2026-07-07 07:00:01 WARNING  ask_grok_for_reply:5647 - Reply media context fallback lane=mention target_id=123 photos_expected=1 initial_mode=multimodal final_mode=text_fallback status=unavailable http_status=400",
+            "2026-07-07 07:01:00 WARNING  reply_media_context_for_candidate:2365 - Reply media context unavailable lane=quote_tweet target_id=456 photos_expected=1 mode=multimodal status=unavailable",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "## Reply media context" in digest.stdout
+    assert "| time | level | lane | target_id | photos | mode | status | http_status |" in digest.stdout
+    assert "| 2026-07-07 07:00:00 | INFO | mention | 123 | 1 | multimodal | supplied |  |" in digest.stdout
+    assert "| 2026-07-07 07:00:01 | WARNING | mention | 123 | 1 | text_fallback | unavailable | 400 |" in digest.stdout
+    assert "| 2026-07-07 07:01:00 | WARNING | quote_tweet | 456 | 1 | multimodal | unavailable |  |" in digest.stdout
+    assert "operational error(s)" not in digest.stdout
 
 
 def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:

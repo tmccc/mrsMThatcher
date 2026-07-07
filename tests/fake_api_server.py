@@ -212,12 +212,28 @@ class FakeApiServer:
 
                 if path.startswith("/2/users/") and path.endswith("/mentions"):
                     mentions = list(self.fake.scenario.get("mentions", []))
-                    self._json_response(200, self._page_body(path, self._filter_since(mentions, query), query))
+                    self._json_response(
+                        200,
+                        self._page_body(
+                            path,
+                            self._filter_since(mentions, query),
+                            query,
+                            extra=self.fake.scenario.get("mentions_extra", {}),
+                        ),
+                    )
                     return
 
                 if path == "/2/tweets/search/recent":
                     replies = list(self.fake.scenario.get("search_recent", []))
-                    self._json_response(200, self._page_body(path, self._filter_since(replies, query), query))
+                    self._json_response(
+                        200,
+                        self._page_body(
+                            path,
+                            self._filter_since(replies, query),
+                            query,
+                            extra=self.fake.scenario.get("search_recent_extra", {}),
+                        ),
+                    )
                     return
 
                 if path.startswith("/2/tweets/") and path.endswith("/quote_tweets"):
@@ -300,6 +316,16 @@ class FakeApiServer:
                 if path == "/v1/chat/completions":
                     body = self._read_json()
                     self._record("POST", path, query, body)
+                    xai_responses = self.fake.scenario.setdefault("xai_responses", [])
+                    if xai_responses:
+                        response = xai_responses.pop(0)
+                        status = int(response.get("status", 200))
+                        if status >= 400:
+                            self._json_response(status, response.get("body", {"error": "configured xai failure"}))
+                            return
+                        self.fake.xai_requests.append(body)
+                        self._json_response(status, response.get("body", {}))
+                        return
                     if self.fake.scenario.get("xai_non_json"):
                         self._text_response(200, "not json")
                         return

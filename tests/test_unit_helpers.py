@@ -78,6 +78,89 @@ def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None 
     }
 
 
+def xai_user_content(server: FakeApiServer) -> str | list[dict]:
+    assert server.xai_requests
+    return server.xai_requests[-1]["messages"][1]["content"]
+
+
+def xai_image_urls(server: FakeApiServer) -> list[str]:
+    content = xai_user_content(server)
+    if not isinstance(content, list):
+        return []
+    return [
+        part["image_url"]["url"]
+        for part in content
+        if part.get("type") == "image_url"
+    ]
+
+
+def fake_xai_response(status_code: int, body: dict | str) -> bot.requests.Response:
+    response = bot.requests.Response()
+    response.status_code = status_code
+    if isinstance(body, str):
+        response._content = body.encode("utf-8")
+    else:
+        response._content = json.dumps(body).encode("utf-8")
+        response.headers["Content-Type"] = "application/json"
+    return response
+
+
+def run_native_photo_mention_with_xai_responses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[dict],
+) -> tuple[str, list[dict], list[dict], dict]:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "This depends on the image. https://t.co/example",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
+                    }
+                ]
+            }
+        },
+        "xai_responses": responses,
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+        status = bot.maybe_reply_to_mentions(state)
+        xai_posts = [request for request in server.requests if request["path"] == "/v1/chat/completions"]
+        return status, xai_posts, list(server.xai_requests), state
+    finally:
+        server.stop()
+
+
 def image_analysis_for_paths(paths: list[Path], analyses: dict[str, dict] | None = None) -> dict:
     analyses = analyses or {}
     path_index: dict[str, str] = {}
@@ -2726,6 +2809,612 @@ def test_confirmed_mention_reply_save_failure_replays_after_restart(
 
         assert second_status == bot.NORMAL_CHECK_STATUS_CHECKED
         assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == ["100"]
+    finally:
+        server.stop()
+
+
+def test_mention_native_photo_context_reaches_xai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "You've been conquered. https://t.co/example",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
+                    }
+                ]
+            }
+        },
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        assert len(server.xai_requests) == 1
+        user_content = server.xai_requests[0]["messages"][1]["content"]
+        assert isinstance(user_content, list)
+        text_parts = [part["text"] for part in user_content if part.get("type") == "text"]
+        image_parts = [part for part in user_content if part.get("type") == "image_url"]
+        assert text_parts
+        assert "You've been conquered." in text_parts[0]
+        assert "https://t.co/example" not in text_parts[0]
+        assert image_parts == [
+            {
+                "type": "image_url",
+                "image_url": {"url": "https://pbs.twimg.com/media/native-photo.jpg"},
+            }
+        ]
+    finally:
+        server.stop()
+
+
+def test_text_only_mention_keeps_plain_xai_content(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "A plain comment.",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+            }
+        ],
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        assert isinstance(xai_user_content(server), str)
+        assert xai_image_urls(server) == []
+    finally:
+        server.stop()
+
+
+def test_mention_external_url_without_native_photo_is_not_image_input(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "Look at this https://example.com/story",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+            }
+        ],
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        content = xai_user_content(server)
+        assert isinstance(content, str)
+        assert "https://example.com/story" not in content
+        assert xai_image_urls(server) == []
+    finally:
+        server.stop()
+
+
+def test_mention_native_photo_context_caps_multiple_photos_in_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "Several images attached.",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+                "attachments": {"media_keys": ["3_a", "3_b", "3_c"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {"media_key": "3_a", "type": "photo", "url": "https://pbs.twimg.com/media/a.jpg"},
+                    {"media_key": "3_b", "type": "photo", "url": "https://pbs.twimg.com/media/b.jpg"},
+                    {"media_key": "3_c", "type": "photo", "url": "https://pbs.twimg.com/media/c.jpg"},
+                ]
+            }
+        },
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        assert xai_image_urls(server) == [
+            "https://pbs.twimg.com/media/a.jpg",
+            "https://pbs.twimg.com/media/b.jpg",
+        ]
+    finally:
+        server.stop()
+
+
+def test_native_photo_unavailable_adds_incomplete_context_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "This only makes sense with the image. https://t.co/example",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                    }
+                ]
+            }
+        },
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        content = xai_user_content(server)
+        assert isinstance(content, str)
+        assert "could not be made available" in content
+        assert "Do not invent image contents" in content
+        assert "https://t.co/example" not in content
+    finally:
+        server.stop()
+
+
+def test_multimodal_xai_rejection_retries_with_incomplete_media_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "mentions": [
+            {
+                "id": "100",
+                "text": "This depends on the image. https://t.co/example",
+                "author_id": "200",
+                "conversation_id": "100",
+                "created_at": "2026-07-06T10:00:00Z",
+                "attachments": {"media_keys": ["3_100"]},
+            }
+        ],
+        "mentions_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_100",
+                        "type": "photo",
+                        "url": "https://pbs.twimg.com/media/native-photo.jpg",
+                    }
+                ]
+            }
+        },
+        "xai_responses": [
+            {"status": 400, "body": {"error": "image input rejected"}},
+            {
+                "status": 200,
+                "body": {
+                    "choices": [{"message": {"content": "SKIP"}}],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+        ],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", tmp_path / "extra_quote_watch_post_ids.txt")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        xai_posts = [request for request in server.requests if request["path"] == "/v1/chat/completions"]
+        assert len(xai_posts) == 2
+        assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
+        retry_content = xai_posts[1]["body"]["messages"][1]["content"]
+        assert isinstance(retry_content, str)
+        assert "could not be made available" in retry_content
+        assert len(server.xai_requests) == 1
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize(
+    ("status_code", "body"),
+    [
+        (400, {"error": "invalid request body"}),
+        (403, {"error": "forbidden"}),
+        (415, {"error": "unsupported content type application/json"}),
+        (422, {"error": "unsupported input type"}),
+        (422, {"error": "invalid provision"}),
+        (422, {"error": "invalid revision"}),
+        (422, {"error": "invalid supervision setting"}),
+        (
+            400,
+            {
+                "error": {"message": "invalid request body"},
+                "request_fragment": {"type": "image_url"},
+            },
+        ),
+        (401, {"error": "configured 401 failure"}),
+        (429, {"error": "configured 429 failure"}),
+        (503, {"error": "configured 503 failure"}),
+    ],
+)
+def test_xai_multimodal_rejection_classifier_rejects_unrelated_errors(
+    status_code: int,
+    body: dict,
+) -> None:
+    assert bot.xai_error_is_multimodal_input_rejection(fake_xai_response(status_code, body)) is False
+
+
+@pytest.mark.parametrize(
+    ("status_code", "body"),
+    [
+        (400, {"error": "unsupported image_url in multimodal input"}),
+        (415, {"error": "image content type is unsupported"}),
+        (422, {"error": "invalid multimodal image input"}),
+        (422, {"error": "invalid vision input"}),
+        (
+            400,
+            {
+                "error": {"message": "unsupported image_url in multimodal input"},
+                "request_fragment": {"type": "image_url"},
+            },
+        ),
+    ],
+)
+def test_xai_multimodal_rejection_classifier_accepts_media_specific_errors(
+    status_code: int,
+    body: dict,
+) -> None:
+    assert bot.xai_error_is_multimodal_input_rejection(fake_xai_response(status_code, body)) is True
+
+
+@pytest.mark.parametrize(
+    ("status_code", "body"),
+    [
+        (400, {"error": "invalid request body"}),
+        (403, {"error": "forbidden"}),
+        (415, {"error": "unsupported content type application/json"}),
+        (422, {"error": "unsupported input type"}),
+        (
+            400,
+            {
+                "error": {"message": "invalid request body"},
+                "request_fragment": {"type": "image_url"},
+            },
+        ),
+        (401, {"error": "configured 401 failure"}),
+        (429, {"error": "configured 429 failure"}),
+        (503, {"error": "configured 503 failure"}),
+    ],
+)
+def test_non_image_xai_http_errors_do_not_retry_as_text_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+    body: dict,
+) -> None:
+    status, xai_posts, successful_xai_requests, _state = run_native_photo_mention_with_xai_responses(
+        tmp_path,
+        monkeypatch,
+        [
+            {"status": status_code, "body": body},
+            {
+                "status": 200,
+                "body": {
+                    "choices": [{"message": {"content": "SKIP"}}],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+        ],
+    )
+
+    assert status == bot.NORMAL_CHECK_STATUS_API_ERROR
+    assert len(xai_posts) == 1
+    assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
+    assert successful_xai_requests == []
+
+
+@pytest.mark.parametrize(
+    ("status_code", "body"),
+    [
+        (400, {"error": "unsupported image_url in multimodal input"}),
+        (415, {"error": "image content type is unsupported"}),
+        (422, {"error": "invalid multimodal image input"}),
+    ],
+)
+def test_image_xai_http_rejection_retries_once_as_text_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    status_code: int,
+    body: dict,
+) -> None:
+    status, xai_posts, successful_xai_requests, _state = run_native_photo_mention_with_xai_responses(
+        tmp_path,
+        monkeypatch,
+        [
+            {"status": status_code, "body": body},
+            {
+                "status": 200,
+                "body": {
+                    "choices": [{"message": {"content": "SKIP"}}],
+                    "usage": {"total_tokens": 12},
+                },
+            },
+            {
+                "status": 200,
+                "body": {
+                    "choices": [{"message": {"content": "This third response must not be used."}}],
+                    "usage": {"total_tokens": 99},
+                },
+            },
+        ],
+    )
+
+    assert status == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert len(xai_posts) == 2
+    assert isinstance(xai_posts[0]["body"]["messages"][1]["content"], list)
+    fallback_content = xai_posts[1]["body"]["messages"][1]["content"]
+    assert isinstance(fallback_content, str)
+    assert "could not be made available" in fallback_content
+    assert "Do not invent image contents" in fallback_content
+    assert len(successful_xai_requests) == 1
+
+
+def test_quote_tweet_native_photo_context_reaches_xai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["quote_tweets"]["900"]["data"][0]["attachments"] = {"media_keys": ["3_910"]}
+    scenario["quote_tweets"]["900"]["includes"]["media"] = [
+        {
+            "media_key": "3_910",
+            "type": "photo",
+            "url": "https://pbs.twimg.com/media/quote-photo.jpg",
+        }
+    ]
+    scenario["grok_replies"] = ["SKIP"]
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 0)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["recent_own_post_ids"] = ["900"]
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+        state["daily_quote_reply_date"] = state["daily_reply_date"]
+
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+
+        assert xai_image_urls(server) == ["https://pbs.twimg.com/media/quote-photo.jpg"]
+    finally:
+        server.stop()
+
+
+def test_hot_post_reply_native_photo_context_reaches_xai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = {
+        "tweets": {
+            "900": {
+                "id": "900",
+                "text": "Original watched post.",
+                "author_id": "12345",
+                "conversation_id": "900",
+                "created_at": "2026-07-06T09:00:00Z",
+            }
+        },
+        "search_recent": [
+            {
+                "id": "910",
+                "text": "A hot reply with an image. https://t.co/example",
+                "author_id": "310",
+                "conversation_id": "900",
+                "created_at": "2026-07-06T10:00:00Z",
+                "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+                "attachments": {"media_keys": ["3_910"]},
+            }
+        ],
+        "search_recent_extra": {
+            "includes": {
+                "media": [
+                    {
+                        "media_key": "3_910",
+                        "type": "photo",
+                        "url": "https://pbs.twimg.com/media/hot-photo.jpg",
+                    }
+                ]
+            }
+        },
+        "grok_replies": ["SKIP"],
+    }
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        watch_file = tmp_path / "extra_quote_watch_post_ids.txt"
+        watch_file.write_text("900\n", encoding="utf-8")
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "EXTRA_QUOTE_WATCH_FILE", watch_file)
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "XAI_BASE", f"{server.url}/v1")
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_HOT_POST_REPLY_CHECKS", True)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+
+        state = bot.default_state()
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+
+        assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+        assert xai_image_urls(server) == ["https://pbs.twimg.com/media/hot-photo.jpg"]
     finally:
         server.stop()
 

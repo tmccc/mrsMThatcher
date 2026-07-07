@@ -847,6 +847,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     confirmed_reply_receipts: List[Dict[str, Any]] = []
     confirmed_reply_recovery: List[Dict[str, Any]] = []
     asset_health: List[Dict[str, Any]] = []
+    reply_media_context: List[Dict[str, Any]] = []
     media_upload_incidents: List[Dict[str, Any]] = []
     xai_usage_events: List[Dict[str, Any]] = []
     xai_usage_parse_errors: List[Dict[str, Any]] = []
@@ -920,6 +921,16 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         asset_health.append(item)
         stats[f"asset_{kind}"] += 1
 
+    def add_reply_media_context_event(r: Record, **kwargs: Any) -> None:
+        item = {
+            "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+            "level": r.level,
+            "message": short(r.msg, 500),
+        }
+        item.update(kwargs)
+        reply_media_context.append(item)
+        stats["reply_media_context_events"] += 1
+
     for r in records:
         msg = r.msg
 
@@ -992,6 +1003,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             or "No analysed currently eligible regular-post images" in msg
             or "Image used-history still contains legacy integer entries" in msg
         )
+        is_reply_media_context = msg.startswith("Reply media context")
 
         # Error/warning collection. Exclude routine KeyboardInterrupt, expected
         # self-test failures, and handled target restrictions from operational errors.
@@ -1019,6 +1031,8 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
         elif is_receipt_routine and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             pass
         elif is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
+            pass
+        elif is_reply_media_context and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             pass
         elif is_handled_reply_restriction and r.level in {"ERROR", "CRITICAL", "WARNING"}:
             # The raw X API 403 is classified below. Follow-up warnings such as
@@ -1153,6 +1167,40 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             continue
         if "confirmed-reply receipt blocks" in msg:
             add_confirmed_reply_receipt_event("invalid_or_malformed_blocked", r)
+            continue
+
+        m = re.search(
+            r"Reply media context fallback lane=([^\s]+) target_id=([^\s]+) "
+            r"photos_expected=(\d+) initial_mode=([^\s]+) final_mode=([^\s]+) "
+            r"status=([^\s]+) http_status=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_reply_media_context_event(
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+                photos=m.group(3),
+                mode=m.group(5),
+                status=m.group(6),
+                http_status=m.group(7),
+            )
+            continue
+
+        m = re.search(
+            r"Reply media context(?: unavailable)? lane=([^\s]+) target_id=([^\s]+) "
+            r"(?:photos=(\d+)|photos_expected=(\d+)) mode=([^\s]+) status=([^\s]+)",
+            msg,
+        )
+        if m:
+            add_reply_media_context_event(
+                r,
+                lane=m.group(1),
+                target_id=m.group(2),
+                photos=m.group(3) or m.group(4) or "",
+                mode=m.group(5),
+                status=m.group(6),
+            )
             continue
 
         if is_asset_metadata_warning and r.level in {"ERROR", "CRITICAL", "WARNING"}:
@@ -1766,6 +1814,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "receipt_events": confirmed_reply_receipts,
             "warnings": confirmed_reply_recovery,
         },
+        "reply_media_context": reply_media_context,
         "asset_health": asset_health,
         "media_upload": {
             "incidents": media_upload_incidents,
@@ -2380,6 +2429,24 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("message", ""),
                 ]))
             out.append("")
+
+    reply_media_context = report.get("reply_media_context") or []
+    if reply_media_context:
+        out.append("## Reply media context")
+        out.append(md_table_row(["time", "level", "lane", "target_id", "photos", "mode", "status", "http_status"]))
+        out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
+        for item in reply_media_context:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("level", ""),
+                item.get("lane", ""),
+                item.get("target_id", ""),
+                item.get("photos", ""),
+                item.get("mode", ""),
+                item.get("status", ""),
+                item.get("http_status", ""),
+            ]))
+        out.append("")
 
     asset_health = report.get("asset_health") or []
     if asset_health:
