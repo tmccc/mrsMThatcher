@@ -1,0 +1,1335 @@
+{
+  "items": {
+    "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:36Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:12:15Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:49Z",
+        "reviewed_at": "2026-07-08T17:47:49Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "If someone is confronting our essential liberties, if someone is inflicting injuries and harm, by God I'll confront them!",
+      "quote_hash": "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5/image_01.png"
+    },
+    "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:30:04Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:53:35Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:19Z",
+        "reviewed_at": "2026-07-08T17:46:19Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best.",
+      "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550/image_01.png"
+    },
+    "tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:20Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:51Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:43Z",
+        "reviewed_at": "2026-07-08T17:45:43Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Conservatives have excellent credentials to speak about human rights. By our efforts, and with precious little help from self-styled liberals, we were largely responsible for securing liberty for a substantial share of the world's population and defending it for most of the rest.",
+      "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7/image_01.png"
+    },
+    "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:58Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:47:39Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:55Z",
+        "reviewed_at": "2026-07-08T17:45:55Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "If you lead a country like Britain, a strong country, a country which has taken a lead in world affairs in good times and in bad, a country that is always reliable, then you have to have a touch of iron about you.",
+      "quote_hash": "093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429/image_01.png"
+    },
+    "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:35Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:40Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:07Z",
+        "reviewed_at": "2026-07-08T17:46:07Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc/image_01.png"
+    },
+    "tg_115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:19Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:15:04Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:15Z",
+        "reviewed_at": "2026-07-08T17:47:15Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Communism has crumbled, it has lost all credibility, even among nominal believers.",
+      "quote_hash": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0/image_01.png"
+    },
+    "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:51Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:01:28Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:45Z",
+        "reviewed_at": "2026-07-08T17:46:45Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "All collectivism is always conducive to oppression: it is only the victims who differ.",
+      "quote_hash": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712/image_01.png"
+    },
+    "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:07Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:27Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:39Z",
+        "reviewed_at": "2026-07-08T17:45:39Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Any woman who understands the problems of running a home will be nearer to understanding the problems of running a country.",
+      "quote_hash": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13/image_01.png"
+    },
+    "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:36:59Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:04:09Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:41Z",
+        "reviewed_at": "2026-07-08T17:47:41Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism's results have ranged between the merely shabby and the truly catastrophic - poverty, strife, oppression and, on the killing fields of communism, the deaths this century of perhaps 100 million people.",
+      "quote_hash": "1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500/image_01.png"
+    },
+    "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:49Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:47:12Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:54Z",
+        "reviewed_at": "2026-07-08T17:45:54Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I don't mind how much my Ministers talk, so long as they do what I say.",
+      "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6/image_01.png"
+    },
+    "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:29:33Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:51:19Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:15Z",
+        "reviewed_at": "2026-07-08T17:46:15Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "The battle for women's rights has been largely won. The days when they were demanded and discussed in strident tones should be gone for ever. And I hope they are. I hated those strident tones that you still hear from some Women's Libbers.",
+      "quote_hash": "204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d/image_01.png"
+    },
+    "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:31Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:35Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:06Z",
+        "reviewed_at": "2026-07-08T17:46:06Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9/image_01.png"
+    },
+    "tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:00Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:21Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:34Z",
+        "reviewed_at": "2026-07-08T17:45:34Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a/image_01.png"
+    },
+    "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:17Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:48Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:42Z",
+        "reviewed_at": "2026-07-08T17:45:42Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Christmas is a day of meaning and traditions, a special day spent in the warm circle of family and friends.",
+      "quote_hash": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9/image_01.png"
+    },
+    "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:33Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:15:53Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:22Z",
+        "reviewed_at": "2026-07-08T17:47:22Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "The Socialist myth is that we can preserve our freedoms without defending them. The truth is that in a dangerous world our ability to defend ourselves is essential to preserve peace.",
+      "quote_hash": "2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14/image_01.png"
+    },
+    "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:35:18Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:18:32Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:31Z",
+        "reviewed_at": "2026-07-08T17:47:31Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Those of us who believed in the sanctity of the human spirit had no doubt that the communist system would eventually collapse, but it is remarkable that so many people, mostly intellectuals, were taken in by communism's lies.",
+      "quote_hash": "2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2/image_01.png"
+    },
+    "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:23Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:04:44Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:51Z",
+        "reviewed_at": "2026-07-08T17:46:51Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism must return for ever to its proper place - the reading room of the British Library where Karl Marx found it, Section: History of Ideas, Subsection 19th Century, Status Archaic.",
+      "quote_hash": "33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3/image_01.png"
+    },
+    "tg_3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:27Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:59:35Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:36Z",
+        "reviewed_at": "2026-07-08T17:46:36Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "To many of us it seems that there is precious little difference between the policies of the Communist Party and the policies of the Labour Party.",
+      "quote_hash": "3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586/image_01.png"
+    },
+    "tg_3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:01Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:47:53Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:57Z",
+        "reviewed_at": "2026-07-08T17:45:57Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "If you want something said, ask a man; if you want something done, ask a woman.",
+      "quote_hash": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f/image_01.png"
+    },
+    "tg_41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:42Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:12:57Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:50Z",
+        "reviewed_at": "2026-07-08T17:47:50Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "There are a few times when I get home at night and everything has got on top of me when I shed a few tears, silently, alone.",
+      "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f/image_01.png"
+    },
+    "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:13Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:14:48Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:13Z",
+        "reviewed_at": "2026-07-08T17:47:13Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "No matter how hard they try, totalitarian countries can never extinguish the flame of freedom. Again and again, we see the evidence that if only the nations of Eastern Europe were allowed to choose, they would choose democracy and freedom.",
+      "quote_hash": "4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98/image_01.png"
+    },
+    "tg_52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:29:47Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:52:04Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:16Z",
+        "reviewed_at": "2026-07-08T17:46:16Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it.",
+      "quote_hash": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351/image_01.png"
+    },
+    "tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:29Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:06:24Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:54Z",
+        "reviewed_at": "2026-07-08T17:46:54Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "The Communist Party is like a monstrous parasite which consumes the flesh of its host and leaves behind a shell, which is designed to conceal the change by which the Party has itself become the State.",
+      "quote_hash": "5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4/image_01.png"
+    },
+    "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:30:46Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:56:31Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:26Z",
+        "reviewed_at": "2026-07-08T17:46:26Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I sometimes think the Labour Party is like a pub where the mild is running out. If someone doesn't do something soon, all that's left will be bitter. (Laughter). And all that's bitter will be Left.",
+      "quote_hash": "56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7/image_01.png"
+    },
+    "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:00Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:08:39Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:03Z",
+        "reviewed_at": "2026-07-08T17:47:03Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I want to lead the people of this country away from the quicksands of Socialism.",
+      "quote_hash": "596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764/image_01.png"
+    },
+    "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:59Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:02:59Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:48Z",
+        "reviewed_at": "2026-07-08T17:46:48Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "At one end of the spectrum are terrorist gangs within our borders, and terrorist states which finance and arm them. At the other are the Hard Left operating inside our system, conspiring to use union power and the apparatus of local government to break, defy and subvert the law.",
+      "quote_hash": "59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa/image_01.png"
+    },
+    "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:52Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:08:19Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:01Z",
+        "reviewed_at": "2026-07-08T17:47:01Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It [The Berlin Wall] is a monument to oppression and cruelty, but also to futility.",
+      "quote_hash": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614/image_01.png"
+    },
+    "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:02Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:06:10Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:42Z",
+        "reviewed_at": "2026-07-08T17:47:42Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism demands that all should be alike-that the unequal should be artificially made equal.",
+      "quote_hash": "5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442/image_01.png"
+    },
+    "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:30:11Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:54:43Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:20Z",
+        "reviewed_at": "2026-07-08T17:46:20Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "We have not successfully rolled back the frontiers of the State in Britain only to see them reimposed at European level, with a European super-State exercising a new dominance from Brussels.",
+      "quote_hash": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679/image_01.png"
+    },
+    "tg_61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:29:49Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:52:28Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:17Z",
+        "reviewed_at": "2026-07-08T17:46:17Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "They've got the usual Socialist disease - they've run out of other people's money.",
+      "quote_hash": "61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2/image_01.png"
+    },
+    "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:36:25Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:03:02Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:38Z",
+        "reviewed_at": "2026-07-08T17:47:38Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Of course, there is some poverty in capitalist societies: but there is far more poverty - as well as far less freedom - in socialist ones.",
+      "quote_hash": "661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831/image_01.png"
+    },
+    "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:45Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:47:06Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:52Z",
+        "reviewed_at": "2026-07-08T17:45:52Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I do not know anyone who has got to the top without hard work. That is the recipe. It will not always get you to the top, but should get you pretty near.",
+      "quote_hash": "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113/image_01.png"
+    },
+    "tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:54Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:16:59Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:30Z",
+        "reviewed_at": "2026-07-08T17:47:30Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "The writings of Solzhenitsyn made obvious even to the wilfully blind that it was not simply Stalin who was an evil man, but that communism, in practice, is an evil system, which gave birth to Stalin.",
+      "quote_hash": "684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5/image_01.png"
+    },
+    "tg_696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:24Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:45:14Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:46Z",
+        "reviewed_at": "2026-07-08T17:45:46Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Disciplining yourself to do what you know is right and important, although difficult, is the highroad to pride, self-esteem, and personal satisfaction.",
+      "quote_hash": "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320/image_01.png"
+    },
+    "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:42Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:07:38Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:59Z",
+        "reviewed_at": "2026-07-08T17:46:59Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "The Government treats industry like a beast of burden. They put more & more weight on the animal, starve it of nutritious food, harness it ever more tightly and then shout at it to go faster. The regeneration of British industry will begin only when Government get off its back.",
+      "quote_hash": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e/image_01.png"
+    },
+    "tg_6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:39Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:00:14Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:37Z",
+        "reviewed_at": "2026-07-08T17:46:37Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "There is nothing new about the Tory commitment to protect the environment. The last thing we want is to leave environmental debts for our children... It's we Conservatives who are not merely friends of the Earth - we are its guardians and trustees for generations to come.",
+      "quote_hash": "6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493/image_01.png"
+    },
+    "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:53Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:01:34Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:46Z",
+        "reviewed_at": "2026-07-08T17:46:46Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "If a Tory does not believe that private property is one of the main bulwarks of individual freedom, then he had better become a socialist and have done with it.",
+      "quote_hash": "6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b/image_01.png"
+    },
+    "tg_6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:14Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:03:31Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:50Z",
+        "reviewed_at": "2026-07-08T17:46:50Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "We had to fight the enemy without in the Falklands. We always have to be aware of the enemy within, which is much more difficult to fight and more dangerous to liberty.",
+      "quote_hash": "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649/image_01.png"
+    },
+    "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:51Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:15:42Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:52Z",
+        "reviewed_at": "2026-07-08T17:47:52Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "All modern governments are infected with these viruses to some extent. Only Socialism makes a virtue of the disease.",
+      "quote_hash": "7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4/image_01.png"
+    },
+    "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:36:11Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:02:17Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:37Z",
+        "reviewed_at": "2026-07-08T17:47:37Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It seemed as though in 1917 the world had unwittingly entered into a great experiment to decide which was the better way of life for our peoples. Then the Communist system collapsed and its cruelties and poverty of spirit became clear to all.",
+      "quote_hash": "7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434/image_01.png"
+    },
+    "tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:16Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:15:00Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:14Z",
+        "reviewed_at": "2026-07-08T17:47:14Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Our duty is to remember and remind. To forget the past would dishonour all those who fought heroically to resist communism's evil - it would also place us in danger of repeating its mistakes.",
+      "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40/image_01.png"
+    },
+    "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:35Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:07:20Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:58Z",
+        "reviewed_at": "2026-07-08T17:46:58Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "There will always be individualism as long as there are individuals: but in a free society and a free economy individualism works to the general good - in a socialist society and a controlled economy it works against it.",
+      "quote_hash": "7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370/image_01.png"
+    },
+    "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:10Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:07:19Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:44Z",
+        "reviewed_at": "2026-07-08T17:47:44Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "A free way of life gives both dignity and prosperity that you do not get in Communism.",
+      "quote_hash": "8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822/image_01.png"
+    },
+    "tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:43Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:01:11Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:41Z",
+        "reviewed_at": "2026-07-08T17:46:41Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "When I'm out of politics I'm going to run a business, it'll be called rent-a-spine.",
+      "quote_hash": "824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af/image_01.png"
+    },
+    "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:19Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:58:59Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:29Z",
+        "reviewed_at": "2026-07-08T17:46:29Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d/image_01.png"
+    },
+    "tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:11Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:48:09Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:58Z",
+        "reviewed_at": "2026-07-08T17:45:58Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I love argument, I love debate. I don't expect anyone just to sit there and agree with me, that's not their job.",
+      "quote_hash": "8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906/image_01.png"
+    },
+    "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:24Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:09:48Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:47Z",
+        "reviewed_at": "2026-07-08T17:47:47Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "We believe in standing ready to defend our beliefs. History does not long entrust the care of freedom to the weak and timid.",
+      "quote_hash": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003/image_01.png"
+    },
+    "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:29Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:12:41Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:06Z",
+        "reviewed_at": "2026-07-08T17:47:06Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Those who live under the heel of Marxist tyranny look with envy at the very things we take for granted. They know that politics is about more than economics in a free society.",
+      "quote_hash": "90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2/image_01.png"
+    },
+    "tg_912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:36:29Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:03:44Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:40Z",
+        "reviewed_at": "2026-07-08T17:47:40Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialists, however, are obsessed with equal outcomes at the expense of equal opportunities. Time and again, we erected ladders for children to climb; time and again, the Socialist politicians climbed them, and having done so, they tried to kick them away.",
+      "quote_hash": "912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7/image_01.png"
+    },
+    "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:38:00Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:16:01Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:53Z",
+        "reviewed_at": "2026-07-08T17:47:53Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Freedom demands the diffusion of power. Socialism demands the concentration of power.",
+      "quote_hash": "91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f/image_01.png"
+    },
+    "tg_9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:05Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:06:39Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:43Z",
+        "reviewed_at": "2026-07-08T17:47:43Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism is, in its essence, an attack not only upon British enterprise, but upon the right of the ordinary man or woman to breathe freely without having a harsh, clammy hand clapped across their mouths and nostrils.",
+      "quote_hash": "9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21/image_01.png"
+    },
+    "tg_a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:45Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:13:00Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:09Z",
+        "reviewed_at": "2026-07-08T17:47:09Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Whatever the difficulties, economies that flourish do so under the banner of the market and not of Marx.",
+      "quote_hash": "a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c/image_01.png"
+    },
+    "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:28Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:45:18Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:47Z",
+        "reviewed_at": "2026-07-08T17:45:47Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Don't follow the crowd, let the crowd follow you.",
+      "quote_hash": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac/image_01.png"
+    },
+    "tg_a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:14Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:48:17Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:00Z",
+        "reviewed_at": "2026-07-08T17:46:00Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I seem to smell the stench of appeasement in the air.",
+      "quote_hash": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf/image_01.png"
+    },
+    "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:35:46Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:19:26Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:32Z",
+        "reviewed_at": "2026-07-08T17:47:32Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Communism has totally failed to deliver happiness or prosperity, and its failure has been at the expense of human lives and human dignity. The cost has been terrible.",
+      "quote_hash": "a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b/image_01.png"
+    },
+    "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:29:07Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:50:44Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:10Z",
+        "reviewed_at": "2026-07-08T17:46:10Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "People think that at the top there isn't much room. They tend to think of it as an Everest. My message is that there is tons of room at the top.",
+      "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54/image_01.png"
+    },
+    "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:09Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:09:25Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:05Z",
+        "reviewed_at": "2026-07-08T17:47:05Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
+      "quote_hash": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b/image_01.png"
+    },
+    "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:30:18Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:55:26Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:24Z",
+        "reviewed_at": "2026-07-08T17:46:24Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "To the extent that the West is to blame at all for the ills of the Third World it is to the extent that the West created Marx and his successors, among whom must be numbered many of those who advised the Third World leaders in post-war years.",
+      "quote_hash": "ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e/image_01.png"
+    },
+    "tg_b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:56Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:08:25Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:02Z",
+        "reviewed_at": "2026-07-08T17:47:02Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+      "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785/image_01.png"
+    },
+    "tg_bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:34Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:46:14Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:51Z",
+        "reviewed_at": "2026-07-08T17:45:51Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "I am in politics because of the conflict between good and evil, and I believe that in the end good will triumph.",
+      "quote_hash": "bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1/image_01.png"
+    },
+    "tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:41Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:00:40Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:39Z",
+        "reviewed_at": "2026-07-08T17:46:39Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism is like one of those horrible viruses. You no sooner discover a remedy for one version, than it spontaneously evolves into another.",
+      "quote_hash": "bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de/image_01.png"
+    },
+    "tg_bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:02Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:24Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:36Z",
+        "reviewed_at": "2026-07-08T17:45:36Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "And what a prize we have to fight for: no less than the chance to banish from our land the dark divisive clouds of Marxist socialism.",
+      "quote_hash": "bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662/image_01.png"
+    },
+    "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:31Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:45:27Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:49Z",
+        "reviewed_at": "2026-07-08T17:45:49Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "During my lifetime most of the problems the world has faced have come, in one fashion or other, from mainland Europe, and the solutions from outside it.",
+      "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247/image_01.png"
+    },
+    "tg_c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:47Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:16:37Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:27Z",
+        "reviewed_at": "2026-07-08T17:47:27Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Socialism has been tried and found wanting. Socialism has failed. If we, too, let the lamps of freedom flicker and go out, who will light them again?",
+      "quote_hash": "c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82/image_01.png"
+    },
+    "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:31:05Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:58:39Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:27Z",
+        "reviewed_at": "2026-07-08T17:46:27Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Communism was the regime for the privileged elite, capitalism the creed for the common man.",
+      "quote_hash": "c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956/image_01.png"
+    },
+    "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:13Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:08:21Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:46Z",
+        "reviewed_at": "2026-07-08T17:47:46Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It is one of the great paradoxes of history that Socialism, which has done so much harm - was born of a great humanitarian urge - the desire to give people dignity and security. The trouble is that too much security removes a man's dignity by attenuating his freedom.",
+      "quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a/image_01.png"
+    },
+    "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:27Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:29Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:04Z",
+        "reviewed_at": "2026-07-08T17:46:04Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It used to be about trying to do something. Now it's about trying to be someone.",
+      "quote_hash": "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e/image_01.png"
+    },
+    "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:22Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:55Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:44Z",
+        "reviewed_at": "2026-07-08T17:45:44Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Defeat? I do not recognise the meaning of the word.",
+      "quote_hash": "d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f/image_01.png"
+    },
+    "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:50Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:13:27Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:10Z",
+        "reviewed_at": "2026-07-08T17:47:10Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It takes courage of a high order to lay yourself open to the taunts and sneers of lesser men who try to diminish your character because they can't defeat your arguments.",
+      "quote_hash": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd/image_01.png"
+    },
+    "tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:38:05Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:16:36Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:54Z",
+        "reviewed_at": "2026-07-08T17:47:54Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity.",
+      "quote_hash": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c/image_01.png"
+    },
+    "tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:04Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:25Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:37Z",
+        "reviewed_at": "2026-07-08T17:45:37Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Any leader has to have a certain amount of steel in them, so I am not that put out being called the Iron Lady.",
+      "quote_hash": "d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44/image_01.png"
+    },
+    "tg_dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:02Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:14:22Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:11Z",
+        "reviewed_at": "2026-07-08T17:47:11Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure.",
+      "quote_hash": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09/image_01.png"
+    },
+    "tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:24Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:06Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:03Z",
+        "reviewed_at": "2026-07-08T17:46:03Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It pays to know the enemy not least because at some time you may have the opportunity to turn him into a friend.",
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3/image_01.png"
+    },
+    "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:29:29Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:51:08Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:12Z",
+        "reviewed_at": "2026-07-08T17:46:12Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise.",
+      "quote_hash": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37/image_01.png"
+    },
+    "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:20Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:00Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:02Z",
+        "reviewed_at": "2026-07-08T17:46:02Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "It may be the cock that crows, but it is the hen that lays the eggs.",
+      "quote_hash": "ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522/image_01.png"
+    },
+    "tg_ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:24Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:15:08Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:17Z",
+        "reviewed_at": "2026-07-08T17:47:17Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Let us never forget that the triumph over communism was not merely a physical victory, it was a moral victory also.",
+      "quote_hash": "ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417/image_01.png"
+    },
+    "tg_f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:34:45Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:16:30Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:26Z",
+        "reviewed_at": "2026-07-08T17:47:26Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Communism, whose denial of liberty of all kinds, personal and economic, was the utter negation of the human spirit.",
+      "quote_hash": "f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161/image_01.png"
+    },
+    "tg_f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:30:15Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:54:47Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:21Z",
+        "reviewed_at": "2026-07-08T17:46:21Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "European history shows that, first, there's nothing necessarily benevolent about programmes of European integration; second, desire to achieve utopian plans often poses a grave threat to freedom; and third, European unity has been tried before - the outcome was far from happy.",
+      "quote_hash": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d/image_01.png"
+    },
+    "tg_f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:28:39Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:49:50Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:09Z",
+        "reviewed_at": "2026-07-08T17:46:09Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Left-wing zealots have often been prepared to ride roughshod over due process and basic considerations of fairness when they think they can get away with it. For them the ends always seems to justify the means. That is precisely how their predecessors came to create the gulag.",
+      "quote_hash": "f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74/image_01.png"
+    },
+    "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:33:38Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:12:54Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:07Z",
+        "reviewed_at": "2026-07-08T17:47:07Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Only truthful ideas, ideas that are in tune with the essential dignity and rights of man, can prevail across the years. The ruins of Marxist communism in Eastern Europe and the former Soviet Union testify most eloquently to that.",
+      "quote_hash": "f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d/image_01.png"
+    },
+    "tg_faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:32:32Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T16:06:40Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:46:57Z",
+        "reviewed_at": "2026-07-08T17:46:57Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "quote_hash": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5/image_01.png"
+    },
+    "tg_fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:27:13Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T15:44:46Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:45:40Z",
+        "reviewed_at": "2026-07-08T17:45:40Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "Being prime minister is a lonely job... you cannot lead from the crowd.",
+      "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544/image_01.png"
+    },
+    "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png": {
+      "override": {
+        "confirmation_decision": "allow",
+        "confirmation_reviewed_at": "2026-07-08T17:37:47Z",
+        "decision": "allow",
+        "initial_decision": "allow",
+        "initial_reviewed_at": "2026-07-08T17:13:16Z",
+        "reconfirmation_decision": "allow",
+        "reconfirmation_reviewed_at": "2026-07-08T17:47:51Z",
+        "reviewed_at": "2026-07-08T17:47:51Z",
+        "stage": "reconfirm_allowed"
+      },
+      "quote": "My job is to stop Britain going red.",
+      "quote_hash": "fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521",
+      "source_image": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images/items/fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521/image_01.png"
+    }
+  },
+  "schema_version": 1,
+  "source_corpus_root": "/disks/disk1/etc/mrsMThatcher/openai_generated_quote_images",
+  "source_overrides": "/disks/disk1/etc/mrsMThatcher/generated_image_overrides.json"
+}

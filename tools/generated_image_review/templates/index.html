@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Generated Image Review</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="top-bar">
+        <div>
+          <h1>Image Review</h1>
+          <p id="progressText" class="progress-line">Loading...</p>
+        </div>
+        <button id="exportButton" class="icon-button" type="button" title="Export overrides">Export</button>
+      </header>
+
+      <section id="reviewArea" class="review-area" aria-live="polite">
+        <article id="card" class="review-card">
+          <div id="swipeBadge" class="swipe-badge"></div>
+          <div class="image-frame">
+            <img id="reviewImage" alt="Generated image under review">
+          </div>
+          <div class="quote-panel">
+            <blockquote id="quoteText"></blockquote>
+            <div id="metadata" class="metadata"></div>
+            <details>
+              <summary>Assessment details</summary>
+              <p id="assessmentText"></p>
+            </details>
+          </div>
+        </article>
+      </section>
+
+      <section id="completeArea" class="complete-area hidden">
+        <h2>Review Complete</h2>
+        <p>All eligible images have been reviewed.</p>
+        <button id="finalExportButton" type="button">Export overrides</button>
+      </section>
+
+      <nav class="action-bar" aria-label="Review actions">
+        <button id="rejectButton" class="reject" type="button">← Reject</button>
+        <button id="undoButton" type="button">Undo</button>
+        <button id="allowButton" class="allow" type="button">Allow →</button>
+      </nav>
+
+      <p id="statusLine" class="status-line" role="status"></p>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+
