@@ -133,6 +133,20 @@ The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
 Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
 and `meme_shortlist*/` are intentionally ignored.
 
+## Generated Regular-Image Observability
+
+The optional generated-image pool is separate from the original `images/t*.jpg`
+pool. Generated images can be selected for quotes other than the quote that was
+used to generate them. When the selected quote hash matches the generated
+image's origin hash, the selector applies `GENERATED_IMAGE_ORIGIN_QUOTE_BOOST`.
+
+Regular selected-image logs now include whether the image was original or
+generated, the final score, whether a generated image matched its origin quote,
+and the boost that was applied. `mrs_log_digest.py` reports these as
+observational metrics only: regular image selections, original versus generated
+counts, generated origin matches, and generated cross-quote selections. There is
+currently no generated-image frequency cap.
+
 ## Local Runtime Files
 
 `mrsMThatcher.local.example.json` is a sanitized example of the optional local

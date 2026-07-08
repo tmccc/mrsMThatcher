@@ -4923,6 +4923,94 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "IMAGE_STRONG_MISMATCH_PENALTY=-10000.0" in main_post_recovery_digest.stdout
     assert "2 operational error(s)" not in main_post_recovery_digest.stdout
 
+    regular_image_usage_base = prepare_base_dir(tmp_path / "digest-regular-image-usage")
+    origin_hash = "a" * 64
+    cross_hash = "b" * 64
+    regular_image_usage_lines = [
+        f"2026-07-03 12:00:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t{idx:02d}.jpg score=7.{idx} origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0"
+        for idx in range(1, 8)
+    ]
+    regular_image_usage_lines.extend(
+        [
+            f"2026-07-03 12:01:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{origin_hash}.png score=18.{idx} origin_quote_hash={origin_hash} origin_quote_match=true origin_quote_boost=4.0"
+            for idx in range(1, 4)
+        ]
+    )
+    regular_image_usage_lines.extend(
+        [
+            f"2026-07-03 12:02:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{cross_hash}.png score=16.{idx} origin_quote_hash={cross_hash} origin_quote_match=false origin_quote_boost=0.0"
+            for idx in range(1, 3)
+        ]
+    )
+    write_digest_log(regular_image_usage_base, regular_image_usage_lines)
+    regular_image_usage_digest = run_digest(regular_image_usage_base)
+    assert regular_image_usage_digest.returncode == 0, regular_image_usage_digest.stderr
+    assert "## Regular image usage" in regular_image_usage_digest.stdout
+    assert "selections          = 12" in regular_image_usage_digest.stdout
+    assert "original_images     = 7" in regular_image_usage_digest.stdout
+    assert "generated_images    = 5" in regular_image_usage_digest.stdout
+    assert "originating_quote   = 3" in regular_image_usage_digest.stdout
+    assert "cross_quote         = 2" in regular_image_usage_digest.stdout
+    assert "generated_share     = 41.7%" in regular_image_usage_digest.stdout
+    assert "origin_match_share  = 60.0%" in regular_image_usage_digest.stdout
+    assert "Regular image selection metadata" in regular_image_usage_digest.stdout
+    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4.0 |" in regular_image_usage_digest.stdout
+
+    original_only_base = prepare_base_dir(tmp_path / "digest-regular-image-original-only")
+    write_digest_log(
+        original_only_base,
+        [
+            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t44.jpg score=12.5 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0",
+            "2026-07-03 12:00:01 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t45.jpg score=11.0 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0",
+        ],
+    )
+    original_only_digest = run_digest(original_only_base)
+    assert original_only_digest.returncode == 0, original_only_digest.stderr
+    assert "selections          = 2" in original_only_digest.stdout
+    assert "original_images     = 2" in original_only_digest.stdout
+    assert "generated_images    = 0" in original_only_digest.stdout
+    assert "originating_quote   = 0" in original_only_digest.stdout
+    assert "cross_quote         = 0" in original_only_digest.stdout
+
+    generated_only_base = prepare_base_dir(tmp_path / "digest-regular-image-generated-only")
+    write_digest_log(
+        generated_only_base,
+        [
+            f"2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{origin_hash}.png score=19.0 origin_quote_hash={origin_hash} origin_quote_match=true origin_quote_boost=4.0",
+            f"2026-07-03 12:00:01 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{cross_hash}.png score=14.0 origin_quote_hash={cross_hash} origin_quote_match=false origin_quote_boost=0.0",
+        ],
+    )
+    generated_only_digest = run_digest(generated_only_base)
+    assert generated_only_digest.returncode == 0, generated_only_digest.stderr
+    assert "selections          = 2" in generated_only_digest.stdout
+    assert "original_images     = 0" in generated_only_digest.stdout
+    assert "generated_images    = 2" in generated_only_digest.stdout
+    assert "originating_quote   = 1" in generated_only_digest.stdout
+    assert "cross_quote         = 1" in generated_only_digest.stdout
+
+    older_log_base = prepare_base_dir(tmp_path / "digest-regular-image-old-log")
+    write_digest_log(
+        older_log_base,
+        [
+            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4534 - Selected matched image basename=t09.jpg image_no=8 score=7.25 components={'topic': 3.0}",
+        ],
+    )
+    older_log_digest = run_digest(older_log_base)
+    assert older_log_digest.returncode == 0, older_log_digest.stderr
+    assert "Matched image selections" in older_log_digest.stdout
+    assert "Regular image usage" not in older_log_digest.stdout
+
+    malformed_log_base = prepare_base_dir(tmp_path / "digest-regular-image-malformed")
+    write_digest_log(
+        malformed_log_base,
+        [
+            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_bad.png score=nope",
+        ],
+    )
+    malformed_digest = run_digest(malformed_log_base)
+    assert malformed_digest.returncode == 0, malformed_digest.stderr
+    assert "Regular image usage" not in malformed_digest.stdout
+
     same_second_base = prepare_base_dir(tmp_path / "digest-same-second")
     same_second_state = same_second_base / ".digest_state.json"
     log_path = same_second_base / "test.log"

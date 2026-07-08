@@ -138,6 +138,7 @@ THREAD_CONTEXT_MAX_DEPTH = 3
 THREAD_CONTEXT_MAX_CHARS_PER_POST = 500
 THREAD_CONTEXT_MAX_TOTAL_CHARS = 1500
 MAX_REPLY_CONTEXT_PHOTOS = 2
+GENERATED_IMAGE_ORIGIN_QUOTE_BOOST = 4
 
 TWEET_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
 TWEET_CACHE_MAX_ITEMS = 500
@@ -188,8 +189,12 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
 
 LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
 IMAGE_GLOB = str(BASE_DIR / "images/t*")
+ENABLE_GENERATED_IMAGE_POOL = False
+GENERATED_IMAGE_DIR = str(BASE_DIR / "generated_review_approved_images")
+GENERATED_IMAGE_GLOB = "*.png"
 QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
+GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
@@ -392,6 +397,13 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "MAX_REPLY_CHARS",
     "MAX_GROK_OUTPUT_TOKENS",
 
+    # Optional generated-image pool for regular quote/image posts
+    "ENABLE_GENERATED_IMAGE_POOL",
+    "GENERATED_IMAGE_DIR",
+    "GENERATED_IMAGE_GLOB",
+    "GENERATED_IMAGE_ANALYSIS_FILE",
+    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+
     # Operational hardening
     "STATE_BACKUP_COUNT",
 }
@@ -436,6 +448,7 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "COOLDOWN_AFTER_429_SECONDS",
     "MAX_REPLY_CHARS",
     "MAX_GROK_OUTPUT_TOKENS",
+    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
     "STATE_BACKUP_COUNT",
 }
 
@@ -3431,20 +3444,61 @@ def load_quote_analysis() -> dict | None:
     return apply_quote_analysis_overrides(raw, overrides)
 
 
-def load_image_analysis() -> dict | None:
-    raw = load_json_object(IMAGE_ANALYSIS_FILE, label="image analysis")
+def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
+    raw = load_json_object(path, label=label)
     if raw is None:
         return None
     if raw.get("analysis_kind") != "images":
-        log.error("Image analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
+        log.error("%s file has unsupported analysis_kind=%r", label, raw.get("analysis_kind"))
         return None
     if raw.get("schema_version") != 3:
-        log.error("Image analysis file has unsupported schema_version=%r", raw.get("schema_version"))
+        log.error("%s file has unsupported schema_version=%r", label, raw.get("schema_version"))
         return None
     if not isinstance(raw.get("items"), dict) or not isinstance(raw.get("path_index"), dict):
-        log.error("Image analysis file has invalid required structure: %s", IMAGE_ANALYSIS_FILE)
+        log.error("%s file has invalid required structure: %s", label, path)
         return None
     return raw
+
+
+def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
+    if not isinstance(generated, dict):
+        return primary
+
+    merged = dict(primary)
+    merged_path_index = dict(primary.get("path_index") or {})
+    merged_items = dict(primary.get("items") or {})
+    primary_paths = set(merged_path_index)
+
+    for basename, image_hash in sorted((generated.get("path_index") or {}).items()):
+        basename = str(basename)
+        image_hash = str(image_hash)
+        if basename in primary_paths:
+            log.warning("Skipping generated image metadata with basename collision: %s", basename)
+            continue
+        item = (generated.get("items") or {}).get(image_hash)
+        if not isinstance(item, dict):
+            log.warning("Skipping generated image metadata with missing item hash=%s basename=%s", image_hash, basename)
+            continue
+        merged_path_index[basename] = image_hash
+        merged_items.setdefault(image_hash, item)
+
+    merged["path_index"] = merged_path_index
+    merged["items"] = merged_items
+    return merged
+
+
+def load_image_analysis() -> dict | None:
+    primary = load_image_analysis_file(IMAGE_ANALYSIS_FILE, label="image analysis")
+    if primary is None or not ENABLE_GENERATED_IMAGE_POOL:
+        return primary
+
+    generated_path = Path(str(GENERATED_IMAGE_ANALYSIS_FILE)).expanduser()
+    generated = load_image_analysis_file(generated_path, label="generated image analysis")
+    if generated is None:
+        log.warning("Generated image pool enabled but generated image analysis is unavailable; using original image pool only")
+        return primary
+
+    return merge_image_analysis(primary, generated)
 
 
 def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
@@ -3643,7 +3697,34 @@ def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]
 def current_image_paths() -> list[str]:
     images = glob(IMAGE_GLOB)
     images.sort()
-    return [path for path in images if Path(path).is_file()]
+    result = [path for path in images if Path(path).is_file()]
+    if not ENABLE_GENERATED_IMAGE_POOL:
+        return result
+
+    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
+    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
+    generated_images = []
+    for path in sorted(glob(generated_glob)):
+        image_path = Path(path)
+        if not image_path.is_file():
+            continue
+        if not path_is_same_or_child(image_path, generated_dir):
+            log.warning("Skipping generated image outside configured generated image directory: %s", path)
+            continue
+        generated_images.append(path)
+    if not generated_images:
+        log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
+        return result
+
+    seen_basenames = {Path(path).name for path in result}
+    for path in generated_images:
+        basename = Path(path).name
+        if basename in seen_basenames:
+            log.warning("Skipping generated image with basename collision: %s path=%s", basename, path)
+            continue
+        result.append(path)
+        seen_basenames.add(basename)
+    return result
 
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
@@ -4099,6 +4180,8 @@ def image_used_history_has_legacy_indices(images_used: set) -> bool:
 
 
 def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
+    if ENABLE_GENERATED_IMAGE_POOL:
+        return False
     if not isinstance(image_analysis, dict):
         return False
     expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
@@ -4680,6 +4763,36 @@ def image_metadata_for_basename(image_analysis: dict | None, basename: str, path
     return str(image_hash), analysis
 
 
+def generated_image_origin_quote_hash(basename: str) -> str | None:
+    match = re.fullmatch(r"tg_([0-9a-fA-F]{64})\.[A-Za-z0-9]+", str(basename))
+    if not match:
+        return None
+    return match.group(1).lower()
+
+
+def image_selection_observability(basename: str, quote_hash: object = None, origin_quote_boost: float = 0.0) -> dict:
+    origin_quote_hash = generated_image_origin_quote_hash(basename)
+    origin_quote_match = bool(origin_quote_hash and origin_quote_hash == str(quote_hash or "").lower())
+    return {
+        "image_source": "generated" if origin_quote_hash else "original",
+        "origin_quote_hash": origin_quote_hash,
+        "origin_quote_match": origin_quote_match,
+        "origin_quote_boost": float(origin_quote_boost if origin_quote_match else 0.0),
+    }
+
+
+def log_regular_image_selection(choice: dict) -> None:
+    log.info(
+        "REGULAR_IMAGE_SELECTED source=%s basename=%s score=%s origin_quote_hash=%s origin_quote_match=%s origin_quote_boost=%s",
+        choice.get("image_source", "original"),
+        choice.get("basename", ""),
+        choice.get("score"),
+        choice.get("origin_quote_hash") or "",
+        str(bool(choice.get("origin_quote_match"))).lower(),
+        choice.get("origin_quote_boost", 0),
+    )
+
+
 def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dict) -> dict:
     images = current_image_paths()
     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
@@ -4747,7 +4860,20 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
         if not eligible:
             log.info("Skipping image %s: strong visual mismatch with selected quote", basename)
             continue
+        origin_quote_hash = generated_image_origin_quote_hash(basename)
+        origin_quote_boost = 0.0
+        if origin_quote_hash and origin_quote_hash == str(quote_choice.get("quote_hash", "")).lower():
+            boost = float(GENERATED_IMAGE_ORIGIN_QUOTE_BOOST)
+            score += boost
+            components = dict(components)
+            components["generated_origin_quote"] = boost
+            origin_quote_boost = boost
         path = image_by_name[basename]
+        observability = image_selection_observability(
+            basename,
+            quote_choice.get("quote_hash"),
+            origin_quote_boost,
+        )
         scored.append(
             {
                 "image_no": images.index(path),
@@ -4757,6 +4883,7 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
                 "score": score,
                 "components": components,
                 "cycle_reset": cycle_reset,
+                **observability,
             }
         )
 
@@ -4774,6 +4901,7 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
         chosen["score"],
         concise_components(chosen["components"]),
     )
+    log_regular_image_selection(chosen)
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",

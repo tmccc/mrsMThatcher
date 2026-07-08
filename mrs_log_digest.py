@@ -850,6 +850,25 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
     }
 
 
+def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total = len(events)
+    original = sum(1 for item in events if item.get("source") == "original")
+    generated = sum(1 for item in events if item.get("source") == "generated")
+    origin_matches = sum(1 for item in events if item.get("source") == "generated" and item.get("origin_quote_match") == "true")
+    cross_quote = generated - origin_matches
+    generated_share = (generated / total * 100.0) if total else 0.0
+    origin_match_share = (origin_matches / generated * 100.0) if generated else 0.0
+    return {
+        "selections": total,
+        "original": original,
+        "generated": generated,
+        "origin_matches": origin_matches,
+        "cross_quote": cross_quote,
+        "generated_share": generated_share,
+        "origin_match_share": origin_match_share,
+    }
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -873,6 +892,7 @@ def analyse(
     media_upload_incidents: List[Dict[str, Any]] = []
     xai_usage_events: List[Dict[str, Any]] = []
     xai_usage_parse_errors: List[Dict[str, Any]] = []
+    regular_image_usage_events: List[Dict[str, Any]] = []
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -1413,6 +1433,34 @@ def analyse(
             )
             continue
 
+        m = re.search(
+            r"REGULAR_IMAGE_SELECTED source=(original|generated) basename=([^\s]+) score=([^\s]+) "
+            r"origin_quote_hash=([0-9a-fA-F]{64}|) origin_quote_match=(true|false) origin_quote_boost=([^\s]+)",
+            msg,
+        )
+        if m:
+            item = {
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "source": m.group(1),
+                "basename": m.group(2),
+                "score": m.group(3),
+                "origin_quote_hash": m.group(4),
+                "origin_quote_match": m.group(5),
+                "origin_quote_boost": m.group(6),
+            }
+            regular_image_usage_events.append(item)
+            add_event(
+                "regular_image_selected",
+                r.ts,
+                source=item["source"],
+                basename=item["basename"],
+                score=item["score"],
+                origin_quote_hash=item["origin_quote_hash"],
+                origin_quote_match=item["origin_quote_match"],
+                origin_quote_boost=item["origin_quote_boost"],
+            )
+            continue
+
         m = re.search(r"Quote cycle is seasonally exhausted: (\d+) unused quote\(s\) are hard-excluded today; resetting quote cycle", msg)
         if m:
             add_event("quote_cycle_reset", r.ts, reason="seasonal_exhaustion", affected=m.group(1))
@@ -1844,6 +1892,10 @@ def analyse(
             "incidents": media_upload_incidents,
             "handled_fallbacks": handled_media_fallbacks,
             "unrecovered_failures": unrecovered_media,
+        },
+        "regular_image_usage": {
+            "events": regular_image_usage_events,
+            "summary": regular_image_usage_summary(regular_image_usage_events),
         },
         "xai_usage": {
             "events": xai_usage_events,
@@ -2356,6 +2408,33 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 ]))
             out.append("")
 
+    regular_image_usage = report.get("regular_image_usage") or {}
+    regular_image_events = regular_image_usage.get("events") or []
+    if regular_image_events:
+        summary = regular_image_usage.get("summary") or {}
+        out.append("## Regular image usage")
+        out.append("```text")
+        out.append(f"selections          = {summary.get('selections', 0)}")
+        out.append(f"original_images     = {summary.get('original', 0)}")
+        out.append(f"generated_images    = {summary.get('generated', 0)}")
+        out.append(f"originating_quote   = {summary.get('origin_matches', 0)}")
+        out.append(f"cross_quote         = {summary.get('cross_quote', 0)}")
+        out.append(f"generated_share     = {float(summary.get('generated_share', 0.0)):.1f}%")
+        out.append(f"origin_match_share  = {float(summary.get('origin_match_share', 0.0)):.1f}%")
+        out.append("```")
+        out.append(md_table_row(["time", "source", "basename", "score", "origin_quote_match", "origin_quote_boost"]))
+        out.append(md_table_row(["---"] * 6))
+        for item in regular_image_events:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("source", ""),
+                item.get("basename", ""),
+                item.get("score", ""),
+                item.get("origin_quote_match", ""),
+                item.get("origin_quote_boost", ""),
+            ]))
+        out.append("")
+
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})
     out.append("## Counts")
@@ -2384,6 +2463,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
     section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
     section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
+    section("regular_image_selected", "Regular image selection metadata", ["time", "source", "basename", "score", "origin_quote_hash", "origin_quote_match", "origin_quote_boost"])
     section("image_cycle_status", "Image cycle status", ["time", "used_count", "currently_eligible", "remaining_count", "seasonally_excluded", "stale_excluded", "cycle_reset"])
     section("quote_cycle_reset", "Quote cycle resets", ["time", "reason", "affected", "full_selectable", "full_hard_excluded"])
     section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])
