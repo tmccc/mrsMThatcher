@@ -5012,6 +5012,9 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
                 "quote_api_cooldown_until_epoch": 1783054542,
                 "quote_api_cooldown_until_human": "2026-07-03 05:55:42",
                 "quote_api_cooldown_reason": "old quote cooldown",
+                "x_write_api_cooldown_until_epoch": 1783054542,
+                "x_write_api_cooldown_until_human": "2026-07-03 05:55:42",
+                "x_write_api_cooldown_reason": "old write cooldown",
             },
             "last_known_latest_config": {},
         },
@@ -5019,7 +5022,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     (cleared_base / "test.log").write_text(
         "\n".join(
             [
-                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\"}",
+                "2026-07-03 11:00:00 DEBUG    save_state:994 - State being saved: {\"api_cooldown_until_epoch\": 0, \"api_cooldown_reason\": \"\", \"quote_api_cooldown_until_epoch\": 0, \"quote_api_cooldown_reason\": \"\", \"x_write_api_cooldown_until_epoch\": 0, \"x_write_api_cooldown_reason\": \"\"}",
             ]
         )
         + "\n",
@@ -5028,9 +5031,11 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     cleared_digest = run_digest(cleared_base, state_file=cleared_state_file)
     assert cleared_digest.returncode == 0, cleared_digest.stderr
     assert "x_read_api_cooldown_until = 0  none" in cleared_digest.stdout
+    assert "x_write_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "quote_api_cooldown_until = 0  none" in cleared_digest.stdout
     assert "2026-07-03 05:55:42" not in cleared_digest.stdout
     assert "old cooldown" not in cleared_digest.stdout
+    assert "old write cooldown" not in cleared_digest.stdout
 
 
 def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_path: Path) -> None:
@@ -5665,3 +5670,93 @@ def test_digest_keeps_consecutive_mixed_lane_xai_contexts_in_order(tmp_path: Pat
     assert f"| 2026-07-07 11:00:02 | mention | {mention_a} | 30 | 4 | 37 | 3 | 70 | 0 | 101 |" in digest.stdout
     assert f"| 2026-07-07 11:01:02 | quote-tweet | {quote_b} | 31 | 5 | 36 | 4 | 71 | 1 | 102 |" in digest.stdout
     assert f"| 2026-07-07 11:02:02 | mention | {mention_c} | 32 | 6 | 35 | 5 | 72 | 0 | 103 |" in digest.stdout
+
+
+def test_digest_carries_active_xai_context_across_resume_boundary(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-resume-boundary"
+    state_file = tmp_path / "digest-state.json"
+    mention_id = "2074728963755196898"
+    reply_id = "2074730135442374791"
+    first_window = [
+        f"2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id={mention_id} author_id=1394717514475704320 text='@MrsMThatcher socialism works?'",
+        "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher socialism works?'",
+    ]
+    second_window = [
+        "2026-07-08 06:39:45 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 529, 'completion_tokens': 29, 'total_tokens': 1194, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 636}, 'num_sources_used': 0, 'cost_in_usd_ticks': 21893500}",
+        f"2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6224 - Generated reply to mention {mention_id}: 'Poverty is the absence of wealth.'",
+        f"2026-07-08 06:39:45 INFO create_post:3236 - Created X post successfully. response={{'data': {{'text': 'Poverty is the absence of wealth.', 'id': '{reply_id}'}}}}",
+        f"2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6357 - Reply posted successfully",
+    ]
+
+    write_digest_log(base, first_window)
+    first_digest = run_digest(base, state_file=state_file)
+    assert first_digest.returncode == 0, first_digest.stderr
+
+    write_digest_log(base, [*first_window, *second_window])
+    second_digest = run_digest(base, state_file=state_file)
+    assert second_digest.returncode == 0, second_digest.stderr
+    assert f"| 2026-07-08 06:39:45 | mention | {mention_id} | 529 | 128 | 636 | 29 | 1194 | 0 | 21893500 |" in second_digest.stdout
+    assert f"| 2026-07-08 06:39:45 | {mention_id} | 1394717514475704320 | @MrsMThatcher socialism works? | Poverty is the absence of wealth. | {reply_id} |" in second_digest.stdout
+    assert "| 2026-07-08 06:39:45 | unknown |" not in second_digest.stdout
+
+
+def test_digest_does_not_carry_completed_xai_context_across_resume_boundary(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-completed-resume-boundary"
+    state_file = tmp_path / "digest-state.json"
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
+            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6224 - Generated reply to mention 123: 'A reply.'",
+        ],
+    )
+    first_digest = run_digest(base, state_file=state_file)
+    assert first_digest.returncode == 0, first_digest.stderr
+
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6132 - Considering mention id=123 author_id=456 text='@MrsMThatcher hello'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher hello'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 10, 'completion_tokens': 2, 'total_tokens': 20, 'prompt_tokens_details': {'cached_tokens': 1}, 'completion_tokens_details': {'reasoning_tokens': 8}, 'num_sources_used': 0, 'cost_in_usd_ticks': 100}",
+            "2026-07-08 06:39:38 INFO maybe_reply_to_mentions:6224 - Generated reply to mention 123: 'A reply.'",
+            "2026-07-08 06:40:00 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
+        ],
+    )
+    second_digest = run_digest(base, state_file=state_file)
+    assert second_digest.returncode == 0, second_digest.stderr
+    assert "| 2026-07-08 06:40:00 | unknown |  | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in second_digest.stdout
+    assert "| 2026-07-08 06:40:00 | mention | 123 |" not in second_digest.stdout
+
+
+def test_digest_new_request_beats_carried_pending_xai_candidate(tmp_path: Path) -> None:
+    base = tmp_path / "digest-xai-carried-pending-tie"
+    state_file = tmp_path / "digest-state.json"
+    old_quote = "900"
+    new_mention = "901"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-08 06:39:38 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={old_quote} author_id=777 original_post_id=555 text='Old quote'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+        ],
+    )
+    first_digest = run_digest(base, state_file=state_file)
+    assert first_digest.returncode == 0, first_digest.stderr
+
+    write_digest_log(
+        base,
+        [
+            f"2026-07-08 06:39:38 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id={old_quote} author_id=777 original_post_id=555 text='Old quote'",
+            "2026-07-08 06:39:38 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text=\"A user has quote-posted one of this account's posts.\"",
+            f"2026-07-08 06:40:00 INFO maybe_reply_to_mentions:6132 - Considering mention id={new_mention} author_id=456 text='@MrsMThatcher new mention'",
+            "2026-07-08 06:40:00 INFO ask_grok_for_reply:5682 - Asking Grok for reply. context_text='Incoming post/comment to answer:\\n@MrsMThatcher new mention'",
+            "2026-07-08 06:40:01 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 11, 'completion_tokens': 3, 'total_tokens': 21, 'prompt_tokens_details': {'cached_tokens': 2}, 'completion_tokens_details': {'reasoning_tokens': 7}, 'num_sources_used': 0, 'cost_in_usd_ticks': 101}",
+        ],
+    )
+    second_digest = run_digest(base, state_file=state_file)
+    assert second_digest.returncode == 0, second_digest.stderr
+    assert f"| 2026-07-08 06:40:01 | mention | {new_mention} | 11 | 2 | 7 | 3 | 21 | 0 | 101 |" in second_digest.stdout
+    assert f"| 2026-07-08 06:40:01 | quote-tweet | {old_quote} |" not in second_digest.stdout

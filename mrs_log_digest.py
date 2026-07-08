@@ -120,6 +120,9 @@ def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"
         "last_run_logs": [str(p) for p in logs],
         "last_known_latest_state": latest_state_clean,
         "last_known_latest_config": latest_config_clean,
+        "last_active_xai_context": report.get("resume_context", {}).get("active_xai_context"),
+        "last_pending_mention": report.get("resume_context", {}).get("pending_mention"),
+        "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     tmp = state_file.with_suffix(state_file.suffix + ".tmp")
@@ -650,8 +653,8 @@ def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
             try:
                 val = json.loads(m.group(1))
                 out[key] = val
-            except Exception:
-                pass
+            except json.JSONDecodeError:
+                continue
     return out if len(out) > 1 else None
 
 
@@ -847,7 +850,14 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
     }
 
 
-def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
+def analyse(
+    records: List[Record],
+    max_text: int = 280,
+    *,
+    initial_active_xai_context: Optional[Dict[str, Any]] = None,
+    initial_pending_mention: Optional[Dict[str, Any]] = None,
+    initial_pending_qt: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     stats = Counter()
     events: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
@@ -872,10 +882,10 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
 
     pending_quote: Dict[str, Any] = {}
     pending_meme: Dict[str, Any] = {}
-    pending_mention: Dict[str, Any] = {}
-    pending_qt: Dict[str, Any] = {}
+    pending_mention: Dict[str, Any] = dict(initial_pending_mention or {})
+    pending_qt: Dict[str, Any] = dict(initial_pending_qt or {})
     pending_confirmed_reply_receipt: Dict[str, Any] = {}
-    active_xai_context: Optional[Dict[str, Any]] = None
+    active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
     last_created_post: Dict[str, Any] = {}
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> None:
@@ -1692,7 +1702,6 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
 
     # Build a short automatic headline.
     serious_errors = [e for e in errors if e["level"] in {"ERROR", "CRITICAL"}]
-    warnings = [e for e in errors if e["level"] == "WARNING"]
     headline = []
     headline.append(f"{stats.get('quote_image_posted', 0)} quote/image post(s)")
     headline.append(f"{stats.get('daily_meme_posted', 0)} daily meme(s)")
@@ -1794,7 +1803,7 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
     for item in api_errors:
         try:
             item_ts = datetime.strptime(item["time"], "%Y-%m-%d %H:%M:%S")
-        except Exception:
+        except (KeyError, TypeError, ValueError):
             continue
         for ev in cooldown_events:
             until = parse_dt(str(ev.get("until", "")))
@@ -1841,6 +1850,11 @@ def analyse(records: List[Record], max_text: int = 280) -> Dict[str, Any]:
             "totals": xai_usage_totals(xai_usage_events),
             "parse_errors": xai_usage_parse_errors,
         },
+        "resume_context": {
+            "active_xai_context": active_xai_context,
+            "pending_mention": pending_mention if active_xai_context else None,
+            "pending_qt": pending_qt if active_xai_context else None,
+        },
         "lifecycle": lifecycle[-12:],
         "events": events,
         "self_test_errors": self_test_errors[-40:],
@@ -1863,7 +1877,7 @@ def refresh_derived(report: Dict[str, Any]) -> None:
 
     # Cooldown human timestamps are derived from the epoch. Recompute after
     # saved-context merging so a cleared epoch=0 cannot keep an old date/reason.
-    for prefix in ("api_cooldown", "xai_api_cooldown", "quote_api_cooldown"):
+    for prefix in ("api_cooldown", "x_write_api_cooldown", "xai_api_cooldown", "quote_api_cooldown"):
         epoch_key = f"{prefix}_until_epoch"
         human_key = f"{prefix}_until_human"
         reason_key = f"{prefix}_reason"
@@ -2649,6 +2663,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     since_source = None
     since_exclusive = False
     resume_boundary_fingerprints: set[str] = set()
+    resume_data: Dict[str, Any] = {}
 
     if args.since:
         since = parse_dt(args.since)
@@ -2687,7 +2702,25 @@ def main(argv: Optional[List[str]] = None) -> int:
             if not (record.ts == since and record_fingerprint(record) in resume_boundary_fingerprints)
         ]
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
-    report = analyse(records, max_text=args.max_text)
+    initial_active_xai_context = None
+    initial_pending_mention = None
+    initial_pending_qt = None
+    if since_source == "saved resume state":
+        if isinstance(resume_data.get("last_active_xai_context"), dict):
+            initial_active_xai_context = resume_data.get("last_active_xai_context")
+        if isinstance(resume_data.get("last_pending_mention"), dict):
+            initial_pending_mention = dict(resume_data.get("last_pending_mention") or {})
+            initial_pending_mention["considered_seq"] = -1
+        if isinstance(resume_data.get("last_pending_qt"), dict):
+            initial_pending_qt = dict(resume_data.get("last_pending_qt") or {})
+            initial_pending_qt["considered_seq"] = -1
+    report = analyse(
+        records,
+        max_text=args.max_text,
+        initial_active_xai_context=initial_active_xai_context,
+        initial_pending_mention=initial_pending_mention,
+        initial_pending_qt=initial_pending_qt,
+    )
     report_window_end = until or (records[-1].ts if records else None)
 
     report["log_files"] = [str(p) for p in logs]
