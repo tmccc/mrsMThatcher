@@ -3271,6 +3271,13 @@ class QuoteSpecificImageMismatch(NoEligibleImageForQuote):
     pass
 
 
+class NoViableQuoteImagePair(RuntimeError):
+    def __init__(self, message: str, attempts: int, excluded_last_image: str | None = None) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+        self.excluded_last_image = excluded_last_image
+
+
 class GlobalImageUnavailable(NoEligibleImageForQuote):
     pass
 
@@ -4793,7 +4800,15 @@ def log_regular_image_selection(choice: dict) -> None:
     )
 
 
-def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dict) -> dict:
+def choose_matched_unused_image(
+    images_used: set,
+    quote_choice: dict,
+    state: dict,
+    *,
+    force_cycle_reset: bool = False,
+    avoid_last_image_at_cycle_boundary: bool = True,
+    cycle_boundary_exclusions: set[str] | None = None,
+) -> dict:
     images = current_image_paths()
     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
     if not images:
@@ -4835,7 +4850,26 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
     if not eligible_basenames:
         raise GlobalImageUnavailable("No analysed currently eligible regular-post images are available")
 
-    available, cycle_reset = available_currently_eligible_image_basenames(eligible_basenames, images_used, state)
+    if force_cycle_reset:
+        log.info("Forcing eligible image cycle reset for regular quote/image pairing recovery")
+        for basename in eligible_basenames:
+            images_used.discard(basename)
+        available = sorted(eligible_basenames)
+        cycle_reset = True
+    else:
+        available, cycle_reset = available_currently_eligible_image_basenames(eligible_basenames, images_used, state)
+    last_name = str((state or {}).get("last_regular_image_filename") or "")
+    should_exclude_last = (
+        avoid_last_image_at_cycle_boundary
+        and len(available) > 1
+        and last_name in available
+        and (force_cycle_reset or (cycle_boundary_exclusions is not None and last_name in cycle_boundary_exclusions))
+    )
+    if should_exclude_last:
+        available.remove(last_name)
+        if cycle_boundary_exclusions is not None:
+            cycle_boundary_exclusions.add(last_name)
+        log.info("Temporarily excluded last regular image at forced eligible-cycle boundary: %s", last_name)
     log.info(
         "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d cycle_reset=%s",
         len(images_used),
@@ -4912,6 +4946,62 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
     return chosen
 
 
+def choose_regular_quote_image_pair(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    *,
+    force_image_cycle_reset: bool = False,
+    avoid_last_image_at_cycle_boundary: bool = True,
+) -> tuple[dict, dict, int]:
+    attempted_quote_hashes: set[str] = set()
+    attempts = 0
+    reset_available_images_once = force_image_cycle_reset
+    cycle_boundary_exclusions: set[str] = set()
+
+    while attempts < MAX_QUOTE_IMAGE_PAIR_ATTEMPTS:
+        attempts += 1
+        try:
+            quote_choice = choose_unused_line_candidate(lines_used, excluded_quote_hashes=attempted_quote_hashes)
+        except RuntimeError:
+            if attempted_quote_hashes:
+                break
+            raise
+        attempted_quote_hashes.add(str(quote_choice["quote_hash"]))
+        try:
+            image_choice = choose_matched_unused_image(
+                images_used,
+                quote_choice,
+                state,
+                force_cycle_reset=reset_available_images_once,
+                avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
+                cycle_boundary_exclusions=cycle_boundary_exclusions if force_image_cycle_reset else None,
+            )
+            if attempts > 1:
+                log.info(
+                    "Selected alternate quote/image pair after %d attempt(s). line_no=%s image=%s",
+                    attempts,
+                    quote_choice.get("line_no"),
+                    image_choice.get("basename"),
+                )
+            return quote_choice, image_choice, attempts
+        except QuoteSpecificImageMismatch as exc:
+            log.warning(
+                "Selected quote line_no=%s quote_hash=%s could not be paired with any currently eligible unused image: %s",
+                quote_choice.get("line_no"),
+                quote_choice.get("quote_hash"),
+                exc,
+            )
+        finally:
+            reset_available_images_once = False
+
+    raise NoViableQuoteImagePair(
+        f"No eligible regular quote/image pair found after {attempts} attempt(s); used histories unchanged",
+        attempts,
+        sorted(cycle_boundary_exclusions)[0] if cycle_boundary_exclusions else None,
+    )
+
+
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     log.info("Starting quote/image post cycle")
 
@@ -4928,43 +5018,47 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
             )
 
-        attempted_quote_hashes: set[str] = set()
-        quote_choice = None
-        image_choice = None
-        attempts = 0
-        while attempts < MAX_QUOTE_IMAGE_PAIR_ATTEMPTS:
-            attempts += 1
-            try:
-                quote_choice = choose_unused_line_candidate(lines_used, excluded_quote_hashes=attempted_quote_hashes)
-            except RuntimeError:
-                if attempted_quote_hashes:
-                    break
-                raise
-            attempted_quote_hashes.add(str(quote_choice["quote_hash"]))
-            try:
-                image_choice = choose_matched_unused_image(images_used, quote_choice, state)
-                if attempts > 1:
-                    log.info(
-                        "Selected alternate quote/image pair after %d attempt(s). line_no=%s image=%s",
-                        attempts,
-                        quote_choice.get("line_no"),
-                        image_choice.get("basename"),
-                    )
-                break
-            except QuoteSpecificImageMismatch as exc:
-                log.warning(
-                    "Selected quote line_no=%s quote_hash=%s could not be paired with any currently eligible unused image: %s",
-                    quote_choice.get("line_no"),
-                    quote_choice.get("quote_hash"),
-                    exc,
-                )
-                quote_choice = None
-                image_choice = None
-
-        if quote_choice is None or image_choice is None:
-            raise RuntimeError(
-                f"No eligible regular quote/image pair found after {attempts} attempt(s); used histories unchanged"
+        try:
+            quote_choice, image_choice, attempts = choose_regular_quote_image_pair(lines_used, images_used, state)
+        except NoViableQuoteImagePair as exc:
+            log.warning(
+                "No viable regular quote/image pair found within current image cycle after %d attempt(s); "
+                "resetting image cycle and retrying once",
+                exc.attempts,
             )
+            try:
+                quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                    lines_used,
+                    images_used,
+                    state,
+                    force_image_cycle_reset=True,
+                )
+            except NoViableQuoteImagePair as reset_exc:
+                if not reset_exc.excluded_last_image:
+                    log.error("No viable regular quote/image pair found after image-cycle recovery; giving up for this post attempt")
+                    raise RuntimeError(str(reset_exc)) from reset_exc
+                log.warning(
+                    "No viable regular quote/image pair found after image-cycle recovery while excluding last regular image %s; "
+                    "retrying once with last image permitted",
+                    reset_exc.excluded_last_image,
+                )
+                try:
+                    quote_choice, image_choice, attempts = choose_regular_quote_image_pair(
+                        lines_used,
+                        images_used,
+                        state,
+                        force_image_cycle_reset=True,
+                        avoid_last_image_at_cycle_boundary=False,
+                    )
+                except NoViableQuoteImagePair as final_exc:
+                    log.error(
+                        "No viable regular quote/image pair found after final last-image recovery fallback; "
+                        "giving up for this post attempt"
+                    )
+                    raise RuntimeError(str(final_exc)) from final_exc
+                log.info("Regular quote/image pairing succeeded after permitting last regular image as final recovery fallback")
+            else:
+                log.info("Regular quote/image pairing succeeded after image-cycle recovery")
 
         line_no = int(quote_choice["line_no"])
         quote_hash = str(quote_choice["quote_hash"])
@@ -4972,6 +5066,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         image_no = int(image_choice["image_no"])
         image = str(image_choice["path"])
         image_basename = str(image_choice["basename"])
+        image_made_with_ai = image_choice.get("image_source") == "generated"
         quote_delay = random.randint(POST_SLEEP_MIN, POST_SLEEP_MAX)
         meme_delay = (
             random.randint(MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS, MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS)
@@ -4994,7 +5089,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
             text=tweet,
             media_ids=[media_id],
             reply_to_id=None,
-            made_with_ai=False,
+            made_with_ai=image_made_with_ai,
         )
         posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
         log.debug("Posted_id=%s", posted_id)

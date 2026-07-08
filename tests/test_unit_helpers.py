@@ -1030,6 +1030,481 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     assert state["last_regular_image_filename"] == "t01.jpg"
 
 
+def configure_generated_cycle_recovery_post(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    original_analyses: dict[str, dict],
+    generated_analyses: dict[str, dict],
+    quote_analyses: dict[int, dict],
+    quotes: list[str] | None = None,
+) -> tuple[set[str], set[str], dict, dict[str, Path], dict[str, Path]]:
+    quotes = quotes or ["Quote A.", "Quote B."]
+    image_dir = tmp_path / "images"
+    generated_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    generated_dir.mkdir()
+    original_paths: dict[str, Path] = {}
+    generated_paths: dict[str, Path] = {}
+    for basename in original_analyses:
+        path = image_dir / basename
+        path.write_bytes(f"original-{basename}".encode("utf-8"))
+        original_paths[basename] = path
+    for basename in generated_analyses:
+        path = generated_dir / basename
+        path.write_bytes(f"generated-{basename}".encode("utf-8"))
+        generated_paths[basename] = path
+
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("\n".join(quotes) + "\n", encoding="utf-8")
+    original_analysis_path = tmp_path / "image_analysis.json"
+    generated_analysis_path = tmp_path / "generated_image_analysis.json"
+    write_image_analysis(original_analysis_path, image_analysis_for_paths(list(original_paths.values()), original_analyses))
+    write_image_analysis(generated_analysis_path, image_analysis_for_paths(list(generated_paths.values()), generated_analyses))
+
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
+    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
+    monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
+    monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
+    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot.random, "uniform", lambda low, high: low)
+    monkeypatch.setattr(bot.random, "randint", lambda low, high: low)
+    monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: {"data": {"id": "950001"}})
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "log_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(quotes, quote_analyses))
+    return set(), set(), {}, original_paths, generated_paths
+
+
+def capture_create_post_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    calls: list[dict] = []
+
+    def fake_create_post(**kwargs: object) -> dict:
+        calls.append(dict(kwargs))
+        return {"data": {"id": "950001"}}
+
+    monkeypatch.setattr(bot, "create_post", fake_create_post)
+    return calls
+
+
+def portrait_analysis() -> dict:
+    return {
+        "description": "Formal portrait in a studio",
+        "pairing": {},
+        "themes": [],
+        "tone": [],
+        "visual_energy": "low",
+        "quality": {},
+        "seasonality": {"avoid_outside_season_or_occasion": False},
+    }
+
+
+def crowd_scene_analysis() -> dict:
+    return {
+        "description": "A large crowd scene outside a building",
+        "pairing": {},
+        "themes": [],
+        "tone": [],
+        "visual_energy": "low",
+        "quality": {},
+        "seasonality": {"avoid_outside_season_or_occasion": False},
+    }
+
+
+def quote_rejecting_crowd_scenes() -> dict:
+    return {
+        "archive_image_preferences": {"strong_visual_mismatches": ["crowd scene"]},
+        "seasonality": {"hard_exclude_outside_windows": False, "preferred_windows": [], "relevance": "none"},
+        "primary_topics": [],
+        "secondary_topics": [],
+        "tone": [],
+        "visual_energy": "low",
+    }
+
+
+def test_post_random_quote_recovers_when_remaining_generated_cycle_image_cannot_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "a" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes(), 1: quote_rejecting_crowd_scenes()},
+    )
+    images_used.add("t01.jpg")
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert images_used == {"t01.jpg"}
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert lines_used == {bot.quote_text_hash("Quote A.")}
+    assert "resetting image cycle and retrying once" in caplog.text
+    assert "Regular quote/image pairing succeeded after image-cycle recovery" in caplog.text
+    assert "last image permitted" not in caplog.text
+
+
+def test_last_image_boundary_fallback_recovers_two_image_cycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "f" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add("t01.jpg")
+    state["last_regular_image_filename"] = "t01.jpg"
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert images_used == {"t01.jpg"}
+    assert lines_used == {bot.quote_text_hash("Only quote.")}
+    assert "retrying once with last image permitted" in caplog.text
+    assert "Regular quote/image pairing succeeded after permitting last regular image" in caplog.text
+
+
+def test_last_image_boundary_avoidance_wins_when_non_last_image_is_viable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "1" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis(), "t02.jpg": portrait_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.update({"t01.jpg", "t02.jpg"})
+    state["last_regular_image_filename"] = "t01.jpg"
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t02.jpg"
+    assert images_used == {"t02.jpg"}
+    assert "Temporarily excluded last regular image at forced eligible-cycle boundary: t01.jpg" in caplog.text
+    assert "retrying once with last image permitted" not in caplog.text
+
+
+def test_last_image_boundary_fallback_fails_safely_without_fourth_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "2" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": crowd_scene_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add("t01.jpg")
+    state["last_regular_image_filename"] = "t01.jpg"
+    original_lines = set(lines_used)
+    original_images = set(images_used)
+    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(RuntimeError, match="No eligible regular quote/image pair found"):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert lines_used == original_lines
+    assert images_used == original_images
+    assert caplog.text.count("Forcing eligible image cycle reset for regular quote/image pairing recovery") == 2
+    assert caplog.text.count("retrying once with last image permitted") == 1
+    assert "No viable regular quote/image pair found after final last-image recovery fallback" in caplog.text
+
+
+def test_no_last_image_does_not_trigger_last_image_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "3" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add("t01.jpg")
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert "retrying once with last image permitted" not in caplog.text
+
+
+def test_last_image_boundary_fallback_can_reuse_generated_previous_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    good_hash = "4" * 64
+    bad_hash = "5" * 64
+    good_generated = f"tg_{good_hash}.png"
+    bad_generated = f"tg_{bad_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={},
+        generated_analyses={
+            good_generated: portrait_analysis(),
+            bad_generated: crowd_scene_analysis(),
+        },
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add(good_generated)
+    state["last_regular_image_filename"] = good_generated
+    create_calls = capture_create_post_calls(monkeypatch)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == good_generated
+    assert images_used == {good_generated}
+    assert len(create_calls) == 1
+    assert create_calls[0]["made_with_ai"] is True
+    assert "retrying once with last image permitted" in caplog.text
+    assert "REGULAR_IMAGE_SELECTED source=generated" in caplog.text
+
+
+def test_post_random_quote_image_cycle_recovery_fails_safely_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "b" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, _state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": crowd_scene_analysis()},
+        generated_analyses={generated_name: crowd_scene_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes(), 1: quote_rejecting_crowd_scenes()},
+    )
+    images_used.add("t01.jpg")
+    original_lines = set(lines_used)
+    original_images = set(images_used)
+    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(RuntimeError, match="No eligible regular quote/image pair found"):
+        bot.post_random_quote(lines_used, images_used, {})
+
+    assert lines_used == original_lines
+    assert images_used == original_images
+    assert caplog.text.count("resetting image cycle and retrying once") == 1
+    assert "No viable regular quote/image pair found after image-cycle recovery" in caplog.text
+
+
+def test_forced_image_cycle_recovery_respects_generated_last_image_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    last_hash = "c" * 64
+    bad_hash = "d" * 64
+    last_generated = f"tg_{last_hash}.png"
+    bad_generated = f"tg_{bad_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={
+            last_generated: portrait_analysis(),
+            bad_generated: crowd_scene_analysis(),
+        },
+        quote_analyses={0: quote_rejecting_crowd_scenes(), 1: quote_rejecting_crowd_scenes()},
+    )
+    images_used.update({"t01.jpg", last_generated})
+    state["last_regular_image_filename"] = last_generated
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == "t01.jpg"
+    assert last_generated not in images_used
+    assert "t01.jpg" in images_used
+
+
+def test_successful_current_cycle_pair_does_not_force_image_cycle_reset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "e" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": portrait_analysis()},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes(), 1: quote_rejecting_crowd_scenes()},
+    )
+    images_used.add("t01.jpg")
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["last_regular_image_filename"] == generated_name
+    assert "resetting image cycle and retrying once" not in caplog.text
+
+
+def test_global_image_failure_does_not_trigger_image_cycle_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *args, **kwargs: {"regular": False, "meme": False})
+    monkeypatch.setattr(bot, "quote_used_history_has_legacy_indices", lambda used: False)
+    monkeypatch.setattr(
+        bot,
+        "choose_unused_line_candidate",
+        lambda *args, **kwargs: {
+            "line_no": 0,
+            "quote_hash": bot.quote_text_hash("Good quote."),
+            "text": "Good quote.",
+            "analysis": {},
+        },
+    )
+    monkeypatch.setattr(
+        bot,
+        "choose_matched_unused_image",
+        lambda *args, **kwargs: (_ for _ in ()).throw(bot.GlobalImageUnavailable("no images")),
+    )
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(bot.GlobalImageUnavailable):
+        bot.post_random_quote(set(), set(), {})
+
+    assert "resetting image cycle and retrying once" not in caplog.text
+
+
+def test_original_regular_image_posts_without_made_with_ai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
+    create_calls = capture_create_post_calls(monkeypatch)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert len(create_calls) == 1
+    assert create_calls[0]["made_with_ai"] is False
+
+
+def test_generated_origin_match_regular_image_posts_with_made_with_ai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    quote = "Generated origin quote."
+    origin_hash = bot.quote_text_hash(quote)
+    generated_name = f"tg_{origin_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=[quote],
+    )
+    create_calls = capture_create_post_calls(monkeypatch)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert len(create_calls) == 1
+    assert create_calls[0]["made_with_ai"] is True
+    assert state["last_regular_image_filename"] == generated_name
+
+
+def test_generated_cross_quote_regular_image_posts_with_made_with_ai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    quote = "Generated cross quote."
+    origin_hash = "6" * 64
+    assert origin_hash != bot.quote_text_hash(quote)
+    generated_name = f"tg_{origin_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=[quote],
+    )
+    create_calls = capture_create_post_calls(monkeypatch)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert len(create_calls) == 1
+    assert create_calls[0]["made_with_ai"] is True
+    assert state["last_regular_image_filename"] == generated_name
+    assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated_name}" in caplog.text
+    assert f"origin_quote_hash={origin_hash} origin_quote_match=false origin_quote_boost=0.0" in caplog.text
+
+
+def test_generated_image_selected_after_cycle_recovery_posts_with_made_with_ai(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    origin_hash = "7" * 64
+    generated_name = f"tg_{origin_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": crowd_scene_analysis()},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add(generated_name)
+    create_calls = capture_create_post_calls(monkeypatch)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert len(create_calls) == 1
+    assert create_calls[0]["made_with_ai"] is True
+    assert state["last_regular_image_filename"] == generated_name
+
+
 def test_post_random_quote_restores_histories_when_all_pair_attempts_fail_after_cycle_resets(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
