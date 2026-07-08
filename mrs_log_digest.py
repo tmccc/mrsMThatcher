@@ -438,6 +438,16 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
     return None, None, None
 
 
+def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
+    if window_end is None:
+        return True
+    try:
+        state_time = parse_dt(state.get("time"))
+    except Exception:
+        state_time = None
+    return state_time is None or state_time <= window_end
+
+
 INTERNAL_CONTEXT_KEYS = {
     "_carried_forward",
     "_filled_from_previous",
@@ -1919,7 +1929,12 @@ def refresh_derived(report: Dict[str, Any]) -> None:
     }
 
 
-def apply_saved_context(report: Dict[str, Any], state_file: Path) -> None:
+def apply_saved_context(
+    report: Dict[str, Any],
+    state_file: Path,
+    *,
+    window_end: Optional[datetime] = None,
+) -> None:
     """Fill missing latest_state/latest_config from the previous digest run.
 
     v4 merges field-by-field. That means a current state snapshot can be
@@ -1927,10 +1942,13 @@ def apply_saved_context(report: Dict[str, Any], state_file: Path) -> None:
     can still show e.g. "5 / 12" even in windows with no startup Config line.
     """
     old = read_resume_data(state_file)
+    previous_state = old.get("last_known_latest_state") or {}
+    if previous_state and not state_context_is_within_window(previous_state, window_end):
+        previous_state = {}
 
     report["latest_state"] = merge_context(
         report.get("latest_state") or {},
-        old.get("last_known_latest_state") or {},
+        previous_state,
     )
     report["latest_config"] = merge_context(
         report.get("latest_config") or {},
@@ -2670,6 +2688,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         ]
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     report = analyse(records, max_text=args.max_text)
+    report_window_end = until or (records[-1].ts if records else None)
 
     report["log_files"] = [str(p) for p in logs]
     report["input_files"] = input_files
@@ -2687,7 +2706,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     report["state_updated"] = False
 
     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
-    if authoritative_state is not None:
+    if (
+        authoritative_state is not None
+        and (report_window_end is None or authoritative_state_ts is None or authoritative_state_ts <= report_window_end)
+    ):
         report["latest_state"] = summarize_latest_state(
             authoritative_state,
             authoritative_state_ts,
@@ -2711,7 +2733,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             report["config_backscan_timestamp"] = dt_text(backscan_ts) if backscan_ts else None
 
     if not args.no_state and not args.reset_state:
-        apply_saved_context(report, args.state_file)
+        apply_saved_context(report, args.state_file, window_end=report_window_end)
     else:
         refresh_derived(report)
 

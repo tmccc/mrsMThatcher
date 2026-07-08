@@ -223,12 +223,19 @@ def run_cycle(base_dir: Path, server: FakeApiServer) -> subprocess.CompletedProc
     return run_bot_command(base_dir, server, "--test-cycle")
 
 
-def run_digest(base_dir: Path, *, state_file: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_digest(
+    base_dir: Path,
+    *,
+    state_file: Path | None = None,
+    until: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     args = [sys.executable, str(DIGEST), "--glob", "test.log"]
     if state_file is None:
         args.append("--no-state")
     else:
         args.extend(["--state-file", str(state_file)])
+    if until is not None:
+        args.extend(["--until", until])
     args.append(str(base_dir / "test.log"))
     return subprocess.run(
         args,
@@ -5067,18 +5074,203 @@ def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_pat
 def test_digest_can_use_bot_state_for_authoritative_current_state_metrics(tmp_path: Path) -> None:
     base = tmp_path / "digest-authoritative-state"
     meme_names = [f"{idx:03d}_meme.png" for idx in range(20)]
+    state_ts = datetime(2026, 7, 6, 15, 21, 25).timestamp()
     write_digest_log(
         base,
         [
             '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"daily_reply_count": 1}',
         ],
     )
-    write_json(base / "bot_state.json", {"posted_meme_filenames": meme_names, "daily_reply_count": 2})
+    state_path = base / "bot_state.json"
+    write_json(state_path, {"posted_meme_filenames": meme_names, "daily_reply_count": 2})
+    os.utime(state_path, (state_ts, state_ts))
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
     assert "authoritative current state" in digest.stdout
     assert "posted_meme_count       = 20" in digest.stdout
     assert "posted_meme_count       = unknown" not in digest.stdout
+
+
+def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_path: Path) -> None:
+    base = tmp_path / "digest-latest-state-window-boundary"
+    window_end = "2026-07-08 06:39:38"
+    future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 05:39:31 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=900 author_id=777 original_post_id=555 text='Quote text'",
+            "2026-07-08 05:39:32 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet 900: 'A quote reply.'",
+            "2026-07-08 05:39:33 INFO create_post:2500 - Created X post successfully response={'data': {'id': '901', 'text': 'A quote reply.'}}",
+            "2026-07-08 05:39:34 INFO maybe_reply_to_quote_tweets:4100 - Quote-tweet reply posted successfully",
+            '2026-07-08 05:39:35 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 1, "daily_quote_reply_count": 1, "last_seen_mention_id": "800", "next_reply_lane_priority": "normal"}',
+            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
+            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3000 - Considering mention id=1000 author_id=456 text='@MrsMThatcher hello'",
+            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3050 - Generated reply to mention 1000: 'A mention reply.'",
+            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3100 - Reply posted successfully",
+            '2026-07-08 06:39:45 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 2, "daily_quote_reply_count": 1, "last_seen_mention_id": "1000", "next_reply_lane_priority": "quote"}',
+        ],
+    )
+    state_path = base / "bot_state.json"
+    write_json(
+        state_path,
+        {
+            "daily_reply_count": 2,
+            "daily_quote_reply_count": 1,
+            "last_seen_mention_id": "1000",
+            "next_reply_lane_priority": "quote",
+        },
+    )
+    os.utime(state_path, (future_state_ts, future_state_ts))
+
+    digest = run_digest(base, until=window_end)
+    assert digest.returncode == 0, digest.stderr
+    assert "Window: `2026-07-08 05:39:31` → `2026-07-08 06:39:38`" in digest.stdout
+    assert "0 mention reply/replies" in digest.stdout
+    assert "1 quote-tweet reply/replies" in digest.stdout
+    assert "A mention reply." not in digest.stdout
+    assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
+    assert "daily_reply_count       = 1" in digest.stdout
+    assert "daily_quote_reply_count = 1" in digest.stdout
+    assert "daily_reply_count       = 2" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" not in digest.stdout
+
+
+def test_digest_without_until_uses_last_record_as_latest_state_boundary(tmp_path: Path) -> None:
+    base = tmp_path / "digest-latest-state-implicit-window-boundary"
+    future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
+    write_digest_log(
+        base,
+        [
+            '2026-07-08 05:39:35 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 1, "daily_quote_reply_count": 1, "last_seen_mention_id": "800", "next_reply_lane_priority": "normal"}',
+            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
+        ],
+    )
+    state_path = base / "bot_state.json"
+    write_json(
+        state_path,
+        {
+            "daily_reply_count": 2,
+            "daily_quote_reply_count": 1,
+            "last_seen_mention_id": "1000",
+            "next_reply_lane_priority": "quote",
+        },
+    )
+    os.utime(state_path, (future_state_ts, future_state_ts))
+
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "Window: `2026-07-08 05:39:35` → `2026-07-08 06:39:38`" in digest.stdout
+    assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
+    assert "daily_reply_count       = 1" in digest.stdout
+    assert "daily_quote_reply_count = 1" in digest.stdout
+    assert "last_seen_mention_id    = 800" in digest.stdout
+    assert "daily_reply_count       = 2" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" not in digest.stdout
+    assert "authoritative current state" not in digest.stdout
+
+
+def test_digest_authoritative_state_at_window_end_is_eligible(tmp_path: Path) -> None:
+    base = tmp_path / "digest-latest-state-window-end-eligible"
+    window_end = "2026-07-08 06:39:38"
+    state_ts = datetime(2026, 7, 8, 6, 39, 38).timestamp()
+    write_digest_log(
+        base,
+        [
+            '2026-07-08 06:39:35 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 1, "daily_quote_reply_count": 1}',
+            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
+        ],
+    )
+    state_path = base / "bot_state.json"
+    write_json(
+        state_path,
+        {
+            "daily_reply_count": 2,
+            "daily_quote_reply_count": 1,
+            "last_seen_mention_id": "1000",
+        },
+    )
+    os.utime(state_path, (state_ts, state_ts))
+
+    digest = run_digest(base, until=window_end)
+    assert digest.returncode == 0, digest.stderr
+    assert "State timestamp: `2026-07-08 06:39:38` (authoritative current state" in digest.stdout
+    assert "daily_reply_count       = 2" in digest.stdout
+    assert "last_seen_mention_id    = 1000" in digest.stdout
+
+
+def test_digest_saved_state_backfill_ignores_future_state_snapshot(tmp_path: Path) -> None:
+    base = tmp_path / "digest-saved-state-window-boundary"
+    state_file = tmp_path / "digest-state.json"
+    window_end = "2026-07-08 06:39:38"
+    future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
+        ],
+    )
+    write_json(
+        state_file,
+        {
+            "last_log_entry_time": "2026-07-08 06:00:00",
+            "last_known_latest_state": {
+                "time": "2026-07-08 05:39:35",
+                "daily_reply_count": 1,
+                "daily_quote_reply_count": 1,
+                "last_seen_mention_id": "800",
+            },
+            "last_known_latest_config": {},
+        },
+    )
+    state_path = base / "bot_state.json"
+    write_json(
+        state_path,
+        {
+            "daily_reply_count": 2,
+            "daily_quote_reply_count": 1,
+            "last_seen_mention_id": "1000",
+        },
+    )
+    os.utime(state_path, (future_state_ts, future_state_ts))
+
+    digest = run_digest(base, state_file=state_file, until=window_end)
+    assert digest.returncode == 0, digest.stderr
+    assert "State timestamp: `2026-07-08 05:39:35` (carried forward from previous digest state)" in digest.stdout
+    assert "daily_reply_count       = 1" in digest.stdout
+    assert "daily_quote_reply_count = 1" in digest.stdout
+    assert "last_seen_mention_id    = 800" in digest.stdout
+    assert "daily_reply_count       = 2" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" not in digest.stdout
+
+
+def test_digest_saved_state_backfill_rejects_future_saved_state_snapshot(tmp_path: Path) -> None:
+    base = tmp_path / "digest-saved-future-state-window-boundary"
+    state_file = tmp_path / "future-digest-state.json"
+    window_end = "2026-07-08 06:39:38"
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
+        ],
+    )
+    write_json(
+        state_file,
+        {
+            "last_log_entry_time": "2026-07-08 06:00:00",
+            "last_known_latest_state": {
+                "time": "2026-07-08 06:39:45",
+                "daily_reply_count": 2,
+                "daily_quote_reply_count": 1,
+                "last_seen_mention_id": "1000",
+            },
+            "last_known_latest_config": {},
+        },
+    )
+
+    digest = run_digest(base, state_file=state_file, until=window_end)
+    assert digest.returncode == 0, digest.stderr
+    assert "daily_reply_count       = 2" not in digest.stdout
+    assert "last_seen_mention_id    = 1000" not in digest.stdout
 
 
 def test_digest_groups_handled_media_v2_fallback_as_one_warning(tmp_path: Path) -> None:
