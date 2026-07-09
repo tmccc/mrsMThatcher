@@ -294,6 +294,7 @@ def normalize_for_branch_parity(value):
                 "last_regular_image_filename",
                 "mention_pagination",
                 "next_quote_post_epoch",
+                "original_regular_posts_since_generated_image",
                 "quote_api_cooldown_reason",
                 "quote_api_cooldown_until_epoch",
                 "quote_lookup_pagination_tokens",
@@ -5590,6 +5591,107 @@ def test_digest_reports_regular_image_made_with_ai_from_create_post(tmp_path: Pa
     assert "| t01.jpg | 0 | 7.00 | false |" in digest.stdout
     assert "| 2026-07-08 12:01:04 | 1002 | 2 |" in digest.stdout
     assert f"| tg_{origin_hash}.png | 1 | 12.00 | true |" in digest.stdout
+
+
+def test_digest_reports_generated_image_spacing_status(tmp_path: Path) -> None:
+    base = tmp_path / "digest-generated-image-spacing"
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 12:00:00 INFO     choose_regular_quote_image_pair:4984 - GENERATED_IMAGE_SPACING_STATUS pool_enabled=true allowed=false original_posts_since_generated=0 required=2",
+            "2026-07-08 12:00:00 INFO     choose_regular_quote_image_pair:4984 - GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=0 required=2",
+            "2026-07-08 12:10:00 INFO     choose_regular_quote_image_pair:4984 - GENERATED_IMAGE_SPACING_STATUS pool_enabled=true allowed=true original_posts_since_generated=2 required=2",
+            "2026-07-08 12:10:30 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=false original_posts_since_generated=0 required=2 image_source=generated image=tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "## Generated image spacing" in digest.stdout
+    assert "required_original_posts_between = 2" in digest.stdout
+    assert "original_posts_since_generated  = 0" in digest.stdout
+    assert "generated_pool_enabled          = true" in digest.stdout
+    assert "generated_pool_allowed          = false" in digest.stdout
+    assert "| 2026-07-08 12:00:00 | blocked |  |  | 0 | 2 |" in digest.stdout
+    assert "| 2026-07-08 12:10:30 | state_updated | true | false | 0 | 2 |" in digest.stdout
+
+
+@pytest.mark.parametrize(
+    ("before_count", "after_count", "after_allowed", "image_source", "image_name"),
+    [
+        (2, 0, "false", "generated", "tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png"),
+        (0, 1, "false", "original", "t01.jpg"),
+        (1, 2, "true", "original", "t02.jpg"),
+    ],
+)
+def test_digest_generated_spacing_latest_uses_post_transition_state(
+    tmp_path: Path,
+    before_count: int,
+    after_count: int,
+    after_allowed: str,
+    image_source: str,
+    image_name: str,
+) -> None:
+    base = tmp_path / f"digest-generated-image-spacing-transition-{before_count}-{after_count}"
+    before_allowed = "true" if before_count >= 2 else "false"
+    write_digest_log(
+        base,
+        [
+            f"2026-07-08 12:00:00 INFO     choose_regular_quote_image_pair:4984 - GENERATED_IMAGE_SPACING_STATUS pool_enabled=true allowed={before_allowed} original_posts_since_generated={before_count} required=2",
+            f"2026-07-08 12:00:10 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed={after_allowed} original_posts_since_generated={after_count} required=2 image_source={image_source} image={image_name}",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert f"original_posts_since_generated  = {after_count}" in digest.stdout
+    assert f"generated_pool_allowed          = {after_allowed}" in digest.stdout
+
+
+def test_digest_generated_spacing_resume_carries_latest_state(tmp_path: Path) -> None:
+    base = tmp_path / "digest-generated-spacing-resume"
+    state_file = tmp_path / "digest-state.json"
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 12:00:00 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=false original_posts_since_generated=0 required=2 image_source=generated image=tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+        ],
+    )
+
+    first_digest = run_digest(base, state_file=state_file)
+
+    assert first_digest.returncode == 0, first_digest.stderr
+    assert "original_posts_since_generated  = 0" in first_digest.stdout
+    assert "generated_pool_allowed          = false" in first_digest.stdout
+
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 12:00:00 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=false original_posts_since_generated=0 required=2 image_source=generated image=tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+            "2026-07-08 12:05:00 INFO     main:9999 - heartbeat with no spacing event",
+        ],
+    )
+    second_digest = run_digest(base, state_file=state_file)
+
+    assert second_digest.returncode == 0, second_digest.stderr
+    assert "original_posts_since_generated  = 0" in second_digest.stdout
+    assert "generated_pool_allowed          = false" in second_digest.stdout
+
+    write_digest_log(
+        base,
+        [
+            "2026-07-08 12:00:00 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=false original_posts_since_generated=0 required=2 image_source=generated image=tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png",
+            "2026-07-08 12:05:00 INFO     main:9999 - heartbeat with no spacing event",
+            "2026-07-08 12:10:00 INFO     update_regular_generated_image_spacing_state:4880 - GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=true original_posts_since_generated=2 required=2 image_source=original image=t02.jpg",
+        ],
+    )
+    third_digest = run_digest(base, state_file=state_file)
+
+    assert third_digest.returncode == 0, third_digest.stderr
+    assert "original_posts_since_generated  = 2" in third_digest.stdout
+    assert "generated_pool_allowed          = true" in third_digest.stdout
 
 
 def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:

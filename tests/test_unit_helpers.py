@@ -654,6 +654,7 @@ def test_generated_image_pool_rejects_paths_outside_generated_directory(
 def test_generated_image_source_classification() -> None:
     quote_hash = "a" * 64
 
+    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == 2
     assert bot.image_selection_observability("t44.jpg") == {
         "image_source": "original",
         "origin_quote_hash": None,
@@ -674,6 +675,97 @@ def test_generated_image_source_classification() -> None:
     }
     assert bot.generated_image_origin_quote_hash("tg_not-a-real-hash.png") is None
     assert bot.generated_image_origin_quote_hash("tg_" + ("a" * 63) + ".png") is None
+
+
+def test_generated_image_spacing_helpers_and_state_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    generated = "tg_" + ("a" * 64) + ".png"
+    state = {"original_regular_posts_since_generated_image": 0}
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+
+    assert bot.generated_images_allowed_by_spacing(state) is False
+    bot.update_regular_generated_image_spacing_state(state, "t01.jpg")
+    assert state["original_regular_posts_since_generated_image"] == 1
+    assert bot.generated_images_allowed_by_spacing(state) is False
+    bot.update_regular_generated_image_spacing_state(state, "t02.jpg")
+    assert state["original_regular_posts_since_generated_image"] == 2
+    assert bot.generated_images_allowed_by_spacing(state) is True
+    bot.update_regular_generated_image_spacing_state(state, "t03.jpg")
+    assert state["original_regular_posts_since_generated_image"] == 2
+    bot.update_regular_generated_image_spacing_state(state, generated)
+    assert state["original_regular_posts_since_generated_image"] == 0
+
+
+@pytest.mark.parametrize("value", [0, 2])
+def test_generated_image_spacing_required_accepts_integers(monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", value)
+
+    assert bot.generated_image_spacing_required() == value
+
+
+def test_generated_image_spacing_zero_disables_restriction(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 0)
+
+    assert bot.generated_images_allowed_by_spacing({"original_regular_posts_since_generated_image": 0}) is True
+
+
+@pytest.mark.parametrize("bad_value", [True, False, -1, 2.0, 2.5, "2", "x"])
+def test_generated_image_spacing_helper_rejects_non_integer_values(
+    monkeypatch: pytest.MonkeyPatch,
+    bad_value: object,
+) -> None:
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", bad_value)
+
+    with pytest.raises(ValueError):
+        bot.generated_image_spacing_required()
+
+
+@pytest.mark.parametrize(
+    ("last_image", "expected_count"),
+    [
+        ("tg_" + ("a" * 64) + ".png", 0),
+        ("t01.jpg", 2),
+        (None, 2),
+    ],
+)
+def test_legacy_state_initialises_generated_spacing_from_last_regular_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    last_image: str | None,
+    expected_count: int,
+) -> None:
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    state = bot.default_state()
+    state.pop("original_regular_posts_since_generated_image", None)
+    state["last_regular_image_filename"] = last_image
+
+    normalised = bot.normalise_state_candidate(state, path=tmp_path / "state.json")
+
+    assert normalised is not None
+    assert normalised["original_regular_posts_since_generated_image"] == expected_count
+
+
+def test_state_rejects_boolean_generated_spacing_counter(tmp_path: Path) -> None:
+    state = bot.default_state()
+    state["original_regular_posts_since_generated_image"] = True
+
+    assert bot.normalise_state_candidate(state, path=tmp_path / "state.json") is None
+
+
+@pytest.mark.parametrize("value", [0, 2])
+def test_runtime_config_validation_accepts_integer_generated_spacing(value: int) -> None:
+    assert not bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": value})
+
+
+@pytest.mark.parametrize("bad_value", [True, False, 2.0, 2.5, "2", "x"])
+def test_runtime_config_validation_rejects_non_integer_generated_spacing(bad_value: object) -> None:
+    errors = bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bad_value})
+    assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer" in errors
+
+
+def test_runtime_config_validation_rejects_negative_generated_spacing() -> None:
+    errors = bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": -1})
+
+    assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative" in errors
 
 
 def test_original_image_selection_returns_observability_and_logs(
@@ -807,6 +899,103 @@ def test_generated_image_cross_quote_selection_gets_no_origin_boost_and_logs(
     assert "generated_origin_quote" not in chosen["components"]
     assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated.name}" in caplog.text
     assert f"origin_quote_hash={origin_quote_hash} origin_quote_match=false origin_quote_boost=0.0" in caplog.text
+
+
+def test_generated_image_blocked_by_spacing_selects_original_without_marking_generated_used(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    image_dir = tmp_path / "images"
+    generated_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    generated_dir.mkdir()
+    original = image_dir / "t01.jpg"
+    generated_hash = "a" * 64
+    generated = generated_dir / f"tg_{generated_hash}.png"
+    original.write_bytes(b"original")
+    generated.write_bytes(b"generated")
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Tax quote.\n", encoding="utf-8")
+    quote_analysis = {"primary_topics": ["tax"], "secondary_topics": [], "tone": [], "visual_energy": "low"}
+    original_analysis = {"pairing": {}, "themes": [], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
+    generated_analysis = {"pairing": {"best_for_topics": ["tax"]}, "themes": ["tax"], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
+    original_analysis_path = tmp_path / "image_analysis.json"
+    generated_analysis_path = tmp_path / "generated_image_analysis.json"
+    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {original.name: original_analysis}))
+    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: generated_analysis}))
+
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
+    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
+    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Tax quote."], {0: quote_analysis}))
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+    images_used: set[str] = set()
+    state = {"original_regular_posts_since_generated_image": 0}
+
+    chosen = bot.choose_regular_quote_image_pair(
+        set(),
+        images_used,
+        state,
+    )[1]
+
+    assert chosen["basename"] == "t01.jpg"
+    assert chosen["image_source"] == "original"
+    assert generated.name not in images_used
+    assert "GENERATED_IMAGE_SPACING_STATUS pool_enabled=true allowed=false original_posts_since_generated=0 required=2" in caplog.text
+    assert "GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=0 required=2" in caplog.text
+
+
+def test_generated_image_spacing_expiry_allows_generated_to_compete_with_origin_boost(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_dir = tmp_path / "images"
+    generated_dir = tmp_path / "generated"
+    image_dir.mkdir()
+    generated_dir.mkdir()
+    original = image_dir / "t01.jpg"
+    quote = "Origin boost quote."
+    quote_hash = bot.quote_text_hash(quote)
+    generated = generated_dir / f"tg_{quote_hash}.png"
+    original.write_bytes(b"original")
+    generated.write_bytes(b"generated")
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text(quote + "\n", encoding="utf-8")
+    neutral = {"pairing": {}, "themes": [], "tone": [], "visual_energy": "low", "quality": {}, "seasonality": {"avoid_outside_season_or_occasion": False}}
+    original_analysis_path = tmp_path / "image_analysis.json"
+    generated_analysis_path = tmp_path / "generated_image_analysis.json"
+    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {original.name: neutral}))
+    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: neutral}))
+
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
+    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 4)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
+    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines([quote]))
+
+    chosen = bot.choose_regular_quote_image_pair(
+        set(),
+        set(),
+        {"original_regular_posts_since_generated_image": 2},
+    )[1]
+
+    assert chosen["basename"] == generated.name
+    assert chosen["image_source"] == "generated"
+    assert chosen["origin_quote_match"] is True
+    assert chosen["origin_quote_boost"] == 4.0
 
 
 def test_generated_origin_boost_preserves_expected_final_score(
@@ -1158,6 +1347,40 @@ def test_post_random_quote_recovers_when_remaining_generated_cycle_image_cannot_
     assert "last image permitted" not in caplog.text
 
 
+def test_image_cycle_recovery_does_not_reenable_spacing_blocked_generated_images(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    generated_hash = "9" * 64
+    generated_name = f"tg_{generated_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": crowd_scene_analysis()},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add("t01.jpg")
+    state["original_regular_posts_since_generated_image"] = 0
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    create_calls = capture_create_post_calls(monkeypatch)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(RuntimeError, match="No eligible regular quote/image pair found"):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert state.get("last_regular_image_filename") is None
+    assert images_used == {"t01.jpg"}
+    assert generated_name not in images_used
+    assert create_calls == []
+    assert state["original_regular_posts_since_generated_image"] == 0
+    assert "resetting image cycle and retrying once" in caplog.text
+    assert "GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING" in caplog.text
+    assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated_name}" not in caplog.text
+
+
 def test_last_image_boundary_fallback_recovers_two_image_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1305,6 +1528,38 @@ def test_last_image_boundary_fallback_can_reuse_generated_previous_image(
     assert "REGULAR_IMAGE_SELECTED source=generated" in caplog.text
 
 
+def test_last_image_fallback_does_not_reenable_spacing_blocked_generated_previous_image(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    last_hash = "8" * 64
+    last_generated = f"tg_{last_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={"t01.jpg": crowd_scene_analysis()},
+        generated_analyses={last_generated: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=["Only quote."],
+    )
+    images_used.add(last_generated)
+    state["last_regular_image_filename"] = last_generated
+    state["original_regular_posts_since_generated_image"] = 0
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    monkeypatch.setattr(bot, "upload_media", lambda path: pytest.fail("upload_media should not be called"))
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("create_post should not be called"))
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(RuntimeError, match="No eligible regular quote/image pair found"):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert lines_used == set()
+    assert images_used == {last_generated}
+    assert "retrying once with last image permitted" not in caplog.text
+    assert f"REGULAR_IMAGE_SELECTED source=generated basename={last_generated}" not in caplog.text
+
+
 def test_post_random_quote_image_cycle_recovery_fails_safely_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1418,19 +1673,41 @@ def test_global_image_failure_does_not_trigger_image_cycle_recovery(
 def test_original_regular_image_posts_without_made_with_ai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
+    state["original_regular_posts_since_generated_image"] = 0
     create_calls = capture_create_post_calls(monkeypatch)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
 
     bot.post_random_quote(lines_used, images_used, state)
 
     assert len(create_calls) == 1
     assert create_calls[0]["made_with_ai"] is False
+    assert state["original_regular_posts_since_generated_image"] == 1
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=false allowed=false original_posts_since_generated=1 required=2 image_source=original image=t01.jpg" in caplog.text
+
+
+def test_second_original_regular_image_spacing_update_allows_generated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    lines_used, images_used, state, _lines_used_file, _images_used_file, _receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
+    state["original_regular_posts_since_generated_image"] = 1
+    capture_create_post_calls(monkeypatch)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.post_random_quote(lines_used, images_used, state)
+
+    assert state["original_regular_posts_since_generated_image"] == 2
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=false allowed=true original_posts_since_generated=2 required=2 image_source=original image=t01.jpg" in caplog.text
 
 
 def test_generated_origin_match_regular_image_posts_with_made_with_ai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     quote = "Generated origin quote."
     origin_hash = bot.quote_text_hash(quote)
@@ -1450,6 +1727,7 @@ def test_generated_origin_match_regular_image_posts_with_made_with_ai(
     assert len(create_calls) == 1
     assert create_calls[0]["made_with_ai"] is True
     assert state["last_regular_image_filename"] == generated_name
+    assert state["original_regular_posts_since_generated_image"] == 0
 
 
 def test_generated_cross_quote_regular_image_posts_with_made_with_ai(
@@ -1477,6 +1755,8 @@ def test_generated_cross_quote_regular_image_posts_with_made_with_ai(
     assert len(create_calls) == 1
     assert create_calls[0]["made_with_ai"] is True
     assert state["last_regular_image_filename"] == generated_name
+    assert state["original_regular_posts_since_generated_image"] == 0
+    assert f"GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=true allowed=false original_posts_since_generated=0 required=2 image_source=generated image={generated_name}" in caplog.text
     assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated_name}" in caplog.text
     assert f"origin_quote_hash={origin_hash} origin_quote_match=false origin_quote_boost=0.0" in caplog.text
 
@@ -1503,6 +1783,36 @@ def test_generated_image_selected_after_cycle_recovery_posts_with_made_with_ai(
     assert len(create_calls) == 1
     assert create_calls[0]["made_with_ai"] is True
     assert state["last_regular_image_filename"] == generated_name
+    assert state["original_regular_posts_since_generated_image"] == 0
+
+
+def test_failed_regular_post_attempt_does_not_change_generated_spacing_counter(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    quote = "Generated failure quote."
+    origin_hash = bot.quote_text_hash(quote)
+    generated_name = f"tg_{origin_hash}.png"
+    lines_used, images_used, state, _original_paths, _generated_paths = configure_generated_cycle_recovery_post(
+        tmp_path,
+        monkeypatch,
+        original_analyses={},
+        generated_analyses={generated_name: portrait_analysis()},
+        quote_analyses={0: quote_rejecting_crowd_scenes()},
+        quotes=[quote],
+    )
+    state["original_regular_posts_since_generated_image"] = 2
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: {"data": {"id": "banana"}})
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    with pytest.raises(RuntimeError, match="did not return a valid post id"):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert lines_used == set()
+    assert images_used == set()
+    assert state["original_regular_posts_since_generated_image"] == 2
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
 
 
 def test_post_random_quote_restores_histories_when_all_pair_attempts_fail_after_cycle_resets(
@@ -1711,6 +2021,107 @@ def valid_regular_receipt(**overrides: object) -> dict:
     }
     receipt.update(overrides)
     return receipt
+
+
+@pytest.mark.parametrize(
+    ("image_basename", "initial_count", "expected_count"),
+    [
+        ("tg_" + ("a" * 64) + ".png", 2, 0),
+        ("t01.jpg", 0, 1),
+    ],
+)
+def test_regular_receipt_reconciliation_updates_generated_spacing_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    image_basename: str,
+    initial_count: int,
+    expected_count: int,
+) -> None:
+    receipt_file = tmp_path / "regular_post_receipt.json"
+    receipt = valid_regular_receipt(image_basename=image_basename)
+    receipt_file.write_text(json.dumps(receipt), encoding="utf-8")
+    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_file)
+    monkeypatch.setattr(bot, "save_regular_post_protected_state", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 2)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    state = {"original_regular_posts_since_generated_image": initial_count}
+
+    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
+    assert state["original_regular_posts_since_generated_image"] == expected_count
+    assert image_basename in images_used
+    assert not receipt_file.exists()
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" in caplog.text
+
+    caplog.clear()
+    assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
+    assert state["original_regular_posts_since_generated_image"] == expected_count
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
+
+
+def test_regular_receipt_reapply_does_not_double_increment_original_spacing(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    receipt = valid_regular_receipt(image_basename="t01.jpg")
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    state = {
+        "last_quote_post_epoch": receipt["quote_post_epoch"],
+        "last_regular_image_filename": "t01.jpg",
+        "original_regular_posts_since_generated_image": 1,
+    }
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    caplog.set_level(logging.INFO, logger=bot.log.name)
+
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+
+    assert state["original_regular_posts_since_generated_image"] == 1
+    assert "GENERATED_IMAGE_SPACING_STATE_UPDATED" not in caplog.text
+
+
+def test_regular_receipt_reapply_initialises_missing_spacing_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_basename = "tg_" + ("a" * 64) + ".png"
+    receipt = valid_regular_receipt(image_basename=image_basename)
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    state = {
+        "last_quote_post_epoch": receipt["quote_post_epoch"],
+        "last_regular_image_filename": image_basename,
+    }
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+
+    assert state["original_regular_posts_since_generated_image"] == 0
+
+
+def test_regular_receipt_reapply_corrects_generated_spacing_counter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_basename = "tg_" + ("a" * 64) + ".png"
+    receipt = valid_regular_receipt(image_basename=image_basename)
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    state = {
+        "last_quote_post_epoch": receipt["quote_post_epoch"],
+        "last_regular_image_filename": image_basename,
+        "original_regular_posts_since_generated_image": 2,
+    }
+    monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+
+    bot.apply_regular_post_receipt(receipt, lines_used, images_used, state)
+
+    assert state["original_regular_posts_since_generated_image"] == 0
 
 
 @pytest.mark.parametrize("failure", ["save_state", "quote_history", "image_history"])
@@ -5426,6 +5837,7 @@ def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatc
             "GENERATED_IMAGE_GLOB": "*.png",
             "GENERATED_IMAGE_ANALYSIS_FILE": str(generated_analysis),
             "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
+            "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 3,
         },
         initial={
             "ENABLE_GENERATED_IMAGE_POOL": False,
@@ -5433,6 +5845,7 @@ def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatc
             "GENERATED_IMAGE_GLOB": "*.jpg",
             "GENERATED_IMAGE_ANALYSIS_FILE": "",
             "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 4,
+            "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
         },
     )
 
@@ -5441,3 +5854,20 @@ def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatc
     assert bot.GENERATED_IMAGE_GLOB == "*.png"
     assert bot.GENERATED_IMAGE_ANALYSIS_FILE == str(generated_analysis)
     assert bot.GENERATED_IMAGE_ORIGIN_QUOTE_BOOST == 6
+    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == 3
+
+
+@pytest.mark.parametrize("bad_value", [-1, True, False, 2.0, 2.5, "2", "x"])
+def test_local_config_rejects_invalid_generated_image_spacing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    bad_value: object,
+) -> None:
+    before = apply_local_config_for_test(
+        tmp_path,
+        monkeypatch,
+        {"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bad_value},
+        initial={"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2},
+    )
+
+    assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == before["GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"] == 2

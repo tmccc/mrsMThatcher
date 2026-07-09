@@ -192,6 +192,7 @@ IMAGE_GLOB = str(BASE_DIR / "images/t*")
 ENABLE_GENERATED_IMAGE_POOL = False
 GENERATED_IMAGE_DIR = str(BASE_DIR / "generated_review_approved_images")
 GENERATED_IMAGE_GLOB = "*.png"
+GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN = 2
 QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
 GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
@@ -403,6 +404,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "GENERATED_IMAGE_GLOB",
     "GENERATED_IMAGE_ANALYSIS_FILE",
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
 
     # Operational hardening
     "STATE_BACKUP_COUNT",
@@ -449,6 +451,7 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
     "MAX_REPLY_CHARS",
     "MAX_GROK_OUTPUT_TOKENS",
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
     "STATE_BACKUP_COUNT",
 }
 
@@ -493,6 +496,12 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
         raise ValueError(f"{key} must be a boolean")
 
     if isinstance(current_value, int) and not isinstance(current_value, bool):
+        if key == "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN":
+            if type(value) is not int:
+                raise ValueError(f"{key} must be an integer")
+            if value < 0:
+                raise ValueError(f"{key} must be non-negative")
+            return value
         if isinstance(value, bool):
             raise ValueError(f"{key} must be an integer, not a boolean")
         coerced = int(value)
@@ -566,6 +575,15 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
                 errors.append(f"{key} must be between {low} and {high}")
         except Exception:
             errors.append(f"{key} must be an integer")
+
+    raw_generated_spacing = values.get(
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+        globals().get("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN", 0),
+    )
+    if type(raw_generated_spacing) is not int:
+        errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
+    elif raw_generated_spacing < 0:
+        errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
 
     for key in ("MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR"):
         try:
@@ -1091,6 +1109,7 @@ def default_state() -> dict:
         "next_reply_lane_priority": "normal",
         "last_main_post_id": None,
         "last_regular_image_filename": None,
+        "original_regular_posts_since_generated_image": GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN,
         "last_quote_post_epoch": 0,
         "next_quote_post_epoch": 0,
 
@@ -1437,6 +1456,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "daily_reply_count",
         "meme_schedule_version",
         "daily_quote_reply_count",
+        "original_regular_posts_since_generated_image",
     }
     epoch_keys = {
         "last_meme_post_epoch",
@@ -1513,6 +1533,12 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         if value is None:
             return None
         normalised[key] = value
+    if "original_regular_posts_since_generated_image" not in state:
+        last_regular_image = str(normalised.get("last_regular_image_filename") or "")
+        if generated_image_origin_quote_hash(last_regular_image):
+            normalised["original_regular_posts_since_generated_image"] = 0
+        else:
+            normalised["original_regular_posts_since_generated_image"] = generated_image_spacing_required()
     for key in epoch_keys:
         if key not in state:
             continue
@@ -4079,9 +4105,16 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
             last_meme_epoch,
         )
     if quote_post_epoch >= last_quote_epoch:
+        spacing_already_reflected = (
+            quote_post_epoch == last_quote_epoch
+            and str(state.get("last_regular_image_filename") or "") == image_basename
+            and regular_generated_image_spacing_already_reflected(state, image_basename)
+        )
         state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
         state["next_quote_post_epoch"] = next_quote_post_epoch
+        if not spacing_already_reflected:
+            update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
         if receipt.get("next_meme_post_epoch"):
             state["next_meme_post_epoch"] = int(receipt["next_meme_post_epoch"])
@@ -4788,6 +4821,92 @@ def image_selection_observability(basename: str, quote_hash: object = None, orig
     }
 
 
+def generated_image_spacing_required() -> int:
+    if type(GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN) is not int:
+        raise ValueError("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
+    if GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN < 0:
+        raise ValueError("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
+    return GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN
+
+
+def original_posts_since_generated_image(state: dict | None) -> int:
+    if not state:
+        return generated_image_spacing_required()
+    try:
+        value = int(state.get("original_regular_posts_since_generated_image", generated_image_spacing_required()) or 0)
+    except Exception:
+        value = 0
+    return max(0, value)
+
+
+def generated_images_allowed_by_spacing(state: dict | None) -> bool:
+    required = generated_image_spacing_required()
+    if required <= 0:
+        return True
+    return original_posts_since_generated_image(state) >= required
+
+
+def log_generated_image_spacing_status(state: dict | None) -> bool:
+    required = generated_image_spacing_required()
+    count = original_posts_since_generated_image(state)
+    allowed = generated_images_allowed_by_spacing(state)
+    log.info(
+        "GENERATED_IMAGE_SPACING_STATUS pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d",
+        str(bool(ENABLE_GENERATED_IMAGE_POOL)).lower(),
+        str(bool(allowed)).lower(),
+        count,
+        required,
+    )
+    if ENABLE_GENERATED_IMAGE_POOL and required > 0 and not allowed:
+        log.info(
+            "GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=%d required=%d",
+            count,
+            required,
+        )
+    return allowed
+
+
+def log_generated_image_spacing_state_updated(state: dict | None, image_basename: str) -> None:
+    required = generated_image_spacing_required()
+    count = original_posts_since_generated_image(state)
+    allowed = generated_images_allowed_by_spacing(state)
+    source = "generated" if generated_image_origin_quote_hash(image_basename) else "original"
+    log.info(
+        "GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=%s allowed=%s original_posts_since_generated=%d required=%d image_source=%s image=%s",
+        str(bool(ENABLE_GENERATED_IMAGE_POOL)).lower(),
+        str(bool(allowed)).lower(),
+        count,
+        required,
+        source,
+        image_basename,
+    )
+
+
+def filter_generated_images_by_spacing(eligible_basenames: set[str], state: dict | None) -> set[str]:
+    if not ENABLE_GENERATED_IMAGE_POOL or generated_images_allowed_by_spacing(state):
+        return eligible_basenames
+    return {basename for basename in eligible_basenames if not generated_image_origin_quote_hash(basename)}
+
+
+def update_regular_generated_image_spacing_state(state: dict, image_basename: str) -> None:
+    required = generated_image_spacing_required()
+    if generated_image_origin_quote_hash(image_basename):
+        state["original_regular_posts_since_generated_image"] = 0
+        log_generated_image_spacing_state_updated(state, image_basename)
+        return
+    current = original_posts_since_generated_image(state)
+    state["original_regular_posts_since_generated_image"] = min(required, current + 1) if required > 0 else 0
+    log_generated_image_spacing_state_updated(state, image_basename)
+
+
+def regular_generated_image_spacing_already_reflected(state: dict, image_basename: str) -> bool:
+    if "original_regular_posts_since_generated_image" not in state:
+        return False
+    if generated_image_origin_quote_hash(image_basename):
+        return original_posts_since_generated_image(state) == 0
+    return True
+
+
 def log_regular_image_selection(choice: dict) -> None:
     log.info(
         "REGULAR_IMAGE_SELECTED source=%s basename=%s score=%s origin_quote_hash=%s origin_quote_match=%s origin_quote_boost=%s",
@@ -4808,6 +4927,7 @@ def choose_matched_unused_image(
     force_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
     cycle_boundary_exclusions: set[str] | None = None,
+    generated_images_allowed: bool | None = None,
 ) -> dict:
     images = current_image_paths()
     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
@@ -4847,6 +4967,14 @@ def choose_matched_unused_image(
             continue
         eligible_basenames.add(basename)
 
+    if generated_images_allowed is None:
+        generated_images_allowed = generated_images_allowed_by_spacing(state)
+    spacing_blocked_generated = 0
+    if not generated_images_allowed:
+        before_spacing = set(eligible_basenames)
+        eligible_basenames = filter_generated_images_by_spacing(eligible_basenames, state)
+        spacing_blocked_generated = len(before_spacing) - len(eligible_basenames)
+
     if not eligible_basenames:
         raise GlobalImageUnavailable("No analysed currently eligible regular-post images are available")
 
@@ -4871,12 +4999,13 @@ def choose_matched_unused_image(
             cycle_boundary_exclusions.add(last_name)
         log.info("Temporarily excluded last regular image at forced eligible-cycle boundary: %s", last_name)
     log.info(
-        "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d cycle_reset=%s",
+        "Image cycle status: used_count=%d currently_eligible=%d remaining_count=%d seasonally_excluded=%d stale_excluded=%d spacing_blocked_generated=%d cycle_reset=%s",
         len(images_used),
         len(eligible_basenames),
         len(available),
         seasonally_excluded,
         stale_excluded,
+        spacing_blocked_generated,
         cycle_reset,
     )
 
@@ -4958,6 +5087,7 @@ def choose_regular_quote_image_pair(
     attempts = 0
     reset_available_images_once = force_image_cycle_reset
     cycle_boundary_exclusions: set[str] = set()
+    generated_images_allowed = log_generated_image_spacing_status(state)
 
     while attempts < MAX_QUOTE_IMAGE_PAIR_ATTEMPTS:
         attempts += 1
@@ -4976,6 +5106,7 @@ def choose_regular_quote_image_pair(
                 force_cycle_reset=reset_available_images_once,
                 avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
                 cycle_boundary_exclusions=cycle_boundary_exclusions if force_image_cycle_reset else None,
+                generated_images_allowed=generated_images_allowed,
             )
             if attempts > 1:
                 log.info(
@@ -5138,6 +5269,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         if "quote_post_epoch" in locals():
             state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
+        update_regular_generated_image_spacing_state(state, image_basename)
         if "quote_schedule_fields" in locals():
             apply_state_fields(state, quote_schedule_fields)
         if "meme_schedule_fields" in locals():
@@ -5167,6 +5299,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         state["last_main_post_id"] = str(posted_id)
         state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
+        update_regular_generated_image_spacing_state(state, image_basename)
         apply_state_fields(state, quote_schedule_fields)
         apply_state_fields(state, meme_schedule_fields)
         cache_tweet(

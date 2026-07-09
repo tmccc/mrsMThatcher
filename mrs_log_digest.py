@@ -95,6 +95,13 @@ def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"
     # rendering annotations for this run, not durable bot facts.
     latest_state_clean = strip_internal_context_markers(latest_state)
     latest_config_clean = strip_internal_context_markers(latest_config)
+    latest_generated_image_spacing = report.get("generated_image_spacing", {}).get("latest") or old.get("last_known_generated_image_spacing") or {}
+    if isinstance(latest_generated_image_spacing, dict):
+        latest_generated_image_spacing = {
+            key: value
+            for key, value in latest_generated_image_spacing.items()
+            if not str(key).startswith("_")
+        }
     boundary_fingerprints = {
         record_fingerprint(record)
         for record in records
@@ -120,6 +127,7 @@ def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"
         "last_run_logs": [str(p) for p in logs],
         "last_known_latest_state": latest_state_clean,
         "last_known_latest_config": latest_config_clean,
+        "last_known_generated_image_spacing": latest_generated_image_spacing,
         "last_active_xai_context": report.get("resume_context", {}).get("active_xai_context"),
         "last_pending_mention": report.get("resume_context", {}).get("pending_mention"),
         "last_pending_qt": report.get("resume_context", {}).get("pending_qt"),
@@ -899,6 +907,8 @@ def analyse(
     xai_usage_events: List[Dict[str, Any]] = []
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
+    generated_image_spacing_events: List[Dict[str, Any]] = []
+    latest_generated_image_spacing: Dict[str, Any] = {}
     cooldown_active: List[Dict[str, Any]] = []
     lifecycle: List[Dict[str, Any]] = []
     routine_skip_counts = Counter()
@@ -1467,6 +1477,59 @@ def analyse(
             )
             continue
 
+        m = re.search(
+            r"GENERATED_IMAGE_SPACING_STATUS pool_enabled=(true|false) allowed=(true|false) "
+            r"original_posts_since_generated=(\d+) required=(\d+)",
+            msg,
+        )
+        if m:
+            item = {
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "kind": "status",
+                "pool_enabled": m.group(1),
+                "allowed": m.group(2),
+                "original_posts_since_generated": int(m.group(3)),
+                "required": int(m.group(4)),
+            }
+            latest_generated_image_spacing = item
+            generated_image_spacing_events.append(item)
+            continue
+
+        m = re.search(
+            r"GENERATED_IMAGE_SPACING_STATE_UPDATED pool_enabled=(true|false) allowed=(true|false) "
+            r"original_posts_since_generated=(\d+) required=(\d+) image_source=(\S+) image=(\S+)",
+            msg,
+        )
+        if m:
+            item = {
+                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                "kind": "state_updated",
+                "pool_enabled": m.group(1),
+                "allowed": m.group(2),
+                "original_posts_since_generated": int(m.group(3)),
+                "required": int(m.group(4)),
+                "image_source": m.group(5),
+                "image": m.group(6),
+            }
+            latest_generated_image_spacing = item
+            generated_image_spacing_events.append(item)
+            continue
+
+        m = re.search(
+            r"GENERATED_IMAGE_POOL_BLOCKED_BY_SPACING original_posts_since_generated=(\d+) required=(\d+)",
+            msg,
+        )
+        if m:
+            generated_image_spacing_events.append(
+                {
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "kind": "blocked",
+                    "original_posts_since_generated": int(m.group(1)),
+                    "required": int(m.group(2)),
+                }
+            )
+            continue
+
         m = re.search(r"Quote cycle is seasonally exhausted: (\d+) unused quote\(s\) are hard-excluded today; resetting quote cycle", msg)
         if m:
             add_event("quote_cycle_reset", r.ts, reason="seasonal_exhaustion", affected=m.group(1))
@@ -1918,6 +1981,10 @@ def analyse(
             "events": regular_image_usage_events,
             "summary": regular_image_usage_summary(regular_image_usage_events),
         },
+        "generated_image_spacing": {
+            "latest": latest_generated_image_spacing,
+            "events": generated_image_spacing_events,
+        },
         "xai_usage": {
             "events": xai_usage_events,
             "totals": xai_usage_totals(xai_usage_events),
@@ -2041,6 +2108,12 @@ def apply_saved_context(
         report.get("latest_config") or {},
         old.get("last_known_latest_config") or {},
     )
+    generated_spacing = report.get("generated_image_spacing")
+    if isinstance(generated_spacing, dict) and not generated_spacing.get("latest"):
+        previous_spacing = old.get("last_known_generated_image_spacing")
+        if isinstance(previous_spacing, dict) and previous_spacing:
+            generated_spacing["latest"] = dict(previous_spacing)
+            generated_spacing["latest"]["_carried_forward"] = True
 
     refresh_derived(report)
 
@@ -2428,6 +2501,31 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("message", ""),
                 ]))
             out.append("")
+
+    generated_spacing = report.get("generated_image_spacing") or {}
+    generated_spacing_latest = generated_spacing.get("latest") or {}
+    generated_spacing_events = generated_spacing.get("events") or []
+    if generated_spacing_latest or generated_spacing_events:
+        out.append("## Generated image spacing")
+        if generated_spacing_latest:
+            out.append("```text")
+            out.append(f"required_original_posts_between = {generated_spacing_latest.get('required', '')}")
+            out.append(f"original_posts_since_generated  = {generated_spacing_latest.get('original_posts_since_generated', '')}")
+            out.append(f"generated_pool_enabled          = {generated_spacing_latest.get('pool_enabled', '')}")
+            out.append(f"generated_pool_allowed          = {generated_spacing_latest.get('allowed', '')}")
+            out.append("```")
+        out.append(md_table_row(["time", "kind", "pool_enabled", "allowed", "original_posts_since_generated", "required"]))
+        out.append(md_table_row(["---"] * 6))
+        for item in generated_spacing_events[-20:]:
+            out.append(md_table_row([
+                item.get("time", ""),
+                item.get("kind", ""),
+                item.get("pool_enabled", ""),
+                item.get("allowed", ""),
+                item.get("original_posts_since_generated", ""),
+                item.get("required", ""),
+            ]))
+        out.append("")
 
     regular_image_usage = report.get("regular_image_usage") or {}
     regular_image_events = regular_image_usage.get("events") or []
