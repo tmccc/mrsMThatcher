@@ -4954,7 +4954,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     assert "generated_share     = 41.7%" in regular_image_usage_digest.stdout
     assert "origin_match_share  = 60.0%" in regular_image_usage_digest.stdout
     assert "Regular image selection metadata" in regular_image_usage_digest.stdout
-    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4.0 |" in regular_image_usage_digest.stdout
+    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4.0 |  |" in regular_image_usage_digest.stdout
 
     original_only_base = prepare_base_dir(tmp_path / "digest-regular-image-original-only")
     write_digest_log(
@@ -5556,6 +5556,40 @@ def test_digest_reports_reply_media_context(tmp_path: Path) -> None:
     assert "| 2026-07-07 07:00:01 | WARNING | mention | 123 | 1 | text_fallback | unavailable | 400 |" in digest.stdout
     assert "| 2026-07-07 07:01:00 | WARNING | quote_tweet | 456 | 1 | multimodal | unavailable |  |" in digest.stdout
     assert "operational error(s)" not in digest.stdout
+
+
+def test_digest_reports_regular_image_made_with_ai_from_create_post(tmp_path: Path) -> None:
+    base = tmp_path / "digest-regular-image-made-with-ai"
+    origin_hash = "a" * 64
+    quote_hash = "b" * 64
+    write_digest_log(
+        base,
+        [
+            f"2026-07-08 12:00:00 INFO     select_quote_candidate:4630 - Selected quote line_no=1 quote_hash={quote_hash} weight=1.00 seasonal_boost=False",
+            "2026-07-08 12:00:01 INFO     choose_matched_unused_image:4931 - Selected matched image basename=t01.jpg image_no=0 score=7.00 components=historical=0.0",
+            "2026-07-08 12:00:02 INFO     log_regular_image_selection:4792 - REGULAR_IMAGE_SELECTED source=original basename=t01.jpg score=7.0 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0",
+            "2026-07-08 12:00:03 INFO     create_post:3204 - Creating X post. reply_to_id=None media_count=1 made_with_ai=False text='Original quote.'",
+            "2026-07-08 12:00:04 INFO     post_random_quote:5198 - Quote/image posted successfully. posted_id=1001",
+            f"2026-07-08 12:01:00 INFO     select_quote_candidate:4630 - Selected quote line_no=2 quote_hash={quote_hash} weight=1.00 seasonal_boost=False",
+            f"2026-07-08 12:01:01 INFO     choose_matched_unused_image:4931 - Selected matched image basename=tg_{origin_hash}.png image_no=1 score=12.00 components=generated_origin_quote=4.0",
+            f"2026-07-08 12:01:02 INFO     log_regular_image_selection:4792 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{origin_hash}.png score=12.0 origin_quote_hash={origin_hash} origin_quote_match=false origin_quote_boost=0.0",
+            "2026-07-08 12:01:03 INFO     create_post:3204 - Creating X post. reply_to_id=None media_count=1 made_with_ai=True text='Generated quote.'",
+            "2026-07-08 12:01:04 INFO     post_random_quote:5198 - Quote/image posted successfully. posted_id=1002",
+        ],
+    )
+
+    digest = run_digest(base)
+
+    assert digest.returncode == 0, digest.stderr
+    assert "made_with_ai_true   = 1" in digest.stdout
+    assert "made_with_ai_false  = 1" in digest.stdout
+    assert "made_with_ai_unknown = 0" in digest.stdout
+    assert "| 2026-07-08 12:00:02 | original | t01.jpg | 7.0 | false | 0.0 | false |" in digest.stdout
+    assert f"| 2026-07-08 12:01:02 | generated | tg_{origin_hash}.png | 12.0 | false | 0.0 | true |" in digest.stdout
+    assert "| 2026-07-08 12:00:04 | 1001 | 1 |" in digest.stdout
+    assert "| t01.jpg | 0 | 7.00 | false |" in digest.stdout
+    assert "| 2026-07-08 12:01:04 | 1002 | 2 |" in digest.stdout
+    assert f"| tg_{origin_hash}.png | 1 | 12.00 | true |" in digest.stdout
 
 
 def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:

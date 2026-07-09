@@ -856,6 +856,9 @@ def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     generated = sum(1 for item in events if item.get("source") == "generated")
     origin_matches = sum(1 for item in events if item.get("source") == "generated" and item.get("origin_quote_match") == "true")
     cross_quote = generated - origin_matches
+    made_with_ai_true = sum(1 for item in events if item.get("made_with_ai") == "true")
+    made_with_ai_false = sum(1 for item in events if item.get("made_with_ai") == "false")
+    made_with_ai_unknown = total - made_with_ai_true - made_with_ai_false
     generated_share = (generated / total * 100.0) if total else 0.0
     origin_match_share = (origin_matches / generated * 100.0) if generated else 0.0
     return {
@@ -864,6 +867,9 @@ def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "generated": generated,
         "origin_matches": origin_matches,
         "cross_quote": cross_quote,
+        "made_with_ai_true": made_with_ai_true,
+        "made_with_ai_false": made_with_ai_false,
+        "made_with_ai_unknown": made_with_ai_unknown,
         "generated_share": generated_share,
         "origin_match_share": origin_match_share,
     }
@@ -1498,6 +1504,20 @@ def analyse(
             pending_quote["text"] = lit(msg.split("=", 1)[1])
             continue
 
+        m = re.search(r"Creating X post\. reply_to_id=([^\s]+) media_count=(\d+) made_with_ai=(True|False)\b", msg)
+        if m:
+            reply_to_id = m.group(1)
+            media_count = int(m.group(2))
+            made_with_ai = m.group(3).lower()
+            if pending_quote and reply_to_id == "None" and media_count > 0:
+                pending_quote["made_with_ai"] = made_with_ai
+                image_basename = pending_quote.get("image_basename")
+                for item in reversed(regular_image_usage_events):
+                    if item.get("basename") == image_basename and not item.get("made_with_ai"):
+                        item["made_with_ai"] = made_with_ai
+                        break
+            continue
+
         m = re.search(r"Quote/image posted successfully\. posted_id=(\d+)", msg)
         if m:
             add_event(
@@ -1511,6 +1531,7 @@ def analyse(
                 quote_hash=pending_quote.get("quote_hash"),
                 text=pending_quote.get("text", ""),
                 image=pending_quote.get("image", ""),
+                made_with_ai=pending_quote.get("made_with_ai", ""),
             )
             pending_quote = {}
             continue
@@ -2419,11 +2440,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"generated_images    = {summary.get('generated', 0)}")
         out.append(f"originating_quote   = {summary.get('origin_matches', 0)}")
         out.append(f"cross_quote         = {summary.get('cross_quote', 0)}")
+        out.append(f"made_with_ai_true   = {summary.get('made_with_ai_true', 0)}")
+        out.append(f"made_with_ai_false  = {summary.get('made_with_ai_false', 0)}")
+        out.append(f"made_with_ai_unknown = {summary.get('made_with_ai_unknown', 0)}")
         out.append(f"generated_share     = {float(summary.get('generated_share', 0.0)):.1f}%")
         out.append(f"origin_match_share  = {float(summary.get('origin_match_share', 0.0)):.1f}%")
         out.append("```")
-        out.append(md_table_row(["time", "source", "basename", "score", "origin_quote_match", "origin_quote_boost"]))
-        out.append(md_table_row(["---"] * 6))
+        out.append(md_table_row(["time", "source", "basename", "score", "origin_quote_match", "origin_quote_boost", "made_with_ai"]))
+        out.append(md_table_row(["---"] * 7))
         for item in regular_image_events:
             out.append(md_table_row([
                 item.get("time", ""),
@@ -2432,6 +2456,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 item.get("score", ""),
                 item.get("origin_quote_match", ""),
                 item.get("origin_quote_boost", ""),
+                item.get("made_with_ai", ""),
             ]))
         out.append("")
 
@@ -2459,7 +2484,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([ev.get(c, "") for c in cols]))
         out.append("")
 
-    section("quote_image_posted", "Quote/image posts", ["time", "post_id", "line_no", "quote_hash", "image_basename", "image_no", "image_score", "text"])
+    section("quote_image_posted", "Quote/image posts", ["time", "post_id", "line_no", "quote_hash", "image_basename", "image_no", "image_score", "made_with_ai", "text"])
     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
     section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
     section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
