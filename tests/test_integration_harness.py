@@ -823,6 +823,90 @@ def test_production_tick_spacing_skip_does_not_consume_normal_check_interval(tmp
         server.stop()
 
 
+@pytest.mark.parametrize(
+    ("first_priority", "expected_targets"),
+    [
+        ("normal", ["100", "910"]),
+        ("quote", ["910", "100"]),
+    ],
+)
+def test_global_1800_reply_spacing_blocks_cross_lane_until_boundary(
+    tmp_path: Path,
+    first_priority: str,
+    expected_targets: list[str],
+) -> None:
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    scenario["mentions"] = [
+        {
+            "id": "100",
+            "text": "@mrsMThatcher quite right",
+            "author_id": "200",
+            "conversation_id": "100",
+            "created_at": "2026-06-30T12:00:00Z",
+        }
+    ]
+    scenario["grok_replies"] = [
+        "Quite right. Good sense is unfashionable only to those profiting from nonsense.",
+        "A point is useful only when it survives contact with reality. This one rather does.",
+    ]
+    server = FakeApiServer(scenario).start()
+    try:
+        start = 2_000_000_000
+        base_dir = prepare_base_dir(
+            tmp_path,
+            state={
+                "next_reply_lane_priority": first_priority,
+                "recent_own_post_ids": ["900"],
+                "last_reply_epoch": 0,
+                "last_reply_check_epoch": 0,
+                "last_quote_tweet_check_epoch": 0,
+            },
+            local_config={
+                "ENABLE_HOT_POST_REPLY_CHECKS": False,
+                "MIN_SECONDS_BETWEEN_REPLIES": 1800,
+                "REPLY_CHECK_EVERY_SECONDS": 1,
+                "QUOTE_CHECK_EVERY_SECONDS": 1,
+            },
+        )
+
+        first = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(start)},
+        )
+        assert first.returncode == 0, first.stderr + first.stdout
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == expected_targets[:1]
+        assert read_json(base_dir / "bot_state.json")["last_reply_epoch"] == start
+        requests_after_first = len(server.requests)
+
+        blocked = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 1799)},
+        )
+        assert blocked.returncode == 0, blocked.stderr + blocked.stdout
+        assert len(server.requests) == requests_after_first
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == expected_targets[:1]
+        assert read_json(base_dir / "bot_state.json")["last_reply_epoch"] == start
+
+        boundary = run_bot_command(
+            base_dir,
+            server,
+            "--test-main-tick",
+            extra_env={"MRS_FAKE_NOW_EPOCH": str(start + 1800)},
+        )
+        assert boundary.returncode == 0, boundary.stderr + boundary.stdout
+        assert [post["reply"]["in_reply_to_tweet_id"] for post in server.posts] == expected_targets
+        state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_epoch"] == start + 1800
+        assert state["daily_reply_count"] == 2
+        assert state["daily_quote_reply_count"] == 1
+    finally:
+        server.stop()
+
+
 def test_production_tick_persists_normal_check_epoch_across_restart(tmp_path: Path) -> None:
     server = FakeApiServer({}).start()
     try:
@@ -1185,6 +1269,7 @@ def test_spam_normal_lane_outcome_consumes_check_interval(tmp_path: Path) -> Non
         assert len(server.xai_requests) == 0
         assert server.path_counts.get("/2/users/12345/mentions") == 1
         state = read_json(base_dir / "bot_state.json")
+        assert state["last_reply_epoch"] == 0
         assert state["last_reply_check_epoch"] == 2_000_000_000
         assert state["last_seen_mention_id"] == "140"
     finally:
@@ -3688,6 +3773,7 @@ def test_grok_skip_does_not_post(tmp_path: Path, fake_server: FakeApiServer) -> 
     assert result.returncode == 0, result.stderr + result.stdout
     assert fake_server.posts == []
     state = read_json(base_dir / "bot_state.json")
+    assert state["last_reply_epoch"] == 0
     assert state["last_seen_mention_id"] == "130"
     assert "130" not in state["replied_to_ids"]
 

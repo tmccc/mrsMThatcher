@@ -5849,7 +5849,7 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
         monkeypatch,
         {
             "ENABLE_AUTO_REPLIES": True,
-            "MIN_SECONDS_BETWEEN_REPLIES": 3600,
+            "MIN_SECONDS_BETWEEN_REPLIES": 1800,
             "MAX_AUTO_REPLIES_PER_DAY": 24,
             "MAX_QUOTE_REPLIES_PER_DAY": 12,
             "POST_SLEEP_MIN": 7200,
@@ -5866,11 +5866,15 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
     )
 
     assert bot.ENABLE_AUTO_REPLIES is True
-    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 3600
+    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
     assert bot.MAX_AUTO_REPLIES_PER_DAY == 24
     assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
     assert bot.POST_SLEEP_MIN == 7200
     assert bot.POST_SLEEP_MAX == 9000
+
+
+def test_default_minimum_reply_spacing_is_30_minutes() -> None:
+    assert bot.MIN_SECONDS_BETWEEN_REPLIES == 1800
 
 
 def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
