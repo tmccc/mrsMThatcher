@@ -1,0 +1,9 @@
+count,from_source,pair,to_source
+1170,generated,production_editorial,generated
+267,generated,production_editorial,original
+262,original,production_editorial,generated
+3301,original,production_editorial,original
+1097,generated,production_identity,generated
+340,generated,production_identity,original
+262,original,production_identity,generated
+3301,original,production_identity,original

@@ -1,0 +1,23 @@
+{
+  "analysis_assets.json": "46b7b9e16860d3c3c89d4dd856139ad3da5e6ad830c2711a8e83f8ae9803aa10",
+  "analysis_report.md": "ed336d7d9c72d0870d2436553895eb8691425d7a1cf1bf8645a40c12bd194ebf",
+  "analysis_summary.json": "06c65ffd76e44d653ae8ca79acb7484f9d780f38f114f28a4529340e89440f11",
+  "case_studies.json": "1e9972cb32e8fb144efc6a124db370294c5d1dc2933689bd23a3a50a994cf8a2",
+  "charts/branch_entropy.png": "4f9f22c183c7ef09f7c21c1274d7f4fedce1c0a66d015a65d1e0d2897140093b",
+  "charts/branch_generated_share.png": "42abc29e5d7eb8f894652f41989c6465034972d19e92f5937b1c6feecd2d2510",
+  "charts/branch_top10_share.png": "3d24301ef4af66eaf5e8158736d4546d3b9baedc5ce2e2b024b68ecc25d0a6f3",
+  "charts/cycle_resets.png": "816e7cf73664583695755d06330a62a10048566e18f407bc99ee45279d2f1aa4",
+  "charts/divergence_episode_lengths.png": "5584483d634564d3b9ba8283a40fd54e931824fcc27997b9d083891e5651a435",
+  "charts/divergence_rate_by_run.png": "db60c35660415d31428d93e47137df59f0a18e34e6eacc2b97c2a4f1aa9fb213",
+  "charts/top_editorial_net_gainers.png": "81eb7cfac789eda77544b276fd625f4717ac345fd1c11bdbffc124d0f91f5fb5",
+  "contact_sheets/diagnostic_images.png": "47bc161b1e85736c8681b42b40e84e453220af0082c5b2a828bc5e9a9c8dd974",
+  "contact_sheets/editorial_gainers.png": "95237db41fddc680be9af99b4ba0195bfeec5fa849f0d05b09fde13d412b22cc",
+  "contact_sheets/editorial_losers.png": "e9bd18f010a424849746faf1519618d2cb4b211a5077122279ef61ee90acaeff",
+  "detailed_metrics.json": "2ecdd31eaa59eaad44c8e81bbd461eeba009f89008b96e503e772b9910d0bcf6",
+  "divergence_episodes.csv": "f33a5953d71a81d9da7b9afbd84edb2c82a39079f04a1dc610842a0fe3267b5f",
+  "divergence_events.csv": "b25bba3ea56708845763d20c5c7f3bb2f807a357b9eac0578e8c722a1b0622e1",
+  "image_metrics.csv": "cffc48c2cf10554205df493f4916cae8d98e83b3549dd9c1415bf4a5f532640a",
+  "quote_metrics.csv": "c1d1946c4f62401fd8da3aa5869a1bac740b43b4c84f65c29bf6614962b0fd52",
+  "transition_matrix.csv": "eb88dcab506b6afb2c9e2cd009fd250511464f168de0d1ece5a1f4c27ebf32a5",
+  "validation_report.json": "f0c4696eac9548e598c349935767e8d295b2f929732afc04730ad3caabb7ef43"
+}

@@ -1,0 +1,16 @@
+{
+  "charts": [
+    "charts/branch_generated_share.png",
+    "charts/branch_entropy.png",
+    "charts/branch_top10_share.png",
+    "charts/divergence_rate_by_run.png",
+    "charts/divergence_episode_lengths.png",
+    "charts/cycle_resets.png",
+    "charts/top_editorial_net_gainers.png"
+  ],
+  "contact_sheets": [
+    "contact_sheets/editorial_gainers.png",
+    "contact_sheets/editorial_losers.png",
+    "contact_sheets/diagnostic_images.png"
+  ]
+}

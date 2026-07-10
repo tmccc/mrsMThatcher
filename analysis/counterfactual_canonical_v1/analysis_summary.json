@@ -1,0 +1,2064 @@
+{
+  "agreement": {
+    "all_three": 0.4436,
+    "editorial_identity": 0.4982,
+    "production_editorial": 0.6068,
+    "production_identity": 0.627
+  },
+  "branches": {
+    "editorial": {
+      "cycle_resets": 60,
+      "entropy_bits": 6.9599793499569635,
+      "generated_cross_quote": 1410,
+      "generated_origin_quote": 22,
+      "maximum_image_count": 62,
+      "most_selected": [
+        [
+          "t51.jpg",
+          62
+        ],
+        [
+          "t09.jpg",
+          61
+        ],
+        [
+          "t37.jpg",
+          60
+        ],
+        [
+          "t55.jpg",
+          60
+        ],
+        [
+          "t66.jpg",
+          60
+        ],
+        [
+          "t56.jpg",
+          60
+        ],
+        [
+          "t54.jpg",
+          60
+        ],
+        [
+          "t46.jpg",
+          60
+        ],
+        [
+          "t63.jpg",
+          60
+        ],
+        [
+          "t35.jpg",
+          60
+        ]
+      ],
+      "reuse_intervals": {
+        "count": 2208,
+        "lower_quartile": 85.0,
+        "max": 175.0,
+        "mean": 94.02173913043478,
+        "median": 95.0,
+        "min": 6.0,
+        "standard_deviation": 18.54754169081517,
+        "upper_quartile": 104.0
+      },
+      "selection_phases": {
+        "normal": 5000
+      },
+      "selections": 5000,
+      "source_counts": {
+        "generated": 1432,
+        "original": 3568
+      },
+      "suspicious_reuse_under_3": 0,
+      "top_10_share": 0.1206,
+      "top_5_share": 0.0606,
+      "unique_images": 141
+    },
+    "identity": {
+      "cycle_resets": 60,
+      "entropy_bits": 6.921364572100967,
+      "generated_cross_quote": 1335,
+      "generated_origin_quote": 24,
+      "maximum_image_count": 64,
+      "most_selected": [
+        [
+          "t54.jpg",
+          64
+        ],
+        [
+          "t35.jpg",
+          61
+        ],
+        [
+          "t51.jpg",
+          61
+        ],
+        [
+          "t16.jpg",
+          61
+        ],
+        [
+          "t61.jpg",
+          61
+        ],
+        [
+          "t02.jpg",
+          61
+        ],
+        [
+          "t09.jpg",
+          61
+        ],
+        [
+          "t37.jpg",
+          60
+        ],
+        [
+          "t55.jpg",
+          60
+        ],
+        [
+          "t17.jpg",
+          60
+        ]
+      ],
+      "reuse_intervals": {
+        "count": 2296,
+        "lower_quartile": 82.0,
+        "max": 243.0,
+        "mean": 92.87108013937282,
+        "median": 93.0,
+        "min": 10.0,
+        "standard_deviation": 20.4525438613695,
+        "upper_quartile": 103.0
+      },
+      "selection_phases": {
+        "forced_cycle_reset": 8,
+        "normal": 4992
+      },
+      "selections": 5000,
+      "source_counts": {
+        "generated": 1359,
+        "original": 3641
+      },
+      "suspicious_reuse_under_3": 0,
+      "top_10_share": 0.122,
+      "top_5_share": 0.0616,
+      "unique_images": 142
+    },
+    "production": {
+      "cycle_resets": 60,
+      "entropy_bits": 6.964347724551903,
+      "generated_cross_quote": 1419,
+      "generated_origin_quote": 18,
+      "maximum_image_count": 62,
+      "most_selected": [
+        [
+          "t51.jpg",
+          62
+        ],
+        [
+          "t09.jpg",
+          61
+        ],
+        [
+          "t37.jpg",
+          60
+        ],
+        [
+          "t55.jpg",
+          60
+        ],
+        [
+          "t17.jpg",
+          60
+        ],
+        [
+          "t56.jpg",
+          60
+        ],
+        [
+          "t54.jpg",
+          60
+        ],
+        [
+          "t46.jpg",
+          60
+        ],
+        [
+          "t63.jpg",
+          60
+        ],
+        [
+          "t35.jpg",
+          60
+        ]
+      ],
+      "reuse_intervals": {
+        "count": 2205,
+        "lower_quartile": 85.0,
+        "max": 245.0,
+        "mean": 94.56825396825397,
+        "median": 95.0,
+        "min": 10.0,
+        "standard_deviation": 18.863478706860043,
+        "upper_quartile": 104.0
+      },
+      "selection_phases": {
+        "normal": 5000
+      },
+      "selections": 5000,
+      "source_counts": {
+        "generated": 1437,
+        "original": 3563
+      },
+      "suspicious_reuse_under_3": 0,
+      "top_10_share": 0.1206,
+      "top_5_share": 0.0606,
+      "unique_images": 143
+    }
+  },
+  "diagnostic_images": {
+    "t10.jpg": {
+      "editorial": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            19
+          ],
+          [
+            "run_0000",
+            124
+          ],
+          [
+            "run_0000",
+            217
+          ],
+          [
+            "run_0001",
+            26
+          ],
+          [
+            "run_0001",
+            116
+          ],
+          [
+            "run_0001",
+            222
+          ],
+          [
+            "run_0002",
+            17
+          ],
+          [
+            "run_0002",
+            122
+          ],
+          [
+            "run_0002",
+            212
+          ],
+          [
+            "run_0003",
+            19
+          ],
+          [
+            "run_0003",
+            111
+          ],
+          [
+            "run_0003",
+            205
+          ],
+          [
+            "run_0004",
+            22
+          ],
+          [
+            "run_0004",
+            128
+          ],
+          [
+            "run_0004",
+            216
+          ],
+          [
+            "run_0005",
+            13
+          ],
+          [
+            "run_0005",
+            116
+          ],
+          [
+            "run_0005",
+            196
+          ],
+          [
+            "run_0006",
+            17
+          ],
+          [
+            "run_0006",
+            118
+          ],
+          [
+            "run_0006",
+            215
+          ],
+          [
+            "run_0007",
+            20
+          ],
+          [
+            "run_0007",
+            119
+          ],
+          [
+            "run_0007",
+            202
+          ],
+          [
+            "run_0008",
+            16
+          ],
+          [
+            "run_0008",
+            131
+          ],
+          [
+            "run_0008",
+            198
+          ],
+          [
+            "run_0009",
+            38
+          ],
+          [
+            "run_0009",
+            81
+          ],
+          [
+            "run_0009",
+            200
+          ],
+          [
+            "run_0010",
+            17
+          ],
+          [
+            "run_0010",
+            128
+          ],
+          [
+            "run_0010",
+            209
+          ],
+          [
+            "run_0011",
+            13
+          ],
+          [
+            "run_0011",
+            112
+          ],
+          [
+            "run_0011",
+            213
+          ],
+          [
+            "run_0012",
+            31
+          ],
+          [
+            "run_0012",
+            118
+          ],
+          [
+            "run_0012",
+            219
+          ],
+          [
+            "run_0013",
+            13
+          ],
+          [
+            "run_0013",
+            83
+          ],
+          [
+            "run_0013",
+            221
+          ],
+          [
+            "run_0014",
+            38
+          ],
+          [
+            "run_0014",
+            138
+          ],
+          [
+            "run_0014",
+            215
+          ],
+          [
+            "run_0015",
+            17
+          ],
+          [
+            "run_0015",
+            108
+          ],
+          [
+            "run_0015",
+            222
+          ],
+          [
+            "run_0016",
+            35
+          ],
+          [
+            "run_0016",
+            114
+          ],
+          [
+            "run_0016",
+            212
+          ],
+          [
+            "run_0017",
+            25
+          ],
+          [
+            "run_0017",
+            115
+          ],
+          [
+            "run_0017",
+            213
+          ],
+          [
+            "run_0018",
+            28
+          ],
+          [
+            "run_0018",
+            134
+          ],
+          [
+            "run_0018",
+            207
+          ],
+          [
+            "run_0019",
+            16
+          ],
+          [
+            "run_0019",
+            121
+          ],
+          [
+            "run_0019",
+            215
+          ]
+        ],
+        "selections": 60
+      },
+      "identity": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            29
+          ],
+          [
+            "run_0000",
+            145
+          ],
+          [
+            "run_0000",
+            225
+          ],
+          [
+            "run_0001",
+            35
+          ],
+          [
+            "run_0001",
+            100
+          ],
+          [
+            "run_0001",
+            220
+          ],
+          [
+            "run_0002",
+            26
+          ],
+          [
+            "run_0002",
+            136
+          ],
+          [
+            "run_0002",
+            219
+          ],
+          [
+            "run_0003",
+            41
+          ],
+          [
+            "run_0003",
+            111
+          ],
+          [
+            "run_0003",
+            223
+          ],
+          [
+            "run_0004",
+            34
+          ],
+          [
+            "run_0004",
+            131
+          ],
+          [
+            "run_0004",
+            216
+          ],
+          [
+            "run_0005",
+            32
+          ],
+          [
+            "run_0005",
+            130
+          ],
+          [
+            "run_0005",
+            196
+          ],
+          [
+            "run_0006",
+            17
+          ],
+          [
+            "run_0006",
+            112
+          ],
+          [
+            "run_0006",
+            218
+          ],
+          [
+            "run_0007",
+            40
+          ],
+          [
+            "run_0007",
+            120
+          ],
+          [
+            "run_0007",
+            220
+          ],
+          [
+            "run_0008",
+            28
+          ],
+          [
+            "run_0008",
+            134
+          ],
+          [
+            "run_0008",
+            198
+          ],
+          [
+            "run_0009",
+            40
+          ],
+          [
+            "run_0009",
+            81
+          ],
+          [
+            "run_0009",
+            220
+          ],
+          [
+            "run_0010",
+            17
+          ],
+          [
+            "run_0010",
+            128
+          ],
+          [
+            "run_0010",
+            227
+          ],
+          [
+            "run_0011",
+            13
+          ],
+          [
+            "run_0011",
+            142
+          ],
+          [
+            "run_0011",
+            205
+          ],
+          [
+            "run_0012",
+            37
+          ],
+          [
+            "run_0012",
+            129
+          ],
+          [
+            "run_0012",
+            204
+          ],
+          [
+            "run_0013",
+            43
+          ],
+          [
+            "run_0013",
+            83
+          ],
+          [
+            "run_0013",
+            228
+          ],
+          [
+            "run_0014",
+            38
+          ],
+          [
+            "run_0014",
+            138
+          ],
+          [
+            "run_0014",
+            221
+          ],
+          [
+            "run_0015",
+            41
+          ],
+          [
+            "run_0015",
+            108
+          ],
+          [
+            "run_0015",
+            224
+          ],
+          [
+            "run_0016",
+            37
+          ],
+          [
+            "run_0016",
+            110
+          ],
+          [
+            "run_0016",
+            227
+          ],
+          [
+            "run_0017",
+            43
+          ],
+          [
+            "run_0017",
+            126
+          ],
+          [
+            "run_0017",
+            221
+          ],
+          [
+            "run_0018",
+            41
+          ],
+          [
+            "run_0018",
+            141
+          ],
+          [
+            "run_0018",
+            217
+          ],
+          [
+            "run_0019",
+            25
+          ],
+          [
+            "run_0019",
+            121
+          ],
+          [
+            "run_0019",
+            215
+          ]
+        ],
+        "selections": 60
+      },
+      "production": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            29
+          ],
+          [
+            "run_0000",
+            137
+          ],
+          [
+            "run_0000",
+            226
+          ],
+          [
+            "run_0001",
+            35
+          ],
+          [
+            "run_0001",
+            100
+          ],
+          [
+            "run_0001",
+            226
+          ],
+          [
+            "run_0002",
+            26
+          ],
+          [
+            "run_0002",
+            136
+          ],
+          [
+            "run_0002",
+            224
+          ],
+          [
+            "run_0003",
+            41
+          ],
+          [
+            "run_0003",
+            111
+          ],
+          [
+            "run_0003",
+            239
+          ],
+          [
+            "run_0004",
+            34
+          ],
+          [
+            "run_0004",
+            131
+          ],
+          [
+            "run_0004",
+            216
+          ],
+          [
+            "run_0005",
+            26
+          ],
+          [
+            "run_0005",
+            130
+          ],
+          [
+            "run_0005",
+            227
+          ],
+          [
+            "run_0006",
+            17
+          ],
+          [
+            "run_0006",
+            112
+          ],
+          [
+            "run_0006",
+            227
+          ],
+          [
+            "run_0007",
+            31
+          ],
+          [
+            "run_0007",
+            120
+          ],
+          [
+            "run_0007",
+            220
+          ],
+          [
+            "run_0008",
+            38
+          ],
+          [
+            "run_0008",
+            141
+          ],
+          [
+            "run_0008",
+            198
+          ],
+          [
+            "run_0009",
+            38
+          ],
+          [
+            "run_0009",
+            81
+          ],
+          [
+            "run_0009",
+            230
+          ],
+          [
+            "run_0010",
+            17
+          ],
+          [
+            "run_0010",
+            132
+          ],
+          [
+            "run_0010",
+            232
+          ],
+          [
+            "run_0011",
+            13
+          ],
+          [
+            "run_0011",
+            142
+          ],
+          [
+            "run_0011",
+            227
+          ],
+          [
+            "run_0012",
+            41
+          ],
+          [
+            "run_0012",
+            129
+          ],
+          [
+            "run_0012",
+            219
+          ],
+          [
+            "run_0013",
+            41
+          ],
+          [
+            "run_0013",
+            83
+          ],
+          [
+            "run_0013",
+            231
+          ],
+          [
+            "run_0014",
+            38
+          ],
+          [
+            "run_0014",
+            138
+          ],
+          [
+            "run_0014",
+            222
+          ],
+          [
+            "run_0015",
+            41
+          ],
+          [
+            "run_0015",
+            108
+          ],
+          [
+            "run_0015",
+            224
+          ],
+          [
+            "run_0016",
+            37
+          ],
+          [
+            "run_0016",
+            110
+          ],
+          [
+            "run_0016",
+            206
+          ],
+          [
+            "run_0017",
+            37
+          ],
+          [
+            "run_0017",
+            115
+          ],
+          [
+            "run_0017",
+            229
+          ],
+          [
+            "run_0018",
+            41
+          ],
+          [
+            "run_0018",
+            141
+          ],
+          [
+            "run_0018",
+            217
+          ],
+          [
+            "run_0019",
+            35
+          ],
+          [
+            "run_0019",
+            121
+          ],
+          [
+            "run_0019",
+            223
+          ]
+        ],
+        "selections": 60
+      }
+    },
+    "t18.jpg": {
+      "editorial": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            38
+          ],
+          [
+            "run_0000",
+            142
+          ],
+          [
+            "run_0000",
+            232
+          ],
+          [
+            "run_0001",
+            38
+          ],
+          [
+            "run_0001",
+            144
+          ],
+          [
+            "run_0001",
+            235
+          ],
+          [
+            "run_0002",
+            46
+          ],
+          [
+            "run_0002",
+            145
+          ],
+          [
+            "run_0002",
+            236
+          ],
+          [
+            "run_0003",
+            31
+          ],
+          [
+            "run_0003",
+            142
+          ],
+          [
+            "run_0003",
+            219
+          ],
+          [
+            "run_0004",
+            35
+          ],
+          [
+            "run_0004",
+            134
+          ],
+          [
+            "run_0004",
+            235
+          ],
+          [
+            "run_0005",
+            40
+          ],
+          [
+            "run_0005",
+            147
+          ],
+          [
+            "run_0005",
+            219
+          ],
+          [
+            "run_0006",
+            43
+          ],
+          [
+            "run_0006",
+            145
+          ],
+          [
+            "run_0006",
+            238
+          ],
+          [
+            "run_0007",
+            46
+          ],
+          [
+            "run_0007",
+            120
+          ],
+          [
+            "run_0007",
+            230
+          ],
+          [
+            "run_0008",
+            46
+          ],
+          [
+            "run_0008",
+            141
+          ],
+          [
+            "run_0008",
+            232
+          ],
+          [
+            "run_0009",
+            20
+          ],
+          [
+            "run_0009",
+            130
+          ],
+          [
+            "run_0009",
+            228
+          ],
+          [
+            "run_0010",
+            43
+          ],
+          [
+            "run_0010",
+            115
+          ],
+          [
+            "run_0010",
+            238
+          ],
+          [
+            "run_0011",
+            43
+          ],
+          [
+            "run_0011",
+            140
+          ],
+          [
+            "run_0011",
+            235
+          ],
+          [
+            "run_0012",
+            43
+          ],
+          [
+            "run_0012",
+            145
+          ],
+          [
+            "run_0012",
+            213
+          ],
+          [
+            "run_0013",
+            35
+          ],
+          [
+            "run_0013",
+            132
+          ],
+          [
+            "run_0013",
+            238
+          ],
+          [
+            "run_0014",
+            50
+          ],
+          [
+            "run_0014",
+            144
+          ],
+          [
+            "run_0014",
+            217
+          ],
+          [
+            "run_0015",
+            44
+          ],
+          [
+            "run_0015",
+            126
+          ],
+          [
+            "run_0015",
+            233
+          ],
+          [
+            "run_0016",
+            47
+          ],
+          [
+            "run_0016",
+            126
+          ],
+          [
+            "run_0016",
+            231
+          ],
+          [
+            "run_0017",
+            38
+          ],
+          [
+            "run_0017",
+            125
+          ],
+          [
+            "run_0017",
+            230
+          ],
+          [
+            "run_0018",
+            43
+          ],
+          [
+            "run_0018",
+            146
+          ],
+          [
+            "run_0018",
+            241
+          ],
+          [
+            "run_0019",
+            29
+          ],
+          [
+            "run_0019",
+            136
+          ],
+          [
+            "run_0019",
+            228
+          ]
+        ],
+        "selections": 60
+      },
+      "identity": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            38
+          ],
+          [
+            "run_0000",
+            151
+          ],
+          [
+            "run_0000",
+            232
+          ],
+          [
+            "run_0001",
+            49
+          ],
+          [
+            "run_0001",
+            144
+          ],
+          [
+            "run_0001",
+            234
+          ],
+          [
+            "run_0002",
+            49
+          ],
+          [
+            "run_0002",
+            139
+          ],
+          [
+            "run_0002",
+            236
+          ],
+          [
+            "run_0003",
+            46
+          ],
+          [
+            "run_0003",
+            146
+          ],
+          [
+            "run_0003",
+            229
+          ],
+          [
+            "run_0004",
+            49
+          ],
+          [
+            "run_0004",
+            152
+          ],
+          [
+            "run_0004",
+            232
+          ],
+          [
+            "run_0005",
+            40
+          ],
+          [
+            "run_0005",
+            153
+          ],
+          [
+            "run_0005",
+            231
+          ],
+          [
+            "run_0006",
+            50
+          ],
+          [
+            "run_0006",
+            145
+          ],
+          [
+            "run_0006",
+            237
+          ],
+          [
+            "run_0007",
+            46
+          ],
+          [
+            "run_0007",
+            147
+          ],
+          [
+            "run_0007",
+            230
+          ],
+          [
+            "run_0008",
+            49
+          ],
+          [
+            "run_0008",
+            154
+          ],
+          [
+            "run_0008",
+            233
+          ],
+          [
+            "run_0009",
+            50
+          ],
+          [
+            "run_0009",
+            146
+          ],
+          [
+            "run_0009",
+            226
+          ],
+          [
+            "run_0010",
+            50
+          ],
+          [
+            "run_0010",
+            147
+          ],
+          [
+            "run_0010",
+            234
+          ],
+          [
+            "run_0011",
+            50
+          ],
+          [
+            "run_0011",
+            150
+          ],
+          [
+            "run_0011",
+            232
+          ],
+          [
+            "run_0012",
+            52
+          ],
+          [
+            "run_0012",
+            149
+          ],
+          [
+            "run_0012",
+            222
+          ],
+          [
+            "run_0013",
+            50
+          ],
+          [
+            "run_0013",
+            134
+          ],
+          [
+            "run_0013",
+            238
+          ],
+          [
+            "run_0014",
+            55
+          ],
+          [
+            "run_0014",
+            146
+          ],
+          [
+            "run_0014",
+            230
+          ],
+          [
+            "run_0015",
+            47
+          ],
+          [
+            "run_0015",
+            145
+          ],
+          [
+            "run_0015",
+            225
+          ],
+          [
+            "run_0016",
+            49
+          ],
+          [
+            "run_0016",
+            143
+          ],
+          [
+            "run_0016",
+            236
+          ],
+          [
+            "run_0017",
+            47
+          ],
+          [
+            "run_0017",
+            143
+          ],
+          [
+            "run_0017",
+            237
+          ],
+          [
+            "run_0018",
+            47
+          ],
+          [
+            "run_0018",
+            150
+          ],
+          [
+            "run_0018",
+            234
+          ],
+          [
+            "run_0019",
+            35
+          ],
+          [
+            "run_0019",
+            136
+          ],
+          [
+            "run_0019",
+            234
+          ]
+        ],
+        "selections": 60
+      },
+      "production": {
+        "candidate_appearances": null,
+        "cross_quote_appearances": null,
+        "identity_exclusions": null,
+        "origin_quote_appearances": null,
+        "selection_indices": [
+          [
+            "run_0000",
+            38
+          ],
+          [
+            "run_0000",
+            142
+          ],
+          [
+            "run_0000",
+            242
+          ],
+          [
+            "run_0001",
+            52
+          ],
+          [
+            "run_0001",
+            144
+          ],
+          [
+            "run_0001",
+            238
+          ],
+          [
+            "run_0002",
+            47
+          ],
+          [
+            "run_0002",
+            139
+          ],
+          [
+            "run_0002",
+            241
+          ],
+          [
+            "run_0003",
+            46
+          ],
+          [
+            "run_0003",
+            145
+          ],
+          [
+            "run_0003",
+            229
+          ],
+          [
+            "run_0004",
+            49
+          ],
+          [
+            "run_0004",
+            152
+          ],
+          [
+            "run_0004",
+            239
+          ],
+          [
+            "run_0005",
+            40
+          ],
+          [
+            "run_0005",
+            152
+          ],
+          [
+            "run_0005",
+            235
+          ],
+          [
+            "run_0006",
+            46
+          ],
+          [
+            "run_0006",
+            150
+          ],
+          [
+            "run_0006",
+            241
+          ],
+          [
+            "run_0007",
+            55
+          ],
+          [
+            "run_0007",
+            140
+          ],
+          [
+            "run_0007",
+            239
+          ],
+          [
+            "run_0008",
+            34
+          ],
+          [
+            "run_0008",
+            157
+          ],
+          [
+            "run_0008",
+            241
+          ],
+          [
+            "run_0009",
+            50
+          ],
+          [
+            "run_0009",
+            148
+          ],
+          [
+            "run_0009",
+            240
+          ],
+          [
+            "run_0010",
+            46
+          ],
+          [
+            "run_0010",
+            147
+          ],
+          [
+            "run_0010",
+            242
+          ],
+          [
+            "run_0011",
+            50
+          ],
+          [
+            "run_0011",
+            150
+          ],
+          [
+            "run_0011",
+            238
+          ],
+          [
+            "run_0012",
+            49
+          ],
+          [
+            "run_0012",
+            144
+          ],
+          [
+            "run_0012",
+            240
+          ],
+          [
+            "run_0013",
+            46
+          ],
+          [
+            "run_0013",
+            134
+          ],
+          [
+            "run_0013",
+            238
+          ],
+          [
+            "run_0014",
+            55
+          ],
+          [
+            "run_0014",
+            144
+          ],
+          [
+            "run_0014",
+            235
+          ],
+          [
+            "run_0015",
+            52
+          ],
+          [
+            "run_0015",
+            153
+          ],
+          [
+            "run_0015",
+            238
+          ],
+          [
+            "run_0016",
+            47
+          ],
+          [
+            "run_0016",
+            153
+          ],
+          [
+            "run_0016",
+            238
+          ],
+          [
+            "run_0017",
+            47
+          ],
+          [
+            "run_0017",
+            137
+          ],
+          [
+            "run_0017",
+            239
+          ],
+          [
+            "run_0018",
+            44
+          ],
+          [
+            "run_0018",
+            135
+          ],
+          [
+            "run_0018",
+            234
+          ],
+          [
+            "run_0019",
+            52
+          ],
+          [
+            "run_0019",
+            136
+          ],
+          [
+            "run_0019",
+            237
+          ]
+        ],
+        "selections": 60
+      }
+    },
+    "tg_faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5.png": {
+      "editorial": {
+        "candidate_appearances": 1,
+        "cross_quote_appearances": 1,
+        "identity_exclusions": 0,
+        "origin_quote_appearances": 0,
+        "selection_indices": [],
+        "selections": 0
+      },
+      "identity": {
+        "candidate_appearances": 24,
+        "cross_quote_appearances": 24,
+        "identity_exclusions": 24,
+        "origin_quote_appearances": 0,
+        "selection_indices": [],
+        "selections": 0
+      },
+      "production": {
+        "candidate_appearances": 7,
+        "cross_quote_appearances": 7,
+        "identity_exclusions": 0,
+        "origin_quote_appearances": 0,
+        "selection_indices": [],
+        "selections": 0
+      }
+    }
+  },
+  "divergence": {
+    "editorial_identity_count": 2509,
+    "episode_counts": {
+      "editorial_identity": 944,
+      "production_editorial": 941,
+      "production_identity": 828
+    },
+    "episode_lengths": {
+      "editorial_identity": {
+        "count": 944,
+        "lower_quartile": 1.0,
+        "max": 26.0,
+        "mean": 2.6578389830508473,
+        "median": 2.0,
+        "min": 1.0,
+        "standard_deviation": 3.0032612908059138,
+        "upper_quartile": 3.0
+      },
+      "production_editorial": {
+        "count": 941,
+        "lower_quartile": 1.0,
+        "max": 22.0,
+        "mean": 2.0892667375132836,
+        "median": 1.0,
+        "min": 1.0,
+        "standard_deviation": 2.1927572775541333,
+        "upper_quartile": 2.0
+      },
+      "production_identity": {
+        "count": 828,
+        "lower_quartile": 1.0,
+        "max": 17.0,
+        "mean": 2.252415458937198,
+        "median": 1.0,
+        "min": 1.0,
+        "standard_deviation": 2.4731029349606093,
+        "upper_quartile": 2.0
+      }
+    },
+    "production_editorial_count": 1966,
+    "production_editorial_rate": 0.3932,
+    "production_identity_count": 1865,
+    "production_identity_rate": 0.373,
+    "reconvergences": {
+      "editorial_identity": 937,
+      "production_editorial": 940,
+      "production_identity": 822
+    },
+    "same_winner_different_observable_state": 2154
+  },
+  "editorial": {
+    "replacement_source": {
+      "generated": 378,
+      "original": 1588
+    },
+    "selected_cap_hits": 0,
+    "selected_original_adjustments": {
+      "count": 3568,
+      "lower_quartile": 0.741777777777778,
+      "max": 3.1848888888888895,
+      "mean": 1.0845510463378178,
+      "median": 1.0840888888888889,
+      "min": -1.688,
+      "standard_deviation": 0.6284782000282881,
+      "upper_quartile": 1.4582222222222223
+    },
+    "top_net_gainers": [
+      {
+        "editorial_net_vs_production": 3,
+        "editorial_selections": 53,
+        "identity_net_vs_production": 4,
+        "identity_selections": 54,
+        "image": "t25.jpg",
+        "production_selections": 50
+      },
+      {
+        "editorial_net_vs_production": 2,
+        "editorial_selections": 49,
+        "identity_net_vs_production": 11,
+        "identity_selections": 58,
+        "image": "t36.jpg",
+        "production_selections": 47
+      },
+      {
+        "editorial_net_vs_production": 1,
+        "editorial_selections": 42,
+        "identity_net_vs_production": 2,
+        "identity_selections": 43,
+        "image": "t15.jpg",
+        "production_selections": 41
+      },
+      {
+        "editorial_net_vs_production": 1,
+        "editorial_selections": 20,
+        "identity_net_vs_production": -2,
+        "identity_selections": 17,
+        "image": "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png",
+        "production_selections": 19
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t01.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 1,
+        "identity_selections": 61,
+        "image": "t02.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t03.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t04.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 40,
+        "identity_net_vs_production": 0,
+        "identity_selections": 40,
+        "image": "t05.jpg",
+        "production_selections": 40
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 43,
+        "identity_net_vs_production": 2,
+        "identity_selections": 45,
+        "image": "t06.jpg",
+        "production_selections": 43
+      }
+    ],
+    "top_net_losers": [
+      {
+        "editorial_net_vs_production": -2,
+        "editorial_selections": 0,
+        "identity_net_vs_production": 1,
+        "identity_selections": 3,
+        "image": "tg_3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586.png",
+        "production_selections": 2
+      },
+      {
+        "editorial_net_vs_production": -1,
+        "editorial_selections": 41,
+        "identity_net_vs_production": -1,
+        "identity_selections": 41,
+        "image": "t64.jpg",
+        "production_selections": 42
+      },
+      {
+        "editorial_net_vs_production": -1,
+        "editorial_selections": 20,
+        "identity_net_vs_production": 0,
+        "identity_selections": 21,
+        "image": "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png",
+        "production_selections": 21
+      },
+      {
+        "editorial_net_vs_production": -1,
+        "editorial_selections": 20,
+        "identity_net_vs_production": 0,
+        "identity_selections": 21,
+        "image": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+        "production_selections": 21
+      },
+      {
+        "editorial_net_vs_production": -1,
+        "editorial_selections": 0,
+        "identity_net_vs_production": 1,
+        "identity_selections": 2,
+        "image": "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png",
+        "production_selections": 1
+      },
+      {
+        "editorial_net_vs_production": -1,
+        "editorial_selections": 19,
+        "identity_net_vs_production": 0,
+        "identity_selections": 20,
+        "image": "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png",
+        "production_selections": 20
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t01.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 1,
+        "identity_selections": 61,
+        "image": "t02.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t03.jpg",
+        "production_selections": 60
+      },
+      {
+        "editorial_net_vs_production": 0,
+        "editorial_selections": 60,
+        "identity_net_vs_production": 0,
+        "identity_selections": 60,
+        "image": "t04.jpg",
+        "production_selections": 60
+      }
+    ]
+  },
+  "identity": {
+    "changed_production_actions": {
+      "generated_cross_quote_origin_only_excluded": 89,
+      "generated_cross_quote_small_penalty": 64,
+      "generated_cross_quote_unrestricted": 23,
+      "not_in_identity_candidate_set": 1263,
+      "unchanged": 426
+    },
+    "excluded_candidate_appearances": 11271,
+    "no_valid_candidate_failures": 0,
+    "production_winner_origin_only_prevented": 89,
+    "replacement_source": {
+      "generated": 634,
+      "original": 1231
+    }
+  },
+  "limitations": {
+    "candidate_absence_reasons": "unavailable unless trace-image/candidate detail was recorded",
+    "full_per_index_state": "unavailable: compact rows permit observable-state comparison, not complete history equality",
+    "runner_up_score_margins": "unavailable: canonical run used candidate_detail=none"
+  },
+  "run_variability": {
+    "all_three_agreement_rate": {
+      "count": 20,
+      "lower_quartile": 0.382,
+      "max": 0.576,
+      "mean": 0.4436,
+      "median": 0.432,
+      "min": 0.308,
+      "standard_deviation": 0.08030840553765216,
+      "upper_quartile": 0.515
+    },
+    "editorial_identity_divergence_rate": {
+      "count": 20,
+      "lower_quartile": 0.454,
+      "max": 0.624,
+      "mean": 0.5018,
+      "median": 0.506,
+      "min": 0.38,
+      "standard_deviation": 0.07086296635055578,
+      "upper_quartile": 0.539
+    },
+    "production_editorial_divergence_rate": {
+      "count": 20,
+      "lower_quartile": 0.321,
+      "max": 0.568,
+      "mean": 0.3932,
+      "median": 0.392,
+      "min": 0.244,
+      "standard_deviation": 0.08709626857678807,
+      "upper_quartile": 0.462
+    },
+    "production_identity_divergence_rate": {
+      "count": 20,
+      "lower_quartile": 0.295,
+      "max": 0.612,
+      "mean": 0.373,
+      "median": 0.34,
+      "min": 0.26,
+      "standard_deviation": 0.09415625311151671,
+      "upper_quartile": 0.455
+    }
+  },
+  "schema_version": 1,
+  "source_transitions": {
+    "production_editorial": {
+      "generated->generated": 1170,
+      "generated->original": 267,
+      "original->generated": 262,
+      "original->original": 3301
+    },
+    "production_identity": {
+      "generated->generated": 1097,
+      "generated->original": 340,
+      "original->generated": 262,
+      "original->original": 3301
+    }
+  },
+  "totals": {
+    "branch_selections": 15000,
+    "post_indices": 5000,
+    "runs": 20
+  }
+}
