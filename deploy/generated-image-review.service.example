@@ -1,0 +1,20 @@
+[Unit]
+Description=MrsMThatcher generated image review (local only)
+After=network.target
+
+[Service]
+Type=simple
+User=tonym
+WorkingDirectory=/disks/disk1/etc/mrsMThatcher
+EnvironmentFile=-/disks/disk1/etc/mrsMThatcher/.generated-image-review.env
+ExecStart=/usr/bin/python3 -m tools.generated_image_review_app.app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/disks/disk1/etc/mrsMThatcher/generated_review_approved_images /disks/disk1/etc/mrsMThatcher/generated_image_quarantine /disks/disk1/etc/mrsMThatcher/.generated_image_review_app /disks/disk1/etc/mrsMThatcher/generated_image_analysis.json /disks/disk1/etc/mrsMThatcher/generated_image_identity_dependence_audit.json
+
+[Install]
+WantedBy=multi-user.target

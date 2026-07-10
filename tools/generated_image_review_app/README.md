@@ -1,0 +1,61 @@
+# Generated Image Review App
+
+Local, server-rendered review UI for the approved generated-image pool. “Remove” always means reversible quarantine; permanent deletion is not implemented.
+
+## Safety model
+
+- Read-only by default; `--allow-changes` is required for quarantine/restore.
+- Binds to `127.0.0.1` by default. Non-loopback binding refuses startup unless `MRS_REVIEW_USERNAME` and `MRS_REVIEW_PASSWORD` are set.
+- State-changing forms require signed CSRF tokens and explicit count-specific confirmation phrases.
+- Writes are confined to the generated pool, `generated_image_analysis.json`, `generated_image_identity_dependence_audit.json`, app data, and quarantine tree.
+- Bot state, used histories, lines, config, logs, receipts, lock, X, xAI, and process control are outside the application.
+- Transactions preserve exact image hashes and metadata records, create metadata backups, and roll back moves/metadata on failure.
+
+## Dependencies
+
+Uses the existing Python environment: FastAPI, Uvicorn, Jinja2, and Pillow. No Node, multipart parser, or CDN assets.
+
+## Start read-only
+
+```bash
+python3 -m tools.generated_image_review_app.app --host 127.0.0.1 --port 8765
+```
+
+Browse `http://127.0.0.1:8765/` locally or use an SSH tunnel from another machine.
+
+## Enable quarantine/restore on loopback
+
+```bash
+python3 -m tools.generated_image_review_app.app --host 127.0.0.1 --port 8765 --allow-changes
+```
+
+## LAN access
+
+Set credentials in an ignored environment file and bind explicitly:
+
+```bash
+set -a
+. .generated-image-review.env
+set +a
+python3 -m tools.generated_image_review_app.app --host 0.0.0.0 --port 8765 --allow-changes
+```
+
+Do not expose this service to the public internet or configure port forwarding. Prefer a firewall rule limited to the owner's LAN address. Secrets are never printed.
+
+## Workflow
+
+Filter/sort the active gallery, select images, and choose **Review selected**. The review page shows all selected images, affected metadata, optional reason/notes, and a phrase such as `QUARANTINE 7 IMAGES`. Quarantine creates `generated_image_quarantine/transactions/<id>/` with images, metadata backups, and `manifest.json`.
+
+The history page supports selected restoration with `RESTORE N IMAGES`. Restoration refuses an active basename conflict and restores exact preserved metadata. Used-image history is read-only and remains historical evidence.
+
+## Production implications
+
+Quarantine removes a file from live filesystem discovery immediately. It also updates both active metadata files so a future startup remains valid. The running bot may retain cached audit metadata; review the transaction and perform a separately controlled Python-child restart after a real quarantine. This app never signals or restarts production.
+
+## Notes, cache, and service
+
+Reasons and notes live in transaction manifests, not production audit classifications. Lazy JPEG thumbnails are cached under ignored app data using source SHA-256 names; source files are never modified. The example systemd unit is not installed or enabled by this project.
+
+## Backup and troubleshooting
+
+Each transaction's `metadata/` directory contains pre-change metadata copies. A failed action reports rollback status in its manifest. If a stale-review error appears, refresh the gallery and review again. Hash or coverage errors must be resolved outside the app before changes are enabled.

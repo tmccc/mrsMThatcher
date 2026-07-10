@@ -25,3 +25,6 @@ meme_analysis*.json
 *.zip
 
 .gitstore/
+.generated-image-review.env
+.generated_image_review_app/
+generated_image_quarantine/

@@ -1,0 +1,1 @@
+document.addEventListener('click',event=>{const action=event.target.dataset.select;if(!action)return;const boxes=[...document.querySelectorAll('#gallery-form input[type=checkbox]')];boxes.forEach(box=>box.checked=action==='all'?true:action==='none'?false:!box.checked)});
