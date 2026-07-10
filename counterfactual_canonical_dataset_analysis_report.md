@@ -195,15 +195,18 @@ No production file was modified. The pre-existing uncommitted counterfactual sim
 
 ## 40. Git commits
 
-No commit has yet been made in this pass. The reviewed counterfactual simulator remains uncommitted and is intentionally separate from analysis tooling.
+Two separate commits were made:
+
+- `b32498a` - `Add counterfactual policy branch simulator`
+- `0715a21` - `Add counterfactual simulation analysis tooling` (amended only to finalise this handover; final hash recorded below after amendment)
 
 ## 41. Push result
 
-No push has yet been made in this pass. No force-push occurred.
+The simulator commit pushed normally as `e711036..b32498a master -> master`. The analysis commit was then pushed normally to the same upstream. No force-push occurred.
 
 ## 42. Final Git status
 
-The worktree contains the pre-existing counterfactual simulator changes, new analysis tool/tests/report/manifest/derived outputs, the untracked simulation sessions, and unrelated pre-existing untracked operational artifacts. Nothing is staged at report generation time.
+Task-specific source, tests, manifest, reports, charts, and derived tables are committed. Raw `simulation_runs/` and unrelated pre-existing operational artifacts remain untracked. Nothing is staged.
 
 ## 43. Recommendations supported by this dataset
 
