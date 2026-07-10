@@ -15,6 +15,7 @@ import random
 import re
 import shutil
 import sys
+from collections import Counter
 from datetime import datetime, timedelta
 from glob import glob
 from logging.handlers import RotatingFileHandler
@@ -201,6 +202,10 @@ ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
 ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(BASE_DIR / "original_image_editorial_analysis_experiment_v1.json")
 ORIGINAL_EDITORIAL_SHADOW_WEIGHT = 0.32
 ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT = 4.0
+ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = False
+GENERATED_IDENTITY_AUDIT_FILE = str(BASE_DIR / "generated_image_identity_dependence_audit.json")
+GENERATED_IDENTITY_SHADOW_SMALL_PENALTY = 6.0
+GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
@@ -414,6 +419,10 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
     "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
+    "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
+    "GENERATED_IDENTITY_AUDIT_FILE",
+    "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
+    "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
 
     # Operational hardening
     "STATE_BACKUP_COUNT",
@@ -524,7 +533,12 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
         if isinstance(value, bool):
             raise ValueError(f"{key} must be a number, not a boolean")
         coerced = float(value)
-        if key in {"ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT"}:
+        if key in {
+            "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
+            "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
+            "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
+            "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
+        }:
             if not math.isfinite(coerced):
                 raise ValueError(f"{key} must be finite")
             if coerced < 0:
@@ -605,7 +619,12 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     elif raw_generated_spacing < 0:
         errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
 
-    for key in ("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT"):
+    for key in (
+        "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
+        "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
+        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
+        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
+    ):
         raw_value = values.get(key, globals().get(key, 0.0))
         if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
             errors.append(f"{key} must be a number")
@@ -4596,6 +4615,11 @@ _ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT = {
     for value in values | {concept}
 }
 _ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
+GENERATED_IDENTITY_AUDIT_KIND = "generated_image_identity_dependence_audit"
+GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION = 1
+GENERATED_IDENTITY_POLICIES = {"unrestricted", "small_penalty", "strong_penalty", "origin_quote_only"}
+GENERATED_IDENTITY_DEPENDENCE_VALUES = {"none", "low", "medium", "high", "essential"}
+_GENERATED_IDENTITY_AUDIT_CACHE: dict[str, dict] = {}
 
 
 def original_editorial_numeric(value: object, *, key: str) -> float:
@@ -4797,6 +4821,254 @@ def validate_original_editorial_shadow_startup() -> None:
         ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
         ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
     )
+
+
+def generated_identity_numeric(value: object, *, key: str, maximum: float = 10.0) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"{key} must be a number")
+    number = float(value)
+    if not math.isfinite(number) or not 0.0 <= number <= maximum:
+        raise ValueError(f"{key} must be finite in 0..{maximum:g}")
+    return number
+
+
+def configured_generated_image_paths() -> dict[str, Path]:
+    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
+    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
+    result: dict[str, Path] = {}
+    for path_text in sorted(glob(generated_glob)):
+        path = Path(path_text)
+        if not path.is_file() or not path_is_same_or_child(path, generated_dir):
+            continue
+        basename = path.name
+        if not generated_image_origin_quote_hash(basename):
+            raise ValueError(f"invalid generated image basename in configured pool: {basename}")
+        if basename in result:
+            raise ValueError(f"duplicate generated image basename in configured pool: {basename}")
+        result[basename] = path
+    return result
+
+
+def validate_generated_identity_audit_item(basename: str, item: object, image_by_name: dict[str, Path]) -> dict:
+    if not generated_image_origin_quote_hash(basename):
+        raise ValueError(f"non-generated basename in identity audit: {basename}")
+    if basename not in image_by_name:
+        raise ValueError(f"identity audit image is absent from configured generated pool: {basename}")
+    if not isinstance(item, dict):
+        raise ValueError(f"identity audit item for {basename} must be an object")
+    if str(item.get("basename") or basename) != basename:
+        raise ValueError(f"identity audit basename mismatch for {basename}")
+    expected_hash = str(item.get("image_sha256") or "")
+    if not expected_hash or file_sha256(image_by_name[basename]) != expected_hash:
+        raise ValueError(f"stale identity audit SHA-256 for {basename}")
+    origin_hash = generated_image_origin_quote_hash(basename)
+    if str(item.get("origin_quote_hash") or "").lower() != origin_hash:
+        raise ValueError(f"identity audit origin quote hash mismatch for {basename}")
+    analysis = item.get("analysis")
+    if not isinstance(analysis, dict):
+        raise ValueError(f"identity audit analysis missing for {basename}")
+    policy = analysis.get("recommended_cross_quote_policy")
+    if policy not in GENERATED_IDENTITY_POLICIES:
+        raise ValueError(f"invalid generated identity policy for {basename}: {policy!r}")
+    dependence = analysis.get("identity_dependence")
+    if dependence not in GENERATED_IDENTITY_DEPENDENCE_VALUES:
+        raise ValueError(f"invalid identity dependence for {basename}: {dependence!r}")
+    if type(analysis.get("contains_specific_intended_person")) is not bool:
+        raise ValueError(f"contains_specific_intended_person for {basename} must be boolean")
+    for key in (
+        "recognisability_to_typical_viewer",
+        "recognisability_to_politically_interested_viewer",
+        "meaning_retention_without_identity",
+        "origin_quote_suitability",
+        "recommended_penalty_strength",
+    ):
+        generated_identity_numeric(analysis.get(key), key=f"{basename}.{key}")
+    generated_identity_numeric(analysis.get("confidence"), key=f"{basename}.confidence", maximum=1.0)
+    return analysis
+
+
+def load_generated_identity_audit() -> dict[str, dict]:
+    path = Path(str(GENERATED_IDENTITY_AUDIT_FILE)).expanduser()
+    cache_key = str(path)
+    if cache_key in _GENERATED_IDENTITY_AUDIT_CACHE:
+        return _GENERATED_IDENTITY_AUDIT_CACHE[cache_key]
+    with open(path, "r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"Generated identity audit is not a JSON object: {path}")
+    if payload.get("schema_version") != GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION:
+        raise RuntimeError(f"Generated identity audit has unsupported schema_version={payload.get('schema_version')!r}")
+    if payload.get("analysis_kind") != GENERATED_IDENTITY_AUDIT_KIND:
+        raise RuntimeError(f"Generated identity audit has unexpected analysis_kind={payload.get('analysis_kind')!r}")
+    items = payload.get("items")
+    if not isinstance(items, dict):
+        raise RuntimeError("Generated identity audit items must be an object")
+    image_by_name = configured_generated_image_paths()
+    if not image_by_name:
+        raise RuntimeError("No configured generated images are available for identity audit validation")
+    result: dict[str, dict] = {}
+    try:
+        for basename, item in items.items():
+            basename = str(basename)
+            result[basename] = validate_generated_identity_audit_item(basename, item, image_by_name)
+        missing = sorted(set(image_by_name) - set(result))
+        unexpected = sorted(set(result) - set(image_by_name))
+        if missing or unexpected:
+            raise ValueError(f"identity audit pool coverage mismatch missing={missing[:8]} unexpected={unexpected[:8]}")
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid generated identity audit {path}: {exc}") from exc
+    _GENERATED_IDENTITY_AUDIT_CACHE[cache_key] = result
+    return result
+
+
+def validate_generated_identity_shadow_startup() -> None:
+    if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
+        return
+    items = load_generated_identity_audit()
+    policies = Counter(str(item.get("recommended_cross_quote_policy")) for item in items.values())
+    log.info(
+        "Generated identity-policy shadow scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
+        GENERATED_IDENTITY_AUDIT_FILE,
+        len(items),
+        dict(sorted(policies.items())),
+        GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
+        GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
+    )
+
+
+def generated_identity_candidate_shadow_row(candidate: dict, audit_by_basename: dict[str, dict]) -> dict:
+    basename = str(candidate.get("basename") or "")
+    source = str(candidate.get("image_source") or "original")
+    baseline = float(candidate.get("score") or 0.0)
+    origin_match = bool(candidate.get("origin_quote_match"))
+    policy = None
+    action = "original_unchanged"
+    adjustment: float | None = 0.0
+    shadow_score: float | None = baseline
+    if source == "generated":
+        audit = audit_by_basename.get(basename)
+        if not audit:
+            raise RuntimeError(f"Generated identity audit missing selected candidate: {basename}")
+        policy = str(audit.get("recommended_cross_quote_policy"))
+        if origin_match:
+            action = "generated_origin_quote_unrestricted"
+        elif policy == "unrestricted":
+            action = "generated_cross_quote_unrestricted"
+        elif policy == "small_penalty":
+            action = "generated_cross_quote_small_penalty"
+            adjustment = -float(GENERATED_IDENTITY_SHADOW_SMALL_PENALTY)
+            shadow_score = baseline + adjustment
+        elif policy == "strong_penalty":
+            action = "generated_cross_quote_strong_penalty"
+            adjustment = -float(GENERATED_IDENTITY_SHADOW_STRONG_PENALTY)
+            shadow_score = baseline + adjustment
+        elif policy == "origin_quote_only":
+            action = "generated_cross_quote_origin_only_excluded"
+            adjustment = None
+            shadow_score = None
+        else:
+            raise RuntimeError(f"Unsupported generated identity policy for {basename}: {policy!r}")
+    return {
+        "basename": basename,
+        "source": source,
+        "baseline_score": baseline,
+        "origin_quote_match": origin_match,
+        "identity_policy": policy,
+        "identity_action": action,
+        "identity_adjustment": adjustment,
+        "identity_shadow_score": shadow_score,
+    }
+
+
+def generated_identity_policy_shadow_result(
+    quote_choice: dict,
+    production_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_phase: str,
+    audit_by_basename: dict[str, dict] | None = None,
+) -> dict:
+    audit_by_basename = load_generated_identity_audit() if audit_by_basename is None else audit_by_basename
+    rows = [generated_identity_candidate_shadow_row(candidate, audit_by_basename) for candidate in scored_candidates]
+    eligible = [row for row in rows if row["identity_shadow_score"] is not None]
+    maximum = max((float(row["identity_shadow_score"]) for row in eligible), default=None)
+    tied = [row for row in eligible if float(row["identity_shadow_score"]) == maximum] if maximum is not None else []
+    production_basename = str(production_choice.get("basename") or "")
+    production_row = next(row for row in rows if row["basename"] == production_basename)
+    if production_row in tied:
+        shadow_winner = production_row
+    else:
+        shadow_winner = min(tied, key=lambda row: row["basename"]) if tied else None
+    generated_rows = [row for row in rows if row["source"] == "generated"]
+    cross_quote = [row for row in generated_rows if not row["origin_quote_match"]]
+    excluded = [row["basename"] for row in cross_quote if row["identity_policy"] == "origin_quote_only"]
+    penalised = [row["basename"] for row in cross_quote if row["identity_policy"] in {"small_penalty", "strong_penalty"}]
+    def winner_value(key: str) -> object:
+        return shadow_winner.get(key) if shadow_winner else None
+    return {
+        "quote_hash": str(quote_choice.get("quote_hash") or ""),
+        "line_no": int(quote_choice.get("line_no", -1)),
+        "selection_phase": selection_phase,
+        "production_source": production_row["source"],
+        "production_winner": production_basename,
+        "production_score": round(float(production_row["baseline_score"]), 4),
+        "production_origin_quote_match": production_row["origin_quote_match"],
+        "production_identity_policy": production_row["identity_policy"],
+        "production_identity_action": production_row["identity_action"],
+        "production_identity_adjustment": production_row["identity_adjustment"],
+        "production_identity_shadow_score": round(float(production_row["identity_shadow_score"]), 4) if production_row["identity_shadow_score"] is not None else None,
+        "shadow_winner_source": winner_value("source"),
+        "shadow_winner": winner_value("basename"),
+        "shadow_winner_baseline_score": round(float(winner_value("baseline_score")), 4) if shadow_winner else None,
+        "shadow_winner_origin_quote_match": winner_value("origin_quote_match"),
+        "shadow_winner_identity_policy": winner_value("identity_policy"),
+        "shadow_winner_identity_action": winner_value("identity_action"),
+        "shadow_winner_identity_adjustment": winner_value("identity_adjustment"),
+        "shadow_winner_score": round(float(winner_value("identity_shadow_score")), 4) if shadow_winner else None,
+        "winner_changed": not shadow_winner or shadow_winner["basename"] != production_basename,
+        "eligible_candidate_count": len(rows),
+        "eligible_original_count": sum(row["source"] == "original" for row in rows),
+        "eligible_generated_count": len(generated_rows),
+        "cross_quote_generated_count": len(cross_quote),
+        "origin_quote_generated_count": len(generated_rows) - len(cross_quote),
+        "unrestricted_cross_quote_count": sum(row["identity_policy"] == "unrestricted" for row in cross_quote),
+        "small_penalty_count": sum(row["identity_policy"] == "small_penalty" for row in cross_quote),
+        "strong_penalty_count": sum(row["identity_policy"] == "strong_penalty" for row in cross_quote),
+        "origin_quote_only_excluded_count": len(excluded),
+        "excluded_generated_basenames": sorted(excluded)[:12],
+        "excluded_generated_basenames_truncated": len(excluded) > 12,
+        "penalised_generated_basenames": sorted(penalised)[:12],
+        "penalised_generated_basenames_truncated": len(penalised) > 12,
+        "small_penalty": float(GENERATED_IDENTITY_SHADOW_SMALL_PENALTY),
+        "strong_penalty": float(GENERATED_IDENTITY_SHADOW_STRONG_PENALTY),
+        "shadow_tie_count": len(tied),
+    }
+
+
+def log_generated_identity_policy_shadow_result(
+    quote_choice: dict,
+    production_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_phase: str,
+) -> None:
+    if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
+        return
+    try:
+        payload = generated_identity_policy_shadow_result(
+            quote_choice,
+            production_choice,
+            scored_candidates,
+            selection_phase=selection_phase,
+        )
+        log.info("GENERATED_IDENTITY_POLICY_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
+    except Exception:
+        log.exception(
+            "Generated identity-policy shadow evaluation failed; production selection remains unchanged. line_no=%s image=%s phase=%s",
+            quote_choice.get("line_no"),
+            production_choice.get("basename"),
+            selection_phase,
+        )
 
 
 def original_editorial_shadow_score(
@@ -5483,6 +5755,7 @@ def choose_matched_unused_image(
     )
     log_regular_image_selection(chosen)
     log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
+    log_generated_identity_policy_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",
@@ -8037,6 +8310,7 @@ def main() -> None:
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
 
     validate_original_editorial_shadow_startup()
+    validate_generated_identity_shadow_startup()
 
     with open(LINES_FILE, encoding="utf-8") as f:
         quote_lines_for_history = f.readlines()

@@ -926,6 +926,46 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
+def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    relevant = [
+        item for item in events
+        if sum(int(item.get(key, 0) or 0) for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")) > 0
+    ]
+    changed = [item for item in relevant if item.get("winner_changed") is True]
+    production_generated = [item for item in events if item.get("production_source") == "generated"]
+    excluded = Counter()
+    penalised = Counter()
+    policies = Counter()
+    winners = Counter()
+    phases = Counter()
+    for item in events:
+        excluded.update(str(value) for value in item.get("excluded_generated_basenames") or [])
+        penalised.update(str(value) for value in item.get("penalised_generated_basenames") or [])
+        policies[str(item.get("production_identity_policy") or "original")] += 1
+        winners[str(item.get("shadow_winner") or "no_shadow_winner")] += 1
+        phases[str(item.get("selection_phase") or "unknown")] += 1
+    return {
+        "observations": len(events),
+        "production_original": sum(item.get("production_source") == "original" for item in events),
+        "production_generated": len(production_generated),
+        "production_generated_origin_quote": sum(item.get("production_origin_quote_match") is True for item in production_generated),
+        "production_generated_cross_quote": sum(item.get("production_origin_quote_match") is not True for item in production_generated),
+        "policy_relevant_observations": len(relevant),
+        "winner_changes": len(changed),
+        "winner_change_percent": (len(changed) / len(relevant) * 100.0) if relevant else 0.0,
+        "production_winner_origin_only_excluded": sum(item.get("production_identity_action") == "generated_cross_quote_origin_only_excluded" for item in events),
+        "production_winner_small_penalty": sum(item.get("production_identity_action") == "generated_cross_quote_small_penalty" for item in events),
+        "production_winner_strong_penalty": sum(item.get("production_identity_action") == "generated_cross_quote_strong_penalty" for item in events),
+        "cross_quote_candidates_excluded": sum(int(item.get("origin_quote_only_excluded_count", 0) or 0) for item in events),
+        "cross_quote_candidates_penalised": sum(int(item.get("small_penalty_count", 0) or 0) + int(item.get("strong_penalty_count", 0) or 0) for item in events),
+        "most_frequent_excluded_images": excluded.most_common(8),
+        "most_frequent_penalised_images": penalised.most_common(8),
+        "most_frequent_production_policies": policies.most_common(8),
+        "most_frequent_shadow_winners": winners.most_common(8),
+        "selection_phases": phases.most_common(),
+    }
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -951,6 +991,7 @@ def analyse(
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
+    generated_identity_shadow_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
     latest_generated_image_spacing: Dict[str, Any] = {}
     cooldown_active: List[Dict[str, Any]] = []
@@ -1539,6 +1580,24 @@ def analyse(
                 stats["original_editorial_shadow_observations"] += 1
             continue
 
+        if "GENERATED_IDENTITY_POLICY_SHADOW_RESULT " in msg:
+            raw = msg.split("GENERATED_IDENTITY_POLICY_SHADOW_RESULT ", 1)[1].strip()
+            try:
+                parsed = json.loads(raw)
+            except Exception as exc:
+                errors.append({
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": r.level,
+                    "message": f"Malformed GENERATED_IDENTITY_POLICY_SHADOW_RESULT: {exc}: {short(raw, 240)}",
+                })
+                stats["generated_identity_shadow_parse_errors"] += 1
+                continue
+            if isinstance(parsed, dict):
+                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+                generated_identity_shadow_events.append(parsed)
+                stats["generated_identity_shadow_observations"] += 1
+            continue
+
         m = re.search(
             r"GENERATED_IMAGE_SPACING_STATUS pool_enabled=(true|false) allowed=(true|false) "
             r"original_posts_since_generated=(\d+) required=(\d+)",
@@ -2046,6 +2105,10 @@ def analyse(
         "original_editorial_shadow": {
             "events": original_editorial_shadow_events,
             "summary": original_editorial_shadow_summary(original_editorial_shadow_events),
+        },
+        "generated_identity_shadow": {
+            "events": generated_identity_shadow_events,
+            "summary": generated_identity_shadow_summary(generated_identity_shadow_events),
         },
         "generated_image_spacing": {
             "latest": latest_generated_image_spacing,
@@ -2688,6 +2751,69 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("No changed-winner observations in this window.")
             out.append("")
 
+    identity_shadow = report.get("generated_identity_shadow") or {}
+    identity_events = identity_shadow.get("events") or []
+    identity_summary = identity_shadow.get("summary") or {}
+    if identity_events:
+        out.append("## Generated identity-policy shadow scoring")
+        out.append("This section is shadow-only and hypothetical. It does not imply that the identity-policy shadow winner was posted.")
+        out.append("")
+        out.append("The winner-change percentage denominator is observations where at least one cross-quote generated candidate was penalised or excluded.")
+        out.append("")
+        out.append("```text")
+        out.append(f"shadow_observations                         = {identity_summary.get('observations', 0)}")
+        out.append(f"production_original_winners                 = {identity_summary.get('production_original', 0)}")
+        out.append(f"production_generated_winners                = {identity_summary.get('production_generated', 0)}")
+        out.append(f"production_generated_origin_quote_winners   = {identity_summary.get('production_generated_origin_quote', 0)}")
+        out.append(f"production_generated_cross_quote_winners    = {identity_summary.get('production_generated_cross_quote', 0)}")
+        out.append(f"policy_relevant_observations                = {identity_summary.get('policy_relevant_observations', 0)}")
+        out.append(f"winner_changes                              = {identity_summary.get('winner_changes', 0)} ({float(identity_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        out.append(f"production_winners_origin_only_excluded     = {identity_summary.get('production_winner_origin_only_excluded', 0)}")
+        out.append(f"production_winners_small_penalty            = {identity_summary.get('production_winner_small_penalty', 0)}")
+        out.append(f"production_winners_strong_penalty           = {identity_summary.get('production_winner_strong_penalty', 0)}")
+        out.append(f"cross_quote_candidates_excluded             = {identity_summary.get('cross_quote_candidates_excluded', 0)}")
+        out.append(f"cross_quote_candidates_penalised            = {identity_summary.get('cross_quote_candidates_penalised', 0)}")
+        out.append("```")
+        for label, key in (
+            ("Most frequently excluded images", "most_frequent_excluded_images"),
+            ("Most frequently penalised images", "most_frequent_penalised_images"),
+            ("Most frequent production policies", "most_frequent_production_policies"),
+            ("Most frequent shadow winners", "most_frequent_shadow_winners"),
+            ("Selection phases", "selection_phases"),
+        ):
+            values = identity_summary.get(key) or []
+            if values:
+                out.append(f"{label}:")
+                out.append(", ".join(f"{name} ({count})" for name, count in values if name))
+                out.append("")
+        changed_identity = [item for item in identity_events if item.get("winner_changed") is True]
+        if changed_identity:
+            out.append("Changed-winner observations:")
+            out.append(md_table_row(["time", "line_no", "production", "action", "shadow", "production score", "shadow score", "phase"]))
+            out.append(md_table_row(["---"] * 8))
+            for item in changed_identity[:20]:
+                out.append(md_table_row([
+                    item.get("time", ""), item.get("line_no", ""),
+                    f"{item.get('production_winner', '')} ({item.get('production_source', '')})",
+                    item.get("production_identity_action", ""),
+                    f"{item.get('shadow_winner', '')} ({item.get('shadow_winner_source', '')})",
+                    item.get("production_score", ""), item.get("shadow_winner_score", ""), item.get("selection_phase", ""),
+                ]))
+            out.append("")
+        origin_only_production = [
+            item for item in identity_events
+            if item.get("production_identity_action") == "generated_cross_quote_origin_only_excluded"
+        ]
+        if origin_only_production:
+            out.append("Production winners excluded by origin-quote-only shadow policy:")
+            out.append(md_table_row(["time", "line_no", "production", "shadow replacement", "phase"]))
+            out.append(md_table_row(["---"] * 5))
+            for item in origin_only_production[:20]:
+                out.append(md_table_row([
+                    item.get("time", ""), item.get("line_no", ""), item.get("production_winner", ""),
+                    f"{item.get('shadow_winner', '')} ({item.get('shadow_winner_source', '')})", item.get("selection_phase", ""),
+                ]))
+            out.append("")
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})
     out.append("## Counts")
