@@ -5594,6 +5594,54 @@ def test_generated_reply_is_safe_enough(reply: str, expected: bool) -> None:
     assert bot.generated_reply_is_safe_enough(reply) is expected
 
 
+@pytest.mark.parametrize("lane", ["mention", "quote_tweet"])
+def test_reply_prompt_handles_obvious_harmless_teasing_without_literal_correction(
+    lane: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    account_post = (
+        "I know some of the images have been a bit odd of late. "
+        "I'm working on it - bear with me..."
+    )
+    incoming = "Not her most memorable quote"
+    if lane == "mention":
+        context_text = (
+            "Thread context, oldest to newest.\n\n"
+            f"1. Parent post by this account, own_auto_reply=no:\n{account_post}\n\n"
+            f"Incoming post/comment to answer:\n{incoming}"
+        )
+    else:
+        context_text = bot.build_quote_tweet_context(
+            {"text": account_post},
+            {"author_id": "200", "text": incoming},
+        )
+
+    requests_seen: list[dict] = []
+
+    def fake_post(*args: object, **kwargs: object) -> bot.requests.Response:
+        requests_seen.append(kwargs["json"])
+        return fake_xai_response(200, {"choices": [{"message": {"content": "SKIP"}}]})
+
+    monkeypatch.setattr(bot.requests, "post", fake_post)
+
+    assert bot.ask_grok_for_reply(context_text) is None
+    assert len(requests_seen) == 1
+    payload = requests_seen[0]
+    assert payload["model"] == bot.XAI_MODEL
+    assert [message["role"] for message in payload["messages"]] == ["system", "user"]
+    prompt = payload["messages"][1]["content"]
+    assert isinstance(prompt, str)
+    assert account_post in prompt
+    assert incoming in prompt
+    assert "joke, tease, pun, sarcasm or light-hearted remark" in prompt
+    assert "Do not respond literally to an obvious joke or tease" in prompt
+    assert "do not pedantically correct a deliberately comic premise" in prompt
+    assert "This wasn't meant as a quote at all." in prompt
+    assert "History may overlook that one." in prompt
+    assert "skip rather than force one" in prompt
+    assert "Return exactly SKIP" in prompt
+
+
 def test_meme_summary_context_limit_covers_current_analysis_shape() -> None:
     summary = (
         "2x2 grid meme: top-left Cuba 2016 rundown street, bottom-left Venezuela 2019 street scene with man on rubble, "

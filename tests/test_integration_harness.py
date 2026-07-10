@@ -317,6 +317,20 @@ def normalize_for_branch_parity(value):
             ):
                 normalized[key] = "[grok-system-prompt]"
                 continue
+            if (
+                key == "content"
+                and isinstance(item, str)
+                and item.startswith("Use only the supplied limited context.")
+            ):
+                context_markers = (
+                    "Thread context, oldest to newest.",
+                    "Incoming standalone post/comment to answer:",
+                    "A user has quote-posted one of this account's posts.",
+                )
+                context_starts = [item.find(marker) for marker in context_markers if marker in item]
+                context_start = min(context_starts) if context_starts else len(item)
+                normalized[key] = "[grok-user-guidance]\n\n" + item[context_start:]
+                continue
             normalized[key] = normalize_for_branch_parity(item)
         if (
             "replied_to_ids" in normalized
