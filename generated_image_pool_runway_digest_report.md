@@ -137,15 +137,15 @@ No simulator was run or rerun.
 
 ## 27. Commit hash
 
-Pending at report preparation time; final commit is recorded in Git history.
+Implementation commit: `e3150e8 Add generated pool runway metrics`.
 
 ## 28. Push result
 
-Pending at report preparation time.
+Normal push succeeded: `88c8691..e3150e8  master -> master` on `origin`. No force-push was used.
 
 ## 29. Final git status
 
-Task files will be committed separately. Existing real quarantine changes and unrelated untracked files remain unstaged.
+Task implementation files are committed. Existing real quarantine changes and unrelated untracked files remain unstaged and are not part of either task commit.
 
 ## 30. Unavailable estimates
 
