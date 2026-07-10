@@ -574,8 +574,40 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = original_identity_enabled
 
 
-def select_with_production_recovery(bot: Any, lines_used: set[str], images_used: set[str], state: dict) -> dict:
-    with capture_shadow_selection(bot) as capture:
+@contextmanager
+def capture_scored_selection(bot: Any) -> Iterable[dict]:
+    capture: dict[str, Any] = {"scored_ids": []}
+    original_editorial = bot.log_original_editorial_shadow_result
+    original_identity = bot.log_generated_identity_policy_shadow_result
+
+    def hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
+        capture["quote"] = quote
+        capture["chosen"] = chosen
+        capture["scored"] = scored
+        capture["selection_phase"] = selection_phase
+        capture["scored_ids"].append(id(scored))
+
+    bot.log_original_editorial_shadow_result = hook
+    bot.log_generated_identity_policy_shadow_result = hook
+    try:
+        yield capture
+        if len(capture.get("scored_ids", [])) != 2 or len(set(capture["scored_ids"])) != 1:
+            raise SelectionCaptureError("candidate capture hooks did not receive one exact scored list")
+    finally:
+        bot.log_original_editorial_shadow_result = original_editorial
+        bot.log_generated_identity_policy_shadow_result = original_identity
+
+
+def select_with_production_recovery(
+    bot: Any,
+    lines_used: set[str],
+    images_used: set[str],
+    state: dict,
+    *,
+    evaluate_shadows: bool = True,
+) -> dict:
+    capture_context = capture_shadow_selection(bot) if evaluate_shadows else capture_scored_selection(bot)
+    with capture_context as capture:
         try:
             quote, image, attempts = bot.choose_regular_quote_image_pair(lines_used, images_used, state)
         except bot.NoViableQuoteImagePair:
@@ -605,6 +637,137 @@ def select_with_production_recovery(bot: Any, lines_used: set[str], images_used:
         "original_editorial_shadow": capture.get("original_editorial_shadow"),
         "generated_identity_shadow": capture.get("generated_identity_shadow"),
     }
+
+
+class CounterfactualPolicyExhausted(RuntimeError):
+    pass
+
+
+def derived_branch_seed(run_seed: int, branch: str) -> int:
+    digest = hashlib.sha256(f"mrs-counterfactual-v1:{run_seed}:{branch}".encode()).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def policy_candidate_rows(bot: Any, quote: dict, scored: list[dict], branch: str) -> list[dict]:
+    rows: list[dict] = []
+    editorial = bot.load_original_editorial_analysis() if branch == "editorial" else None
+    audit = bot.load_generated_identity_audit() if branch == "identity" else None
+    for candidate in scored:
+        row = dict(candidate)
+        baseline = float(candidate["score"])
+        row["baseline_score"] = baseline
+        row["editorial_adjustment"] = 0.0
+        row["identity_policy"] = None
+        row["identity_action"] = "unchanged"
+        row["identity_adjustment"] = 0.0
+        row["policy_score"] = baseline
+        row["policy_excluded"] = False
+        row["policy_detail"] = {}
+        if branch == "editorial" and candidate.get("image_source") == "original":
+            adjustment, detail = bot.original_editorial_shadow_score(
+                quote.get("analysis"), editorial.get(str(candidate["basename"]))
+            )
+            row["editorial_adjustment"] = float(adjustment)
+            row["policy_score"] = baseline + float(adjustment)
+            row["policy_detail"] = detail
+        elif branch == "identity" and candidate.get("image_source") == "generated":
+            identity = bot.generated_identity_candidate_shadow_row(candidate, audit)
+            row["identity_policy"] = identity["identity_policy"]
+            row["identity_action"] = identity["identity_action"]
+            row["identity_adjustment"] = identity["identity_adjustment"]
+            row["policy_excluded"] = identity["identity_shadow_score"] is None
+            row["policy_score"] = identity["identity_shadow_score"]
+        rows.append(row)
+    return rows
+
+
+def choose_policy_winner(bot: Any, rows: list[dict]) -> dict:
+    eligible = [row for row in rows if not row.get("policy_excluded")]
+    if not eligible:
+        raise CounterfactualPolicyExhausted("policy excluded every scored candidate")
+    best = max(float(row["policy_score"]) for row in eligible)
+    tied = [row for row in eligible if float(row["policy_score"]) == best]
+    return bot.random.choice(tied)
+
+
+def observational_policy_winner(rows: list[dict], production_basename: str) -> str | None:
+    eligible = [row for row in rows if not row.get("policy_excluded")]
+    if not eligible:
+        return None
+    best = max(float(row["policy_score"]) for row in eligible)
+    tied = [row for row in eligible if float(row["policy_score"]) == best]
+    retained = next((row for row in tied if row["basename"] == production_basename), None)
+    return str((retained or min(tied, key=lambda row: str(row["basename"])))["basename"])
+
+
+def score_exact_quote_phase(
+    bot: Any,
+    quote: dict,
+    images_used: set[str],
+    state: dict,
+    branch: str,
+    *,
+    phase: str,
+    cycle_boundary_exclusions: set[str] | None = None,
+) -> tuple[dict, list[dict]]:
+    force_reset = phase != "normal"
+    avoid_last = phase != "last_image_fallback"
+    rng_before = bot.random.getstate()
+    with capture_scored_selection(bot) as capture:
+        bot.choose_matched_unused_image(
+            images_used,
+            quote,
+            state,
+            force_cycle_reset=force_reset,
+            avoid_last_image_at_cycle_boundary=avoid_last,
+            cycle_boundary_exclusions=cycle_boundary_exclusions,
+            generated_images_allowed=bot.generated_images_allowed_by_spacing(state),
+            selection_phase=phase,
+        )
+    # Production baseline tie selection is only a vehicle for obtaining the
+    # exact scored list. A policy branch gets one actual tie draw of its own.
+    bot.random.setstate(rng_before)
+    rows = policy_candidate_rows(bot, quote, capture["scored"], branch)
+    winner = choose_policy_winner(bot, rows)
+    return winner, rows
+
+
+def select_policy_image_with_recovery(
+    bot: Any,
+    quote: dict,
+    images_used: set[str],
+    state: dict,
+    branch: str,
+) -> dict:
+    phases = ("normal", "forced_cycle_reset", "last_image_fallback")
+    cycle_boundary_exclusions: set[str] = set()
+    last_error: Exception | None = None
+    for phase in phases:
+        if phase == "last_image_fallback" and not cycle_boundary_exclusions:
+            break
+        try:
+            winner, rows = score_exact_quote_phase(
+                bot,
+                quote,
+                images_used,
+                state,
+                branch,
+                phase=phase,
+                cycle_boundary_exclusions=cycle_boundary_exclusions if phase != "normal" else None,
+            )
+            return {
+                "quote": quote,
+                "image": winner,
+                "scored": rows,
+                "selection_phase": phase,
+                "policy_excluded_count": sum(bool(row.get("policy_excluded")) for row in rows),
+            }
+        except (bot.QuoteSpecificImageMismatch, bot.GlobalImageUnavailable, CounterfactualPolicyExhausted) as exc:
+            last_error = exc
+            continue
+    raise CounterfactualPolicyExhausted(
+        f"{branch} branch exhausted image recovery for shared quote: {last_error}"
+    )
 
 
 def rng_state_encode(state: object) -> str:
@@ -715,15 +878,18 @@ def apply_simulated_success(
     virtual_epoch: int,
     run_id: str,
     post_index: int,
+    *,
+    quote_delay: int | None = None,
+    meme_delay: int | None = None,
 ) -> int:
     quote = selection["quote"]
     image = selection["image"]
 
     # Match post_random_quote RNG ordering: schedule delays are sampled only
     # after production has selected the quote/image pair.
-    quote_delay = bot.random.randint(bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX)
-    meme_delay = None
-    if bot.ENABLE_DAILY_MEME_POSTS:
+    if quote_delay is None:
+        quote_delay = bot.random.randint(bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX)
+    if bot.ENABLE_DAILY_MEME_POSTS and meme_delay is None:
         meme_delay = bot.random.randint(
             bot.MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
             bot.MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
@@ -1014,6 +1180,397 @@ def load_all_records(session_dir: Path) -> list[dict]:
     return records
 
 
+BRANCHES = ("production", "editorial", "identity")
+
+
+def counterfactual_paths(run_dir: Path) -> dict[str, Path]:
+    base = run_dir
+    return {
+        "shared": base / "shared_quotes.jsonl",
+        "comparison": base / "branch_comparison.jsonl",
+        **{branch: base / branch / "selections.jsonl" for branch in BRANCHES},
+    }
+
+
+def counterfactual_candidate_detail(rows: list[dict], mode: str) -> list[dict]:
+    if mode == "none":
+        return []
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            bool(row.get("policy_excluded")),
+            -float(row["policy_score"]) if row.get("policy_score") is not None else math.inf,
+            str(row["basename"]),
+        ),
+    )
+    if mode == "top10":
+        ordered = ordered[:10]
+    return [
+        {
+            "basename": row["basename"],
+            "source": row["image_source"],
+            "baseline_score": float(row["baseline_score"]),
+            "policy_score": row.get("policy_score"),
+            "policy_excluded": bool(row.get("policy_excluded")),
+            "editorial_adjustment": float(row.get("editorial_adjustment", 0.0)),
+            "identity_policy": row.get("identity_policy"),
+            "identity_action": row.get("identity_action"),
+            "origin_quote_match": bool(row.get("origin_quote_match")),
+        }
+        for row in ordered
+    ]
+
+
+def counterfactual_branch_record(
+    branch: str,
+    selection: dict,
+    run_id: str,
+    run_seed: int,
+    post_index: int,
+    virtual_epoch: int,
+    spacing_before: int,
+    spacing_after: int,
+    image_cycle_reset: bool,
+    candidate_detail: str,
+) -> dict:
+    winner = selection["image"]
+    rows = selection["scored"]
+    return {
+        "schema_version": 1,
+        "branch": branch,
+        "run_id": run_id,
+        "run_seed": run_seed,
+        "post_index": post_index,
+        "virtual_timestamp": virtual_epoch,
+        "selection_phase": selection["selection_phase"],
+        "winner": winner["basename"],
+        "winner_source": winner["image_source"],
+        "baseline_score": float(winner.get("baseline_score", winner["score"])),
+        "policy_score": float(winner.get("policy_score", winner["score"])),
+        "editorial_adjustment": float(winner.get("editorial_adjustment", 0.0)),
+        "editorial_cap_hit": bool((winner.get("policy_detail") or {}).get("cap_hit")),
+        "origin_quote_match": bool(winner.get("origin_quote_match")),
+        "origin_quote_boost": float(winner.get("origin_quote_boost", 0.0)),
+        "identity_policy": winner.get("identity_policy"),
+        "identity_action": winner.get("identity_action"),
+        "identity_adjustment": winner.get("identity_adjustment", 0.0),
+        "candidate_count": len(rows),
+        "original_candidate_count": sum(row["image_source"] == "original" for row in rows),
+        "generated_candidate_count": sum(row["image_source"] == "generated" for row in rows),
+        "policy_excluded_count": sum(bool(row.get("policy_excluded")) for row in rows),
+        "generated_spacing_counter_before": spacing_before,
+        "generated_spacing_counter_after": spacing_after,
+        "image_cycle_reset": image_cycle_reset,
+        "diagnostic_candidate_present": any(row["basename"] == DIAGNOSTIC_IMAGE for row in rows),
+        "diagnostic_candidate_origin_match": any(
+            row["basename"] == DIAGNOSTIC_IMAGE and row.get("origin_quote_match") for row in rows
+        ),
+        "diagnostic_candidate_excluded": any(
+            row["basename"] == DIAGNOSTIC_IMAGE and row.get("policy_excluded") for row in rows
+        ),
+        "candidate_detail": counterfactual_candidate_detail(rows, candidate_detail),
+    }
+
+
+def counterfactual_checkpoint_payload(
+    run_id: str,
+    run_seed: int,
+    completed_posts: int,
+    virtual_epoch: int,
+    branches: dict[str, dict],
+) -> dict:
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "run_seed": run_seed,
+        "completed_posts": completed_posts,
+        "virtual_epoch": virtual_epoch,
+        "branches": {
+            name: {
+                "state": value["state"],
+                "images_used": sorted(value["images_used"]),
+                "lines_used": sorted(value["lines_used"]),
+                "rng_state": rng_state_encode(value["rng_state"]),
+            }
+            for name, value in branches.items()
+        },
+    }
+
+
+def restore_counterfactual_branches(checkpoint: dict) -> dict[str, dict]:
+    return {
+        name: {
+            "state": copy.deepcopy(value["state"]),
+            "images_used": set(value["images_used"]),
+            "lines_used": set(value["lines_used"]),
+            "rng_state": rng_state_decode(value["rng_state"]),
+        }
+        for name, value in checkpoint["branches"].items()
+    }
+
+
+def reconcile_counterfactual_outputs(
+    writer: PrivateWriter,
+    paths: dict[str, Path],
+    completed_posts: int,
+) -> None:
+    for path in paths.values():
+        reconcile_jsonl_to_checkpoint(writer, path, completed_posts)
+
+
+def run_counterfactual_future(
+    bot: Any,
+    writer: PrivateWriter,
+    session_dir: Path,
+    snapshot: Path,
+    session_id: str,
+    run_index: int,
+    run_seed: int,
+    posts_per_run: int,
+    start_epoch: int,
+    candidate_detail: str,
+    resume: bool,
+    *,
+    stop_after_post: int | None = None,
+    failure_hook: Any = None,
+) -> None:
+    run_id = f"run_{run_index:04d}"
+    run_dir = writer.mkdir(session_dir / "counterfactual" / "runs" / run_id)
+    paths = counterfactual_paths(run_dir)
+    for path in paths.values():
+        writer.mkdir(path.parent)
+    checkpoint_path = run_dir / "counterfactual_checkpoint.json"
+    configure_snapshot_paths(bot, snapshot, run_dir)
+    install_hard_guards(bot, writer)
+
+    if resume and checkpoint_path.is_file():
+        checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+        completed = int(checkpoint["completed_posts"])
+        virtual_epoch = int(checkpoint["virtual_epoch"])
+        branches = restore_counterfactual_branches(checkpoint)
+        reconcile_counterfactual_outputs(writer, paths, completed)
+    else:
+        if any(path.exists() for path in paths.values()):
+            raise FileExistsError(f"counterfactual output exists without --resume: {run_dir}")
+        initial_state, initial_images, initial_lines = load_private_state(snapshot)
+        branches = {}
+        for branch in BRANCHES:
+            seed = run_seed if branch == "production" else derived_branch_seed(run_seed, branch)
+            branches[branch] = {
+                "state": copy.deepcopy(initial_state),
+                "images_used": set(initial_images),
+                "lines_used": set(initial_lines),
+                "rng_state": random.Random(seed).getstate(),
+            }
+        completed = 0
+        virtual_epoch = start_epoch
+        writer.atomic_json(
+            checkpoint_path,
+            counterfactual_checkpoint_payload(run_id, run_seed, 0, virtual_epoch, branches),
+        )
+
+    comparison_history = reconcile_jsonl_to_checkpoint(writer, paths["comparison"], completed)
+    for post_index in range(completed + 1, posts_per_run + 1):
+        current_epoch = virtual_epoch
+        bot.now_epoch = lambda epoch=current_epoch: epoch
+        selections: dict[str, dict] = {}
+        before: dict[str, dict] = {}
+
+        production = branches["production"]
+        bot.random.setstate(production["rng_state"])
+        before["production"] = {
+            "images": set(production["images_used"]),
+            "spacing": bot.original_posts_since_generated_image(production["state"]),
+        }
+        selections["production"] = select_with_production_recovery(
+            bot,
+            production["lines_used"],
+            production["images_used"],
+            production["state"],
+            evaluate_shadows=False,
+        )
+        production["rng_state"] = bot.random.getstate()
+        shared_quote = selections["production"]["quote"]
+
+        for branch in ("editorial", "identity"):
+            value = branches[branch]
+            value["lines_used"].clear()
+            value["lines_used"].update(production["lines_used"])
+            before[branch] = {
+                "images": set(value["images_used"]),
+                "spacing": bot.original_posts_since_generated_image(value["state"]),
+            }
+            bot.random.setstate(value["rng_state"])
+            selections[branch] = select_policy_image_with_recovery(
+                bot, shared_quote, value["images_used"], value["state"], branch
+            )
+            value["rng_state"] = bot.random.getstate()
+            if failure_hook:
+                failure_hook(f"after_{branch}_selection", post_index)
+
+        bot.random.setstate(production["rng_state"])
+        shared_quote_delay = bot.random.randint(bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX)
+        shared_meme_delay = None
+        if bot.ENABLE_DAILY_MEME_POSTS:
+            shared_meme_delay = bot.random.randint(
+                bot.MEME_DELAY_AFTER_MAIN_POST_MIN_SECONDS,
+                bot.MEME_DELAY_AFTER_MAIN_POST_MAX_SECONDS,
+            )
+        next_epoch = apply_simulated_success(
+            bot,
+            selections["production"],
+            production["state"],
+            production["lines_used"],
+            production["images_used"],
+            current_epoch,
+            f"{run_id}-production",
+            post_index,
+            quote_delay=shared_quote_delay,
+            meme_delay=shared_meme_delay,
+        )
+        production["rng_state"] = bot.random.getstate()
+        shared_delay = next_epoch - current_epoch
+
+        branch_records: dict[str, dict] = {}
+        for branch in ("editorial", "identity"):
+            value = branches[branch]
+            bot.random.setstate(value["rng_state"])
+            apply_simulated_success(
+                bot,
+                selections[branch],
+                value["state"],
+                value["lines_used"],
+                value["images_used"],
+                current_epoch,
+                f"{run_id}-{branch}",
+                post_index,
+                quote_delay=shared_delay,
+                meme_delay=shared_meme_delay,
+            )
+            value["rng_state"] = bot.random.getstate()
+
+        for branch in BRANCHES:
+            value = branches[branch]
+            selection = selections[branch]
+            winner = selection["image"]
+            if branch == "production":
+                winner["baseline_score"] = float(winner["score"])
+                winner["policy_score"] = float(winner["score"])
+                winner["editorial_adjustment"] = 0.0
+                winner["identity_adjustment"] = 0.0
+                winner["identity_action"] = "production_baseline"
+                rows = policy_candidate_rows(bot, shared_quote, selection["scored"], "production")
+                selection = dict(selection)
+                selection["scored"] = rows
+                selection["image"] = next(row for row in rows if row["basename"] == winner["basename"])
+                selections[branch] = selection
+            image_cycle_reset = bool(before[branch]["images"] - value["images_used"]) or bool(
+                selection["image"].get("cycle_reset")
+            )
+            branch_records[branch] = counterfactual_branch_record(
+                branch,
+                selection,
+                run_id,
+                run_seed,
+                post_index,
+                current_epoch,
+                int(before[branch]["spacing"]),
+                bot.original_posts_since_generated_image(value["state"]),
+                image_cycle_reset,
+                candidate_detail,
+            )
+
+        winners = {branch: branch_records[branch]["winner"] for branch in BRANCHES}
+        production_rows = selections["production"]["scored"]
+        observational_editorial_rows = policy_candidate_rows(bot, shared_quote, production_rows, "editorial")
+        observational_identity_rows = policy_candidate_rows(bot, shared_quote, production_rows, "identity")
+        observational_editorial = observational_policy_winner(observational_editorial_rows, winners["production"])
+        observational_identity = observational_policy_winner(observational_identity_rows, winners["production"])
+        identity_relevant_actions = {
+            "generated_cross_quote_small_penalty",
+            "generated_cross_quote_strong_penalty",
+            "generated_cross_quote_origin_only_excluded",
+        }
+        identity_production_candidate = next(
+            (row for row in selections["identity"]["scored"] if row["basename"] == winners["production"]),
+            None,
+        )
+        first_divergence = not any(
+            record.get("production_editorial_same") is False or record.get("production_identity_same") is False
+            for record in comparison_history
+        )
+        first_production_editorial = not any(not record["production_editorial_same"] for record in comparison_history)
+        first_production_identity = not any(not record["production_identity_same"] for record in comparison_history)
+        first_editorial_identity = not any(not record["editorial_identity_same"] for record in comparison_history)
+        production_editorial_same = winners["production"] == winners["editorial"]
+        production_identity_same = winners["production"] == winners["identity"]
+        editorial_identity_same = winners["editorial"] == winners["identity"]
+        comparison = {
+            "schema_version": 1,
+            "simulation_session_id": session_id,
+            "run_id": run_id,
+            "run_seed": run_seed,
+            "post_index": post_index,
+            "virtual_timestamp": current_epoch,
+            "quote_hash": shared_quote["quote_hash"],
+            "quote_text": shared_quote["text"],
+            "quote_coupling": "shared",
+            "winners": winners,
+            "winner_sources": {branch: branch_records[branch]["winner_source"] for branch in BRANCHES},
+            "production_editorial_same": production_editorial_same,
+            "production_identity_same": production_identity_same,
+            "editorial_identity_same": editorial_identity_same,
+            "all_three_same": len(set(winners.values())) == 1,
+            "first_any_divergence": first_divergence and len(set(winners.values())) > 1,
+            "first_production_editorial_divergence": first_production_editorial and not production_editorial_same,
+            "first_production_identity_divergence": first_production_identity and not production_identity_same,
+            "first_editorial_identity_divergence": first_editorial_identity and not editorial_identity_same,
+            "cumulative_production_editorial_divergences": sum(not row["production_editorial_same"] for row in comparison_history) + int(not production_editorial_same),
+            "cumulative_production_identity_divergences": sum(not row["production_identity_same"] for row in comparison_history) + int(not production_identity_same),
+            "cumulative_editorial_identity_divergences": sum(not row["editorial_identity_same"] for row in comparison_history) + int(not editorial_identity_same),
+            "observational_editorial_winner": observational_editorial,
+            "observational_identity_winner": observational_identity,
+            "observational_editorial_changed": observational_editorial != winners["production"],
+            "observational_identity_changed": observational_identity != winners["production"],
+            "observational_editorial_comparable": branch_records["production"]["winner_source"] == "original",
+            "observational_identity_policy_relevant": any(
+                row.get("identity_action") in identity_relevant_actions for row in observational_identity_rows
+            ),
+            "production_candidate_identity_action": (
+                identity_production_candidate.get("identity_action") if identity_production_candidate else "not_in_identity_candidate_set"
+            ),
+            "production_candidate_identity_excluded": bool(
+                identity_production_candidate and identity_production_candidate.get("policy_excluded")
+            ),
+        }
+        shared = {
+            "schema_version": 1,
+            "post_index": post_index,
+            "virtual_timestamp": current_epoch,
+            "quote_hash": shared_quote["quote_hash"],
+            "quote_text": shared_quote["text"],
+            "line_no": shared_quote["line_no"],
+            "weight": shared_quote.get("weight"),
+        }
+        writer.append_jsonl(paths["shared"], shared)
+        for branch in BRANCHES:
+            writer.append_jsonl(paths[branch], branch_records[branch])
+        writer.append_jsonl(paths["comparison"], comparison)
+        comparison_history.append(comparison)
+        if failure_hook:
+            failure_hook("after_comparison_append", post_index)
+
+        virtual_epoch = next_epoch
+        writer.atomic_json(
+            checkpoint_path,
+            counterfactual_checkpoint_payload(run_id, run_seed, post_index, virtual_epoch, branches),
+        )
+        if failure_hook:
+            failure_hook("after_counterfactual_checkpoint", post_index)
+        if stop_after_post is not None and post_index >= stop_after_post:
+            break
+
+
 def entropy(counter: Counter[str]) -> float:
     total = sum(counter.values())
     if not total:
@@ -1025,6 +1582,20 @@ def variation(values: list[float]) -> dict:
     if not values:
         return {"min": 0.0, "median": 0.0, "max": 0.0}
     return {"min": min(values), "median": statistics.median(values), "max": max(values)}
+
+
+def five_number(values: list[float]) -> dict:
+    if not values:
+        return {"min": 0.0, "lower_quartile": 0.0, "median": 0.0, "upper_quartile": 0.0, "max": 0.0}
+    ordered = sorted(values)
+    quartiles = statistics.quantiles(ordered, n=4, method="inclusive") if len(ordered) > 1 else [ordered[0]] * 3
+    return {
+        "min": ordered[0],
+        "lower_quartile": quartiles[0],
+        "median": statistics.median(ordered),
+        "upper_quartile": quartiles[2],
+        "max": ordered[-1],
+    }
 
 
 def concentration(counter: Counter[str], denominator: int | None = None) -> dict:
@@ -1366,11 +1937,260 @@ def markdown_report(session_manifest: dict, summary: dict) -> str:
     return "\n".join(lines)
 
 
+def load_counterfactual_records(session_dir: Path) -> tuple[dict[str, list[dict]], list[dict]]:
+    branch_records = {branch: [] for branch in BRANCHES}
+    comparisons: list[dict] = []
+    for run_dir in sorted((session_dir / "counterfactual" / "runs").glob("run_*")):
+        paths = counterfactual_paths(run_dir)
+        for branch in BRANCHES:
+            if paths[branch].is_file():
+                branch_records[branch].extend(
+                    json.loads(line) for line in paths[branch].read_text(encoding="utf-8").splitlines() if line.strip()
+                )
+        if paths["comparison"].is_file():
+            comparisons.extend(
+                json.loads(line) for line in paths["comparison"].read_text(encoding="utf-8").splitlines() if line.strip()
+            )
+    return branch_records, comparisons
+
+
+def branch_diversity(records: list[dict]) -> dict:
+    winners = Counter(record["winner"] for record in records)
+    per_run_last: dict[tuple[str, str], int] = {}
+    intervals: list[int] = []
+    for record in records:
+        key = (str(record.get("run_id") or ""), record["winner"])
+        index = int(record["post_index"])
+        if key in per_run_last:
+            intervals.append(index - per_run_last[key])
+        per_run_last[key] = index
+    return {
+        "unique_images": len(winners),
+        "entropy_bits": entropy(winners),
+        "top5_share": sum(count for _, count in winners.most_common(5)) / len(records) if records else 0.0,
+        "top10_share": sum(count for _, count in winners.most_common(10)) / len(records) if records else 0.0,
+        "maximum_image_count": max(winners.values(), default=0),
+        "most_selected": winners.most_common(15),
+        "reuse_interval_posts": {
+            "count": len(intervals),
+            "minimum": min(intervals) if intervals else None,
+            "median": statistics.median(intervals) if intervals else None,
+            "histogram": dict(sorted(Counter(intervals).items())),
+        },
+    }
+
+
+def summarize_counterfactual(
+    branch_records: dict[str, list[dict]],
+    comparisons: list[dict],
+    runtime_seconds: float,
+) -> dict:
+    total = len(comparisons)
+    per_branch: dict[str, dict] = {}
+    for branch, records in branch_records.items():
+        original = sum(record["winner_source"] == "original" for record in records)
+        generated = len(records) - original
+        origin = sum(record["winner_source"] == "generated" and record["origin_quote_match"] for record in records)
+        diagnostic_wins = [record for record in records if record["winner"] == DIAGNOSTIC_IMAGE]
+        per_branch[branch] = {
+            "selections": len(records),
+            "original_winners": original,
+            "generated_winners": generated,
+            "generated_share": generated / len(records) if records else 0.0,
+            "generated_origin_quote": origin,
+            "generated_cross_quote": generated - origin,
+            "selection_phases": dict(Counter(record["selection_phase"] for record in records)),
+            "image_cycle_resets": sum(bool(record["image_cycle_reset"]) for record in records),
+            "diversity": branch_diversity(records),
+            "diagnostic": {
+                "candidate_appearances": sum(bool(record["diagnostic_candidate_present"]) for record in records),
+                "origin_candidate_appearances": sum(bool(record["diagnostic_candidate_origin_match"]) for record in records),
+                "cross_quote_candidate_appearances": sum(bool(record["diagnostic_candidate_present"]) and not bool(record["diagnostic_candidate_origin_match"]) for record in records),
+                "exclusions": sum(bool(record["diagnostic_candidate_excluded"]) for record in records),
+                "wins": len(diagnostic_wins),
+                "win_post_indices": [record["post_index"] for record in diagnostic_wins],
+                "replacement_winners_when_production_selected_diagnostic": Counter(
+                    row["winners"][branch]
+                    for row in comparisons
+                    if row["winners"]["production"] == DIAGNOSTIC_IMAGE
+                    and row["winners"][branch] != DIAGNOSTIC_IMAGE
+                ).most_common(10),
+            },
+        }
+    editorial_records = branch_records["editorial"]
+    identity_records = branch_records["identity"]
+    editorial_original_adjustments = [
+        float(record["editorial_adjustment"])
+        for record in editorial_records
+        if record["winner_source"] == "original"
+    ]
+    identity_actions = Counter(record.get("production_candidate_identity_action") for record in comparisons)
+    observational_editorial_comparable = [row for row in comparisons if row.get("observational_editorial_comparable")]
+    observational_identity_relevant = [row for row in comparisons if row.get("observational_identity_policy_relevant")]
+
+    by_run: dict[str, list[dict]] = defaultdict(list)
+    for comparison in comparisons:
+        by_run[comparison["run_id"]].append(comparison)
+    first_divergence: dict[str, dict] = {}
+    editorial_rates: list[float] = []
+    identity_rates: list[float] = []
+    all_agreement_rates: list[float] = []
+    generated_shares: dict[str, list[float]] = {branch: [] for branch in BRANCHES}
+    for run_id, rows in by_run.items():
+        first_divergence[run_id] = {
+            "production_editorial": next((row["post_index"] for row in rows if not row["production_editorial_same"]), None),
+            "production_identity": next((row["post_index"] for row in rows if not row["production_identity_same"]), None),
+            "editorial_identity": next((row["post_index"] for row in rows if not row["editorial_identity_same"]), None),
+        }
+        editorial_rates.append(sum(not row["production_editorial_same"] for row in rows) / len(rows))
+        identity_rates.append(sum(not row["production_identity_same"] for row in rows) / len(rows))
+        all_agreement_rates.append(sum(row["all_three_same"] for row in rows) / len(rows))
+        for branch in BRANCHES:
+            run_branch = [record for record in branch_records[branch] if record.get("run_id") == run_id]
+            generated_shares[branch].append(sum(record["winner_source"] == "generated" for record in run_branch) / len(run_branch))
+
+    return {
+        "schema_version": 1,
+        "total_post_indices": total,
+        "total_branch_selections": sum(len(records) for records in branch_records.values()),
+        "runtime_seconds": runtime_seconds,
+        "branch_selections_per_second": sum(len(records) for records in branch_records.values()) / runtime_seconds if runtime_seconds else 0.0,
+        "quote_coupling": "shared",
+        "run_count": len(by_run),
+        "first_divergence": first_divergence,
+        "agreement": {
+            "all_three": sum(row["all_three_same"] for row in comparisons) / total if total else 0.0,
+            "production_editorial": sum(row["production_editorial_same"] for row in comparisons) / total if total else 0.0,
+            "production_identity": sum(row["production_identity_same"] for row in comparisons) / total if total else 0.0,
+            "editorial_identity": sum(row["editorial_identity_same"] for row in comparisons) / total if total else 0.0,
+        },
+        "branches": per_branch,
+        "editorial": {
+            "divergences_from_production": sum(not row["production_editorial_same"] for row in comparisons),
+            "divergence_rate": sum(not row["production_editorial_same"] for row in comparisons) / total if total else 0.0,
+            "replacement_sources": dict(Counter(row["winner_sources"]["editorial"] for row in comparisons if not row["production_editorial_same"])),
+            "selected_original_adjustment_mean": statistics.mean(editorial_original_adjustments) if editorial_original_adjustments else 0.0,
+            "selected_original_adjustment_median": statistics.median(editorial_original_adjustments) if editorial_original_adjustments else 0.0,
+            "cap_hits": sum(bool(record["editorial_cap_hit"]) for record in editorial_records),
+            "observational_change_rate_on_production_trajectory": sum(row["observational_editorial_changed"] for row in comparisons) / total if total else 0.0,
+            "observational_comparable_original_count": len(observational_editorial_comparable),
+            "observational_comparable_original_change_rate": (
+                sum(row["observational_editorial_changed"] for row in observational_editorial_comparable)
+                / len(observational_editorial_comparable)
+                if observational_editorial_comparable else 0.0
+            ),
+        },
+        "identity": {
+            "divergences_from_production": sum(not row["production_identity_same"] for row in comparisons),
+            "divergence_rate": sum(not row["production_identity_same"] for row in comparisons) / total if total else 0.0,
+            "replacement_sources": dict(Counter(row["winner_sources"]["identity"] for row in comparisons if not row["production_identity_same"])),
+            "production_candidate_actions": dict(identity_actions),
+            "production_candidates_origin_only_excluded": sum(bool(row["production_candidate_identity_excluded"]) for row in comparisons),
+            "policy_excluded_candidate_appearances": sum(record["policy_excluded_count"] for record in identity_records),
+            "observational_change_rate_on_production_trajectory": sum(row["observational_identity_changed"] for row in comparisons) / total if total else 0.0,
+            "observational_policy_relevant_count": len(observational_identity_relevant),
+            "observational_policy_relevant_change_rate": (
+                sum(row["observational_identity_changed"] for row in observational_identity_relevant)
+                / len(observational_identity_relevant)
+                if observational_identity_relevant else 0.0
+            ),
+        },
+        "across_run": {
+            "editorial_divergence_rate": five_number(editorial_rates),
+            "identity_divergence_rate": five_number(identity_rates),
+            "all_three_agreement_rate": five_number(all_agreement_rates),
+            "generated_share": {branch: five_number(values) for branch, values in generated_shares.items()},
+        },
+        "interpretation": (
+            "Counterfactual image-policy state trajectories with shared production-selected quotes and virtual time; "
+            "not a forecast of audience, engagement, future assets, or external X behavior."
+        ),
+    }
+
+
+def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str:
+    lines = [
+        "# Counterfactual Policy Branch Simulation Report",
+        "",
+        "> Offline policy-controlled image-state futures. No image was posted and no external API was called.",
+        "",
+        "## Overview",
+        "",
+        f"- Runs: {summary['run_count']}",
+        f"- Matched post indices: {summary['total_post_indices']}",
+        f"- Branch selections: {summary['total_branch_selections']}",
+        f"- Quote coupling: {summary['quote_coupling']}",
+        f"- RNG: production seed unchanged; editorial/identity SHA-256-derived independent streams",
+        f"- Runtime: {summary['runtime_seconds']:.3f}s ({summary['branch_selections_per_second']:.2f} branch selections/s)",
+        "",
+        "## Agreement",
+        "",
+        f"- All three: {summary['agreement']['all_three']:.2%}",
+        f"- Production/editorial: {summary['agreement']['production_editorial']:.2%}",
+        f"- Production/identity: {summary['agreement']['production_identity']:.2%}",
+        f"- Editorial/identity: {summary['agreement']['editorial_identity']:.2%}",
+    ]
+    for branch in BRANCHES:
+        data = summary["branches"][branch]
+        diversity = data["diversity"]
+        lines.extend(
+            [
+                "",
+                f"## {branch.title()} branch",
+                "",
+                f"- Original/generated: {data['original_winners']} / {data['generated_winners']} ({data['generated_share']:.2%} generated)",
+                f"- Generated origin/cross-quote: {data['generated_origin_quote']} / {data['generated_cross_quote']}",
+                f"- Phases: {data['selection_phases']}; image-cycle resets: {data['image_cycle_resets']}",
+                f"- Unique images: {diversity['unique_images']}; entropy {diversity['entropy_bits']:.4f} bits",
+                f"- Top-5/top-10 share: {diversity['top5_share']:.2%} / {diversity['top10_share']:.2%}",
+                f"- Maximum image count: {diversity['maximum_image_count']}; reuse intervals {diversity['reuse_interval_posts']}",
+                f"- Diagnostic image: {data['diagnostic']}",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            "## Editorial policy effects",
+            "",
+            f"- Divergence from production: {summary['editorial']['divergences_from_production']} ({summary['editorial']['divergence_rate']:.2%})",
+            f"- Observational preference change rate on production trajectory: {summary['editorial']['observational_change_rate_on_production_trajectory']:.2%}",
+            f"- Observational comparable-original change rate: {summary['editorial']['observational_comparable_original_change_rate']:.2%} of {summary['editorial']['observational_comparable_original_count']}",
+            f"- Replacement sources: {summary['editorial']['replacement_sources']}",
+            f"- Selected-original adjustment mean/median: {summary['editorial']['selected_original_adjustment_mean']:.4f} / {summary['editorial']['selected_original_adjustment_median']:.4f}",
+            f"- Cap hits: {summary['editorial']['cap_hits']}",
+            "",
+            "## Identity policy effects",
+            "",
+            f"- Divergence from production: {summary['identity']['divergences_from_production']} ({summary['identity']['divergence_rate']:.2%})",
+            f"- Observational preference change rate on production trajectory: {summary['identity']['observational_change_rate_on_production_trajectory']:.2%}",
+            f"- Observational policy-relevant change rate: {summary['identity']['observational_policy_relevant_change_rate']:.2%} of {summary['identity']['observational_policy_relevant_count']}",
+            f"- Replacement sources: {summary['identity']['replacement_sources']}",
+            f"- Production candidate actions: {summary['identity']['production_candidate_actions']}",
+            f"- Production candidates excluded as origin-only: {summary['identity']['production_candidates_origin_only_excluded']}",
+            f"- Excluded candidate appearances: {summary['identity']['policy_excluded_candidate_appearances']}",
+            "",
+            "## Across-run variability",
+            "",
+            f"- Editorial divergence: {summary['across_run']['editorial_divergence_rate']}",
+            f"- Identity divergence: {summary['across_run']['identity_divergence_rate']}",
+            f"- Generated share: {summary['across_run']['generated_share']}",
+            "",
+            "## Interpretation",
+            "",
+            "These branches consume their own image winners and therefore model counterfactual image-history, spacing, boundary, and cycle consequences. Shared quotes and virtual timestamps isolate image-policy effects. They do not predict human interactions, engagement, future assets, code changes, or X behavior.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Offline production-parity regular quote/image simulator. Never posts or calls network APIs."
     )
     parser.add_argument("--runs", type=int, default=1)
+    parser.add_argument("--mode", choices=("observational", "counterfactual"), default="observational")
+    parser.add_argument("--quote-coupling", choices=("shared",), default="shared")
     parser.add_argument("--posts-per-run", type=int, default=20)
     parser.add_argument("--seed-base", type=int, default=1000)
     parser.add_argument("--start-time", default="now", help="'now' or ISO-8601 timestamp")
@@ -1406,6 +2226,8 @@ def main(argv: list[str] | None = None) -> int:
             session_manifest["seed_base"],
         ):
             raise ValueError("resume parameters must match existing session manifest")
+        if args.mode != session_manifest.get("mode", "observational"):
+            raise ValueError("resume mode must match existing session manifest")
         start_epoch = int(session_manifest["start_epoch"])
         args.candidate_detail = str(session_manifest["candidate_detail"])
         args.trace_image = list(session_manifest.get("trace_images", []))
@@ -1424,6 +2246,8 @@ def main(argv: list[str] | None = None) -> int:
             "start_epoch": start_epoch,
             "start_local_time": datetime.fromtimestamp(start_epoch).astimezone().isoformat(),
             "candidate_detail": args.candidate_detail,
+            "mode": args.mode,
+            "quote_coupling": args.quote_coupling,
             "trace_images": sorted(set(args.trace_image)),
             "snapshot_manifest_sha256": sha256_file(snapshot / "manifest.json"),
             "production_source_sha256": sha256_file(ROOT / "mrsMThatcher2.py"),
@@ -1431,6 +2255,13 @@ def main(argv: list[str] | None = None) -> int:
             "network_allowed": False,
             "xai_calls_allowed": False,
         }
+        if args.mode == "counterfactual":
+            session_manifest["branch_rng_design"] = {
+                "production": "run seed and production RNG consumption unchanged",
+                "editorial": "SHA-256-derived independent stream from run seed and branch name",
+                "identity": "SHA-256-derived independent stream from run seed and branch name",
+                "schedule": "production branch supplies shared quote and virtual-time delays",
+            }
         writer.atomic_json(session_dir / "session_manifest.json", session_manifest)
 
     bot = import_production_bot(session_dir)
@@ -1455,31 +2286,60 @@ def main(argv: list[str] | None = None) -> int:
 
     with block_process_network():
         for run_index in range(args.runs):
-            run_future(
-                bot,
-                writer,
-                session_dir,
-                snapshot,
-                session_id,
-                run_index,
-                args.seed_base + run_index,
-                args.posts_per_run,
-                start_epoch,
-                args.candidate_detail,
-                args.resume,
-                tuple(sorted(set(args.trace_image or session_manifest.get("trace_images", [])))),
-                args.stop_after_post,
-            )
+            if args.mode == "observational":
+                run_future(
+                    bot,
+                    writer,
+                    session_dir,
+                    snapshot,
+                    session_id,
+                    run_index,
+                    args.seed_base + run_index,
+                    args.posts_per_run,
+                    start_epoch,
+                    args.candidate_detail,
+                    args.resume,
+                    tuple(sorted(set(args.trace_image or session_manifest.get("trace_images", [])))),
+                    args.stop_after_post,
+                )
+            else:
+                run_counterfactual_future(
+                    bot,
+                    writer,
+                    session_dir,
+                    snapshot,
+                    session_id,
+                    run_index,
+                    args.seed_base + run_index,
+                    args.posts_per_run,
+                    start_epoch,
+                    args.candidate_detail,
+                    args.resume,
+                    stop_after_post=args.stop_after_post,
+                )
 
-    records = load_all_records(session_dir)
     runtime = float(session_manifest.get("accumulated_runtime_seconds", 0.0))
     runtime += time.perf_counter() - started
     session_manifest["accumulated_runtime_seconds"] = runtime
     writer.atomic_json(session_dir / "session_manifest.json", session_manifest)
-    summary = summarize_records(records, runtime)
-    writer.atomic_json(session_dir / "simulation_summary.json", summary)
-    writer.write_text(session_dir / "simulation_report.md", markdown_report(session_manifest, summary))
-    print(f"Simulation complete: {len(records)} selections in {runtime:.3f}s ({summary['selections_per_second']:.2f}/s)")
+    if args.mode == "observational":
+        records = load_all_records(session_dir)
+        summary = summarize_records(records, runtime)
+        writer.atomic_json(session_dir / "simulation_summary.json", summary)
+        writer.write_text(session_dir / "simulation_report.md", markdown_report(session_manifest, summary))
+        count = len(records)
+        rate = summary["selections_per_second"]
+    else:
+        branch_records, comparisons = load_counterfactual_records(session_dir)
+        summary = summarize_counterfactual(branch_records, comparisons, runtime)
+        writer.atomic_json(session_dir / "counterfactual_simulation_summary.json", summary)
+        writer.write_text(
+            session_dir / "counterfactual_simulation_report.md",
+            counterfactual_markdown_report(session_manifest, summary),
+        )
+        count = summary["total_branch_selections"]
+        rate = summary["branch_selections_per_second"]
+    print(f"Simulation complete: {count} selections in {runtime:.3f}s ({rate:.2f}/s)")
     print(session_dir)
     return 0
 
