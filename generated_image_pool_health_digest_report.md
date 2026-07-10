@@ -107,11 +107,11 @@ The live bot was not restarted or signalled. `mrs_log_digest.py` is standalone a
 
 ## 25. Commit
 
-Pending final focused commit; exact hash will be reported after commit.
+Implementation commit `ec304cd` with subject `Add generated pool health to log digest`; exactly the digest, focused tests and this report were included. Real curation changes were not staged.
 
 ## 26. Push
 
-Pending normal upstream push. No force-push.
+Normal push succeeded: `dc96998..ec304cd master -> master`. No force-push.
 
 ## 27. Final Git state
 
