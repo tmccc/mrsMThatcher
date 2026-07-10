@@ -33,7 +33,7 @@ import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -54,7 +54,7 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
+def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Read current generated-pool health without mutating project files."""
     base_dir = base_dir.resolve()
     generated_dir = base_dir / "generated_review_approved_images"
@@ -130,11 +130,13 @@ def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
         if policy in GENERATED_POLICIES: policy_counts[str(policy)] += 1
         elif name in audit_names: warning("invalid_policy", name, repr(policy))
 
+    now = now or datetime.now().astimezone()
     completed_quarantines = 0
     completed_restores = 0
     latest_quarantine: Optional[Dict[str, Any]] = None
     latest_restore: Optional[Dict[str, Any]] = None
     quarantined: Dict[str, Dict[str, Any]] = {}
+    curation_events: List[Tuple[str, datetime, set[str]]] = []
     if quarantine_dir.exists():
         for manifest_path in sorted(quarantine_dir.glob("*/manifest.json")):
             try:
@@ -145,6 +147,16 @@ def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
             if transaction.get("status") != "completed":
                 continue
             kind = transaction.get("kind")
+            try:
+                timestamp = datetime.fromisoformat(str(transaction.get("created_at") or "").replace("Z", "+00:00"))
+                if timestamp.tzinfo is None: timestamp = timestamp.replace(tzinfo=now.tzinfo)
+                timestamp = timestamp.astimezone(now.tzinfo)
+                image_values = transaction.get("images") or []
+                event_names = {str(item.get("basename") if isinstance(item, dict) else item) for item in image_values}
+                event_names.discard("")
+                if kind in {"quarantine", "restore"}: curation_events.append((str(kind), timestamp, event_names))
+            except Exception as exc:
+                warning("transaction_timestamp_malformed", manifest_path.parent.name, str(exc))
             if kind == "quarantine":
                 completed_quarantines += 1
                 if latest_quarantine is None or str(transaction.get("created_at") or "") > str(latest_quarantine.get("created_at") or ""):
@@ -186,6 +198,12 @@ def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
     quarantine_names = set(quarantined)
     metadata_available = bool(analysis) and bool(audit)
     coverage_complete = metadata_available and active_names == analysis_names == audit_names
+    def curation_days(days: int) -> Dict[str, int]:
+        cutoff = now - timedelta(days=days)
+        quarantined_count = sum(len(names) for kind, timestamp, names in curation_events if kind == "quarantine" and timestamp >= cutoff)
+        restored_count = sum(len(names) for kind, timestamp, names in curation_events if kind == "restore" and timestamp >= cutoff)
+        return {"quarantined": quarantined_count, "restored": restored_count, "net_active_change": restored_count - quarantined_count}
+
     return {
         "snapshot_base_dir": str(base_dir), "active_generated_images": len(active_names), "quarantined_generated_images": len(quarantine_names),
         "total_known_generated_images": len(active_names | quarantine_names), "active_analysis_records": len(analysis_names), "active_identity_records": len(audit_names),
@@ -198,8 +216,94 @@ def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
         "completed_quarantine_transactions": completed_quarantines, "completed_restore_transactions": completed_restores,
         "latest_quarantine": ({"transaction_id": latest_quarantine.get("transaction_id"), "timestamp": latest_quarantine.get("created_at"), "image_count": len(latest_quarantine.get("images") or [])} if latest_quarantine else None),
         "latest_restore": ({"transaction_id": latest_restore.get("transaction_id"), "timestamp": latest_restore.get("created_at"), "image_count": len(latest_restore.get("images") or [])} if latest_restore else None),
+        "curation_7d": curation_days(7), "curation_30d": curation_days(30),
         "warnings": warnings, "warning_count": len(warnings), "health": "OK" if not warnings else "WARNING",
     }
+
+
+def generated_post_rate_history(logs: List[Path], now: Optional[datetime] = None, days: int = 30) -> Dict[str, Any]:
+    """Scan bounded production history once and count structured successful regular posts."""
+    now = now or datetime.now()
+    if now.tzinfo is not None: now = now.replace(tzinfo=None)
+    cutoff = now - timedelta(days=days)
+    records = read_records(logs, cutoff, now)
+    marker_fragments = ("/tmp/pytest-", "/tmp/pytest-of-", "mrs_test_mode", "dummy credentials", "127.0.0.1")
+    contaminated_seconds = {record.ts for record in records if any(fragment in record.msg.lower() for fragment in marker_fragments)}
+    posts: Dict[str, Dict[str, Any]] = {}
+    for record in records:
+        if record.ts in contaminated_seconds or not record.msg.startswith("EVENT "):
+            continue
+        event = try_parse_json_object_from_msg(record.msg)
+        if not event or event.get("event") != "main_post_posted" or event.get("lane") != "quote_image":
+            continue
+        post_id = str(event.get("post_id") or "")
+        if not post_id:
+            continue
+        basename = str(event.get("image_basename") or "")
+        posts.setdefault(post_id, {"timestamp": record.ts, "basename": basename, "generated": bool(GENERATED_BASENAME_RE.fullmatch(basename))})
+    clean_timestamps = [record.ts for record in records if record.ts not in contaminated_seconds]
+    earliest = min(clean_timestamps) if clean_timestamps else None
+    windows: Dict[str, Any] = {}
+    for window_days in (7, 30):
+        window_cutoff = now - timedelta(days=window_days)
+        selected = [post for post in posts.values() if post["timestamp"] >= window_cutoff]
+        generated = sum(post["generated"] for post in selected)
+        coverage_start = max(window_cutoff, earliest) if earliest else None
+        coverage_days = max((now - coverage_start).total_seconds() / 86400.0, 0.0) if coverage_start else 0.0
+        regular_per_day = len(selected) / coverage_days if coverage_days > 0 else None
+        generated_per_day = generated / coverage_days if coverage_days > 0 else None
+        windows[f"trailing_{window_days}d"] = {
+            "regular_posts": len(selected), "generated_posts": generated,
+            "generated_share_percent": (generated / len(selected) * 100.0) if selected else None,
+            "coverage_days": coverage_days, "regular_posts_per_day": regular_per_day, "generated_posts_per_day": generated_per_day,
+        }
+    return {"windows": windows, "scanned_records": len(records), "unique_regular_posts": len(posts), "contaminated_seconds_excluded": len(contaminated_seconds),
+            "coverage_start": earliest.isoformat(sep=" ") if earliest else None, "coverage_end": now.isoformat(sep=" "), "files_scanned": len(logs)}
+
+
+def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    remaining = max(0, int(pool.get("active_never_used", 0) or 0))
+    enabled = config.get("ENABLE_GENERATED_IMAGE_POOL")
+    schedule: Dict[str, Any] = {"available": False}
+    try:
+        sleep_min, sleep_max = float(config["POST_SLEEP_MIN"]), float(config["POST_SLEEP_MAX"])
+        spacing = int(config["GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"])
+        if isinstance(enabled, str): enabled = enabled.lower() in {"1", "true", "yes", "on"}
+        if sleep_min <= 0 or sleep_max < sleep_min or spacing < 0: raise ValueError("invalid schedule values")
+        midpoint = (sleep_min + sleep_max) / 2.0
+        regular_per_day = 86400.0 / midpoint
+        maximum_share = 1.0 / (spacing + 1)
+        generated_per_day = regular_per_day * maximum_share
+        schedule = {"available": bool(enabled), "midpoint_regular_interval_seconds": midpoint, "regular_posts_per_day": regular_per_day,
+                    "maximum_generated_share_percent": maximum_share * 100.0, "generated_posts_per_day": generated_per_day,
+                    "regular_posts_to_cycle_exhaustion": remaining * (spacing + 1), "days_to_cycle_exhaustion": remaining / generated_per_day if generated_per_day > 0 else None}
+    except Exception as exc:
+        schedule = {"available": False, "reason": f"malformed or unavailable schedule config: {exc}"}
+
+    observed: Dict[str, Any] = {}
+    primary = None
+    for label in ("trailing_7d", "trailing_30d"):
+        window = (rates.get("windows") or {}).get(label) or {}
+        generated_per_day = window.get("generated_posts_per_day")
+        share = window.get("generated_share_percent")
+        reliable = (window.get("coverage_days") or 0) >= 1.0 and (window.get("regular_posts") or 0) > 0 and (window.get("generated_posts") or 0) > 0
+        estimate = {"available": reliable, "reason": None}
+        if reliable:
+            share_fraction = float(share) / 100.0
+            estimate.update({"regular_posts_to_cycle_exhaustion": int(round(remaining / share_fraction)) if share_fraction > 0 else None,
+                             "days_to_cycle_exhaustion": remaining / float(generated_per_day), "generated_posts_per_day": generated_per_day})
+            if primary is None: primary = label
+        else:
+            estimate["reason"] = "insufficient clean regular/generated posts or less than one day of coverage"
+        observed[label] = estimate
+    if remaining == 0:
+        primary = "complete"
+        for estimate in observed.values(): estimate.update({"available": True, "reason": None, "regular_posts_to_cycle_exhaustion": 0, "days_to_cycle_exhaustion": 0.0})
+    elif not enabled:
+        primary = None
+        for estimate in observed.values(): estimate.update({"available": False, "reason": "generated image pool disabled"})
+    return {"remaining_active_generated_in_current_cycle": remaining, "primary_basis": primary or ("schedule_model" if schedule.get("available") else None),
+            "observed": observed, "schedule": schedule, "estimate_semantics": "current image cycle, not all-time posting history"}
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -2864,10 +2968,55 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("```")
         out.append("Usage history:")
         out.append("```text")
-        out.append(f"active_previously_used      = {pool_health.get('active_previously_used', 0)}")
-        out.append(f"active_never_used           = {pool_health.get('active_never_used', 0)}")
-        out.append(f"quarantined_previously_used = {pool_health.get('quarantined_previously_used', 0)}")
-        out.append(f"quarantined_never_used      = {pool_health.get('quarantined_never_used', 0)}")
+        out.append(f"active_used_in_current_cycle       = {pool_health.get('active_previously_used', 0)}")
+        out.append(f"active_unused_in_current_cycle     = {pool_health.get('active_never_used', 0)}")
+        out.append(f"quarantined_used_in_current_cycle  = {pool_health.get('quarantined_previously_used', 0)}")
+        out.append(f"quarantined_unused_in_current_cycle = {pool_health.get('quarantined_never_used', 0)}")
+        out.append("```")
+        rates = report.get("generated_image_post_rates") or {}
+        if rates:
+            out.append("Recent successful regular-post rate (bounded historical log scan):")
+            out.append("```text")
+            for label in ("trailing_7d", "trailing_30d"):
+                window = (rates.get("windows") or {}).get(label) or {}
+                share = window.get("generated_share_percent")
+                out.append(f"{label}_coverage_days          = {float(window.get('coverage_days') or 0.0):.1f}")
+                out.append(f"{label}_regular_posts          = {window.get('regular_posts', 0)}")
+                out.append(f"{label}_generated_posts        = {window.get('generated_posts', 0)}")
+                out.append(f"{label}_generated_share        = {float(share):.1f}%" if share is not None else f"{label}_generated_share        = unavailable")
+                regular_rate = window.get("regular_posts_per_day"); generated_rate = window.get("generated_posts_per_day")
+                out.append(f"{label}_regular_posts_per_day  = {float(regular_rate):.2f}" if regular_rate is not None else f"{label}_regular_posts_per_day  = unavailable")
+                out.append(f"{label}_generated_posts_per_day = {float(generated_rate):.2f}" if generated_rate is not None else f"{label}_generated_posts_per_day = unavailable")
+            out.append(f"contaminated_seconds_excluded  = {rates.get('contaminated_seconds_excluded', 0)}")
+            out.append("```")
+        runway = report.get("generated_image_pool_runway") or {}
+        if runway:
+            out.append("Estimated current-cycle runway (not an all-time posting claim):")
+            out.append("```text")
+            out.append(f"active_generated_unused_in_current_cycle = {runway.get('remaining_active_generated_in_current_cycle', 0)}")
+            out.append(f"primary_basis                           = {runway.get('primary_basis') or 'unavailable'}")
+            primary = (runway.get("observed") or {}).get(str(runway.get("primary_basis"))) or {}
+            if primary.get("available"):
+                out.append(f"estimated_regular_posts_to_cycle_exhaustion = {primary.get('regular_posts_to_cycle_exhaustion')}")
+                out.append(f"estimated_days_to_cycle_exhaustion     = {float(primary.get('days_to_cycle_exhaustion') or 0.0):.1f}")
+            else:
+                out.append("estimated_regular_posts_to_cycle_exhaustion = unavailable")
+                out.append(f"estimated_days_to_cycle_exhaustion     = unavailable ({primary.get('reason') or 'no reliable observed basis'})")
+            schedule = runway.get("schedule") or {}
+            if schedule.get("available"):
+                out.append(f"schedule_model_generated_share_max     = {float(schedule.get('maximum_generated_share_percent') or 0.0):.1f}%")
+                out.append(f"schedule_model_generated_posts_per_day = {float(schedule.get('generated_posts_per_day') or 0.0):.2f}")
+                out.append(f"schedule_model_days_to_cycle_exhaustion = {float(schedule.get('days_to_cycle_exhaustion') or 0.0):.1f}")
+            else:
+                out.append(f"schedule_model_days_to_cycle_exhaustion = unavailable ({schedule.get('reason') or 'pool disabled'})")
+            out.append("```")
+        out.append("Curation trend (completed transaction image actions):")
+        out.append("```text")
+        for days in (7, 30):
+            trend = pool_health.get(f"curation_{days}d") or {}
+            out.append(f"quarantined_last_{days}d = {trend.get('quarantined', 0)}")
+            out.append(f"restored_last_{days}d    = {trend.get('restored', 0)}")
+            out.append(f"net_active_change_last_{days}d = {trend.get('net_active_change', 0):+d}")
         out.append("```")
         latest_quarantine = pool_health.get("latest_quarantine")
         if latest_quarantine:
@@ -3535,6 +3684,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         report["saved_last_log_entry_time"] = dt_text(last_ts)
     elif not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None
+
+    runway_config = dict(report.get("latest_config") or {})
+    try:
+        local_config = json.loads((Path.cwd() / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
+        if isinstance(local_config, dict): runway_config.update(local_config)
+    except Exception:
+        pass
+    report["generated_image_post_rates"] = generated_post_rate_history(logs)
+    report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
 
     if args.json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
