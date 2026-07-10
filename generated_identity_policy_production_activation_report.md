@@ -88,39 +88,45 @@ The 20 x 250 canonical simulation was not rerun. Existing validated records and 
 
 ## 15. Commit and push
 
-Pending final deployment commit details.
+Activation commit `97ba42f50450fa083b8296a64044897be7cca8b7` (`Enable generated identity policy in production scoring`) contains exactly `mrsMThatcher2.py`, `mrs_log_digest.py`, the dedicated production-policy test, and this report. Normal push succeeded: `bd9613c..97ba42f master -> master`. No force-push.
 
 ## 16. Backup
 
-Pending deployment backup details.
+`pre_generated_identity_policy_activation_20260710_215610/`, with manifest and metadata-preserving copies of source, digest, ignored config, state, image/quote histories, and audit. No receipt existed, and no fake receipt was created.
 
 ## 17. Config
 
-Pending production config activation. Intended values: production policy true, audit current path, small 6.0, strong 15.0; original editorial shadow remains true with weight 0.32/cap 4.0.
+Ignored local config now has production policy true, old generated identity shadow false, audit `/disks/disk1/etc/mrsMThatcher/generated_image_identity_dependence_audit.json`, small 6.0, and strong 15.0. Original editorial shadow remains true with weight 0.32/cap 4.0. Generated spacing remains two originals. Local config was not committed.
 
 ## 18. Restart
 
-Pending. Wrapper baseline PID 3631076; Python child baseline PID 3046050.
+At approximately 21:56:42 BST, one SIGTERM was sent to Python child 3046050 only. Wrapper PID 3631076 remained unchanged. After its normal delay, the wrapper started child 4094316 at 21:57:54; the lock changed to `pid=4094316`. No duplicate child appeared and the wrapper was not signalled.
 
 ## 19. Startup
 
-Pending.
+Startup logged applied config, acquired the instance lock, and emitted:
+
+`Original editorial shadow scoring enabled. ... original_items=69 weight=0.32 max_abs_adjustment=4.0`
+
+`Generated identity policy production scoring enabled. ... items=83 policies={'origin_quote_only': 6, 'small_penalty': 9, 'unrestricted': 68} small_penalty=6.0 strong_penalty=15.0`
+
+State/schedule restored with next quote 22:13:09 and spacing counter 0/2. No hash/coverage/config error, traceback, receipt block, duplicate, or unexpected cooldown occurred. Multiple subsequent loop ticks completed.
 
 ## 20. Live observations
 
-Pending.
+One genuine regular selection occurred at 22:13:57-59. It emitted exactly one `GENERATED_IDENTITY_POLICY_APPLIED` event. Generated images were spacing-blocked, so this was policy-irrelevant: baseline and production both selected original `t51.jpg` at 51.6094 in normal phase. Quote line 528 concerned law and legal rights. The actual post ID was `2075690015418359831`; receipt reconciliation, used history, last image, and spacing followed actual winner `t51.jpg`, advancing original spacing from 0 to 1. Original editorial shadow independently ranked `t51.jpg` first. First policy-relevant live observation remains pending.
 
 ## 21. Digest verification
 
-Offline parser/render tests pass; live verification pending.
+Completed over the live event using `--no-state`. `## Generated identity policy` states that policy is active, baseline is observational and not necessarily posted, reports one selection and zero relevant selections safely, and uses the documented denominator. `## Original editorial shadow scoring` remained healthy. Policy-relevant changed-row rendering remains verified by tests but pending live data.
 
 ## 22. Final process state
 
-Pending.
+Wrapper PID 3631076; child PID 4094316; lock `pid=4094316`. Last main post `2075690015418359831`; last regular image `t51.jpg`; generated spacing counter 1/2; next quote epoch 1783727007. No unresolved receipt.
 
 ## 23. Final Git state
 
-Pending.
+Activation source commit is pushed. This final deployment-report update is committed separately after deployment evidence. Local branch is aligned with upstream after that push. Only unrelated pre-existing untracked artifacts, raw simulation sessions, deployment backups, and review aids remain; no task source is staged.
 
 ## 24. Rollback instructions
 
@@ -128,4 +134,4 @@ Set `ENABLE_GENERATED_IDENTITY_POLICY_SCORING` false in ignored local config, pr
 
 ## Safety confirmations
 
-Original editorial production scoring was not enabled. Original editorial shadow is unchanged. No manual X, xAI, or external API call; no test post; no manual state or receipt edit; no log deletion/truncation/rotation; no wrapper signal; no force-push; and no large simulation rerun occurred during implementation and review.
+Original editorial production scoring was not enabled. Original editorial shadow is unchanged. Generated identity production policy alone was enabled. No X, xAI, or external API call was made manually; the live bot made its ordinary scheduled post. No test post, manual state edit, manual receipt edit, log deletion/truncation/rotation, wrapper signal, force-push, or large simulation rerun occurred. Only the Python child was restarted.
