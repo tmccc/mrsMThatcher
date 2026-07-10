@@ -42,6 +42,164 @@ LOG_RE = re.compile(
     r"(?P<level>[A-Z]+)\s+"
     r"(?P<src>[^:]+?)(?::(?P<line>\d+))? - (?P<msg>.*)$"
 )
+GENERATED_BASENAME_RE = re.compile(r"tg_([0-9a-f]{64})\.png\Z")
+GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def generated_pool_health_snapshot(base_dir: Path) -> Dict[str, Any]:
+    """Read current generated-pool health without mutating project files."""
+    base_dir = base_dir.resolve()
+    generated_dir = base_dir / "generated_review_approved_images"
+    quarantine_dir = base_dir / "generated_image_quarantine" / "transactions"
+    analysis_path = base_dir / "generated_image_analysis.json"
+    audit_path = base_dir / "generated_image_identity_dependence_audit.json"
+    used_path = base_dir / "images_used.json"
+    warnings: List[Dict[str, str]] = []
+
+    def warning(kind: str, basename: str, detail: str) -> None:
+        warnings.append({"kind": kind, "basename": basename, "detail": detail})
+
+    active_paths: Dict[str, Path] = {}
+    try:
+        for path in generated_dir.iterdir():
+            if not path.is_file() or path.suffix.lower() != ".png":
+                continue
+            if not GENERATED_BASENAME_RE.fullmatch(path.name):
+                warning("invalid_active_basename", path.name, "expected tg_<64 lowercase hex>.png")
+                continue
+            if path.name in active_paths:
+                warning("duplicate_active_basename", path.name, "duplicate basename")
+            active_paths[path.name] = path
+    except FileNotFoundError:
+        warning("active_pool_unavailable", "", str(generated_dir))
+    except Exception as exc:
+        warning("active_pool_error", "", str(exc))
+
+    analysis: Dict[str, Any] = {}
+    audit: Dict[str, Any] = {}
+    for label, path, target in (("analysis", analysis_path, "analysis"), ("audit", audit_path, "audit")):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("root is not an object")
+            if target == "analysis": analysis = value
+            else: audit = value
+        except FileNotFoundError:
+            warning(f"{label}_unavailable", "", str(path))
+        except Exception as exc:
+            warning(f"{label}_malformed", "", str(exc))
+
+    analysis_index = analysis.get("path_index") if isinstance(analysis.get("path_index"), dict) else {}
+    analysis_items = analysis.get("items") if isinstance(analysis.get("items"), dict) else {}
+    audit_items = audit.get("items") if isinstance(audit.get("items"), dict) else {}
+    active_names = set(active_paths)
+    analysis_names = set(str(value) for value in analysis_index)
+    audit_names = set(str(value) for value in audit_items)
+    for name in sorted(active_names - analysis_names): warning("missing_analysis", name, "active image absent from generated analysis path_index")
+    for name in sorted(analysis_names - active_names): warning("unexpected_analysis", name, "analysis record has no active image")
+    for name in sorted(active_names - audit_names): warning("missing_audit", name, "active image absent from identity audit")
+    for name in sorted(audit_names - active_names): warning("unexpected_audit", name, "audit record has no active image")
+
+    valid_hashes = 0
+    policy_counts = Counter()
+    for name, path in sorted(active_paths.items()):
+        try: actual_hash = file_sha256(path)
+        except Exception as exc:
+            warning("hash_error", name, str(exc)); continue
+        expected_analysis = analysis_index.get(name)
+        audit_record = audit_items.get(name) if isinstance(audit_items.get(name), dict) else {}
+        expected_audit = audit_record.get("image_sha256")
+        item = analysis_items.get(str(expected_analysis))
+        if expected_analysis != actual_hash or expected_audit != actual_hash or not isinstance(item, dict):
+            warning("hash_mismatch", name, f"actual={actual_hash} analysis={expected_analysis} audit={expected_audit}")
+        else:
+            valid_hashes += 1
+        match = GENERATED_BASENAME_RE.fullmatch(name)
+        if str(audit_record.get("origin_quote_hash") or "").lower() != (match.group(1) if match else ""):
+            warning("origin_hash_mismatch", name, str(audit_record.get("origin_quote_hash") or "missing"))
+        identity = audit_record.get("analysis") if isinstance(audit_record.get("analysis"), dict) else {}
+        policy = identity.get("recommended_cross_quote_policy")
+        if policy in GENERATED_POLICIES: policy_counts[str(policy)] += 1
+        elif name in audit_names: warning("invalid_policy", name, repr(policy))
+
+    completed_quarantines = 0
+    completed_restores = 0
+    latest_quarantine: Optional[Dict[str, Any]] = None
+    latest_restore: Optional[Dict[str, Any]] = None
+    quarantined: Dict[str, Dict[str, Any]] = {}
+    if quarantine_dir.exists():
+        for manifest_path in sorted(quarantine_dir.glob("*/manifest.json")):
+            try:
+                transaction = json.loads(manifest_path.read_text(encoding="utf-8"))
+                if not isinstance(transaction, dict): raise ValueError("manifest root is not an object")
+            except Exception as exc:
+                warning("transaction_malformed", manifest_path.parent.name, str(exc)); continue
+            if transaction.get("status") != "completed":
+                continue
+            kind = transaction.get("kind")
+            if kind == "quarantine":
+                completed_quarantines += 1
+                if latest_quarantine is None or str(transaction.get("created_at") or "") > str(latest_quarantine.get("created_at") or ""):
+                    latest_quarantine = transaction
+                for entry in transaction.get("images") or []:
+                    if not isinstance(entry, dict): continue
+                    name = str(entry.get("basename") or "")
+                    image_path = manifest_path.parent / "images" / name
+                    if image_path.is_file(): quarantined[name] = {"entry": entry, "path": image_path, "transaction_id": transaction.get("transaction_id")}
+            elif kind == "restore":
+                completed_restores += 1
+                if latest_restore is None or str(transaction.get("created_at") or "") > str(latest_restore.get("created_at") or ""):
+                    latest_restore = transaction
+
+    quarantined_policy_counts = Counter()
+    for name, current in sorted(quarantined.items()):
+        entry, path = current["entry"], current["path"]
+        required = ("original_relative_path", "sha256", "analysis_record", "audit_record")
+        missing = [key for key in required if key not in entry]
+        if missing: warning("incomplete_quarantine", name, "missing " + ",".join(missing))
+        try:
+            if entry.get("sha256") != file_sha256(path): warning("quarantine_hash_mismatch", name, "preserved image hash differs from manifest")
+        except Exception as exc: warning("quarantine_hash_error", name, str(exc))
+        preserved_audit = entry.get("audit_record") if isinstance(entry.get("audit_record"), dict) else {}
+        preserved_identity = preserved_audit.get("analysis") if isinstance(preserved_audit.get("analysis"), dict) else {}
+        policy = preserved_identity.get("recommended_cross_quote_policy")
+        if policy in GENERATED_POLICIES: quarantined_policy_counts[str(policy)] += 1
+
+    used_generated: set[str] = set()
+    try:
+        raw_used = json.loads(used_path.read_text(encoding="utf-8"))
+        values = raw_used if isinstance(raw_used, list) else list(raw_used) if isinstance(raw_used, dict) else []
+        used_generated = {str(value) for value in values if GENERATED_BASENAME_RE.fullmatch(str(value))}
+        if not isinstance(raw_used, (list, dict)): warning("used_history_malformed", "", "expected list or object")
+    except FileNotFoundError: warning("used_history_unavailable", "", str(used_path))
+    except Exception as exc: warning("used_history_malformed", "", str(exc))
+
+    active_used = active_names & used_generated
+    quarantine_names = set(quarantined)
+    metadata_available = bool(analysis) and bool(audit)
+    coverage_complete = metadata_available and active_names == analysis_names == audit_names
+    return {
+        "snapshot_base_dir": str(base_dir), "active_generated_images": len(active_names), "quarantined_generated_images": len(quarantine_names),
+        "total_known_generated_images": len(active_names | quarantine_names), "active_analysis_records": len(analysis_names), "active_identity_records": len(audit_names),
+        "metadata_coverage": "complete" if coverage_complete else "inconsistent" if metadata_available else "unavailable",
+        "hash_valid": valid_hashes, "hash_total": len(active_names), "hash_validation": "complete" if valid_hashes == len(active_names) and not any(item["kind"].startswith("hash_") for item in warnings) else "inconsistent",
+        "active_policy_counts": {policy: policy_counts.get(policy, 0) for policy in GENERATED_POLICIES},
+        "quarantined_policy_counts": {policy: quarantined_policy_counts.get(policy, 0) for policy in GENERATED_POLICIES},
+        "generated_images_in_used_history": len(used_generated), "active_previously_used": len(active_used), "active_never_used": len(active_names - used_generated),
+        "quarantined_previously_used": len(quarantine_names & used_generated), "quarantined_never_used": len(quarantine_names - used_generated),
+        "completed_quarantine_transactions": completed_quarantines, "completed_restore_transactions": completed_restores,
+        "latest_quarantine": ({"transaction_id": latest_quarantine.get("transaction_id"), "timestamp": latest_quarantine.get("created_at"), "image_count": len(latest_quarantine.get("images") or [])} if latest_quarantine else None),
+        "latest_restore": ({"transaction_id": latest_restore.get("transaction_id"), "timestamp": latest_restore.get("created_at"), "image_count": len(latest_restore.get("images") or [])} if latest_restore else None),
+        "warnings": warnings, "warning_count": len(warnings), "health": "OK" if not warnings else "WARNING",
+    }
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -2683,6 +2841,62 @@ def render_markdown(report: Dict[str, Any]) -> str:
     generated_spacing = report.get("generated_image_spacing") or {}
     generated_spacing_latest = generated_spacing.get("latest") or {}
     generated_spacing_events = generated_spacing.get("events") or []
+    pool_health = report.get("generated_image_pool_health") or {}
+    if pool_health:
+        out.append("## Generated image pool health")
+        out.append("Current filesystem snapshot at digest generation time; these counts are not limited to the selected log window.")
+        out.append("")
+        out.append("```text")
+        out.append(f"active_generated_images       = {pool_health.get('active_generated_images', 'unavailable')}")
+        out.append(f"quarantined_generated_images  = {pool_health.get('quarantined_generated_images', 'unavailable')}")
+        out.append(f"total_known_generated_images  = {pool_health.get('total_known_generated_images', 'unavailable')}")
+        out.append(f"active_analysis_records       = {pool_health.get('active_analysis_records', 'unavailable')}")
+        out.append(f"active_identity_records       = {pool_health.get('active_identity_records', 'unavailable')}")
+        out.append(f"metadata_coverage             = {pool_health.get('metadata_coverage', 'unavailable')}")
+        out.append(f"hash_validation               = {pool_health.get('hash_valid', 0)} / {pool_health.get('hash_total', 0)} valid ({pool_health.get('hash_validation', 'unavailable')})")
+        out.append(f"generated_images_in_used_history = {pool_health.get('generated_images_in_used_history', 0)}")
+        out.append(f"health                        = {pool_health.get('health', 'WARNING')}")
+        out.append("```")
+        out.append("Active policy counts:")
+        out.append("```text")
+        for policy in GENERATED_POLICIES:
+            out.append(f"{policy:<18} = {(pool_health.get('active_policy_counts') or {}).get(policy, 0)}")
+        out.append("```")
+        out.append("Usage history:")
+        out.append("```text")
+        out.append(f"active_previously_used      = {pool_health.get('active_previously_used', 0)}")
+        out.append(f"active_never_used           = {pool_health.get('active_never_used', 0)}")
+        out.append(f"quarantined_previously_used = {pool_health.get('quarantined_previously_used', 0)}")
+        out.append(f"quarantined_never_used      = {pool_health.get('quarantined_never_used', 0)}")
+        out.append("```")
+        latest_quarantine = pool_health.get("latest_quarantine")
+        if latest_quarantine:
+            out.append("Latest completed quarantine:")
+            out.append("```text")
+            out.append(f"transaction_id = {latest_quarantine.get('transaction_id', '')}")
+            out.append(f"timestamp      = {latest_quarantine.get('timestamp', '')}")
+            out.append(f"image_count    = {latest_quarantine.get('image_count', 0)}")
+            out.append("```")
+        else:
+            out.append("Latest completed quarantine: none")
+            out.append("")
+        out.append(f"completed_quarantine_transactions = {pool_health.get('completed_quarantine_transactions', 0)}")
+        out.append(f"completed_restore_transactions    = {pool_health.get('completed_restore_transactions', 0)}")
+        if pool_health.get("latest_restore"):
+            restore = pool_health["latest_restore"]
+            out.append(f"latest_restore = {restore.get('transaction_id')} at {restore.get('timestamp')} ({restore.get('image_count', 0)} images)")
+        out.append("")
+        warnings = pool_health.get("warnings") or []
+        if warnings:
+            out.append("Pool-health warnings:")
+            out.append(md_table_row(["kind", "basename", "detail"]))
+            out.append(md_table_row(["---", "---", "---"]))
+            for item in warnings[:20]:
+                out.append(md_table_row([item.get("kind", ""), item.get("basename", ""), item.get("detail", "")]))
+            if len(warnings) > 20:
+                out.append(f"{len(warnings) - 20} additional warning(s) omitted.")
+            out.append("")
+
     if generated_spacing_latest or generated_spacing_events:
         out.append("## Generated image spacing")
         if generated_spacing_latest:
@@ -3280,6 +3494,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     report["resume_boundary_fingerprint_count"] = len(resume_boundary_fingerprints)
     report["resume_state_file"] = None if args.no_state else str(args.state_file)
     report["state_updated"] = False
+    report["generated_image_pool_health"] = generated_pool_health_snapshot(Path.cwd())
 
     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
     if (
