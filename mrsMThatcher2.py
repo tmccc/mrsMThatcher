@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import json
 import logging
+import math
 import mimetypes
 import os
 import random
@@ -196,6 +197,10 @@ GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN = 2
 QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
 IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
 GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
+ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = False
+ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(BASE_DIR / "original_image_editorial_analysis_experiment_v1.json")
+ORIGINAL_EDITORIAL_SHADOW_WEIGHT = 0.32
+ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT = 4.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
@@ -405,6 +410,10 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "GENERATED_IMAGE_ANALYSIS_FILE",
     "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
     "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN",
+    "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING",
+    "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
+    "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
+    "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
 
     # Operational hardening
     "STATE_BACKUP_COUNT",
@@ -511,6 +520,17 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
             raise ValueError(f"{key} must be positive")
         return coerced
 
+    if isinstance(current_value, float):
+        if isinstance(value, bool):
+            raise ValueError(f"{key} must be a number, not a boolean")
+        coerced = float(value)
+        if key in {"ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT"}:
+            if not math.isfinite(coerced):
+                raise ValueError(f"{key} must be finite")
+            if coerced < 0:
+                raise ValueError(f"{key} must be non-negative")
+        return coerced
+
     if isinstance(current_value, str):
         return str(value)
 
@@ -584,6 +604,16 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
     elif raw_generated_spacing < 0:
         errors.append("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative")
+
+    for key in ("ORIGINAL_EDITORIAL_SHADOW_WEIGHT", "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT"):
+        raw_value = values.get(key, globals().get(key, 0.0))
+        if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+            errors.append(f"{key} must be a number")
+            continue
+        if not math.isfinite(float(raw_value)):
+            errors.append(f"{key} must be finite")
+        elif float(raw_value) < 0:
+            errors.append(f"{key} must be non-negative")
 
     for key in ("MEME_TRIGGER_AFTER_HOUR", "MEME_FALLBACK_HOUR"):
         try:
@@ -4511,6 +4541,392 @@ def score_image_for_quote(quote_analysis: dict | None, image_analysis: dict | No
     return total, components, True
 
 
+ORIGINAL_EDITORIAL_ANALYSIS_KIND = "original_editorial_experiment"
+ORIGINAL_EDITORIAL_SCHEMA_VERSION = 1
+ORIGINAL_EDITORIAL_DIMENSIONS = [
+    "leadership",
+    "conviction",
+    "authority",
+    "defiance",
+    "warning",
+    "optimism",
+    "patriotism",
+    "statesmanship",
+    "economic_seriousness",
+    "human_warmth",
+    "ceremony_formality",
+    "historical_iconicity",
+]
+ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS = {
+    "ceremony",
+    "defiance",
+    "duty",
+    "economic",
+    "enterprise",
+    "family",
+    "freedom",
+    "humour",
+    "national_identity",
+    "patriotism",
+    "public_service",
+    "responsibility",
+    "socialism",
+    "victory",
+    "warning",
+}
+ORIGINAL_EDITORIAL_SYNONYMS = {
+    "ceremony": {"ceremony", "ceremonial", "ceremony_formality", "formal_ceremony"},
+    "defiance": {"defiance", "defiant", "political_struggle", "resistance", "confrontation"},
+    "duty": {"duty", "obligation", "responsibility"},
+    "economic": {"economic", "economic_seriousness", "economy", "fiscal", "finance", "markets"},
+    "enterprise": {"enterprise", "capitalism", "free_enterprise", "business"},
+    "family": {"family", "home", "children", "domestic_life"},
+    "freedom": {"freedom", "liberty", "individual_liberty"},
+    "humour": {"humour", "humor", "light_humour", "wit"},
+    "national_identity": {"national_identity", "nation", "britain", "britishness", "national_direction"},
+    "patriotism": {"patriotism", "national_pride"},
+    "public_service": {"public_service", "service", "civic_duty"},
+    "socialism": {"socialism", "communism", "collectivism"},
+    "victory": {"victory", "triumph", "winning"},
+    "warning": {"warning", "danger", "caution", "grave_warning"},
+}
+_ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT = {
+    normalise_tag(value): concept
+    for concept, values in ORIGINAL_EDITORIAL_SYNONYMS.items()
+    for value in values | {concept}
+}
+_ORIGINAL_EDITORIAL_ANALYSIS_CACHE: dict[str, dict] = {}
+
+
+def original_editorial_numeric(value: object, *, key: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{key} must be numeric in 0..10, got boolean")
+    try:
+        number = float(value)
+    except Exception as exc:
+        raise ValueError(f"{key} must be numeric in 0..10") from exc
+    if not math.isfinite(number):
+        raise ValueError(f"{key} must be finite")
+    if not 0.0 <= number <= 10.0:
+        raise ValueError(f"{key} outside 0..10: {number}")
+    return number
+
+
+def original_editorial_concepts(value: object) -> set[str]:
+    tag = normalise_tag(value)
+    if not tag:
+        return set()
+    if "_and_" in tag:
+        concepts: set[str] = set()
+        for part in tag.split("_and_"):
+            concepts.update(original_editorial_concepts(part))
+        return concepts
+    concept = _ORIGINAL_EDITORIAL_SYNONYM_TO_CONCEPT.get(tag)
+    if concept in ORIGINAL_EDITORIAL_AFFINITY_CONCEPTS:
+        return {concept}
+    return set()
+
+
+def original_editorial_quote_concepts(quote_analysis: dict | None) -> set[str]:
+    if not isinstance(quote_analysis, dict):
+        return set()
+    concepts: set[str] = set()
+    fields: list[object] = []
+    fields.extend(as_string_list(quote_analysis.get("primary_topics")))
+    fields.extend(as_string_list(quote_analysis.get("secondary_topics")))
+    fields.extend(as_string_list(quote_analysis.get("tone")))
+    prefs = quote_analysis.get("archive_image_preferences", {}) if isinstance(quote_analysis.get("archive_image_preferences"), dict) else {}
+    for key in ("preferred_subject_moods", "preferred_scenes", "preferred_activities", "preferred_visible_symbols", "visual_affinities"):
+        fields.extend(as_string_list(prefs.get(key)))
+    hist = quote_analysis.get("historical_context", {}) if isinstance(quote_analysis.get("historical_context"), dict) else {}
+    for key in ("referenced_events", "referenced_people", "referenced_places", "specificity"):
+        fields.extend(as_string_list(hist.get(key)))
+    for value in fields:
+        concepts.update(original_editorial_concepts(value))
+    return concepts
+
+
+def original_editorial_image_concepts(editorial: dict | None) -> set[str]:
+    if not isinstance(editorial, dict):
+        return set()
+    concepts: set[str] = set()
+    for key in ("abstract_quote_affinities", "editorial_functions", "best_quote_types"):
+        for value in as_string_list(editorial.get(key)):
+            concepts.update(original_editorial_concepts(value))
+    return concepts
+
+
+def original_editorial_avoid_concepts(editorial: dict | None) -> set[str]:
+    if not isinstance(editorial, dict):
+        return set()
+    concepts: set[str] = set()
+    for value in as_string_list(editorial.get("avoid_quote_types")):
+        concepts.update(original_editorial_concepts(value))
+    return concepts
+
+
+def original_editorial_quote_dimension_profile(quote_analysis: dict | None) -> dict[str, float]:
+    if not isinstance(quote_analysis, dict):
+        return {dim: 0.0 for dim in ORIGINAL_EDITORIAL_DIMENSIONS}
+    concepts = {normalise_tag(value) for value in as_string_list(quote_analysis.get("primary_topics")) + as_string_list(quote_analysis.get("secondary_topics"))}
+    controlled = original_editorial_quote_concepts(quote_analysis)
+    tone = {normalise_tag(value) for value in as_string_list(quote_analysis.get("tone"))}
+    prefs = quote_analysis.get("archive_image_preferences", {}) if isinstance(quote_analysis.get("archive_image_preferences"), dict) else {}
+    visual_energy = str(quote_analysis.get("visual_energy") or "").lower()
+    hist = quote_analysis.get("historical_context", {}) if isinstance(quote_analysis.get("historical_context"), dict) else {}
+    profile = {dim: 0.0 for dim in ORIGINAL_EDITORIAL_DIMENSIONS}
+
+    def add(dim: str, value: float) -> None:
+        profile[dim] = min(1.0, max(profile[dim], value))
+
+    if controlled & {"freedom", "duty", "responsibility"}:
+        add("conviction", 0.65)
+    if controlled & {"warning"} or tone & {"grave", "urgent", "warning"}:
+        add("warning", 0.7)
+    if controlled & {"defiance"} or tone & {"defiant", "confrontational"}:
+        add("defiance", 0.65)
+    if controlled & {"patriotism", "national_identity"}:
+        add("patriotism", 0.65)
+    if controlled & {"economic", "enterprise"}:
+        add("economic_seriousness", 0.75)
+    if controlled & {"family"} or tone & {"warm", "personal"}:
+        add("human_warmth", 0.7)
+    if controlled & {"ceremony"}:
+        add("ceremony_formality", 0.55)
+    if "socialism" in controlled:
+        add("conviction", 0.45)
+        add("economic_seriousness", 0.45)
+    if concepts & {"government", "law_and_order"} or tone & {"authoritative"}:
+        add("authority", 0.45)
+    if concepts & {"diplomacy", "parliament"}:
+        add("statesmanship", 0.5)
+    if hist.get("needs_historical_image_match") or str(hist.get("specificity")) in {"specific", "high"}:
+        add("historical_iconicity", 0.7)
+    if visual_energy == "high":
+        add("defiance", 0.35)
+    if visual_energy == "low":
+        add("statesmanship", 0.25)
+    for scene in as_string_list(prefs.get("preferred_scenes")):
+        scene_tag = normalise_tag(scene)
+        if scene_tag in {"parliament", "office_or_working"}:
+            add("statesmanship", 0.45)
+        if scene_tag == "formal_portrait":
+            add("authority", 0.3)
+    return profile
+
+
+def validate_original_editorial_item(basename: str, entry: dict, image_by_name: dict[str, str]) -> dict:
+    if generated_image_origin_quote_hash(basename):
+        raise ValueError(f"generated-style basename is not allowed in original editorial analysis: {basename}")
+    if basename not in image_by_name:
+        raise ValueError(f"original editorial image is not present in current image corpus: {basename}")
+    expected_sha = str(entry.get("sha256") or "")
+    if not expected_sha:
+        raise ValueError(f"missing sha256 for original editorial image {basename}")
+    current_sha = current_image_sha256(image_by_name[basename])
+    if current_sha != expected_sha:
+        raise ValueError(f"stale SHA-256 for original editorial image {basename}")
+    analysis = entry.get("analysis")
+    if not isinstance(analysis, dict):
+        raise ValueError(f"missing analysis for original editorial image {basename}")
+    dims = analysis.get("dimension_scores")
+    if not isinstance(dims, dict):
+        raise ValueError(f"dimension_scores for {basename} is not an object")
+    required_dims = set(ORIGINAL_EDITORIAL_DIMENSIONS)
+    actual_dims = set(dims)
+    missing_dims = sorted(required_dims - actual_dims)
+    unexpected_dims = sorted(actual_dims - required_dims)
+    if missing_dims or unexpected_dims:
+        details = []
+        if missing_dims:
+            details.append("missing dimensions: " + ", ".join(missing_dims))
+        if unexpected_dims:
+            details.append("unexpected dimensions: " + ", ".join(unexpected_dims))
+        raise ValueError(f"invalid dimension_scores schema for {basename}: {'; '.join(details)}")
+    for dim, value in dims.items():
+        original_editorial_numeric(value, key=f"{basename}.dimension_scores.{dim}")
+    original_editorial_numeric(analysis.get("overall_editorial_utility", 5.5), key=f"{basename}.overall_editorial_utility")
+    return analysis
+
+
+def load_original_editorial_analysis() -> dict[str, dict]:
+    path = Path(str(ORIGINAL_EDITORIAL_ANALYSIS_FILE)).expanduser()
+    cache_key = str(path)
+    if cache_key in _ORIGINAL_EDITORIAL_ANALYSIS_CACHE:
+        return _ORIGINAL_EDITORIAL_ANALYSIS_CACHE[cache_key]
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Original editorial analysis file is not a JSON object: {path}")
+    if data.get("analysis_kind") != ORIGINAL_EDITORIAL_ANALYSIS_KIND:
+        raise RuntimeError(f"Original editorial analysis has unexpected analysis_kind={data.get('analysis_kind')!r}")
+    if int(data.get("schema_version", 0) or 0) != ORIGINAL_EDITORIAL_SCHEMA_VERSION:
+        raise RuntimeError(f"Original editorial analysis has unsupported schema_version={data.get('schema_version')!r}")
+    items = data.get("items")
+    if not isinstance(items, dict):
+        raise RuntimeError("Original editorial analysis items must be an object")
+    image_by_name = {Path(path_text).name: path_text for path_text in current_image_paths()}
+    result: dict[str, dict] = {}
+    try:
+        for key, entry in items.items():
+            if not isinstance(entry, dict):
+                raise ValueError(f"invalid item for {key}")
+            basename = str(entry.get("basename") or key)
+            result[basename] = validate_original_editorial_item(basename, entry, image_by_name)
+        missing_originals = sorted(
+            basename
+            for basename in image_by_name
+            if not generated_image_origin_quote_hash(basename) and basename not in result
+        )
+        if missing_originals:
+            raise ValueError(f"missing original editorial analysis for current image(s): {', '.join(missing_originals[:5])}")
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid original editorial analysis {path}: {exc}") from exc
+    _ORIGINAL_EDITORIAL_ANALYSIS_CACHE[cache_key] = result
+    return result
+
+
+def validate_original_editorial_shadow_startup() -> None:
+    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+        return
+    count = len(load_original_editorial_analysis())
+    log.info(
+        "Original editorial shadow scoring enabled. analysis_file=%s original_items=%d weight=%s max_abs_adjustment=%s",
+        ORIGINAL_EDITORIAL_ANALYSIS_FILE,
+        count,
+        ORIGINAL_EDITORIAL_SHADOW_WEIGHT,
+        ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT,
+    )
+
+
+def original_editorial_shadow_score(
+    quote_analysis: dict | None,
+    editorial: dict | None,
+    *,
+    weight: float | None = None,
+    max_abs_adjustment: float | None = None,
+) -> tuple[float, dict]:
+    if not isinstance(editorial, dict):
+        return 0.0, {"dimension_score": 0.0, "affinity_score": 0.0, "utility_adjustment": 0.0, "penalty": 0.0, "cap_hit": False}
+    weight = ORIGINAL_EDITORIAL_SHADOW_WEIGHT if weight is None else float(weight)
+    max_abs_adjustment = ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT if max_abs_adjustment is None else float(max_abs_adjustment)
+    q_profile = original_editorial_quote_dimension_profile(quote_analysis)
+    raw_dims = editorial.get("dimension_scores") if isinstance(editorial.get("dimension_scores"), dict) else {}
+    dimension_terms: list[dict] = []
+    dimension_score = 0.0
+    for dim, q_value in q_profile.items():
+        if q_value <= 0:
+            continue
+        image_value = original_editorial_numeric(raw_dims.get(dim, 0), key=f"dimension_scores.{dim}") / 10.0
+        contribution = q_value * (image_value - 0.45) * 5.0
+        dimension_score += contribution
+        dimension_terms.append(
+            {
+                "dimension": dim,
+                "quote": round(q_value, 3),
+                "image": round(image_value, 3),
+                "contribution": round(contribution, 3),
+            }
+        )
+    if q_profile.get("warning", 0) > 0.55 and original_editorial_numeric(raw_dims.get("optimism", 0), key="dimension_scores.optimism") / 10.0 > 0.75:
+        dimension_score -= 1.5
+        dimension_terms.append({"dimension": "optimism_warning_tension", "contribution": -1.5})
+    if q_profile.get("defiance", 0) > 0.45 and original_editorial_numeric(raw_dims.get("ceremony_formality", 0), key="dimension_scores.ceremony_formality") / 10.0 > 0.85:
+        dimension_score -= 0.8
+        dimension_terms.append({"dimension": "ceremony_action_tension", "contribution": -0.8})
+
+    q_concepts = original_editorial_quote_concepts(quote_analysis)
+    image_concepts = original_editorial_image_concepts(editorial)
+    avoid = original_editorial_avoid_concepts(editorial)
+    affinity_matches = sorted(q_concepts & image_concepts)
+    avoid_matches = sorted(q_concepts & avoid)
+    affinity_score = min(4.0, 1.0 * len(affinity_matches))
+    penalty = 1.25 * len(avoid_matches)
+    utility = original_editorial_numeric(editorial.get("overall_editorial_utility", 5.5), key="overall_editorial_utility")
+    utility_adjustment = max(-0.5, min(1.0, (utility - 5.5) / 4.5))
+    raw_layer = dimension_score + affinity_score + utility_adjustment - penalty
+    weighted = raw_layer * weight
+    capped = max(-max_abs_adjustment, min(max_abs_adjustment, weighted))
+    return capped, {
+        "dimension_score": round(dimension_score, 4),
+        "affinity_score": round(affinity_score, 4),
+        "utility_adjustment": round(utility_adjustment, 4),
+        "penalty": round(penalty, 4),
+        "raw_layer": round(raw_layer, 4),
+        "weighted_adjustment": round(weighted, 4),
+        "capped_editorial_adjustment": round(capped, 4),
+        "cap_hit": abs(capped - weighted) > 1e-9,
+        "dimension_matches": [term["dimension"] for term in dimension_terms if term.get("contribution", 0) > 0],
+        "dimension_terms": dimension_terms,
+        "affinity_matches": affinity_matches,
+        "penalties": avoid_matches,
+    }
+
+
+def log_original_editorial_shadow_result(
+    quote_choice: dict,
+    production_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_phase: str,
+) -> None:
+    if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
+        return
+    editorial_by_basename = load_original_editorial_analysis()
+    original_rows: list[dict] = []
+    for candidate in scored_candidates:
+        if candidate.get("image_source") != "original":
+            continue
+        basename = str(candidate.get("basename") or "")
+        editorial = editorial_by_basename.get(basename)
+        if not editorial:
+            continue
+        adjustment, detail = original_editorial_shadow_score(quote_choice.get("analysis"), editorial)
+        baseline = float(candidate.get("score") or 0.0)
+        original_rows.append(
+            {
+                "basename": basename,
+                "baseline_score": baseline,
+                "editorial_adjustment": adjustment,
+                "shadow_score": baseline + adjustment,
+                "detail": detail,
+            }
+        )
+    if not original_rows:
+        return
+    original_rows.sort(key=lambda row: (-float(row["shadow_score"]), row["basename"]))
+    for idx, row in enumerate(original_rows, 1):
+        row["shadow_rank"] = idx
+    shadow_winner = original_rows[0]
+    production_basename = str(production_choice.get("basename") or "")
+    production_shadow = next((row for row in original_rows if row["basename"] == production_basename), None)
+    winner_changed = production_shadow is not None and shadow_winner["basename"] != production_basename
+    payload = {
+        "quote_hash": str(quote_choice.get("quote_hash") or ""),
+        "line_no": int(quote_choice.get("line_no", -1)),
+        "selection_phase": selection_phase,
+        "production_source": str(production_choice.get("image_source") or "original"),
+        "production_winner": production_basename,
+        "production_baseline_score": round(float(production_choice.get("score") or 0.0), 4),
+        "production_editorial_adjustment": round(float(production_shadow["editorial_adjustment"]), 4) if production_shadow else None,
+        "production_shadow_score": round(float(production_shadow["shadow_score"]), 4) if production_shadow else None,
+        "production_shadow_rank": int(production_shadow["shadow_rank"]) if production_shadow else None,
+        "shadow_original_winner": shadow_winner["basename"],
+        "shadow_winner_baseline_score": round(float(shadow_winner["baseline_score"]), 4),
+        "shadow_winner_editorial_adjustment": round(float(shadow_winner["editorial_adjustment"]), 4),
+        "shadow_winner_score": round(float(shadow_winner["shadow_score"]), 4),
+        "winner_changed": bool(winner_changed),
+        "eligible_original_count": len(original_rows),
+        "weight": float(ORIGINAL_EDITORIAL_SHADOW_WEIGHT),
+        "max_abs_adjustment": float(ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT),
+        "cap_hit": bool(shadow_winner["detail"].get("cap_hit") or (production_shadow or {}).get("detail", {}).get("cap_hit")),
+        "dimension_matches": shadow_winner["detail"].get("dimension_matches", [])[:8],
+        "affinity_matches": shadow_winner["detail"].get("affinity_matches", [])[:8],
+        "penalties": shadow_winner["detail"].get("penalties", [])[:8],
+    }
+    log.info("ORIGINAL_EDITORIAL_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
+
+
 def concise_components(components: dict[str, float]) -> str:
     return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
 
@@ -4928,6 +5344,7 @@ def choose_matched_unused_image(
     avoid_last_image_at_cycle_boundary: bool = True,
     cycle_boundary_exclusions: set[str] | None = None,
     generated_images_allowed: bool | None = None,
+    selection_phase: str = "normal",
 ) -> dict:
     images = current_image_paths()
     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
@@ -5065,6 +5482,7 @@ def choose_matched_unused_image(
         concise_components(chosen["components"]),
     )
     log_regular_image_selection(chosen)
+    log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",
@@ -5099,6 +5517,9 @@ def choose_regular_quote_image_pair(
             raise
         attempted_quote_hashes.add(str(quote_choice["quote_hash"]))
         try:
+            selection_phase = "normal"
+            if force_image_cycle_reset:
+                selection_phase = "forced_cycle_reset" if avoid_last_image_at_cycle_boundary else "last_image_fallback"
             image_choice = choose_matched_unused_image(
                 images_used,
                 quote_choice,
@@ -5107,6 +5528,7 @@ def choose_regular_quote_image_pair(
                 avoid_last_image_at_cycle_boundary=avoid_last_image_at_cycle_boundary,
                 cycle_boundary_exclusions=cycle_boundary_exclusions if force_image_cycle_reset else None,
                 generated_images_allowed=generated_images_allowed,
+                selection_phase=selection_phase,
             )
             if attempts > 1:
                 log.info(
@@ -7613,6 +8035,8 @@ def main() -> None:
     if ENABLE_DAILY_MEME_POSTS:
         meme_candidates_at_start = list_meme_candidates()
         log.info("Meme candidates found at startup=%d", len(meme_candidates_at_start))
+
+    validate_original_editorial_shadow_startup()
 
     with open(LINES_FILE, encoding="utf-8") as f:
         quote_lines_for_history = f.readlines()

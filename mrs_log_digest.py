@@ -883,6 +883,49 @@ def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    total = len(events)
+    comparable_originals = [item for item in events if item.get("production_source") == "original"]
+    production_original = len(comparable_originals)
+    production_generated = sum(1 for item in events if item.get("production_source") == "generated")
+    changed = [item for item in comparable_originals if item.get("winner_changed") is True]
+    ranks = [int(item["production_shadow_rank"]) for item in events if item.get("production_shadow_rank") is not None]
+    rank1 = sum(1 for rank in ranks if rank == 1)
+    rank2_3 = sum(1 for rank in ranks if rank in {2, 3})
+    adjustments = []
+    cap_hits = 0
+    affinity = Counter()
+    dimensions = Counter()
+    winners = Counter()
+    for item in events:
+        winners[str(item.get("shadow_original_winner") or "")] += 1
+        value = item.get("shadow_winner_editorial_adjustment")
+        if isinstance(value, (int, float)):
+            adjustments.append(abs(float(value)))
+        if item.get("cap_hit"):
+            cap_hits += 1
+        affinity.update(str(value) for value in item.get("affinity_matches") or [])
+        dimensions.update(str(value) for value in item.get("dimension_matches") or [])
+    return {
+        "observations": total,
+        "production_original": production_original,
+        "production_generated": production_generated,
+        "comparable_original_observations": production_original,
+        "winner_changes": len(changed),
+        "winner_change_percent": (len(changed) / production_original * 100.0) if production_original else 0.0,
+        "average_production_winner_shadow_rank": (sum(ranks) / len(ranks)) if ranks else None,
+        "production_rank_1": rank1,
+        "production_rank_2_or_3": rank2_3,
+        "shadow_winner_differed": len(changed),
+        "most_frequent_shadow_winners": winners.most_common(8),
+        "most_frequent_affinity_concepts": affinity.most_common(8),
+        "most_frequent_active_dimensions": dimensions.most_common(8),
+        "average_abs_editorial_adjustment": (sum(adjustments) / len(adjustments)) if adjustments else 0.0,
+        "max_abs_editorial_adjustment": max(adjustments) if adjustments else 0.0,
+        "cap_hit_count": cap_hits,
+    }
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -907,6 +950,7 @@ def analyse(
     xai_usage_events: List[Dict[str, Any]] = []
     xai_usage_parse_errors: List[Dict[str, Any]] = []
     regular_image_usage_events: List[Dict[str, Any]] = []
+    original_editorial_shadow_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
     latest_generated_image_spacing: Dict[str, Any] = {}
     cooldown_active: List[Dict[str, Any]] = []
@@ -1477,6 +1521,24 @@ def analyse(
             )
             continue
 
+        if "ORIGINAL_EDITORIAL_SHADOW_RESULT " in msg:
+            raw = msg.split("ORIGINAL_EDITORIAL_SHADOW_RESULT ", 1)[1].strip()
+            try:
+                parsed = json.loads(raw)
+            except Exception as exc:
+                errors.append({
+                    "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
+                    "level": r.level,
+                    "message": f"Malformed ORIGINAL_EDITORIAL_SHADOW_RESULT: {exc}: {short(raw, 240)}",
+                })
+                stats["original_editorial_shadow_parse_errors"] += 1
+                continue
+            if isinstance(parsed, dict):
+                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+                original_editorial_shadow_events.append(parsed)
+                stats["original_editorial_shadow_observations"] += 1
+            continue
+
         m = re.search(
             r"GENERATED_IMAGE_SPACING_STATUS pool_enabled=(true|false) allowed=(true|false) "
             r"original_posts_since_generated=(\d+) required=(\d+)",
@@ -1980,6 +2042,10 @@ def analyse(
         "regular_image_usage": {
             "events": regular_image_usage_events,
             "summary": regular_image_usage_summary(regular_image_usage_events),
+        },
+        "original_editorial_shadow": {
+            "events": original_editorial_shadow_events,
+            "summary": original_editorial_shadow_summary(original_editorial_shadow_events),
         },
         "generated_image_spacing": {
             "latest": latest_generated_image_spacing,
@@ -2557,6 +2623,70 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 item.get("made_with_ai", ""),
             ]))
         out.append("")
+
+    shadow = report.get("original_editorial_shadow") or {}
+    shadow_events = shadow.get("events") or []
+    shadow_summary = shadow.get("summary") or {}
+    if shadow_events:
+        out.append("## Original editorial shadow scoring")
+        out.append("This section is shadow-only. It reports hypothetical original-image choices and does not imply the shadow image was posted.")
+        out.append("")
+        out.append("```text")
+        out.append(f"shadow_observations                  = {shadow_summary.get('observations', 0)}")
+        out.append(f"production_original_winners          = {shadow_summary.get('production_original', 0)}")
+        out.append(f"production_generated_winners         = {shadow_summary.get('production_generated', 0)}")
+        out.append(f"comparable_original_observations     = {shadow_summary.get('comparable_original_observations', 0)}")
+        out.append(f"original_winner_changes              = {shadow_summary.get('winner_changes', 0)} ({float(shadow_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        avg_rank = shadow_summary.get("average_production_winner_shadow_rank")
+        out.append(f"average_production_winner_shadow_rank = {avg_rank if avg_rank is not None else 'n/a'}")
+        out.append(f"production_winner_shadow_rank_1      = {shadow_summary.get('production_rank_1', 0)}")
+        out.append(f"production_winner_shadow_rank_2_or_3 = {shadow_summary.get('production_rank_2_or_3', 0)}")
+        out.append(f"average_abs_editorial_adjustment     = {float(shadow_summary.get('average_abs_editorial_adjustment', 0.0)):.2f}")
+        out.append(f"max_abs_editorial_adjustment         = {float(shadow_summary.get('max_abs_editorial_adjustment', 0.0)):.2f}")
+        out.append(f"cap_hit_count                        = {shadow_summary.get('cap_hit_count', 0)}")
+        out.append("```")
+        if shadow_summary.get("most_frequent_shadow_winners"):
+            out.append("Most frequent shadow winners:")
+            out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_shadow_winners", []) if name))
+            out.append("")
+        if shadow_summary.get("most_frequent_affinity_concepts"):
+            out.append("Most frequent affinity concepts:")
+            out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_affinity_concepts", []) if name))
+            out.append("")
+        if shadow_summary.get("most_frequent_active_dimensions"):
+            out.append("Most frequent positive shadow-winner dimensions:")
+            out.append(", ".join(f"{name} ({count})" for name, count in shadow_summary.get("most_frequent_active_dimensions", []) if name))
+            out.append("")
+        changed_shadow = [
+            item
+            for item in shadow_events
+            if item.get("production_source") == "original" and item.get("winner_changed") is True
+        ]
+        if changed_shadow:
+            out.append("Changed-winner observations:")
+            out.append(md_table_row(["time", "line_no", "production", "shadow", "production rank", "adjustment", "reason"]))
+            out.append(md_table_row(["---"] * 7))
+            for item in changed_shadow[:20]:
+                reason_bits = []
+                if item.get("affinity_matches"):
+                    reason_bits.append("affinity=" + ",".join(str(v) for v in item.get("affinity_matches", [])[:4]))
+                if item.get("dimension_matches"):
+                    reason_bits.append("dimensions=" + ",".join(str(v) for v in item.get("dimension_matches", [])[:4]))
+                if item.get("penalties"):
+                    reason_bits.append("penalties=" + ",".join(str(v) for v in item.get("penalties", [])[:3]))
+                out.append(md_table_row([
+                    item.get("time", ""),
+                    item.get("line_no", ""),
+                    f"{item.get('production_winner', '')} ({item.get('production_source', '')})",
+                    item.get("shadow_original_winner", ""),
+                    item.get("production_shadow_rank", ""),
+                    item.get("shadow_winner_editorial_adjustment", ""),
+                    "; ".join(reason_bits),
+                ]))
+            out.append("")
+        else:
+            out.append("No changed-winner observations in this window.")
+            out.append("")
 
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})
