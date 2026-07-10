@@ -966,6 +966,36 @@ def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
+def generated_identity_policy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    relevant = [item for item in events if sum(int(item.get(key, 0) or 0) for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")) > 0]
+    changed = [item for item in relevant if item.get("winner_changed_by_policy") is True]
+    excluded = Counter()
+    replacements = Counter()
+    phases = Counter()
+    for item in events:
+        excluded.update(str(value) for value in item.get("excluded_generated_basenames") or [])
+        if item.get("winner_changed_by_policy"):
+            replacements[str(item.get("production_winner") or "no_winner")] += 1
+        phases[str(item.get("selection_phase") or "unknown")] += 1
+    return {
+        "observations": len(events),
+        "policy_relevant_observations": len(relevant),
+        "winner_changes": len(changed),
+        "winner_change_percent": (len(changed) / len(relevant) * 100.0) if relevant else 0.0,
+        "baseline_origin_only_prevented": sum(item.get("baseline_identity_action") == "generated_cross_quote_origin_only_excluded" and item.get("winner_changed_by_policy") is True for item in events),
+        "baseline_small_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_small_penalty" and item.get("winner_changed_by_policy") is True for item in events),
+        "baseline_strong_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_strong_penalty" and item.get("winner_changed_by_policy") is True for item in events),
+        "replacement_source_transitions": Counter(str(item.get("replacement_source_transition") or "unknown") for item in events if item.get("winner_changed_by_policy")).most_common(),
+        "cross_quote_candidates_excluded": sum(int(item.get("origin_quote_only_excluded_count", 0) or 0) for item in events),
+        "cross_quote_candidates_penalised": sum(int(item.get("small_penalty_count", 0) or 0) + int(item.get("strong_penalty_count", 0) or 0) for item in events),
+        "most_frequent_excluded_images": excluded.most_common(8),
+        "most_frequent_replacement_images": replacements.most_common(8),
+        "selection_phases": phases.most_common(),
+        "recovery_observations": sum(str(item.get("recovery_effect") or "none") != "none" for item in events),
+        "no_valid_candidate_events": 0,
+    }
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -992,6 +1022,7 @@ def analyse(
     regular_image_usage_events: List[Dict[str, Any]] = []
     original_editorial_shadow_events: List[Dict[str, Any]] = []
     generated_identity_shadow_events: List[Dict[str, Any]] = []
+    generated_identity_policy_events: List[Dict[str, Any]] = []
     generated_image_spacing_events: List[Dict[str, Any]] = []
     latest_generated_image_spacing: Dict[str, Any] = {}
     cooldown_active: List[Dict[str, Any]] = []
@@ -1598,6 +1629,20 @@ def analyse(
                 stats["generated_identity_shadow_observations"] += 1
             continue
 
+        if "GENERATED_IDENTITY_POLICY_APPLIED " in msg:
+            raw = msg.split("GENERATED_IDENTITY_POLICY_APPLIED ", 1)[1].strip()
+            try:
+                parsed = json.loads(raw)
+            except Exception as exc:
+                errors.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": f"Malformed GENERATED_IDENTITY_POLICY_APPLIED: {exc}: {short(raw, 240)}"})
+                stats["generated_identity_policy_parse_errors"] += 1
+                continue
+            if isinstance(parsed, dict):
+                parsed["time"] = r.ts.strftime("%Y-%m-%d %H:%M:%S")
+                generated_identity_policy_events.append(parsed)
+                stats["generated_identity_policy_observations"] += 1
+            continue
+
         m = re.search(
             r"GENERATED_IMAGE_SPACING_STATUS pool_enabled=(true|false) allowed=(true|false) "
             r"original_posts_since_generated=(\d+) required=(\d+)",
@@ -2109,6 +2154,10 @@ def analyse(
         "generated_identity_shadow": {
             "events": generated_identity_shadow_events,
             "summary": generated_identity_shadow_summary(generated_identity_shadow_events),
+        },
+        "generated_identity_policy": {
+            "events": generated_identity_policy_events,
+            "summary": generated_identity_policy_summary(generated_identity_policy_events),
         },
         "generated_image_spacing": {
             "latest": latest_generated_image_spacing,
@@ -2749,6 +2798,41 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
         else:
             out.append("No changed-winner observations in this window.")
+            out.append("")
+
+    identity_policy = report.get("generated_identity_policy") or {}
+    identity_policy_events = identity_policy.get("events") or []
+    identity_policy_summary = identity_policy.get("summary") or {}
+    if identity_policy_events:
+        out.append("## Generated identity policy")
+        out.append("This policy is active in real production. The baseline comparison is observational; the baseline image was not necessarily posted.")
+        out.append("")
+        out.append("The winner-change percentage denominator is selections where at least one cross-quote generated candidate was penalised or excluded.")
+        out.append("")
+        out.append("```text")
+        out.append(f"regular_selections_under_policy        = {identity_policy_summary.get('observations', 0)}")
+        out.append(f"policy_relevant_selections             = {identity_policy_summary.get('policy_relevant_observations', 0)}")
+        out.append(f"baseline_winner_changed                = {identity_policy_summary.get('winner_changes', 0)} ({float(identity_policy_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        out.append(f"origin_only_baseline_winners_prevented = {identity_policy_summary.get('baseline_origin_only_prevented', 0)}")
+        out.append(f"small_penalty_baseline_winners_displaced = {identity_policy_summary.get('baseline_small_penalty_displaced', 0)}")
+        out.append(f"strong_penalty_baseline_winners_displaced = {identity_policy_summary.get('baseline_strong_penalty_displaced', 0)}")
+        out.append(f"cross_quote_candidates_excluded       = {identity_policy_summary.get('cross_quote_candidates_excluded', 0)}")
+        out.append(f"cross_quote_candidates_penalised      = {identity_policy_summary.get('cross_quote_candidates_penalised', 0)}")
+        out.append(f"recovery_observations                  = {identity_policy_summary.get('recovery_observations', 0)}")
+        out.append(f"no_valid_candidate_events             = {identity_policy_summary.get('no_valid_candidate_events', 0)}")
+        out.append("```")
+        for label, key in (("Replacement source transitions", "replacement_source_transitions"), ("Most frequently excluded images", "most_frequent_excluded_images"), ("Most frequent replacement images", "most_frequent_replacement_images"), ("Selection phases", "selection_phases")):
+            values = identity_policy_summary.get(key) or []
+            if values:
+                out.append(f"{label}: " + ", ".join(f"{name} ({count})" for name, count in values if name))
+                out.append("")
+        changed_policy = [item for item in identity_policy_events if item.get("winner_changed_by_policy") is True]
+        if changed_policy:
+            out.append("Changed baseline winners:")
+            out.append(md_table_row(["time", "line_no", "baseline (not necessarily posted)", "action", "production winner", "baseline score", "policy score", "phase"]))
+            out.append(md_table_row(["---"] * 8))
+            for item in changed_policy[:20]:
+                out.append(md_table_row([item.get("time", ""), item.get("line_no", ""), f"{item.get('baseline_winner', '')} ({item.get('baseline_winner_source', '')})", item.get("baseline_identity_action", ""), f"{item.get('production_winner', '')} ({item.get('production_winner_source', '')})", item.get("baseline_winner_score", ""), item.get("production_policy_score", ""), item.get("selection_phase", "")]))
             out.append("")
 
     identity_shadow = report.get("generated_identity_shadow") or {}

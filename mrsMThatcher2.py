@@ -203,6 +203,7 @@ ORIGINAL_EDITORIAL_ANALYSIS_FILE = str(BASE_DIR / "original_image_editorial_anal
 ORIGINAL_EDITORIAL_SHADOW_WEIGHT = 0.32
 ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT = 4.0
 ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = False
+ENABLE_GENERATED_IDENTITY_POLICY_SCORING = False
 GENERATED_IDENTITY_AUDIT_FILE = str(BASE_DIR / "generated_image_identity_dependence_audit.json")
 GENERATED_IDENTITY_SHADOW_SMALL_PENALTY = 6.0
 GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
@@ -420,6 +421,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "ORIGINAL_EDITORIAL_SHADOW_WEIGHT",
     "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT",
     "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING",
+    "ENABLE_GENERATED_IDENTITY_POLICY_SCORING",
     "GENERATED_IDENTITY_AUDIT_FILE",
     "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY",
     "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY",
@@ -4922,18 +4924,28 @@ def load_generated_identity_audit() -> dict[str, dict]:
 
 
 def validate_generated_identity_shadow_startup() -> None:
-    if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
+    if not (ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING or ENABLE_GENERATED_IDENTITY_POLICY_SCORING):
         return
     items = load_generated_identity_audit()
     policies = Counter(str(item.get("recommended_cross_quote_policy")) for item in items.values())
-    log.info(
-        "Generated identity-policy shadow scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
-        GENERATED_IDENTITY_AUDIT_FILE,
-        len(items),
-        dict(sorted(policies.items())),
-        GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
-        GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
-    )
+    if ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
+        log.info(
+            "Generated identity-policy shadow scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
+            GENERATED_IDENTITY_AUDIT_FILE,
+            len(items),
+            dict(sorted(policies.items())),
+            GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
+            GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
+        )
+    if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+        log.info(
+            "Generated identity policy production scoring enabled. audit_file=%s items=%d policies=%s small_penalty=%s strong_penalty=%s",
+            GENERATED_IDENTITY_AUDIT_FILE,
+            len(items),
+            dict(sorted(policies.items())),
+            GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
+            GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
+        )
 
 
 def generated_identity_candidate_shadow_row(candidate: dict, audit_by_basename: dict[str, dict]) -> dict:
@@ -5043,6 +5055,88 @@ def generated_identity_policy_shadow_result(
         "strong_penalty": float(GENERATED_IDENTITY_SHADOW_STRONG_PENALTY),
         "shadow_tie_count": len(tied),
     }
+
+
+def generated_identity_policy_selection(
+    scored_candidates: list[dict],
+    *,
+    audit_by_basename: dict[str, dict] | None = None,
+) -> tuple[list[dict], list[dict]]:
+    """Return policy rows and eligible candidates without mutating input rows."""
+    audit_by_basename = load_generated_identity_audit() if audit_by_basename is None else audit_by_basename
+    rows = [generated_identity_candidate_shadow_row(candidate, audit_by_basename) for candidate in scored_candidates]
+    candidates_by_name = {str(candidate["basename"]): candidate for candidate in scored_candidates}
+    eligible: list[dict] = []
+    for row in rows:
+        if row["identity_shadow_score"] is None:
+            continue
+        candidate = dict(candidates_by_name[row["basename"]])
+        candidate["baseline_score"] = float(row["baseline_score"])
+        candidate["score"] = float(row["identity_shadow_score"])
+        candidate["identity_policy"] = row["identity_policy"]
+        candidate["identity_action"] = row["identity_action"]
+        candidate["identity_adjustment"] = row["identity_adjustment"]
+        eligible.append(candidate)
+    return rows, eligible
+
+
+def generated_identity_policy_applied_result(
+    quote_choice: dict,
+    baseline_winner: dict,
+    production_winner: dict,
+    baseline_candidates: list[dict],
+    policy_rows: list[dict],
+    policy_tie_count: int,
+    *,
+    selection_phase: str,
+) -> dict:
+    rows_by_name = {row["basename"]: row for row in policy_rows}
+    baseline_row = rows_by_name[str(baseline_winner["basename"])]
+    production_row = rows_by_name[str(production_winner["basename"])]
+    generated_rows = [row for row in policy_rows if row["source"] == "generated"]
+    cross_quote = [row for row in generated_rows if not row["origin_quote_match"]]
+    excluded = sorted(row["basename"] for row in cross_quote if row["identity_policy"] == "origin_quote_only")
+    penalised = sorted(row["basename"] for row in cross_quote if row["identity_policy"] in {"small_penalty", "strong_penalty"})
+    changed = baseline_row["basename"] != production_row["basename"]
+    return {
+        "quote_hash": str(quote_choice.get("quote_hash") or ""),
+        "line_no": int(quote_choice.get("line_no", -1)),
+        "selection_phase": selection_phase,
+        "baseline_winner": baseline_row["basename"],
+        "baseline_winner_source": baseline_row["source"],
+        "baseline_winner_score": round(float(baseline_row["baseline_score"]), 4),
+        "baseline_origin_quote_match": baseline_row["origin_quote_match"],
+        "baseline_identity_policy": baseline_row["identity_policy"],
+        "baseline_identity_action": baseline_row["identity_action"],
+        "production_winner": production_row["basename"],
+        "production_winner_source": production_row["source"],
+        "production_policy_score": round(float(production_winner["score"]), 4),
+        "production_baseline_score": round(float(production_row["baseline_score"]), 4),
+        "production_origin_quote_match": production_row["origin_quote_match"],
+        "production_identity_policy": production_row["identity_policy"],
+        "production_identity_action": production_row["identity_action"],
+        "production_identity_adjustment": production_row["identity_adjustment"],
+        "winner_changed_by_policy": changed,
+        "eligible_candidate_count_before_policy": len(baseline_candidates),
+        "eligible_original_count_before_policy": sum(row["source"] == "original" for row in policy_rows),
+        "eligible_generated_count_before_policy": len(generated_rows),
+        "eligible_candidate_count_after_policy": sum(row["identity_shadow_score"] is not None for row in policy_rows),
+        "origin_quote_only_excluded_count": len(excluded),
+        "small_penalty_count": sum(row["identity_policy"] == "small_penalty" for row in cross_quote),
+        "strong_penalty_count": sum(row["identity_policy"] == "strong_penalty" for row in cross_quote),
+        "excluded_generated_basenames": excluded[:12],
+        "excluded_generated_basenames_truncated": len(excluded) > 12,
+        "penalised_generated_basenames": penalised[:12],
+        "penalised_generated_basenames_truncated": len(penalised) > 12,
+        "replacement_source_transition": f"{baseline_row['source']}->{production_row['source']}" if changed else "unchanged",
+        "policy_tie_count": int(policy_tie_count),
+        "baseline_tie_handling": "deterministic_basename",
+        "recovery_effect": selection_phase if selection_phase != "normal" else "none",
+    }
+
+
+def log_generated_identity_policy_applied_result(payload: dict) -> None:
+    log.info("GENERATED_IDENTITY_POLICY_APPLIED %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
 
 
 def log_generated_identity_policy_shadow_result(
@@ -5742,8 +5836,25 @@ def choose_matched_unused_image(
     if not scored:
         raise QuoteSpecificImageMismatch("No metadata-eligible regular-post images matched the selected quote")
 
-    best_score = max(float(item["score"]) for item in scored)
-    tied = [item for item in scored if float(item["score"]) == best_score]
+    baseline_best_score = max(float(item["score"]) for item in scored)
+    baseline_tied = [item for item in scored if float(item["score"]) == baseline_best_score]
+    baseline_winner = min(baseline_tied, key=lambda item: str(item["basename"]))
+    policy_rows: list[dict] | None = None
+    if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+        policy_rows, policy_candidates = generated_identity_policy_selection(scored)
+        if not policy_candidates:
+            log.warning(
+                "Generated identity policy exhausted phase-specific candidates. line_no=%s quote_hash=%s phase=%s",
+                quote_choice.get("line_no"),
+                quote_choice.get("quote_hash"),
+                selection_phase,
+            )
+            raise QuoteSpecificImageMismatch("Generated identity policy excluded all phase-specific candidates")
+        best_score = max(float(item["score"]) for item in policy_candidates)
+        tied = [item for item in policy_candidates if float(item["score"]) == best_score]
+    else:
+        best_score = baseline_best_score
+        tied = baseline_tied
     chosen = random.choice(tied)
 
     log.info(
@@ -5755,7 +5866,21 @@ def choose_matched_unused_image(
     )
     log_regular_image_selection(chosen)
     log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
-    log_generated_identity_policy_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
+    if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+        assert policy_rows is not None
+        log_generated_identity_policy_applied_result(
+            generated_identity_policy_applied_result(
+                quote_choice,
+                baseline_winner,
+                chosen,
+                scored,
+                policy_rows,
+                len(tied),
+                selection_phase=selection_phase,
+            )
+        )
+    else:
+        log_generated_identity_policy_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",
