@@ -67,9 +67,9 @@ def test_bootstrap_is_explicit_valid_and_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
     for key in ("CONSUMER_KEY", "CONSUMER_SECRET", "ACCESS_TOKEN", "ACCESS_SECRET", "MY_USER_ID", "XAI_API_KEY"):
         monkeypatch.setattr(bot, key, "test-value")
-    bot.production_bootstrap()
+    bot.production_bootstrap(configure_file_logging=False)
     path.write_text("{")
-    bot.production_bootstrap()
+    bot.production_bootstrap(configure_file_logging=False)
     assert (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX) == (8000, 8200)
 
 
@@ -104,7 +104,7 @@ def test_operational_entry_points_require_bootstrap_before_side_effects(monkeypa
 def test_successful_bootstrap_opens_guard_and_operational_dispatch(tmp_path, monkeypatch):
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
-    monkeypatch.setattr(bot, "setup_logging", lambda: bot.log)
+    monkeypatch.setattr(bot, "setup_logging", lambda **_kwargs: bot.log)
     monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
     monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
     reached_lock: list[bool] = []
@@ -131,7 +131,7 @@ def test_failed_bootstrap_leaves_operational_guard_closed(tmp_path, monkeypatch)
     path.write_text("{")
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
-    monkeypatch.setattr(bot, "setup_logging", lambda: bot.log)
+    monkeypatch.setattr(bot, "setup_logging", lambda **_kwargs: bot.log)
 
     with pytest.raises(bot.LocalConfigError):
         bot.production_bootstrap()

@@ -256,44 +256,77 @@ MEME_ANALYSIS_FILE = BASE_DIR / "final_posting_queue_top90_as_is" / "renamed_png
 # Logging
 # ---------------------------------------------------------------------
 
-def setup_logging() -> logging.Logger:
-    BASE_DIR.mkdir(parents=True, exist_ok=True)
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+_MANAGED_LOG_HANDLER_ATTR = "_mrs_mthatcher_managed_handler"
+
+
+def remove_managed_log_handlers(logger: logging.Logger) -> None:
+    """Detach and close handlers installed by this module."""
+    for handler in list(logger.handlers):
+        if not getattr(handler, _MANAGED_LOG_HANDLER_ATTR, False):
+            continue
+        logger.removeHandler(handler)
+        handler.close()
+
+
+def mark_managed_log_handler(handler: logging.Handler, kind: str) -> logging.Handler:
+    setattr(handler, _MANAGED_LOG_HANDLER_ATTR, True)
+    setattr(handler, "_mrs_mthatcher_handler_kind", kind)
+    return handler
+
+
+def setup_logging(
+    *,
+    log_path: Path | None = None,
+    configure_file_logging: bool = True,
+) -> logging.Logger:
+    target_log = Path(log_path).expanduser() if log_path is not None else LOG_FILE
+    if configure_file_logging and os.getenv("PYTEST_CURRENT_TEST") and path_is_same_or_child(target_log, PRODUCTION_BASE_DIR):
+        raise RuntimeError(f"Refusing to attach pytest process to production log: {target_log}")
+    if configure_file_logging:
+        target_log.parent.mkdir(parents=True, exist_ok=True)
 
     level_name = os.getenv("LOG_LEVEL", "DEBUG").upper()
     level = getattr(logging, level_name, logging.DEBUG)
 
     logger = logging.getLogger("mrsMThatcher")
     logger.setLevel(level)
-    logger.handlers.clear()
+    logger.propagate = False
+    remove_managed_log_handlers(logger)
 
     formatter = logging.Formatter(
         fmt="%(asctime)s %(levelname)-8s %(funcName)s:%(lineno)d - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler = mark_managed_log_handler(logging.StreamHandler(sys.stdout), "console")
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    file_handler = RotatingFileHandler(
-        LOG_FILE,
-        maxBytes=2_000_000,
-        backupCount=5,
-    )
-    file_handler.setLevel(level)
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
+    if configure_file_logging:
+        file_handler = mark_managed_log_handler(
+            RotatingFileHandler(target_log, maxBytes=2_000_000, backupCount=5),
+            "file",
+        )
+        setattr(file_handler, "_mrs_mthatcher_log_path", str(target_log.resolve()))
+        file_handler.setLevel(level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
-    logger.debug("Logging initialised. LOG_LEVEL=%s LOG_FILE=%s", level_name, LOG_FILE)
+    logger.debug(
+        "Logging initialised. LOG_LEVEL=%s LOG_FILE=%s",
+        level_name,
+        target_log if configure_file_logging else "<disabled>",
+    )
     return logger
 
 
 log = logging.getLogger("mrsMThatcher")
 _IMPORT_LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "DEBUG").upper(), logging.DEBUG)
 log.setLevel(_IMPORT_LOG_LEVEL)
-_IMPORT_CONSOLE_HANDLER = logging.StreamHandler(sys.stdout)
+log.propagate = False
+remove_managed_log_handlers(log)
+_IMPORT_CONSOLE_HANDLER = mark_managed_log_handler(logging.StreamHandler(sys.stdout), "import_console")
 _IMPORT_CONSOLE_HANDLER.setLevel(_IMPORT_LOG_LEVEL)
 _IMPORT_CONSOLE_HANDLER.setFormatter(logging.Formatter(
     fmt="%(asctime)s %(levelname)-8s %(funcName)s:%(lineno)d - %(message)s",
@@ -744,12 +777,16 @@ if SOURCE_DEFAULT_CONFIG_ERRORS:
     raise RuntimeError("Invalid source default config: " + "; ".join(SOURCE_DEFAULT_CONFIG_ERRORS))
 
 
-def production_bootstrap() -> None:
+def production_bootstrap(
+    *,
+    log_path: Path | None = None,
+    configure_file_logging: bool = True,
+) -> None:
     """Apply and validate deployment-local configuration exactly once."""
     global _PRODUCTION_BOOTSTRAPPED, log
     if _PRODUCTION_BOOTSTRAPPED:
         return
-    log = setup_logging()
+    log = setup_logging(log_path=log_path, configure_file_logging=configure_file_logging)
     apply_local_config()
     errors = validate_runtime_config_values(
         {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}

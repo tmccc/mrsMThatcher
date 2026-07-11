@@ -383,6 +383,16 @@ def generated_image_utilisation(pool: Dict[str, Any], rates: Dict[str, Any], lim
 
 def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
     remaining = max(0, int(pool.get("active_never_used", 0) or 0))
+    if config.get("_runway_config_error"):
+        reason = str(config["_runway_config_error"])
+        unavailable = {"available": False, "reason": reason}
+        return {
+            "remaining_active_generated_in_current_cycle": remaining,
+            "primary_basis": None,
+            "observed": {"trailing_7d": dict(unavailable), "trailing_30d": dict(unavailable)},
+            "schedule": dict(unavailable),
+            "estimate_semantics": "current image cycle, not all-time posting history",
+        }
     enabled = config.get("ENABLE_GENERATED_IMAGE_POOL")
     schedule: Dict[str, Any] = {"available": False}
     try:
@@ -426,6 +436,31 @@ def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: D
         for estimate in observed.values(): estimate.update({"available": False, "reason": "generated image pool disabled"})
     return {"remaining_active_generated_in_current_cycle": remaining, "primary_basis": primary or ("schedule_model" if schedule.get("available") else None),
             "observed": observed, "schedule": schedule, "estimate_semantics": "current image cycle, not all-time posting history"}
+
+
+RUNWAY_CONFIG_DEFAULTS: Dict[str, Any] = {
+    "ENABLE_GENERATED_IMAGE_POOL": False,
+    "POST_SLEEP_MIN": 7200,
+    "POST_SLEEP_MAX": 9000,
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+}
+
+
+def load_runway_config(project_dir: Path, observed_config: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve standalone runway inputs without importing production code."""
+    result = dict(RUNWAY_CONFIG_DEFAULTS)
+    result.update({key: value for key, value in observed_config.items() if key in result})
+    local_path = project_dir / "mrsMThatcher.local.json"
+    if not local_path.exists():
+        return result
+    try:
+        local_config = json.loads(local_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"_runway_config_error": f"cannot read valid local config {local_path}: {exc}"}
+    if not isinstance(local_config, dict):
+        return {"_runway_config_error": f"local config is not a JSON object: {local_path}"}
+    result.update({key: value for key, value in local_config.items() if key in result})
+    return result
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -3889,12 +3924,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None
 
-    runway_config = dict(report.get("latest_config") or {})
-    try:
-        local_config = json.loads((project_dir / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
-        if isinstance(local_config, dict): runway_config.update(local_config)
-    except Exception:
-        pass
+    runway_config = load_runway_config(project_dir, dict(report.get("latest_config") or {}))
     report["generated_image_post_rates"] = generated_post_rate_history(logs)
     report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
     report["generated_image_utilisation"] = generated_image_utilisation(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"])

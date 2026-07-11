@@ -77,6 +77,28 @@ def test_malformed_schedule_config_is_unavailable():
     assert not result["schedule"]["available"] and "malformed" in result["schedule"]["reason"]
 
 
+def test_runway_config_uses_source_defaults_with_sparse_local_overrides(tmp_path):
+    (tmp_path / "mrsMThatcher.local.json").write_text(json.dumps({"ENABLE_GENERATED_IMAGE_POOL": True}))
+    resolved = digest.load_runway_config(tmp_path, {})
+    assert resolved == {
+        "ENABLE_GENERATED_IMAGE_POOL": True,
+        "POST_SLEEP_MIN": 7200,
+        "POST_SLEEP_MAX": 9000,
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+    }
+    result = digest.generated_pool_runway({"active_never_used": 72}, rates(0, 0), resolved)
+    assert result["schedule"]["available"] is True
+    assert result["schedule"]["days_to_cycle_exhaustion"] == pytest.approx(20.25)
+
+
+def test_runway_config_rejects_malformed_existing_local_config(tmp_path):
+    (tmp_path / "mrsMThatcher.local.json").write_text("{")
+    resolved = digest.load_runway_config(tmp_path, {})
+    result = digest.generated_pool_runway({"active_never_used": 1}, rates(), resolved)
+    assert result["primary_basis"] is None
+    assert "cannot read valid local config" in result["schedule"]["reason"]
+
+
 def test_curation_trends_and_restored_active_reentry(tmp_path):
     base, names = pool(tmp_path); directory = quarantine(base, [names[0], names[1]])
     manifest = json.load(open(directory / "manifest.json")); manifest["created_at"] = "2026-07-09T12:00:00+00:00"; (directory / "manifest.json").write_text(json.dumps(manifest))
