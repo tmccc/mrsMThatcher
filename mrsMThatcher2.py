@@ -32,6 +32,7 @@ TEST_CYCLE_REQUESTED = "--test-cycle" in sys.argv
 TEST_MAIN_TICK_REQUESTED = "--test-main-tick" in sys.argv
 TEST_POST_QUOTE_REQUESTED = "--test-post-quote" in sys.argv
 TEST_POST_MEME_REQUESTED = "--test-post-meme" in sys.argv
+INITIALISE_REQUESTED = "--initialise" in sys.argv
 TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
 
 
@@ -214,6 +215,7 @@ IMAGES_USED_FILE = BASE_DIR / "images_used.json"
 REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
+AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
 MEME_SCHEDULE_MODES = {
     "",
     "fallback",
@@ -230,6 +232,7 @@ MAX_REASONABLE_STATE_EPOCH = 4_102_531_200
 PICKLE_FILE = BASE_DIR / "lines_used.pickle"
 IMAGE_PICKLE_FILE = BASE_DIR / "images_used.pickle"
 STATE_FILE = BASE_DIR / "bot_state.json"
+INSTALLATION_MARKER_FILE = BASE_DIR / ".mrsMThatcher.initialised.json"
 LOG_FILE = Path(os.getenv("MRS_LOG_FILE", str(BASE_DIR / "mrsMThatcher.log"))).expanduser()
 if SELF_TEST_REQUESTED and "MRS_LOG_FILE" not in os.environ:
     LOG_FILE = BASE_DIR / "mrsMThatcher.selftest.log"
@@ -591,7 +594,16 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
         return coerced
 
     if isinstance(current_value, str):
-        return str(value)
+        if type(value) is not str:
+            raise ValueError(f"{key} must be a JSON string")
+        if any(ord(char) < 32 and char not in {"\n", "\t"} for char in value):
+            raise ValueError(f"{key} contains unsafe control characters")
+        if key != "MEME_POST_TEXT":
+            if not value:
+                raise ValueError(f"{key} must not be empty")
+            if value != value.strip():
+                raise ValueError(f"{key} must not have leading or trailing whitespace")
+        return value
 
     return value
 
@@ -793,7 +805,7 @@ def production_bootstrap(
     )
     if errors:
         raise LocalConfigError(f"Invalid runtime config after loading {LOCAL_CONFIG_FILE}: " + "; ".join(errors))
-    if not SELF_TEST_REQUESTED:
+    if not SELF_TEST_REQUESTED and not INITIALISE_REQUESTED:
         validate_production_credentials()
     _PRODUCTION_BOOTSTRAPPED = True
 
@@ -805,6 +817,79 @@ def require_production_bootstrap() -> None:
             "Production bootstrap has not completed; "
             "call production_bootstrap() before entering an operational command"
         )
+
+
+def required_installation_files_missing() -> list[Path]:
+    """Return durable files that cannot be recovered from local backups."""
+    missing = [path for path in (LINES_USED_FILE, IMAGES_USED_FILE) if not path.is_file()]
+    state_candidates = [STATE_FILE]
+    state_candidates.extend(
+        STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}")
+        for i in range(1, STATE_BACKUP_COUNT + 1)
+    )
+    if not any(path.is_file() for path in state_candidates):
+        missing.append(STATE_FILE)
+    return missing
+
+
+def require_established_installation() -> None:
+    """Refuse operational startup after unexpected durable-state loss."""
+    missing = required_installation_files_missing()
+    if missing:
+        raise RuntimeError(
+            "Required durable production state/history is missing: "
+            + ", ".join(str(path) for path in missing)
+            + ". Restore the files or use --initialise only for a genuinely new installation."
+        )
+
+
+def initialise_installation() -> int:
+    """Create a new state/history set without starting production."""
+    require_production_bootstrap()
+    candidates = [INSTALLATION_MARKER_FILE, STATE_FILE, LINES_USED_FILE, IMAGES_USED_FILE]
+    candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
+    candidates.extend((REGULAR_POST_RECEIPT_FILE, MEME_POST_RECEIPT_FILE, CONFIRMED_REPLY_RECEIPT_FILE, AMBIGUOUS_POST_OUTCOME_FILE))
+    existing = [path for path in candidates if path.exists()]
+    if existing:
+        raise RuntimeError(
+            "Refusing to initialise over an existing or partially established installation: "
+            + ", ".join(str(path) for path in existing)
+        )
+
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
+    created: list[Path] = []
+    try:
+        state = default_state()
+        current = now_epoch()
+        state["next_quote_post_epoch"] = current + POST_SLEEP_MIN
+        if ENABLE_DAILY_MEME_POSTS:
+            ensure_meme_schedule_initialized(state)
+        save_state(state, durable=True)
+        created.append(STATE_FILE)
+        created.extend(
+            path
+            for path in STATE_FILE.parent.glob(f"{STATE_FILE.name}.bak*")
+            if path.is_file()
+        )
+        save_quote_used_hashes(LINES_USED_FILE, set(), durable=True)
+        created.append(LINES_USED_FILE)
+        save_image_used_basenames(IMAGES_USED_FILE, set(), durable=True)
+        created.append(IMAGES_USED_FILE)
+        atomic_write_json(
+            INSTALLATION_MARKER_FILE,
+            {"schema_version": 1, "initialised_at_epoch": current},
+            durable=True,
+        )
+        created.append(INSTALLATION_MARKER_FILE)
+    except Exception:
+        for path in reversed(created):
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+        raise
+    print(f"Initialised durable MrsMThatcher state in {BASE_DIR}; production was not started")
+    return 0
 
 
 # ---------------------------------------------------------------------
@@ -820,30 +905,34 @@ _CONTROL_CACHE: dict[str, object] = {
 
 
 def parse_control_time(value: object) -> int:
-    if value in (None, ""):
-        return 0
-
-    if isinstance(value, (int, float)):
-        return int(value)
-
-    text = str(value).strip()
-    if not text:
-        return 0
-
-    if text.isdigit():
-        return int(text)
-
-    # Accept common local-time strings such as "2026-06-30 18:00" or ISO-ish values.
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
-        try:
-            return int(datetime.strptime(text, fmt).timestamp())
-        except ValueError:
-            pass
-
-    try:
-        return int(datetime.fromisoformat(text).timestamp())
-    except ValueError as exc:
-        raise ValueError(f"Cannot parse control time {value!r}") from exc
+    if isinstance(value, bool) or value is None:
+        raise ValueError("control timestamp must not be a boolean or null")
+    if type(value) is int:
+        epoch = value
+    elif type(value) is float:
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError("control timestamp float must be finite and integral")
+        epoch = int(value)
+    else:
+        if type(value) is not str:
+            raise ValueError("control timestamp must be an integer epoch or documented date string")
+        text = value.strip()
+        if not text or text.isdigit():
+            raise ValueError("control timestamp string must use a documented date format")
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M"):
+            try:
+                epoch = int(datetime.strptime(text, fmt).timestamp())
+                break
+            except ValueError:
+                pass
+        else:
+            try:
+                epoch = int(datetime.fromisoformat(text).timestamp())
+            except ValueError as exc:
+                raise ValueError(f"Cannot parse control time {value!r}") from exc
+    if epoch < 0 or epoch > MAX_REASONABLE_STATE_EPOCH:
+        raise ValueError(f"control timestamp is outside the supported epoch range: {epoch}")
+    return epoch
 
 
 def validate_control_document(data: object) -> dict:
@@ -886,7 +975,10 @@ def load_control() -> dict:
     except OSError as exc:
         return control_failure_result(str(exc), signature=("stat", type(exc).__name__, str(exc)))
 
-    signature = (str(CONTROL_FILE.resolve()), stat.st_mtime_ns, stat.st_size)
+    signature = (
+        str(CONTROL_FILE.resolve()), stat.st_dev, stat.st_ino,
+        stat.st_size, stat.st_mtime_ns,
+    )
     if _CONTROL_CACHE.get("signature") == signature and _CONTROL_CACHE.get("has_valid"):
         data = _CONTROL_CACHE.get("data", {})
         return data if isinstance(data, dict) else {}
@@ -1114,6 +1206,10 @@ class ApiError(Exception):
         self.service = service
         self.status_code = status_code
         self.reset_epoch = reset_epoch
+
+
+class AmbiguousRemotePostOutcome(ApiError):
+    """X may have accepted a write although no response reached this process."""
 
 
 def api_error_is_reply_not_allowed(error: Exception) -> bool:
@@ -2107,7 +2203,7 @@ def print_rate_limit_headers(response: requests.Response) -> int | None:
         return None
 
 
-def x_request(method: str, path: str, **kwargs) -> dict:
+def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs) -> dict:
     url = f"{X_BASE}{path}"
 
     log.debug("X request: %s %s", method, url)
@@ -2134,6 +2230,8 @@ def x_request(method: str, path: str, **kwargs) -> dict:
         )
     except requests.RequestException as e:
         log.exception("X request failed before receiving response")
+        if ambiguous_write:
+            raise AmbiguousRemotePostOutcome(str(e), service="x") from e
         raise ApiError(str(e), service="x") from e
 
     log.debug("X response status: %s", response.status_code)
@@ -3357,12 +3455,46 @@ def upload_media(image_path: str) -> str:
         return upload_media_v1_1(image_path)
 
 
+def block_if_ambiguous_remote_post() -> None:
+    if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+        raise AmbiguousRemotePostOutcome(
+            f"Unreconciled ambiguous remote POST outcome blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
+            service="x",
+        )
+
+
+def record_ambiguous_remote_post(payload: dict) -> None:
+    """Persist a manual-reconciliation barrier without claiming success or failure."""
+    if AMBIGUOUS_POST_OUTCOME_FILE.exists():
+        return
+    text = str(payload.get("text") or "")
+    atomic_write_json(
+        AMBIGUOUS_POST_OUTCOME_FILE,
+        {
+            "schema_version": 1,
+            "recorded_at_epoch": now_epoch(),
+            "outcome": "ambiguous_remote_post",
+            "text_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "reply_to_id": str((payload.get("reply") or {}).get("in_reply_to_tweet_id") or ""),
+            "media_ids": list((payload.get("media") or {}).get("media_ids") or []),
+            "made_with_ai": bool(payload.get("made_with_ai")),
+        },
+        durable=True,
+    )
+    log.critical(
+        "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, but no response was received. "
+        "Automatic posting is blocked pending manual reconciliation: %s",
+        AMBIGUOUS_POST_OUTCOME_FILE,
+    )
+
+
 def create_post(
     text: str,
     media_ids: list[str] | None = None,
     reply_to_id: str | None = None,
     made_with_ai: bool = False,
 ) -> dict:
+    block_if_ambiguous_remote_post()
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
         reply_to_id,
@@ -3407,15 +3539,22 @@ def create_post(
         return "made_with_ai" in message
 
     try:
-        result = x_request("POST", "/2/tweets", json=payload)
+        result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
         validate_created_post_response(result)
         log.info("Created X post successfully. response=%s", result)
         return result
+    except AmbiguousRemotePostOutcome:
+        record_ambiguous_remote_post(payload)
+        raise
     except ApiError as exc:
         if made_with_ai and made_with_ai_field_rejected(exc):
             log.warning("Post failed because made_with_ai field was rejected; retrying without made_with_ai field")
             payload.pop("made_with_ai", None)
-            result = x_request("POST", "/2/tweets", json=payload)
+            try:
+                result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
+            except AmbiguousRemotePostOutcome:
+                record_ambiguous_remote_post(payload)
+                raise
             validate_created_post_response(result)
             log.info("Created X post successfully after removing made_with_ai. response=%s", result)
             return result
@@ -8462,6 +8601,8 @@ def run_reply_lane_checks_for_tick(
 
 def main() -> None:
     require_production_bootstrap()
+    require_established_installation()
+    block_if_ambiguous_remote_post()
     random.seed()
     acquire_instance_lock()
 
@@ -8786,6 +8927,8 @@ def run_self_test() -> int:
 def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
     require_production_bootstrap()
+    require_established_installation()
+    block_if_ambiguous_remote_post()
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("--test-cycle requires MRS_TEST_MODE=1")
         return 2
@@ -8850,6 +8993,8 @@ def run_test_cycle() -> int:
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
     require_production_bootstrap()
+    require_established_installation()
+    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-main-tick"):
         return 2
 
@@ -8898,6 +9043,8 @@ def prepare_test_main_post_state(state: dict) -> None:
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
     require_production_bootstrap()
+    require_established_installation()
+    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-post-quote"):
         return 2
 
@@ -8944,6 +9091,8 @@ def run_test_post_quote() -> int:
 def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
     require_production_bootstrap()
+    require_established_installation()
+    block_if_ambiguous_remote_post()
     if not require_test_mode("--test-post-meme"):
         return 2
 
@@ -8985,6 +9134,8 @@ def run_test_post_meme() -> int:
 if __name__ == "__main__":
     try:
         production_bootstrap()
+        if INITIALISE_REQUESTED:
+            sys.exit(initialise_installation())
         if SELF_TEST_REQUESTED:
             sys.exit(run_self_test())
         if TEST_CYCLE_REQUESTED:

@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import fcntl
 import hashlib
 import json
 import math
@@ -35,6 +36,7 @@ import re
 import statistics
 import sys
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -569,6 +571,64 @@ def discover_logs(directory: Path, pattern: str) -> List[Path]:
         paths.append(p)
     # Deterministic order; the records are later sorted by timestamp anyway.
     return sorted(paths, key=lambda p: p.name)
+
+
+def resolve_explicit_logs(paths: Iterable[Path], project_dir: Path) -> List[Path]:
+    """Resolve explicit inputs and expand only canonical numeric rotations."""
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+
+    def add(path: Path) -> None:
+        path = path.expanduser()
+        if not path.is_absolute():
+            path = project_dir / path
+        path = path.resolve()
+        if path not in seen:
+            seen.add(path)
+            resolved.append(path)
+
+    supplied = list(paths)
+    for path in supplied:
+        add(path)
+    for path in supplied:
+        candidate = path.expanduser()
+        if not candidate.is_absolute():
+            candidate = project_dir / candidate
+        candidate = candidate.resolve()
+        if candidate.name != "mrsMThatcher.log":
+            continue
+        rotations = []
+        for sibling in candidate.parent.glob("mrsMThatcher.log.*"):
+            suffix = sibling.name.removeprefix("mrsMThatcher.log.")
+            if sibling.is_file() and suffix.isdigit():
+                rotations.append((int(suffix), sibling))
+        for _number, sibling in sorted(rotations):
+            add(sibling)
+    return resolved
+
+
+@contextmanager
+def digest_execution_lock(path: Path):
+    """Hold a separate, nonblocking lock for one stateful/output digest run."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            handle.seek(0)
+            owner = handle.read().strip() or "owner unavailable"
+            raise RuntimeError(f"Another digest process holds {path}: {owner}") from exc
+        handle.seek(0)
+        handle.truncate()
+        handle.write(f"pid={os.getpid()} acquired_at={datetime.now().isoformat(timespec='seconds')}\n")
+        handle.flush()
+        yield
+    finally:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
 
 
 def epoch_to_human(value: Any) -> Optional[str]:
@@ -3169,7 +3229,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if schedule.get("available"):
                 out.append(f"schedule_model_generated_share_max     = {float(schedule.get('maximum_generated_share_percent') or 0.0):.1f}%")
                 out.append(f"schedule_model_generated_posts_per_day = {float(schedule.get('generated_posts_per_day') or 0.0):.2f}")
-                out.append(f"schedule_model_days_to_cycle_exhaustion = {float(schedule.get('days_to_cycle_exhaustion') or 0.0):.1f}")
+                out.append(
+                    "schedule_model_days_to_cycle_exhaustion = "
+                    f"{float(schedule.get('days_to_cycle_exhaustion') or 0.0):.1f} "
+                    "(maximum-throughput minimum; assumes generated selection whenever spacing permits)"
+                )
             else:
                 out.append(f"schedule_model_days_to_cycle_exhaustion = unavailable ({schedule.get('reason') or 'pool disabled'})")
             out.append("```")
@@ -3797,9 +3861,24 @@ def main(argv: Optional[List[str]] = None) -> int:
     state_file = args.state_file.expanduser()
     if not state_file.is_absolute():
         state_file = project_dir / state_file
+    lock_path: Path | None = None
+    if not args.no_state:
+        lock_path = state_file.with_suffix(state_file.suffix + ".lock")
+    elif args.output is not None:
+        output = args.output.expanduser()
+        if not output.is_absolute():
+            output = project_dir / output
+        lock_path = output.with_suffix(output.suffix + ".lock")
 
+    if lock_path is None:
+        return run_digest(args, project_dir=project_dir, state_file=state_file)
+    with digest_execution_lock(lock_path):
+        return run_digest(args, project_dir=project_dir, state_file=state_file)
+
+
+def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
     if args.logs:
-        logs = args.logs
+        logs = resolve_explicit_logs(args.logs, project_dir)
     else:
         logs = discover_logs(project_dir, args.glob)
 

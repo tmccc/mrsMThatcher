@@ -183,6 +183,15 @@ The optional `mrsMThatcher.control.json` is fail-safe. A transient invalid read
 retains the last valid control document. If no valid document has been read,
 an existing invalid control file acts as `disable_all` until repaired. A
 genuinely absent control file means no runtime pause.
+Control timestamps accept integer epochs or documented date/time strings;
+booleans, numeric strings, fractional/non-finite values, and out-of-range
+epochs invalidate the complete control document.
+
+Normal operational commands require `bot_state.json` (or a valid configured
+backup), `lines_used.json`, and `images_used.json`. They refuse to infer a new
+installation from missing files. For a genuinely empty new project directory,
+run `python3 mrsMThatcher2.py --initialise` once; it creates the durable set and
+an installation marker but does not start posting or call an API.
 
 ## Log Digest Operation
 
@@ -192,6 +201,16 @@ absolute path from another working directory. `--output PATH` atomically writes
 a report; otherwise output is written and flushed to stdout. Resume state is
 advanced only after complete analysis, rendering, and successful report
 delivery.
+Supplying the canonical `mrsMThatcher.log` explicitly also includes numeric
+siblings such as `.1` and `.2`, but excludes self-test and unrelated files.
+Stateful digest runs use a separate nonblocking resume lock. The schedule-model
+runway is a maximum-throughput minimum: it assumes generated selection whenever
+spacing permits.
+
+An X POST transport timeout is not proof of failure: X may have accepted the
+write. Such an ambiguous outcome creates `ambiguous_post_outcome.json` and
+blocks further posting until an operator reconciles it; the bot does not claim
+exactly-once delivery.
 
 Generated utilisation remains bounded by available structured logs: “ever
 used” is not an account-lifetime claim. Rate sections report calendar span,

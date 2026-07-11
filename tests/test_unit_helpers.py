@@ -3551,6 +3551,7 @@ def test_meme_receipt_removal_failure_keeps_future_meme_schedule(
 
 
 def test_test_post_quote_reports_confirmed_local_failure_distinctly(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("Good quote.\n", encoding="utf-8")
     monkeypatch.setenv("MRS_TEST_MODE", "1")
@@ -3575,6 +3576,7 @@ def test_test_post_quote_reports_confirmed_local_failure_distinctly(tmp_path: Pa
 
 
 def test_test_post_quote_migrates_old_meme_schedule_before_post_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("Good quote.\n", encoding="utf-8")
     state = {
@@ -3604,6 +3606,7 @@ def test_test_post_quote_migrates_old_meme_schedule_before_post_path(tmp_path: P
 
 
 def test_test_post_quote_preserves_current_meme_schedule_preflight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     lines_file = tmp_path / "quotes.txt"
     lines_file.write_text("Good quote.\n", encoding="utf-8")
     state = {
@@ -3632,6 +3635,7 @@ def test_test_post_quote_preserves_current_meme_schedule_preflight(tmp_path: Pat
 
 
 def test_test_post_quote_load_failure_happens_before_post_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     monkeypatch.setenv("MRS_TEST_MODE", "1")
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
     monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
@@ -3643,6 +3647,7 @@ def test_test_post_quote_load_failure_happens_before_post_path(monkeypatch: pyte
 
 
 def test_test_post_quote_receipt_replay_does_not_create_second_post(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     lines_used, images_used, state, _lines_used_file, _images_used_file, receipt_file, _lines_file = configure_simple_quote_post(tmp_path, monkeypatch)
     bot.atomic_write_json(receipt_file, valid_regular_receipt())
     monkeypatch.setenv("MRS_TEST_MODE", "1")
@@ -3660,6 +3665,7 @@ def test_test_post_quote_receipt_replay_does_not_create_second_post(tmp_path: Pa
 
 
 def test_test_post_meme_reports_confirmed_local_failure_distinctly(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     monkeypatch.setenv("MRS_TEST_MODE", "1")
     monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
     monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
@@ -3678,6 +3684,7 @@ def test_test_post_meme_reports_confirmed_local_failure_distinctly(monkeypatch: 
 
 
 def test_test_post_meme_migrates_old_meme_schedule_before_post_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     state = {
         "meme_schedule_version": 1,
         "next_meme_post_epoch": 1_800_010_000,

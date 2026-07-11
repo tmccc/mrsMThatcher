@@ -133,8 +133,9 @@ def prepare_base_dir(
         config.update(local_config)
     write_json(base_dir / "mrsMThatcher.local.json", config)
 
-    if state is not None:
-        write_json(base_dir / "bot_state.json", state)
+    write_json(base_dir / "bot_state.json", state or {})
+    write_json(base_dir / "lines_used.json", [])
+    write_json(base_dir / "images_used.json", [])
     if watch_ids is not None:
         (base_dir / "extra_quote_watch_post_ids.txt").write_text("\n".join(watch_ids) + "\n", encoding="utf-8")
     if control is not None:
@@ -2951,9 +2952,10 @@ def test_missing_and_malformed_state_fail_safely(tmp_path: Path) -> None:
     server = FakeApiServer(load_scenario(SCENARIOS / "normal_mention_reply.json")).start()
     try:
         base_dir = prepare_base_dir(tmp_path)
+        (base_dir / "bot_state.json").unlink()
         missing = run_cycle(base_dir, server)
-        assert missing.returncode == 0, missing.stderr + missing.stdout
-        assert (base_dir / "bot_state.json").exists()
+        assert missing.returncode != 0
+        assert "Required durable production state/history is missing" in (missing.stdout + missing.stderr)
 
         (base_dir / "bot_state.json").write_text("{not json", encoding="utf-8")
         server.scenario.update(load_scenario(SCENARIOS / "normal_mention_reply.json"))
@@ -3108,6 +3110,7 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
                 "X_API_BASE_URL": "https://api.x.com",
             },
         )
+        state_before = (base_dir / "bot_state.json").read_bytes()
         result = run_cycle(base_dir, server)
         assert result.returncode != 0
         assert server.posts == []
@@ -3116,7 +3119,7 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
         assert "Invalid local config" in result.stderr
-        assert not (base_dir / "bot_state.json").exists()
+        assert (base_dir / "bot_state.json").read_bytes() == state_before
     finally:
         server.stop()
 
@@ -3992,12 +3995,14 @@ def test_quote_image_post_missing_created_post_id_fails_without_marking_assets_u
     server = FakeApiServer(scenario).start()
     try:
         base_dir = prepare_base_dir(tmp_path)
+        lines_before = json.loads((base_dir / "lines_used.json").read_text())
+        images_before = json.loads((base_dir / "images_used.json").read_text())
         result = run_bot_command(base_dir, server, "--test-post-quote")
 
         assert result.returncode == 1
         assert len(server.posts) == 1
-        assert not (base_dir / "lines_used.json").exists()
-        assert not (base_dir / "images_used.json").exists()
+        assert json.loads((base_dir / "lines_used.json").read_text()) == lines_before
+        assert json.loads((base_dir / "images_used.json").read_text()) == images_before
         state = read_json(base_dir / "bot_state.json")
         assert not state.get("last_main_post_id")
         assert state.get("recent_own_post_ids", []) == []

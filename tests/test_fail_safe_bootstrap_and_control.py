@@ -117,6 +117,7 @@ def test_successful_bootstrap_opens_guard_and_operational_dispatch(tmp_path, mon
         raise DispatchReached
 
     monkeypatch.setattr(bot, "acquire_instance_lock", stop_at_lock)
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
     bot.production_bootstrap()
     bot.require_production_bootstrap()
 
