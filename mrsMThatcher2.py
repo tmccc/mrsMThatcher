@@ -290,7 +290,16 @@ def setup_logging() -> logging.Logger:
     return logger
 
 
-log = setup_logging()
+log = logging.getLogger("mrsMThatcher")
+_IMPORT_LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "DEBUG").upper(), logging.DEBUG)
+log.setLevel(_IMPORT_LOG_LEVEL)
+_IMPORT_CONSOLE_HANDLER = logging.StreamHandler(sys.stdout)
+_IMPORT_CONSOLE_HANDLER.setLevel(_IMPORT_LOG_LEVEL)
+_IMPORT_CONSOLE_HANDLER.setFormatter(logging.Formatter(
+    fmt="%(asctime)s %(levelname)-8s %(funcName)s:%(lineno)d - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+))
+log.addHandler(_IMPORT_CONSOLE_HANDLER)
 _LOCK_FH = None
 
 
@@ -503,6 +512,13 @@ LOCAL_CONFIG_POSITIVE_INT_KEYS = {
 }
 
 
+class LocalConfigError(RuntimeError):
+    """An existing production local-config file is unsafe to apply."""
+
+
+_PRODUCTION_BOOTSTRAPPED = False
+
+
 def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
     if isinstance(current_value, bool):
         if isinstance(value, bool):
@@ -516,15 +532,9 @@ def _coerce_local_config_value(key: str, value: object, current_value: object) -
         raise ValueError(f"{key} must be a boolean")
 
     if isinstance(current_value, int) and not isinstance(current_value, bool):
-        if key == "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN":
-            if type(value) is not int:
-                raise ValueError(f"{key} must be an integer")
-            if value < 0:
-                raise ValueError(f"{key} must be non-negative")
-            return value
-        if isinstance(value, bool):
-            raise ValueError(f"{key} must be an integer, not a boolean")
-        coerced = int(value)
+        if type(value) is not int:
+            raise ValueError(f"{key} must be a JSON integer")
+        coerced = value
         if key in LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS and coerced < 0:
             raise ValueError(f"{key} must be non-negative")
         if key in LOCAL_CONFIG_POSITIVE_INT_KEYS and coerced <= 0:
@@ -673,13 +683,11 @@ def apply_local_config() -> None:
     try:
         with open(LOCAL_CONFIG_FILE, "r") as f:
             data = json.load(f)
-    except Exception:
-        log.exception("Failed to read local config file %s; using script defaults", LOCAL_CONFIG_FILE)
-        return
+    except Exception as exc:
+        raise LocalConfigError(f"Failed to read local config file {LOCAL_CONFIG_FILE}: {exc}") from exc
 
     if not isinstance(data, dict):
-        log.error("Local config file %s is not a JSON object; ignoring it", LOCAL_CONFIG_FILE)
-        return
+        raise LocalConfigError(f"Local config file {LOCAL_CONFIG_FILE} must contain a JSON object")
 
     ignored: list[str] = []
     proposed: dict[str, object] = {}
@@ -703,13 +711,9 @@ def apply_local_config() -> None:
         log.warning("Ignoring unsupported local config key(s): %s", ", ".join(sorted(ignored)))
 
     if coercion_errors:
-        log.error(
-            "Ignoring local config override set from %s; no overrides applied because %d supported value(s) were invalid: %s",
-            LOCAL_CONFIG_FILE,
-            len(coercion_errors),
-            "; ".join(coercion_errors),
+        raise LocalConfigError(
+            f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(coercion_errors)
         )
-        return
 
     if proposed:
         original_values = {
@@ -721,12 +725,9 @@ def apply_local_config() -> None:
         candidate.update(proposed)
         validation_errors = validate_runtime_config_values(candidate)
         if validation_errors:
-            log.error(
-                "Ignoring local config override set from %s; no overrides applied because candidate config is invalid: %s",
-                LOCAL_CONFIG_FILE,
-                "; ".join(validation_errors),
+            raise LocalConfigError(
+                f"Invalid local config {LOCAL_CONFIG_FILE}: " + "; ".join(validation_errors)
             )
-            return
 
         for key, value in proposed.items():
             globals()[key] = value
@@ -736,23 +737,40 @@ def apply_local_config() -> None:
         log.info("Local config file present but no valid overrides applied: %s", LOCAL_CONFIG_FILE)
 
 
-apply_local_config()
-
-RUNTIME_CONFIG_ERRORS = validate_runtime_config_values(
+SOURCE_DEFAULT_CONFIG_ERRORS = validate_runtime_config_values(
     {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
 )
-if RUNTIME_CONFIG_ERRORS:
-    for error in RUNTIME_CONFIG_ERRORS:
-        log.critical("Invalid runtime config: %s", error)
+if SOURCE_DEFAULT_CONFIG_ERRORS:
+    raise RuntimeError("Invalid source default config: " + "; ".join(SOURCE_DEFAULT_CONFIG_ERRORS))
+
+
+def production_bootstrap() -> None:
+    """Apply and validate deployment-local configuration exactly once."""
+    global _PRODUCTION_BOOTSTRAPPED, log
+    if _PRODUCTION_BOOTSTRAPPED:
+        return
+    log = setup_logging()
+    apply_local_config()
+    errors = validate_runtime_config_values(
+        {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+    )
+    if errors:
+        raise LocalConfigError(f"Invalid runtime config after loading {LOCAL_CONFIG_FILE}: " + "; ".join(errors))
     if not SELF_TEST_REQUESTED:
-        sys.exit(1)
+        validate_production_credentials()
+    _PRODUCTION_BOOTSTRAPPED = True
 
 
 # ---------------------------------------------------------------------
 # Runtime control / pause file
 # ---------------------------------------------------------------------
 
-_CONTROL_CACHE: dict[str, object] = {"mtime": None, "data": {}}
+_CONTROL_CACHE: dict[str, object] = {
+    "signature": None,
+    "data": {},
+    "has_valid": False,
+    "failure_signature": None,
+}
 
 
 def parse_control_time(value: object) -> int:
@@ -782,36 +800,62 @@ def parse_control_time(value: object) -> int:
         raise ValueError(f"Cannot parse control time {value!r}") from exc
 
 
+def validate_control_document(data: object) -> dict:
+    if not isinstance(data, dict):
+        raise ValueError("control document must be a JSON object")
+    validated = dict(data)
+    for key, value in data.items():
+        key_text = str(key)
+        if key_text.endswith("_until"):
+            parse_control_time(value)
+        elif key_text.startswith(("disable_", "pause_")):
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, str) and value.strip().lower() in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
+                continue
+            raise ValueError(f"{key_text} must be a boolean")
+    return validated
+
+
+def control_failure_result(reason: str, *, signature: object) -> dict:
+    if _CONTROL_CACHE.get("failure_signature") != signature:
+        log.error("Runtime control file %s is unavailable or invalid; failing safe: %s", CONTROL_FILE, reason)
+        _CONTROL_CACHE["failure_signature"] = signature
+    if _CONTROL_CACHE.get("has_valid"):
+        cached = _CONTROL_CACHE.get("data", {})
+        log.debug("Continuing with last valid runtime control document")
+        return dict(cached) if isinstance(cached, dict) else {"disable_all": True}
+    return {"disable_all": True, "_control_fail_closed": True}
+
+
 def load_control() -> dict:
     try:
         stat = CONTROL_FILE.stat()
     except FileNotFoundError:
-        _CONTROL_CACHE["mtime"] = None
+        _CONTROL_CACHE["signature"] = None
         _CONTROL_CACHE["data"] = {}
+        _CONTROL_CACHE["has_valid"] = False
+        _CONTROL_CACHE["failure_signature"] = None
         return {}
-    except OSError:
-        log.exception("Could not stat control file %s; failing open", CONTROL_FILE)
-        return {}
+    except OSError as exc:
+        return control_failure_result(str(exc), signature=("stat", type(exc).__name__, str(exc)))
 
-    if _CONTROL_CACHE.get("mtime") == stat.st_mtime:
+    signature = (str(CONTROL_FILE.resolve()), stat.st_mtime_ns, stat.st_size)
+    if _CONTROL_CACHE.get("signature") == signature and _CONTROL_CACHE.get("has_valid"):
         data = _CONTROL_CACHE.get("data", {})
         return data if isinstance(data, dict) else {}
 
     try:
         with open(CONTROL_FILE, "r") as f:
             data = json.load(f)
-    except Exception:
-        log.exception("Failed to read control file %s; failing open", CONTROL_FILE)
-        _CONTROL_CACHE["mtime"] = stat.st_mtime
-        _CONTROL_CACHE["data"] = {}
-        return {}
+        data = validate_control_document(data)
+    except Exception as exc:
+        return control_failure_result(str(exc), signature=("content", signature, type(exc).__name__, str(exc)))
 
-    if not isinstance(data, dict):
-        log.error("Control file %s is not a JSON object; failing open", CONTROL_FILE)
-        data = {}
-
-    _CONTROL_CACHE["mtime"] = stat.st_mtime
-    _CONTROL_CACHE["data"] = data
+    _CONTROL_CACHE["signature"] = signature
+    _CONTROL_CACHE["data"] = dict(data)
+    _CONTROL_CACHE["has_valid"] = True
+    _CONTROL_CACHE["failure_signature"] = None
     log.info("Loaded runtime control file %s", CONTROL_FILE)
     log_json_debug("Runtime control", data)
     return data
@@ -913,18 +957,14 @@ log.debug("  X_MY_USER_ID=%s", MY_USER_ID or "<missing>")
 log.debug("  XAI_API_KEY=%s", redact_secret(XAI_API_KEY))
 log.debug("  X_BEARER_TOKEN=%s", redact_secret(X_BEARER_TOKEN))
 
-if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET, MY_USER_ID]):
-    log.critical(
-        "Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, "
-        "X_ACCESS_TOKEN, X_ACCESS_SECRET, X_MY_USER_ID"
-    )
-    if not SELF_TEST_REQUESTED:
-        sys.exit(1)
-
-if ENABLE_AUTO_REPLIES and not XAI_API_KEY:
-    log.critical("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set.")
-    if not SELF_TEST_REQUESTED:
-        sys.exit(1)
+def validate_production_credentials() -> None:
+    if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET, MY_USER_ID]):
+        raise RuntimeError(
+            "Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, "
+            "X_ACCESS_TOKEN, X_ACCESS_SECRET, X_MY_USER_ID"
+        )
+    if ENABLE_AUTO_REPLIES and not XAI_API_KEY:
+        raise RuntimeError("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set")
 
 AUTH = OAuth1(
     CONSUMER_KEY,
@@ -8682,7 +8722,10 @@ def run_self_test() -> int:
     require("MIN_SECONDS_BETWEEN_REPLIES positive", int(MIN_SECONDS_BETWEEN_REPLIES) > 0, str(MIN_SECONDS_BETWEEN_REPLIES))
     require("REPLY_CHECK_EVERY_SECONDS positive", int(REPLY_CHECK_EVERY_SECONDS) > 0, str(REPLY_CHECK_EVERY_SECONDS))
     require("QUOTE_CHECK_EVERY_SECONDS positive", int(QUOTE_CHECK_EVERY_SECONDS) > 0, str(QUOTE_CHECK_EVERY_SECONDS))
-    require("runtime config validates", not RUNTIME_CONFIG_ERRORS, "; ".join(RUNTIME_CONFIG_ERRORS))
+    runtime_config_errors = validate_runtime_config_values(
+        {name: globals()[name] for name in LOCAL_CONFIG_ALLOWED_KEYS if name in globals()}
+    )
+    require("runtime config validates", not runtime_config_errors, "; ".join(runtime_config_errors))
 
     if failures:
         log.error("Self-test finished with %d failure(s)", failures)
@@ -8889,6 +8932,7 @@ def run_test_post_meme() -> int:
 
 if __name__ == "__main__":
     try:
+        production_bootstrap()
         if SELF_TEST_REQUESTED:
             sys.exit(run_self_test())
         if TEST_CYCLE_REQUESTED:

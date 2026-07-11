@@ -3075,8 +3075,8 @@ def test_runtime_control_individual_lanes_malformed_and_expired_pause(tmp_path: 
         (malformed_base / "mrsMThatcher.control.json").write_text("{bad json", encoding="utf-8")
         result = run_cycle(malformed_base, malformed_server)
         assert result.returncode == 0, result.stderr + result.stdout
-        assert len(malformed_server.posts) == 1
-        assert "Failed to read control file" in result.stdout
+        assert malformed_server.posts == []
+        assert "failing safe" in result.stdout
     finally:
         malformed_server.stop()
 
@@ -3109,15 +3109,14 @@ def test_local_config_validation_rejects_bad_values_and_cannot_override_paths_or
             },
         )
         result = run_cycle(base_dir, server)
-        assert result.returncode == 0, result.stderr + result.stdout
-        assert len(server.posts) == 1
+        assert result.returncode != 0
+        assert server.posts == []
         assert "Ignoring unsupported local config key" in result.stdout
         assert "Ignoring invalid local config override ENABLE_AUTO_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MIN_SECONDS_BETWEEN_REPLIES" in result.stdout
         assert "Ignoring invalid local config override MAX_MENTIONS_PER_CHECK" in result.stdout
-        assert "Ignoring local config override set" in result.stdout
-        assert "no overrides applied" in result.stdout
-        assert read_json(base_dir / "bot_state.json")["replied_to_ids"] == ["100"]
+        assert "Invalid local config" in result.stderr
+        assert not (base_dir / "bot_state.json").exists()
     finally:
         server.stop()
 
@@ -3138,16 +3137,16 @@ def test_runtime_config_validation_rejects_unsafe_domain_values(tmp_path: Path) 
             },
         )
         result = run_cycle(base_dir, server)
-        assert result.returncode == 0, result.stderr + result.stdout
-        assert "Ignoring local config override set" in result.stdout
-        assert "no overrides applied because candidate config is invalid" in result.stdout
-        assert "MAX_MENTIONS_PER_CHECK must be between 5 and 100" in result.stdout
-        assert "QUOTE_LOOKUP_API_MAX_RESULTS must be between 10 and 100" in result.stdout
-        assert "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100" in result.stdout
-        assert "REPLY_CHECK_EVERY_SECONDS must be positive" in result.stdout
-        assert "MIN_SECONDS_BETWEEN_REPLIES must be positive" in result.stdout
-        assert "MEME_FALLBACK_HOUR must be between 0 and 23" in result.stdout
-        assert "MEME_FALLBACK_MINUTE must be between 0 and 59" in result.stdout
+        assert result.returncode != 0
+        combined = result.stdout + result.stderr
+        assert "Invalid local config" in combined
+        assert "MAX_MENTIONS_PER_CHECK must be between 5 and 100" in combined
+        assert "QUOTE_LOOKUP_API_MAX_RESULTS must be between 10 and 100" in combined
+        assert "HOT_POST_REPLY_SEARCH_API_MAX_RESULTS must be between 10 and 100" in combined
+        assert "REPLY_CHECK_EVERY_SECONDS must be positive" in combined
+        assert "MIN_SECONDS_BETWEEN_REPLIES must be positive" in combined
+        assert "MEME_FALLBACK_HOUR must be between 0 and 23" in combined
+        assert "MEME_FALLBACK_MINUTE must be between 0 and 59" in combined
     finally:
         server.stop()
 

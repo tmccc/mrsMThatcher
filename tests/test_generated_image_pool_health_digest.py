@@ -19,7 +19,12 @@ def pool(tmp_path: Path, count: int = 4) -> tuple[Path, list[str]]:
     for index in range(count):
         origin = f"{index + 1:064x}"; name = f"tg_{origin}.png"; path = generated / name; path.write_bytes(f"image-{index}".encode()); image_hash = hashlib.sha256(path.read_bytes()).hexdigest(); names.append(name)
         path_index[name] = image_hash; items[image_hash] = {"analysis": {"summary": str(index)}}
-        audit_items[name] = {"basename": name, "image_sha256": image_hash, "origin_quote_hash": origin, "analysis": {"recommended_cross_quote_policy": policies[index % len(policies)]}}
+        audit_items[name] = {"basename": name, "image_sha256": image_hash, "origin_quote_hash": origin, "analysis": {
+            "recommended_cross_quote_policy": policies[index % len(policies)], "identity_dependence": "low",
+            "contains_specific_intended_person": False, "recognisability_to_typical_viewer": 5,
+            "recognisability_to_politically_interested_viewer": 5, "meaning_retention_without_identity": 5,
+            "origin_quote_suitability": 5, "recommended_penalty_strength": 0, "confidence": 1.0,
+        }}
     dump(base / "generated_image_analysis.json", {"schema_version": 3, "analysis_kind": "images", "path_index": path_index, "items": items})
     dump(base / "generated_image_identity_dependence_audit.json", {"schema_version": 1, "analysis_kind": "generated_image_identity_dependence_audit", "items": audit_items})
     dump(base / "images_used.json", [names[0], "t01.jpg"])

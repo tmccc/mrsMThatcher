@@ -5743,6 +5743,7 @@ def apply_local_config_for_test(
     data: dict[str, object],
     *,
     initial: dict[str, object] | None = None,
+    expect_error: bool = False,
 ) -> dict[str, object]:
     config_file = tmp_path / "mrsMThatcher.local.json"
     config_file.write_text(json.dumps(data), encoding="utf-8")
@@ -5754,7 +5755,11 @@ def apply_local_config_for_test(
         for key in bot.LOCAL_CONFIG_ALLOWED_KEYS
         if hasattr(bot, key)
     }
-    bot.apply_local_config()
+    if expect_error:
+        with pytest.raises(bot.LocalConfigError):
+            bot.apply_local_config()
+    else:
+        bot.apply_local_config()
     return before
 
 
@@ -5764,6 +5769,7 @@ def test_local_config_interacting_invalid_overrides_are_atomic(tmp_path: Path, m
         monkeypatch,
         {"POST_SLEEP_MIN": 10000, "POST_SLEEP_MAX": 5000},
         initial={"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 9000},
+        expect_error=True,
     )
 
     assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
@@ -5804,6 +5810,7 @@ def test_local_config_coercion_failure_rejects_whole_transaction(tmp_path: Path,
             "POST_SLEEP_MAX": 9000,
             "ENABLE_AUTO_REPLIES": True,
         },
+        expect_error=True,
     )
 
     assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
@@ -5821,6 +5828,7 @@ def test_local_config_mixed_valid_and_invalid_values_do_not_partially_commit(tmp
             "POST_SLEEP_MAX": 9000,
             "MAX_MENTIONS_PER_CHECK": 5,
         },
+        expect_error=True,
     )
 
     assert bot.POST_SLEEP_MIN == before["POST_SLEEP_MIN"] == 7200
@@ -5920,6 +5928,7 @@ def test_local_config_rejects_invalid_generated_image_spacing(
         monkeypatch,
         {"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": bad_value},
         initial={"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2},
+        expect_error=True,
     )
 
     assert bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN == before["GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"] == 2

@@ -171,6 +171,31 @@ and logs such as `bot_state.json*`, `lines_used.json`, `images_used.json`,
 legacy `*.pickle` history artefacts, and `mrsMThatcher.log*` are also
 intentionally ignored.
 
+Module imports use source defaults and do not load host-local configuration.
+Executable bot entry points call an explicit production bootstrap. An absent
+`mrsMThatcher.local.json` permits defaults; if the file exists, any read,
+JSON, type, value, or cross-field validation error aborts startup rather than
+falling back to defaults.
+
+The optional `mrsMThatcher.control.json` is fail-safe. A transient invalid read
+retains the last valid control document. If no valid document has been read,
+an existing invalid control file acts as `disable_all` until repaired. A
+genuinely absent control file means no runtime pause.
+
+## Log Digest Operation
+
+`mrs_log_digest.py` resolves project metadata through `--project-dir` (the
+repository/script directory by default), including when logs are passed by
+absolute path from another working directory. `--output PATH` atomically writes
+a report; otherwise output is written and flushed to stdout. Resume state is
+advanced only after complete analysis, rendering, and successful report
+delivery.
+
+Generated utilisation remains bounded by available structured logs: “ever
+used” is not an account-lifetime claim. Rate sections report calendar span,
+observed logging time, largest detected gap, and coverage quality; material
+gaps make observed runway estimates unavailable rather than falsely precise.
+
 ## Launcher And Private Environment
 
 `mrsMThatcher.env.example` is a sanitized example of the private live

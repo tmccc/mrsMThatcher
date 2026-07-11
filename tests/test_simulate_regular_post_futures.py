@@ -76,10 +76,20 @@ def run_private_future(
 
 
 def configure_real_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dict, set[str], set[str]]:
-    config = json.loads((ROOT / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
-    for key, value in config.items():
-        if key in bot.LOCAL_CONFIG_ALLOWED_KEYS:
-            monkeypatch.setattr(bot, key, bot._coerce_local_config_value(key, value, getattr(bot, key)))
+    deterministic_flags = {
+        "ENABLE_GENERATED_IMAGE_POOL": True,
+        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
+        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+        "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True,
+        "ORIGINAL_EDITORIAL_SHADOW_WEIGHT": 0.32,
+        "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT": 4.0,
+        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING": True,
+        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING": False,
+        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY": 6.0,
+        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY": 15.0,
+    }
+    for key, value in deterministic_flags.items():
+        monkeypatch.setattr(bot, key, value)
     monkeypatch.setattr(bot, "LINES_FILE", ROOT / "mrsMThatcher.txt")
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", ROOT / "quote_analysis.json")
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", ROOT / "image_analysis.json")

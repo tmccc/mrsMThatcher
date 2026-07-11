@@ -29,7 +29,10 @@ import argparse
 import ast
 import hashlib
 import json
+import math
+import os
 import re
+import statistics
 import sys
 from collections import Counter
 from dataclasses import dataclass
@@ -44,6 +47,10 @@ LOG_RE = re.compile(
 )
 GENERATED_BASENAME_RE = re.compile(r"tg_([0-9a-f]{64})\.png\Z")
 GENERATED_POLICIES = ("unrestricted", "small_penalty", "strong_penalty", "origin_quote_only")
+GENERATED_ANALYSIS_SCHEMA_VERSION = 3
+GENERATED_ANALYSIS_KIND = "images"
+GENERATED_AUDIT_SCHEMA_VERSION = 1
+GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
 
 
 def file_sha256(path: Path) -> str:
@@ -85,6 +92,7 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
 
     analysis: Dict[str, Any] = {}
     audit: Dict[str, Any] = {}
+    parsed = {"analysis": False, "audit": False}
     for label, path, target in (("analysis", analysis_path, "analysis"), ("audit", audit_path, "audit")):
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -92,10 +100,21 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
                 raise ValueError("root is not an object")
             if target == "analysis": analysis = value
             else: audit = value
+            parsed[label] = True
         except FileNotFoundError:
             warning(f"{label}_unavailable", "", str(path))
         except Exception as exc:
             warning(f"{label}_malformed", "", str(exc))
+
+    if parsed["analysis"]:
+        if analysis.get("schema_version") != GENERATED_ANALYSIS_SCHEMA_VERSION: warning("analysis_schema_invalid", "", repr(analysis.get("schema_version")))
+        if analysis.get("analysis_kind") != GENERATED_ANALYSIS_KIND: warning("analysis_kind_invalid", "", repr(analysis.get("analysis_kind")))
+        if not isinstance(analysis.get("path_index"), dict): warning("analysis_path_index_invalid", "", "expected object")
+        if not isinstance(analysis.get("items"), dict): warning("analysis_items_invalid", "", "expected object")
+    if parsed["audit"]:
+        if audit.get("schema_version") != GENERATED_AUDIT_SCHEMA_VERSION: warning("audit_schema_invalid", "", repr(audit.get("schema_version")))
+        if audit.get("analysis_kind") != GENERATED_AUDIT_KIND: warning("audit_kind_invalid", "", repr(audit.get("analysis_kind")))
+        if not isinstance(audit.get("items"), dict): warning("audit_items_invalid", "", "expected object")
 
     analysis_index = analysis.get("path_index") if isinstance(analysis.get("path_index"), dict) else {}
     analysis_items = analysis.get("items") if isinstance(analysis.get("items"), dict) else {}
@@ -116,8 +135,12 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
             warning("hash_error", name, str(exc)); continue
         expected_analysis = analysis_index.get(name)
         audit_record = audit_items.get(name) if isinstance(audit_items.get(name), dict) else {}
+        if name in audit_items and not isinstance(audit_items.get(name), dict): warning("audit_item_invalid", name, "expected object")
         expected_audit = audit_record.get("image_sha256")
+        if audit_record and str(audit_record.get("basename") or name) != name: warning("audit_basename_mismatch", name, repr(audit_record.get("basename")))
         item = analysis_items.get(str(expected_analysis))
+        if expected_analysis is not None and not re.fullmatch(r"[0-9a-f]{64}", str(expected_analysis)): warning("analysis_hash_invalid", name, repr(expected_analysis))
+        if expected_audit is not None and not re.fullmatch(r"[0-9a-f]{64}", str(expected_audit)): warning("audit_hash_invalid", name, repr(expected_audit))
         if expected_analysis != actual_hash or expected_audit != actual_hash or not isinstance(item, dict):
             warning("hash_mismatch", name, f"actual={actual_hash} analysis={expected_analysis} audit={expected_audit}")
         else:
@@ -126,6 +149,26 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
         if str(audit_record.get("origin_quote_hash") or "").lower() != (match.group(1) if match else ""):
             warning("origin_hash_mismatch", name, str(audit_record.get("origin_quote_hash") or "missing"))
         identity = audit_record.get("analysis") if isinstance(audit_record.get("analysis"), dict) else {}
+        if name in audit_names:
+            missing_audit = [key for key in ("image_sha256", "origin_quote_hash", "analysis") if key not in audit_record]
+            if missing_audit: warning("audit_item_missing_fields", name, ",".join(missing_audit))
+            if not isinstance(audit_record.get("analysis"), dict): warning("audit_analysis_invalid", name, "expected object")
+            else:
+                required_identity = (
+                    "recommended_cross_quote_policy", "identity_dependence", "contains_specific_intended_person",
+                    "recognisability_to_typical_viewer", "recognisability_to_politically_interested_viewer",
+                    "meaning_retention_without_identity", "origin_quote_suitability", "recommended_penalty_strength", "confidence",
+                )
+                missing_identity = [key for key in required_identity if key not in identity]
+                if missing_identity: warning("audit_analysis_missing_fields", name, ",".join(missing_identity))
+                if identity.get("identity_dependence") not in {"none", "low", "medium", "high", "essential"}: warning("audit_identity_dependence_invalid", name, repr(identity.get("identity_dependence")))
+                if type(identity.get("contains_specific_intended_person")) is not bool: warning("audit_person_flag_invalid", name, repr(identity.get("contains_specific_intended_person")))
+                for numeric_key in required_identity[3:]:
+                    value = identity.get(numeric_key)
+                    maximum = 1.0 if numeric_key == "confidence" else 10.0
+                    if (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value))
+                            or not 0.0 <= float(value) <= maximum):
+                        warning("audit_numeric_invalid", name, f"{numeric_key}={value!r}")
         policy = identity.get("recommended_cross_quote_policy")
         if policy in GENERATED_POLICIES: policy_counts[str(policy)] += 1
         elif name in audit_names: warning("invalid_policy", name, repr(policy))
@@ -188,16 +231,21 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
     used_generated: set[str] = set()
     try:
         raw_used = json.loads(used_path.read_text(encoding="utf-8"))
-        values = raw_used if isinstance(raw_used, list) else list(raw_used) if isinstance(raw_used, dict) else []
-        used_generated = {str(value) for value in values if GENERATED_BASENAME_RE.fullmatch(str(value))}
-        if not isinstance(raw_used, (list, dict)): warning("used_history_malformed", "", "expected list or object")
+        if not isinstance(raw_used, list): raise ValueError("expected JSON list")
+        used_generated = {str(value) for value in raw_used if GENERATED_BASENAME_RE.fullmatch(str(value))}
     except FileNotFoundError: warning("used_history_unavailable", "", str(used_path))
     except Exception as exc: warning("used_history_malformed", "", str(exc))
 
     active_used = active_names & used_generated
     quarantine_names = set(quarantined)
-    metadata_available = bool(analysis) and bool(audit)
-    coverage_complete = metadata_available and active_names == analysis_names == audit_names
+    metadata_available = parsed["analysis"] and parsed["audit"]
+    structural_warning_kinds = {
+        "analysis_schema_invalid", "analysis_kind_invalid", "analysis_path_index_invalid", "analysis_items_invalid",
+        "audit_schema_invalid", "audit_kind_invalid", "audit_items_invalid", "audit_item_invalid",
+        "audit_item_missing_fields", "audit_analysis_invalid", "audit_analysis_missing_fields",
+        "audit_identity_dependence_invalid", "audit_person_flag_invalid", "audit_numeric_invalid", "audit_basename_mismatch",
+    }
+    coverage_complete = metadata_available and active_names == analysis_names == audit_names and not any(item["kind"] in structural_warning_kinds for item in warnings)
     def curation_days(days: int) -> Dict[str, int]:
         cutoff = now - timedelta(days=days)
         quarantined_count = sum(len(names) for kind, timestamp, names in curation_events if kind == "quarantine" and timestamp >= cutoff)
@@ -217,6 +265,8 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
         "latest_quarantine": ({"transaction_id": latest_quarantine.get("transaction_id"), "timestamp": latest_quarantine.get("created_at"), "image_count": len(latest_quarantine.get("images") or [])} if latest_quarantine else None),
         "latest_restore": ({"transaction_id": latest_restore.get("transaction_id"), "timestamp": latest_restore.get("created_at"), "image_count": len(latest_restore.get("images") or [])} if latest_restore else None),
         "curation_7d": curation_days(7), "curation_30d": curation_days(30),
+        "active_basenames": sorted(active_names), "quarantined_basenames": sorted(quarantine_names),
+        "active_origin_quote_hashes": {name: (GENERATED_BASENAME_RE.fullmatch(name).group(1) if GENERATED_BASENAME_RE.fullmatch(name) else None) for name in sorted(active_names)},
         "warnings": warnings, "warning_count": len(warnings), "health": "OK" if not warnings else "WARNING",
     }
 
@@ -248,17 +298,87 @@ def generated_post_rate_history(logs: List[Path], now: Optional[datetime] = None
         window_cutoff = now - timedelta(days=window_days)
         selected = [post for post in posts.values() if post["timestamp"] >= window_cutoff]
         generated = sum(post["generated"] for post in selected)
+        window_timestamps = sorted(ts for ts in clean_timestamps if ts >= window_cutoff)
         coverage_start = max(window_cutoff, earliest) if earliest else None
         coverage_days = max((now - coverage_start).total_seconds() / 86400.0, 0.0) if coverage_start else 0.0
+        gap_threshold_seconds = 15 * 60
+        points = ([coverage_start] if coverage_start else []) + window_timestamps + ([now] if coverage_start else [])
+        gaps = [(later - earlier).total_seconds() for earlier, later in zip(points, points[1:])]
+        largest_gap = max(gaps, default=0.0)
+        material_gaps = sum(gap > gap_threshold_seconds for gap in gaps)
+        observed_seconds = sum(min(max(gap, 0.0), gap_threshold_seconds) for gap in gaps)
+        coverage_quality = "unavailable" if not coverage_start else "continuous" if material_gaps == 0 else "gapped"
         regular_per_day = len(selected) / coverage_days if coverage_days > 0 else None
         generated_per_day = generated / coverage_days if coverage_days > 0 else None
         windows[f"trailing_{window_days}d"] = {
             "regular_posts": len(selected), "generated_posts": generated,
             "generated_share_percent": (generated / len(selected) * 100.0) if selected else None,
-            "coverage_days": coverage_days, "regular_posts_per_day": regular_per_day, "generated_posts_per_day": generated_per_day,
+            "coverage_days": coverage_days, "calendar_span_days": coverage_days,
+            "observed_logging_days": observed_seconds / 86400.0,
+            "coverage_quality": coverage_quality, "largest_detected_gap_seconds": largest_gap,
+            "material_gap_count": material_gaps, "gap_threshold_seconds": gap_threshold_seconds,
+            "regular_posts_per_day": regular_per_day, "generated_posts_per_day": generated_per_day,
         }
+    post_history = [
+        {"post_id": post_id, "timestamp": item["timestamp"].isoformat(sep=" "), "basename": item["basename"], "generated": item["generated"]}
+        for post_id, item in sorted(posts.items(), key=lambda pair: (pair[1]["timestamp"], pair[0]))
+    ]
     return {"windows": windows, "scanned_records": len(records), "unique_regular_posts": len(posts), "contaminated_seconds_excluded": len(contaminated_seconds),
-            "coverage_start": earliest.isoformat(sep=" ") if earliest else None, "coverage_end": now.isoformat(sep=" "), "files_scanned": len(logs)}
+            "coverage_start": earliest.isoformat(sep=" ") if earliest else None, "coverage_end": now.isoformat(sep=" "), "files_scanned": len(logs),
+            "successful_regular_posts": post_history}
+
+
+def generated_image_utilisation(pool: Dict[str, Any], rates: Dict[str, Any], limit: int = 10) -> Dict[str, Any]:
+    """Summarise successful generated posts observed in the bounded history scan."""
+    active = set(pool.get("active_basenames") or [])
+    quarantined = set(pool.get("quarantined_basenames") or [])
+    by_image: Dict[str, List[datetime]] = {}
+    for post in rates.get("successful_regular_posts") or []:
+        name = str(post.get("basename") or "")
+        if name not in active or not post.get("generated"):
+            continue
+        try:
+            timestamp = datetime.fromisoformat(str(post.get("timestamp") or ""))
+        except (TypeError, ValueError):
+            continue
+        by_image.setdefault(name, []).append(timestamp)
+
+    counts = {name: len(timestamps) for name, timestamps in by_image.items()}
+    lasts = {name: max(timestamps) for name, timestamps in by_image.items()}
+    used = set(counts)
+    never = active - used
+    total = sum(counts.values())
+    ranked = sorted(used, key=lambda name: (-counts[name], -lasts[name].timestamp(), name))
+    longest = sorted(active, key=lambda name: (name in used, lasts.get(name, datetime.min), name))
+    origins = pool.get("active_origin_quote_hashes") or {}
+
+    def row(name: str) -> Dict[str, Any]:
+        return {"image": name, "successful_posts": counts.get(name, 0),
+                "last_successful_post": lasts[name].isoformat(sep=" ") if name in lasts else None}
+
+    top_count = sum(counts[name] for name in ranked[:10])
+    current_used = int(pool.get("active_previously_used", 0) or 0)
+    current_unused = int(pool.get("active_never_used", 0) or 0)
+    return {
+        "active_generated_images": len(active),
+        "active_images_used_ever": len(used),
+        "active_images_never_used": len(never),
+        "active_pool_ever_used_percentage": (len(used) / len(active) * 100.0) if active else None,
+        "active_images_used_in_current_cycle": current_used,
+        "active_images_unused_in_current_cycle": current_unused,
+        "total_successful_generated_posts_observed": total,
+        "median_successful_posts_per_used_image": statistics.median(counts.values()) if counts else None,
+        "maximum_successful_posts_for_one_image": max(counts.values()) if counts else 0,
+        "top_10_share_of_successful_generated_posts": (top_count / total * 100.0) if total else None,
+        "most_frequently_used": [row(name) for name in ranked[:limit]],
+        "never_used": [{"image": name, "origin_quote_hash": origins.get(name)} for name in sorted(never)[:limit]],
+        "never_used_total": len(never),
+        "unused_longest": [row(name) for name in longest[:limit]],
+        "quarantined_generated_images": len(quarantined),
+        "history_coverage_start": rates.get("coverage_start"),
+        "history_coverage_end": rates.get("coverage_end"),
+        "history_scope": "bounded available structured production logs; not guaranteed all-time",
+    }
 
 
 def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
@@ -286,7 +406,9 @@ def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: D
         window = (rates.get("windows") or {}).get(label) or {}
         generated_per_day = window.get("generated_posts_per_day")
         share = window.get("generated_share_percent")
-        reliable = (window.get("coverage_days") or 0) >= 1.0 and (window.get("regular_posts") or 0) > 0 and (window.get("generated_posts") or 0) > 0
+        coverage_quality = window.get("coverage_quality")
+        reliable = ((window.get("coverage_days") or 0) >= 1.0 and (window.get("regular_posts") or 0) > 0
+                    and (window.get("generated_posts") or 0) > 0 and coverage_quality in (None, "continuous"))
         estimate = {"available": reliable, "reason": None}
         if reliable:
             share_fraction = float(share) / 100.0
@@ -294,7 +416,7 @@ def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: D
                              "days_to_cycle_exhaustion": remaining / float(generated_per_day), "generated_posts_per_day": generated_per_day})
             if primary is None: primary = label
         else:
-            estimate["reason"] = "insufficient clean regular/generated posts or less than one day of coverage"
+            estimate["reason"] = "insufficient clean regular/generated posts, less than one day of coverage, or material log gaps"
         observed[label] = estimate
     if remaining == 0:
         primary = "complete"
@@ -2603,6 +2725,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("# MrsMThatcher log digest")
     out.append("")
     out.append(f"Window: `{s.get('time_start')}` → `{s.get('time_end')}`")
+    out.append(f"Project directory: `{report.get('project_dir') or 'unavailable'}`")
     if report.get("requested_since"):
         mode = "exclusive" if report.get("since_exclusive") else "inclusive"
         source = report.get("since_source") or "manual"
@@ -2981,6 +3104,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 window = (rates.get("windows") or {}).get(label) or {}
                 share = window.get("generated_share_percent")
                 out.append(f"{label}_coverage_days          = {float(window.get('coverage_days') or 0.0):.1f}")
+                out.append(f"{label}_observed_logging_days  = {float(window.get('observed_logging_days') or 0.0):.1f}")
+                out.append(f"{label}_coverage_quality       = {window.get('coverage_quality') or 'unavailable'}")
+                out.append(f"{label}_largest_detected_gap   = {float(window.get('largest_detected_gap_seconds') or 0.0) / 3600.0:.1f} hours")
                 out.append(f"{label}_regular_posts          = {window.get('regular_posts', 0)}")
                 out.append(f"{label}_generated_posts        = {window.get('generated_posts', 0)}")
                 out.append(f"{label}_generated_share        = {float(share):.1f}%" if share is not None else f"{label}_generated_share        = unavailable")
@@ -2989,6 +3115,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append(f"{label}_generated_posts_per_day = {float(generated_rate):.2f}" if generated_rate is not None else f"{label}_generated_posts_per_day = unavailable")
             out.append(f"contaminated_seconds_excluded  = {rates.get('contaminated_seconds_excluded', 0)}")
             out.append("```")
+            if any(((rates.get("windows") or {}).get(label) or {}).get("coverage_quality") == "gapped" for label in ("trailing_7d", "trailing_30d")):
+                out.append("WARNING: material gaps were detected in available logs; posts/day and runway estimates are not treated as reliable.")
         runway = report.get("generated_image_pool_runway") or {}
         if runway:
             out.append("Estimated current-cycle runway (not an all-time posting claim):")
@@ -3045,6 +3173,56 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if len(warnings) > 20:
                 out.append(f"{len(warnings) - 20} additional warning(s) omitted.")
             out.append("")
+
+    utilisation = report.get("generated_image_utilisation") or {}
+    if utilisation:
+        out.append("## Generated image utilisation")
+        out.append("Successful-post history is bounded by available structured production logs and is not guaranteed to be all-time.")
+        coverage_start = utilisation.get("history_coverage_start") or "unavailable"
+        coverage_end = utilisation.get("history_coverage_end") or "unavailable"
+        out.append(f"Observed history coverage: `{coverage_start}` to `{coverage_end}`.")
+        out.append("")
+        out.append("```text")
+        out.append(f"active_generated_images                    = {utilisation.get('active_generated_images', 0)}")
+        out.append(f"active_images_used_ever                    = {utilisation.get('active_images_used_ever', 0)}")
+        out.append(f"active_images_never_used                   = {utilisation.get('active_images_never_used', 0)}")
+        percentage = utilisation.get("active_pool_ever_used_percentage")
+        out.append(f"active_pool_ever_used_percentage           = {float(percentage):.1f}%" if percentage is not None else "active_pool_ever_used_percentage           = unavailable")
+        out.append(f"active_images_used_in_current_cycle        = {utilisation.get('active_images_used_in_current_cycle', 0)}")
+        out.append(f"active_images_unused_in_current_cycle      = {utilisation.get('active_images_unused_in_current_cycle', 0)}")
+        out.append(f"total_successful_generated_posts_observed  = {utilisation.get('total_successful_generated_posts_observed', 0)}")
+        median_count = utilisation.get("median_successful_posts_per_used_image")
+        out.append(f"median_successful_posts_per_used_image     = {float(median_count):.1f}" if median_count is not None else "median_successful_posts_per_used_image     = unavailable")
+        out.append(f"maximum_successful_posts_for_one_image     = {utilisation.get('maximum_successful_posts_for_one_image', 0)}")
+        top_share = utilisation.get("top_10_share_of_successful_generated_posts")
+        out.append(f"top_10_share_of_successful_generated_posts = {float(top_share):.1f}%" if top_share is not None else "top_10_share_of_successful_generated_posts = unavailable")
+        out.append("```")
+
+        out.append("Most frequently used active generated images")
+        out.append(md_table_row(["image", "successful_posts", "last_successful_post"]))
+        out.append(md_table_row(["---", "---", "---"]))
+        for item in utilisation.get("most_frequently_used") or []:
+            out.append(md_table_row([item.get("image", ""), item.get("successful_posts", 0), item.get("last_successful_post") or "never"]))
+        if not utilisation.get("most_frequently_used"): out.append(md_table_row(["none observed", "0", "never"]))
+        out.append("")
+
+        out.append("Active generated images never successfully posted in observed logs")
+        out.append(md_table_row(["image", "origin_quote_hash"]))
+        out.append(md_table_row(["---", "---"]))
+        for item in utilisation.get("never_used") or []:
+            out.append(md_table_row([item.get("image", ""), item.get("origin_quote_hash") or "unavailable"]))
+        omitted = int(utilisation.get("never_used_total", 0) or 0) - len(utilisation.get("never_used") or [])
+        if omitted > 0: out.append(f"{omitted} additional active image(s) omitted.")
+        if not utilisation.get("never_used"): out.append(md_table_row(["none", "-"]))
+        out.append("")
+
+        out.append("Active generated images unused longest in observed logs")
+        out.append(md_table_row(["image", "last_successful_post", "successful_posts"]))
+        out.append(md_table_row(["---", "---", "---"]))
+        for item in utilisation.get("unused_longest") or []:
+            out.append(md_table_row([item.get("image", ""), item.get("last_successful_post") or "never", item.get("successful_posts", 0)]))
+        if not utilisation.get("unused_longest"): out.append(md_table_row(["none", "never", "0"]))
+        out.append("")
 
     if generated_spacing_latest or generated_spacing_events:
         out.append("## Generated image spacing")
@@ -3536,6 +3714,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(out)
 
 
+def deliver_report(rendered: str, output_path: Optional[Path] = None) -> None:
+    """Deliver a complete report before the caller advances resume state."""
+    if output_path is None:
+        sys.stdout.write(rendered)
+        sys.stdout.flush()
+        return
+    output_path = output_path.expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = output_path.with_suffix(output_path.suffix + ".tmp")
+    try:
+        with tmp.open("w", encoding="utf-8") as handle:
+            handle.write(rendered)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, output_path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description="Summarise MrsMThatcher bot logs into a compact digest.")
     ap.add_argument(
@@ -3547,18 +3748,25 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--since", help="Only include records at/after this local timestamp, e.g. '2026-06-25 08:00'. Overrides saved resume time.")
     ap.add_argument("--until", help="Only include records at/before this local timestamp.")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of Markdown.")
+    ap.add_argument("--output", type=Path, help="Atomically write the report to this file instead of stdout.")
     ap.add_argument("--max-text", type=int, default=280, help="Maximum text length per field in report. Default: 280.")
     ap.add_argument("--glob", default="mrsMThatcher*.log*", help="Log glob to use when no explicit log files are supplied. Default: mrsMThatcher*.log*")
-    ap.add_argument("--state-file", type=Path, default=Path(".mrs_log_digest_state.json"), help="Resume-state file. Default: .mrs_log_digest_state.json")
+    ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent, help="Project directory for config, metadata, history and auto-discovered logs.")
+    ap.add_argument("--state-file", type=Path, default=Path(".mrs_log_digest_state.json"), help="Resume-state file, relative to --project-dir unless absolute.")
     ap.add_argument("--no-state", action="store_true", help="Do not read or update the resume-state file.")
     ap.add_argument("--reset-state", action="store_true", help="Ignore any existing resume-state file for this run; save the new end timestamp afterwards.")
     ap.add_argument("--no-update-state", action="store_true", help="Read resume state, but do not write the new end timestamp.")
     args = ap.parse_args(argv)
 
+    project_dir = args.project_dir.expanduser().resolve()
+    state_file = args.state_file.expanduser()
+    if not state_file.is_absolute():
+        state_file = project_dir / state_file
+
     if args.logs:
         logs = args.logs
     else:
-        logs = discover_logs(Path.cwd(), args.glob)
+        logs = discover_logs(project_dir, args.glob)
 
     if not logs:
         raise SystemExit(
@@ -3576,14 +3784,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         since_source = "manual --since"
         since_exclusive = False
     elif not args.no_state and not args.reset_state:
-        resume_data = read_resume_data(args.state_file)
+        resume_data = read_resume_data(state_file)
         since = None
         if resume_data:
             try:
                 since = parse_dt(resume_data.get("last_log_entry_time"))
             except Exception as e:
                 print(
-                    f"WARNING: ignoring invalid resume timestamp in {args.state_file}: "
+                    f"WARNING: ignoring invalid resume timestamp in {state_file}: "
                     f"{resume_data.get('last_log_entry_time')!r} ({e})",
                     file=sys.stderr,
                 )
@@ -3641,9 +3849,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
     report["resume_boundary_fingerprint_count"] = len(resume_boundary_fingerprints)
-    report["resume_state_file"] = None if args.no_state else str(args.state_file)
+    report["project_dir"] = str(project_dir)
+    report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
-    report["generated_image_pool_health"] = generated_pool_health_snapshot(Path.cwd())
+    report["generated_image_pool_health"] = generated_pool_health_snapshot(project_dir)
 
     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
     if (
@@ -3673,35 +3882,35 @@ def main(argv: Optional[List[str]] = None) -> int:
             report["config_backscan_timestamp"] = dt_text(backscan_ts) if backscan_ts else None
 
     if not args.no_state and not args.reset_state:
-        apply_saved_context(report, args.state_file, window_end=report_window_end)
+        apply_saved_context(report, state_file, window_end=report_window_end)
     else:
         refresh_derived(report)
 
-    if records and not args.no_state and not args.no_update_state:
-        last_ts = records[-1].ts
-        save_resume_time(args.state_file, last_ts, records, report, logs)
-        report["state_updated"] = True
-        report["saved_last_log_entry_time"] = dt_text(last_ts)
-    elif not records:
+    if not records:
         report["saved_last_log_entry_time"] = dt_text(since) if since else None
 
     runway_config = dict(report.get("latest_config") or {})
     try:
-        local_config = json.loads((Path.cwd() / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
+        local_config = json.loads((project_dir / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
         if isinstance(local_config, dict): runway_config.update(local_config)
     except Exception:
         pass
     report["generated_image_post_rates"] = generated_post_rate_history(logs)
     report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
+    report["generated_image_utilisation"] = generated_image_utilisation(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"])
 
     if args.json:
-        print(json.dumps(report, indent=2, ensure_ascii=False))
+        rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     else:
-        print(render_markdown(report))
-        if records and not args.no_state and not args.no_update_state:
-            print(f"\n<!-- resume state updated: {args.state_file} last_log_entry_time={dt_text(records[-1].ts)} -->")
-        elif not records:
-            print("\n<!-- no matching records; resume state not advanced -->")
+        rendered = render_markdown(report) + "\n"
+        if not records:
+            rendered += "\n<!-- no matching records; resume state not advanced -->\n"
+
+    deliver_report(rendered, args.output)
+
+    if records and not args.no_state and not args.no_update_state:
+        last_ts = records[-1].ts
+        save_resume_time(state_file, last_ts, records, report, logs)
 
     return 0
 
