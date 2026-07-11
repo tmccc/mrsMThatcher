@@ -761,6 +761,15 @@ def production_bootstrap() -> None:
     _PRODUCTION_BOOTSTRAPPED = True
 
 
+def require_production_bootstrap() -> None:
+    """Enforce explicit bootstrap before entering an operational command."""
+    if not _PRODUCTION_BOOTSTRAPPED:
+        raise RuntimeError(
+            "Production bootstrap has not completed; "
+            "call production_bootstrap() before entering an operational command"
+        )
+
+
 # ---------------------------------------------------------------------
 # Runtime control / pause file
 # ---------------------------------------------------------------------
@@ -8415,6 +8424,7 @@ def run_reply_lane_checks_for_tick(
 
 
 def main() -> None:
+    require_production_bootstrap()
     random.seed()
     acquire_instance_lock()
 
@@ -8642,6 +8652,7 @@ def _self_test_warn(label: str, ok: bool, detail: str = "") -> None:
 
 def run_self_test() -> int:
     """Run local checks without posting or calling X/xAI."""
+    require_production_bootstrap()
     log.info("Running self-test only; no X or xAI API calls will be made")
     failures = 0
 
@@ -8737,6 +8748,7 @@ def run_self_test() -> int:
 
 def run_test_cycle() -> int:
     """Run one local integration-test pass without entering the posting loop."""
+    require_production_bootstrap()
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("--test-cycle requires MRS_TEST_MODE=1")
         return 2
@@ -8800,6 +8812,7 @@ def run_test_cycle() -> int:
 
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
+    require_production_bootstrap()
     if not require_test_mode("--test-main-tick"):
         return 2
 
@@ -8847,6 +8860,7 @@ def prepare_test_main_post_state(state: dict) -> None:
 
 def run_test_post_quote() -> int:
     """Run one quote/image post cycle for local integration tests."""
+    require_production_bootstrap()
     if not require_test_mode("--test-post-quote"):
         return 2
 
@@ -8892,6 +8906,7 @@ def run_test_post_quote() -> int:
 
 def run_test_post_meme() -> int:
     """Run one daily meme post cycle for local integration tests."""
+    require_production_bootstrap()
     if not require_test_mode("--test-post-meme"):
         return 2
 

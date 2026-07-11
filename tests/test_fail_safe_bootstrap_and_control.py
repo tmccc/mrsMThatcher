@@ -12,6 +12,16 @@ import pytest
 import mrsMThatcher2 as bot
 
 
+OPERATIONAL_ENTRY_POINTS = (
+    "main",
+    "run_self_test",
+    "run_test_cycle",
+    "run_test_main_tick",
+    "run_test_post_quote",
+    "run_test_post_meme",
+)
+
+
 def reset_control_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(bot, "_CONTROL_CACHE", {"signature": None, "data": {}, "has_valid": False, "failure_signature": None})
 
@@ -61,6 +71,74 @@ def test_bootstrap_is_explicit_valid_and_idempotent(tmp_path, monkeypatch):
     path.write_text("{")
     bot.production_bootstrap()
     assert (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX) == (8000, 8200)
+
+
+@pytest.mark.parametrize("entry_point_name", OPERATIONAL_ENTRY_POINTS)
+def test_operational_entry_points_require_bootstrap_before_side_effects(monkeypatch, entry_point_name):
+    calls: list[str] = []
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
+    monkeypatch.setenv("MRS_TEST_MODE", "1")
+
+    for helper_name in (
+        "acquire_instance_lock",
+        "load_runtime_state",
+        "reconcile_main_post_receipts",
+        "reconcile_confirmed_reply_receipt",
+        "create_post",
+        "upload_media",
+        "post_random_quote",
+        "post_next_meme",
+    ):
+        monkeypatch.setattr(
+            bot,
+            helper_name,
+            lambda *args, _name=helper_name, **kwargs: calls.append(_name),
+        )
+
+    with pytest.raises(RuntimeError, match="Production bootstrap has not completed"):
+        getattr(bot, entry_point_name)()
+
+    assert calls == []
+
+
+def test_successful_bootstrap_opens_guard_and_operational_dispatch(tmp_path, monkeypatch):
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", tmp_path / "missing.json")
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
+    monkeypatch.setattr(bot, "setup_logging", lambda: bot.log)
+    monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
+    monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
+    reached_lock: list[bool] = []
+
+    class DispatchReached(Exception):
+        pass
+
+    def stop_at_lock() -> None:
+        reached_lock.append(True)
+        raise DispatchReached
+
+    monkeypatch.setattr(bot, "acquire_instance_lock", stop_at_lock)
+    bot.production_bootstrap()
+    bot.require_production_bootstrap()
+
+    with pytest.raises(DispatchReached):
+        bot.main()
+
+    assert reached_lock == [True]
+
+
+def test_failed_bootstrap_leaves_operational_guard_closed(tmp_path, monkeypatch):
+    path = tmp_path / "local.json"
+    path.write_text("{")
+    monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", path)
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
+    monkeypatch.setattr(bot, "setup_logging", lambda: bot.log)
+
+    with pytest.raises(bot.LocalConfigError):
+        bot.production_bootstrap()
+
+    assert bot._PRODUCTION_BOOTSTRAPPED is False
+    with pytest.raises(RuntimeError, match="Production bootstrap has not completed"):
+        bot.require_production_bootstrap()
 
 
 def test_script_invalid_config_exits_before_main(tmp_path):

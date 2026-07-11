@@ -47,6 +47,8 @@ SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
 
 @pytest.fixture(autouse=True)
 def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Operational command tests model the supported post-bootstrap dispatch path.
+    monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", True)
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme_post_receipt.json")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
