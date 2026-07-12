@@ -8,6 +8,9 @@ nohup.out
 __pycache__/
 .pytest_cache/
 .mrs_log_digest_state.json
+.generated_image_analysis.lock
+.mrs_asset_analysis.lock
+.mrs_log_digest_state.json.lock
 digest*.md
 .DS_Store
 ._*
