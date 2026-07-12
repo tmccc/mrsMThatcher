@@ -93,11 +93,6 @@
       "size_bytes": 1863774,
       "suffix": ".png"
     },
-    "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png": {
-      "mtime_ns": 1783475994675746232,
-      "size_bytes": 1602828,
-      "suffix": ".png"
-    },
     "tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png": {
       "mtime_ns": 1783474218235035236,
       "size_bytes": 1472089,
@@ -133,11 +128,6 @@
       "size_bytes": 1701568,
       "suffix": ".png"
     },
-    "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png": {
-      "mtime_ns": 1783474638960106666,
-      "size_bytes": 1586889,
-      "suffix": ".png"
-    },
     "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png": {
       "mtime_ns": 1783475574934579498,
       "size_bytes": 1386721,
@@ -151,11 +141,6 @@
     "tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png": {
       "mtime_ns": 1783473047535749240,
       "size_bytes": 1755634,
-      "suffix": ".png"
-    },
-    "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png": {
-      "mtime_ns": 1783474192370968024,
-      "size_bytes": 1699410,
       "suffix": ".png"
     },
     "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png": {
@@ -413,11 +398,6 @@
       "size_bytes": 1655146,
       "suffix": ".png"
     },
-    "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png": {
-      "mtime_ns": 1783486840071937083,
-      "size_bytes": 1632955,
-      "suffix": ".png"
-    },
     "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png": {
       "mtime_ns": 1783475077465197696,
       "size_bytes": 1402065,
@@ -654,7 +634,7 @@
           "shot_type": "other",
           "subject_prominence": 65
         },
-        "description": "Split composite image. Left panel: grim scene with red Soviet flag bearing hammer and sickle, barbed-wire fence, watchtower, soldier in dark uniform, and several civilians in ragged clothing behind the fence under overcast skies. Right panel: bright sunny outdoor café with a smiling young couple at a table holding white coffee cups, Russian tricolor flag visible among trees and buildings, relaxed crowd in background.",
+        "description": "Split composite image. Left panel: grim scene with red Soviet flag bearing hammer and sickle, barbed-wire fence, watchtower, soldier in dark uniform, and several civilians in ragged clothing behind the fence under overcast skies. Right panel: bright sunny outdoor caf\u00e9 with a smiling young couple at a table holding white coffee cups, Russian tricolor flag visible among trees and buildings, relaxed crowd in background.",
         "historical_context": {
           "confidence": 55,
           "event_or_context_hint": "visual contrast between Soviet-era confinement and later public life",
@@ -686,7 +666,7 @@
           "formality": "mixed",
           "primary_subject_activities": [
             "standing behind fence",
-            "sitting at café table",
+            "sitting at caf\u00e9 table",
             "socializing"
           ],
           "primary_subject_moods": [
@@ -702,7 +682,7 @@
           "subject_clarity": 90,
           "technical_quality": 85
         },
-        "scene_summary": "Diptych contrasting a dark Soviet-era border or camp scene on the left with a cheerful modern outdoor café gathering on the right.",
+        "scene_summary": "Diptych contrasting a dark Soviet-era border or camp scene on the left with a cheerful modern outdoor caf\u00e9 gathering on the right.",
         "scene_types": [
           "historical_archive",
           "military_or_defence",
@@ -720,7 +700,7 @@
         "setting": {
           "details": [
             "left panel: fenced compound with watchtower",
-            "right panel: sunny urban café terrace"
+            "right panel: sunny urban caf\u00e9 terrace"
           ],
           "location_type": "mixed"
         },
@@ -742,7 +722,7 @@
           "soldier in uniform",
           "civilians behind fence",
           "Russian tricolor flag",
-          "outdoor café table",
+          "outdoor caf\u00e9 table",
           "coffee cups and saucers",
           "smiling couple",
           "trees and city buildings",
@@ -3701,7 +3681,7 @@
           "shot_type": "half_body",
           "subject_prominence": 85
         },
-        "description": "A middle-aged woman with coiffed blonde hair wearing a navy blazer and pearl necklace stands behind a dark wooden podium fitted with four microphones. The background is vertically split: the left half shows a decaying urban street with rundown buildings, red flags, smoke-filled sky and a crowd in shabby clothing; the right half depicts a bright modern city with glass skyscrapers, outdoor cafés, trees and well-dressed people under a clear blue sky.",
+        "description": "A middle-aged woman with coiffed blonde hair wearing a navy blazer and pearl necklace stands behind a dark wooden podium fitted with four microphones. The background is vertically split: the left half shows a decaying urban street with rundown buildings, red flags, smoke-filled sky and a crowd in shabby clothing; the right half depicts a bright modern city with glass skyscrapers, outdoor caf\u00e9s, trees and well-dressed people under a clear blue sky.",
         "historical_context": {
           "confidence": 35,
           "event_or_context_hint": "symbolic political speech contrasting economic conditions",
@@ -3766,7 +3746,7 @@
           "details": [
             "vertically split urban backdrop",
             "left: derelict street with smoke and flags",
-            "right: modern plaza with cafés and skyscrapers"
+            "right: modern plaza with caf\u00e9s and skyscrapers"
           ],
           "location_type": "mixed"
         },
@@ -3787,7 +3767,7 @@
           "pearl necklace",
           "split cityscape",
           "red flags",
-          "outdoor cafés",
+          "outdoor caf\u00e9s",
           "smoke",
           "crowd",
           "skyscrapers"
@@ -3959,139 +3939,6 @@
           "text_tokens": 2341
         },
         "total_tokens": 4498
-      }
-    },
-    "50c70d21b8b9b8056a90077a3e5605a99a7da851055f73316bd98e6c65b8d5fe": {
-      "analysed_at": "2026-07-08T18:03:48+00:00",
-      "analysis": {
-        "composition": {
-          "background_complexity": 45,
-          "orientation": "landscape",
-          "shot_type": "half_body",
-          "subject_prominence": 85
-        },
-        "description": "A woman in a navy blue suit and pearl necklace stands leaning over a long polished wooden conference table in a wood-paneled room, holding a stack of papers in her left hand and gesturing forward with her right. Around the table sit several men in dark suits, with documents, water glasses and silver pitchers visible on the table surface.",
-        "historical_context": {
-          "confidence": 20,
-          "event_or_context_hint": null,
-          "specificity": "general",
-          "visible_symbols": []
-        },
-        "pairing": {
-          "best_for_tones": [
-            "authoritative",
-            "serious",
-            "pragmatic",
-            "defiant"
-          ],
-          "best_for_topics": [
-            "leadership",
-            "government",
-            "work",
-            "responsibility"
-          ],
-          "general_reusability": 75,
-          "matching_summary": "Strong match for quotations about authority, decisive leadership or formal decision-making in professional settings; less suitable for informal, humorous or personal topics.",
-          "semantic_specificity": 60,
-          "weak_for_topics": []
-        },
-        "people": {
-          "count_category": "small_group",
-          "formality": "very_formal",
-          "primary_subject_activities": [
-            "standing",
-            "gesturing",
-            "holding papers"
-          ],
-          "primary_subject_moods": [
-            "determined",
-            "serious",
-            "forceful"
-          ]
-        },
-        "quality": {
-          "composition": 88,
-          "crop_suitability_for_x": 85,
-          "overall": 92,
-          "subject_clarity": 95,
-          "technical_quality": 90
-        },
-        "scene_summary": "Formal indoor meeting scene with a standing woman gesturing at a conference table surrounded by seated suited men.",
-        "scene_types": [
-          "office_or_working"
-        ],
-        "seasonality": {
-          "avoid_outside_season_or_occasion": false,
-          "cues": [],
-          "explanation": "No seasonal indicators visible.",
-          "occasions": [],
-          "strength": "none",
-          "visible_season": "none"
-        },
-        "setting": {
-          "details": [
-            "wood-paneled conference room",
-            "long wooden table",
-            "formal governmental-style interior"
-          ],
-          "location_type": "indoor"
-        },
-        "themes": [
-          "leadership",
-          "work",
-          "government"
-        ],
-        "tone": [
-          "authoritative",
-          "serious",
-          "pragmatic"
-        ],
-        "visible_elements": [
-          "long wooden table",
-          "navy blue suit",
-          "pearl necklace",
-          "stack of papers",
-          "silver pitchers",
-          "water glasses",
-          "wood paneling",
-          "dark suits",
-          "red binders"
-        ],
-        "visible_text": {
-          "present": false,
-          "summary": null
-        },
-        "visual_energy": "medium"
-      },
-      "analysis_model": "grok-4.3",
-      "api_mime_type": "image/png",
-      "image_hash": "8710b5c6f5a73f238912a79a36f89c76c823e44b9ec2f07299d986876bb9039d",
-      "paths": [
-        "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png"
-      ],
-      "preparation": "original",
-      "prompt_version": "image-analysis-2026-07-05-v4",
-      "response_id": "d7babbfe-8821-9dc7-aa4f-fb5dafd190ef",
-      "source_size_bytes": 1586889,
-      "source_suffix": ".png",
-      "usage": {
-        "completion_tokens": 608,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 752,
-          "rejected_prediction_tokens": 0
-        },
-        "cost_in_usd_ticks": 52567500,
-        "num_sources_used": 0,
-        "prompt_tokens": 3367,
-        "prompt_tokens_details": {
-          "audio_tokens": 0,
-          "cached_tokens": 2240,
-          "image_tokens": 1026,
-          "text_tokens": 2341
-        },
-        "total_tokens": 4727
       }
     },
     "50c916e59dce543590ec22417469973f7de3003c9841e67f113b4da497bd4732": {
@@ -5547,7 +5394,7 @@
           "shot_type": "wide_scene",
           "subject_prominence": 75
         },
-        "description": "A wide, dramatic scene of a ruined cityscape dominated by the Kremlin’s Spasskaya Tower under heavy storm clouds. In the foreground a massive stone hammer-and-sickle monument lies toppled on rubble; a tattered red Soviet flag flies from a pole nearby while another lies crumpled on the ground. A large weathered stone head resembling Lenin rests among broken masonry and debris. The atmosphere is desolate, smoky and overcast.",
+        "description": "A wide, dramatic scene of a ruined cityscape dominated by the Kremlin\u2019s Spasskaya Tower under heavy storm clouds. In the foreground a massive stone hammer-and-sickle monument lies toppled on rubble; a tattered red Soviet flag flies from a pole nearby while another lies crumpled on the ground. A large weathered stone head resembling Lenin rests among broken masonry and debris. The atmosphere is desolate, smoky and overcast.",
         "historical_context": {
           "confidence": 40,
           "event_or_context_hint": "symbolic depiction of the collapse of Soviet power",
@@ -6890,7 +6737,7 @@
           "shot_type": "half_body",
           "subject_prominence": 85
         },
-        "description": "A woman in a navy blue formal suit stands at a wooden podium with two black microphones, her hands resting on the surface. She wears a double-strand pearl necklace, a decorative brooch, and pearl earrings. Behind her, blurred figures hold white signs displaying large female gender symbols (♀). The setting is an indoor formal space with wooden paneling and soft lighting. Her expression is serious and composed.",
+        "description": "A woman in a navy blue formal suit stands at a wooden podium with two black microphones, her hands resting on the surface. She wears a double-strand pearl necklace, a decorative brooch, and pearl earrings. Behind her, blurred figures hold white signs displaying large female gender symbols (\u2640). The setting is an indoor formal space with wooden paneling and soft lighting. Her expression is serious and composed.",
         "historical_context": {
           "confidence": 20,
           "event_or_context_hint": null,
@@ -8190,138 +8037,6 @@
           "text_tokens": 2341
         },
         "total_tokens": 4609
-      }
-    },
-    "a5cd652d56343ed305b327808cbcd174a5c2f0be474442f8ad7e2736fe965040": {
-      "analysed_at": "2026-07-08T18:01:04+00:00",
-      "analysis": {
-        "composition": {
-          "background_complexity": 35,
-          "orientation": "portrait",
-          "shot_type": "half_body",
-          "subject_prominence": 85
-        },
-        "description": "An older woman with styled light brown hair, wearing a navy blue blazer, pearl necklace, earrings, and a brooch, sits at a wooden desk. Her right hand rests over her heart; she has a serious, reflective expression and looks slightly downward. The setting is an indoor office with papers, books, a lamp, a glass of water, a leather chair, curtains, and a framed picture visible.",
-        "historical_context": {
-          "confidence": 0,
-          "event_or_context_hint": null,
-          "specificity": "general",
-          "visible_symbols": []
-        },
-        "pairing": {
-          "best_for_tones": [
-            "serious",
-            "reflective",
-            "solemn",
-            "authoritative"
-          ],
-          "best_for_topics": [
-            "leadership",
-            "personal_reflection",
-            "responsibility",
-            "morality"
-          ],
-          "general_reusability": 65,
-          "matching_summary": "Best paired with quotations on personal resolve, duty, or quiet contemplation; the restrained formal pose and hand-on-heart gesture suit solemn or introspective tones.",
-          "semantic_specificity": 55,
-          "weak_for_topics": []
-        },
-        "people": {
-          "count_category": "one",
-          "formality": "formal",
-          "primary_subject_activities": [
-            "seated at desk",
-            "hand on chest"
-          ],
-          "primary_subject_moods": [
-            "serious",
-            "reflective"
-          ]
-        },
-        "quality": {
-          "composition": 85,
-          "crop_suitability_for_x": 80,
-          "overall": 88,
-          "subject_clarity": 92,
-          "technical_quality": 90
-        },
-        "scene_summary": "Formal half-body portrait of an older woman in professional attire seated at an office desk, right hand placed over her heart, conveying a serious and contemplative mood.",
-        "scene_types": [
-          "formal_portrait",
-          "office_or_working"
-        ],
-        "seasonality": {
-          "avoid_outside_season_or_occasion": false,
-          "cues": [],
-          "explanation": "No seasonal indicators visible.",
-          "occasions": [],
-          "strength": "none",
-          "visible_season": "none"
-        },
-        "setting": {
-          "details": [
-            "office",
-            "desk",
-            "curtains",
-            "framed picture"
-          ],
-          "location_type": "indoor"
-        },
-        "themes": [],
-        "tone": [
-          "serious",
-          "reflective",
-          "solemn"
-        ],
-        "visible_elements": [
-          "navy blue blazer",
-          "pearl necklace",
-          "pearl brooch",
-          "pearl earrings",
-          "wooden desk",
-          "stacked papers",
-          "books",
-          "desk lamp",
-          "glass of water",
-          "leather chair",
-          "framed artwork",
-          "curtains"
-        ],
-        "visible_text": {
-          "present": false,
-          "summary": null
-        },
-        "visual_energy": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "api_mime_type": "image/png",
-      "image_hash": "5003844d34a8a69d971a6a97a861fdd46a23e5820920ef2653c63adc86346174",
-      "paths": [
-        "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png"
-      ],
-      "preparation": "original",
-      "prompt_version": "image-analysis-2026-07-05-v4",
-      "response_id": "071f0f27-4550-9729-b20f-135c276bfc95",
-      "source_size_bytes": 1602828,
-      "source_suffix": ".png",
-      "usage": {
-        "completion_tokens": 595,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 791,
-          "rejected_prediction_tokens": 0
-        },
-        "cost_in_usd_ticks": 75393500,
-        "num_sources_used": 0,
-        "prompt_tokens": 3367,
-        "prompt_tokens_details": {
-          "audio_tokens": 0,
-          "cached_tokens": 128,
-          "image_tokens": 1026,
-          "text_tokens": 2341
-        },
-        "total_tokens": 4753
       }
     },
     "a67bda2ade48649a4ac98c6fe3f9de4c262e243464d4e8b5cc6070a57ec32776": {
@@ -9775,139 +9490,6 @@
         "total_tokens": 4512
       }
     },
-    "c9511486a8d7705530c175709ade5b21ca755fcaf19afccb0cf332d7f9716008": {
-      "analysed_at": "2026-07-08T18:19:53+00:00",
-      "analysis": {
-        "composition": {
-          "background_complexity": 60,
-          "orientation": "portrait",
-          "shot_type": "half_body",
-          "subject_prominence": 85
-        },
-        "description": "Formal half-body portrait of a mature woman in a navy blue suit and pearl jewelry seated at a desk, hands clasped, with a serious expression as she gazes toward a large window. Through the window a surreal scene shows a giant clawed hand gripping a tall birdcage containing a standing suited man, suspended above a foggy city skyline.",
-        "historical_context": {
-          "confidence": 20,
-          "event_or_context_hint": null,
-          "specificity": "general",
-          "visible_symbols": [
-            "birdcage",
-            "giant hand"
-          ]
-        },
-        "pairing": {
-          "best_for_tones": [
-            "serious",
-            "solemn",
-            "warning",
-            "defiant"
-          ],
-          "best_for_topics": [
-            "state_power",
-            "individual_liberty",
-            "leadership"
-          ],
-          "general_reusability": 55,
-          "matching_summary": "Strong visual metaphor of power and captivity suits quotations on authority, freedom, or oppression; limited reuse for lighter or unrelated topics.",
-          "semantic_specificity": 75,
-          "weak_for_topics": []
-        },
-        "people": {
-          "count_category": "one",
-          "formality": "very_formal",
-          "primary_subject_activities": [
-            "seated",
-            "gazing outward"
-          ],
-          "primary_subject_moods": [
-            "serious"
-          ]
-        },
-        "quality": {
-          "composition": 85,
-          "crop_suitability_for_x": 80,
-          "overall": 90,
-          "subject_clarity": 95,
-          "technical_quality": 90
-        },
-        "scene_summary": "Formal indoor portrait of a woman viewing a symbolic surreal scene of captivity through a window.",
-        "scene_types": [
-          "formal_portrait",
-          "other"
-        ],
-        "seasonality": {
-          "avoid_outside_season_or_occasion": false,
-          "cues": [],
-          "explanation": "No seasonal indicators visible.",
-          "occasions": [],
-          "strength": "none",
-          "visible_season": "none"
-        },
-        "setting": {
-          "details": [
-            "office-like room",
-            "large window overlooking surreal exterior",
-            "wooden desk"
-          ],
-          "location_type": "indoor"
-        },
-        "themes": [
-          "state_power",
-          "individual_liberty"
-        ],
-        "tone": [
-          "serious",
-          "solemn"
-        ],
-        "visible_elements": [
-          "navy blue suit",
-          "pearl necklace",
-          "pearl bracelet",
-          "brooch",
-          "large window",
-          "giant clawed hand",
-          "birdcage",
-          "suited man inside cage",
-          "foggy cityscape",
-          "desk with papers",
-          "curtains"
-        ],
-        "visible_text": {
-          "present": false,
-          "summary": null
-        },
-        "visual_energy": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "api_mime_type": "image/png",
-      "image_hash": "91132100b64bc104cb7c4745d7d343132d502256a5ad5839b68fbdcd9f4227ae",
-      "paths": [
-        "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png"
-      ],
-      "preparation": "original",
-      "prompt_version": "image-analysis-2026-07-05-v4",
-      "response_id": "b9042ad5-1839-972b-8bba-2e827b7fc328",
-      "source_size_bytes": 1632955,
-      "source_suffix": ".png",
-      "usage": {
-        "completion_tokens": 612,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 589,
-          "rejected_prediction_tokens": 0
-        },
-        "cost_in_usd_ticks": 70768500,
-        "num_sources_used": 0,
-        "prompt_tokens": 3367,
-        "prompt_tokens_details": {
-          "audio_tokens": 0,
-          "cached_tokens": 128,
-          "image_tokens": 1026,
-          "text_tokens": 2341
-        },
-        "total_tokens": 4568
-      }
-    },
     "cf5edae4489663f050d0de1c94dc27409acfe65164a0b8093091979c93980011": {
       "analysed_at": "2026-07-08T18:16:53+00:00",
       "analysis": {
@@ -10576,140 +10158,6 @@
           "text_tokens": 2341
         },
         "total_tokens": 4656
-      }
-    },
-    "e502e76c90daf7b1285f115d422c2bc685328307882395227082696a6e9a9ef8": {
-      "analysed_at": "2026-07-08T18:05:10+00:00",
-      "analysis": {
-        "composition": {
-          "background_complexity": 60,
-          "orientation": "landscape",
-          "shot_type": "group",
-          "subject_prominence": 75
-        },
-        "description": "A warm indoor Christmas scene showing a multi-generational family seated together in a living room. An older woman in a blue blazer smiles while holding a glass of white wine; a young girl in a red sweater offers a cookie nearby. Other smiling adults sit close by. A brightly lit Christmas tree with red and gold ornaments stands beside a fireplace with red stockings. Wine glasses, a plate of cookies, and soft festive lighting create a relaxed holiday atmosphere.",
-        "historical_context": {
-          "confidence": 0,
-          "event_or_context_hint": null,
-          "specificity": "general",
-          "visible_symbols": []
-        },
-        "pairing": {
-          "best_for_tones": [
-            "warm",
-            "celebratory"
-          ],
-          "best_for_topics": [
-            "family",
-            "personal_reflection"
-          ],
-          "general_reusability": 65,
-          "matching_summary": "Best paired with quotations about family gatherings, warmth, or holiday reflection. Strong seasonal filter restricts use to Christmas period only.",
-          "semantic_specificity": 45,
-          "weak_for_topics": []
-        },
-        "people": {
-          "count_category": "small_group",
-          "formality": "semi_formal",
-          "primary_subject_activities": [
-            "smiling",
-            "holding wine glass",
-            "offering cookie",
-            "sitting together"
-          ],
-          "primary_subject_moods": [
-            "warm",
-            "smiling",
-            "relaxed"
-          ]
-        },
-        "quality": {
-          "composition": 85,
-          "crop_suitability_for_x": 80,
-          "overall": 90,
-          "subject_clarity": 92,
-          "technical_quality": 88
-        },
-        "scene_summary": "Multi-generational family gathered indoors around a Christmas tree and fireplace, sharing wine and cookies in a festive living-room setting.",
-        "scene_types": [
-          "family_or_social"
-        ],
-        "seasonality": {
-          "avoid_outside_season_or_occasion": true,
-          "cues": [
-            "Christmas tree",
-            "stockings",
-            "ornaments",
-            "festive lights"
-          ],
-          "explanation": "Strong Christmas decorations and winter holiday setting make the image unsuitable outside the Christmas season.",
-          "occasions": [
-            "christmas"
-          ],
-          "strength": "strong",
-          "visible_season": "winter"
-        },
-        "setting": {
-          "details": [
-            "living room",
-            "Christmas tree",
-            "fireplace mantel",
-            "festive decorations"
-          ],
-          "location_type": "indoor"
-        },
-        "themes": [
-          "family"
-        ],
-        "tone": [
-          "warm",
-          "celebratory"
-        ],
-        "visible_elements": [
-          "Christmas tree",
-          "string lights",
-          "red stockings",
-          "fireplace",
-          "wine glasses",
-          "cookies",
-          "festive ornaments",
-          "family group"
-        ],
-        "visible_text": {
-          "present": false,
-          "summary": null
-        },
-        "visual_energy": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "api_mime_type": "image/png",
-      "image_hash": "9101a06a6688fd6371afc2ecd2fc788b430b5ba64e7f99c66d454a5811ec58e4",
-      "paths": [
-        "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png"
-      ],
-      "preparation": "original",
-      "prompt_version": "image-analysis-2026-07-05-v4",
-      "response_id": "f16e9d4d-829b-9dea-a04b-c90e4879fdde",
-      "source_size_bytes": 1699410,
-      "source_suffix": ".png",
-      "usage": {
-        "completion_tokens": 637,
-        "completion_tokens_details": {
-          "accepted_prediction_tokens": 0,
-          "audio_tokens": 0,
-          "reasoning_tokens": 485,
-          "rejected_prediction_tokens": 0
-        },
-        "cost_in_usd_ticks": 46617500,
-        "num_sources_used": 0,
-        "prompt_tokens": 3367,
-        "prompt_tokens_details": {
-          "audio_tokens": 0,
-          "cached_tokens": 2240,
-          "image_tokens": 1026,
-          "text_tokens": 2341
-        },
-        "total_tokens": 4489
       }
     },
     "e571ed517f83231a9a798627bad251811bf0c5e0a63d0a9d7b4098ffae7278bf": {
@@ -11504,7 +10952,6 @@
   "model": "grok-4.3",
   "path_index": {
     "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png": "2beeca3ab674727584033790bd233b3302349040437bd90284165b2fc691b8d9",
-    "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png": "a5cd652d56343ed305b327808cbcd174a5c2f0be474442f8ad7e2736fe965040",
     "tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png": "061c20a4a8e1f7d42e979c2d41d04580e7281faa233271e401ef4f944b2bc470",
     "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png": "a15174318506daa9333521d84032620c0266d1220afd6f95d6a60d131ddf190e",
     "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png": "34c0f43132fe00d95c440ef0b906188afdd5a07a11cd99bfe921f4ed147d9713",
@@ -11512,11 +10959,9 @@
     "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png": "41b2b9dd98b5959cf2fb33c08d5c8df3002340f1b9cf1b71921be48eec1de658",
     "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png": "660545f82e9ca57328950887b135b40af76c1755ff0a4cdd544cf8065803bfb6",
     "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png": "73b29ffbb557ca3ce4eff8c3bb1588313dc80f23084f70817b30c3ab13772afb",
-    "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png": "50c70d21b8b9b8056a90077a3e5605a99a7da851055f73316bd98e6c65b8d5fe",
     "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png": "8e9986e7b84099a259dae214852311576f380212d1310f5712a9172ebcb6818f",
     "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png": "4257cd4582ce5b63634fe4855bdf09dce01dd95537a4984d78349bbe6296bf65",
     "tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png": "6df523717c713f515e3f36c2c6d94c298fb6bf320a897ae2e2b34145709bd898",
-    "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png": "e502e76c90daf7b1285f115d422c2bc685328307882395227082696a6e9a9ef8",
     "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png": "a23262e236b09527ea0279a11cf76a2d3e1e7f498b941ef5c6704b86c8d74758",
     "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png": "269ffffb48b7c7970677b00e99444c6486330fbbd519ca976490b2dfe0ad162f",
     "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png": "64f4210de94b20d5796774cd4de4cabbcc8779847020478f861e09959ee0b0f4",
@@ -11568,7 +11013,6 @@
     "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png": "9ac59889250238b87d0b180f9a664161526151645a5c4116b1ad29cecaf9d817",
     "tg_c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82.png": "3bd4a4e4c8e7ab96f5c174a7bfcc5aad26b73b47f43a15f879780c18dc1dc527",
     "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png": "7ab6cf4407391aaa7cc724fa499b414b447d2aa551af643033d35ee9ffe920b4",
-    "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png": "c9511486a8d7705530c175709ade5b21ca755fcaf19afccb0cf332d7f9716008",
     "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png": "1c9d5f0854195b3bd26298b0365a4390e1cefcdadbb675111a2457095eac4a17",
     "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png": "f904a13136da43e43ca5b3aa646a006354698eb3df68910759a4e0fedfbf627b",
     "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png": "b62fa7c4089cabc6a1fbce0981f3c237406cab9ac7651f6e6104f03769244753",

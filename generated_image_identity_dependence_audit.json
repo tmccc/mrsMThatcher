@@ -9,7 +9,7 @@
   ],
   "created_at": "2026-07-10T06:32:22.655317+00:00",
   "failures": {},
-  "input_count": 83,
+  "input_count": 79,
   "items": {
     "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png": {
       "analysed_at": "2026-07-10T06:49:26.311004+00:00",
@@ -61,58 +61,6 @@
           "reasoning_tokens": 628
         },
         "total_tokens": 4496
-      }
-    },
-    "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png": {
-      "analysed_at": "2026-07-10T06:49:36.351514+00:00",
-      "analysis": {
-        "confidence": 0.85,
-        "contains_specific_intended_person": true,
-        "cross_quote_reasoning": "Hand-on-heart gesture and contemplative office pose directly visualise the supplied quote's theme of emotional restraint. High meaning retention (8) without identity recognition; no factual historical claim or misattribution risk is created, so mostly safe or unrestricted reuse is appropriate for thematically aligned quotes on resolve, duty or self-control.",
-        "cross_quote_reuse_safety": "mostly_safe",
-        "identity_dependence": "medium",
-        "identity_failure_reason": "Strong visual likeness exists but scene meaning (hand-over-heart gesture symbolising private emotional control) is carried by pose, expression and setting rather than specific identity.",
-        "intended_person_label": "Margaret Thatcher",
-        "intended_person_source": "generation_prompt",
-        "likeness_ambiguity": "low",
-        "meaning_retention_without_identity": 8,
-        "meaning_without_identity": "Formal half-body portrait of a mature professional woman at a desk with hand over heart, conveying reflective seriousness, emotional containment and solemn resolve.",
-        "misidentification_risk": "low",
-        "origin_quote_suitability": 9,
-        "person_prominence": "dominant",
-        "recognisability_to_politically_interested_viewer": 10,
-        "recognisability_to_typical_viewer": 8,
-        "recommended_cross_quote_policy": "unrestricted",
-        "recommended_penalty_strength": 2,
-        "specialist_knowledge_required": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "basename": "tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png",
-      "grounded_people": [
-        "Margaret Thatcher"
-      ],
-      "image_sha256": "a5cd652d56343ed305b327808cbcd174a5c2f0be474442f8ad7e2736fe965040",
-      "origin_quote": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best.",
-      "origin_quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
-      "prompt_version": "identity-dependence-2026-07-10-v2",
-      "response_id": "a01552ca-12a5-9ce1-b89f-6afc844f090a",
-      "usage": {
-        "context_details": {
-          "input_tokens": 3614,
-          "output_tokens": 1087
-        },
-        "cost_in_usd_ticks": 65630000,
-        "input_tokens": 3614,
-        "input_tokens_details": {
-          "cached_tokens": 640
-        },
-        "num_server_side_tools_used": 0,
-        "num_sources_used": 0,
-        "output_tokens": 1087,
-        "output_tokens_details": {
-          "reasoning_tokens": 769
-        },
-        "total_tokens": 4701
       }
     },
     "tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png": {
@@ -477,58 +425,6 @@
         "total_tokens": 4890
       }
     },
-    "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png": {
-      "analysed_at": "2026-07-10T06:50:48.411528+00:00",
-      "analysis": {
-        "confidence": 0.85,
-        "contains_specific_intended_person": true,
-        "cross_quote_reasoning": "Visible scene (commanding posture, papers, cabinet table, obedient ministers) directly expresses the intended theme of directive authority and survives removal of the specific identity. Per calibration rules, recognisable Thatcher leadership imagery is reusable for similar tones when no anachronism or factual claim is created. Low penalty appropriate.",
-        "cross_quote_reuse_safety": "mostly_safe",
-        "identity_dependence": "medium",
-        "identity_failure_reason": "High visual specificity to Thatcher does not collapse core editorial meaning; leadership/authority rhetoric remains legible to viewers who do not recognise the individual.",
-        "intended_person_label": "Margaret Thatcher",
-        "intended_person_source": "generation_prompt",
-        "likeness_ambiguity": "low",
-        "meaning_retention_without_identity": 8,
-        "meaning_without_identity": "Authoritative female leader standing at a cabinet table issues directives to seated male ministers; conveys decisive control and formal governmental authority.",
-        "misidentification_risk": "low",
-        "origin_quote_suitability": 7,
-        "person_prominence": "dominant",
-        "recognisability_to_politically_interested_viewer": 9,
-        "recognisability_to_typical_viewer": 8,
-        "recommended_cross_quote_policy": "unrestricted",
-        "recommended_penalty_strength": 2,
-        "specialist_knowledge_required": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "basename": "tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png",
-      "grounded_people": [
-        "Margaret Thatcher"
-      ],
-      "image_sha256": "50c70d21b8b9b8056a90077a3e5605a99a7da851055f73316bd98e6c65b8d5fe",
-      "origin_quote": "I don't mind how much my Ministers talk, so long as they do what I say.",
-      "origin_quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
-      "prompt_version": "identity-dependence-2026-07-10-v2",
-      "response_id": "2f60ffca-98fb-970b-95ff-1625dfc84ef1",
-      "usage": {
-        "context_details": {
-          "input_tokens": 3595,
-          "output_tokens": 920
-        },
-        "cost_in_usd_ticks": 65921500,
-        "input_tokens": 3595,
-        "input_tokens_details": {
-          "cached_tokens": 192
-        },
-        "num_server_side_tools_used": 0,
-        "num_sources_used": 0,
-        "output_tokens": 920,
-        "output_tokens_details": {
-          "reasoning_tokens": 612
-        },
-        "total_tokens": 4515
-      }
-    },
     "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png": {
       "analysed_at": "2026-07-10T06:50:58.696785+00:00",
       "analysis": {
@@ -683,64 +579,12 @@
         "total_tokens": 4453
       }
     },
-    "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png": {
-      "analysed_at": "2026-07-10T06:51:21.923294+00:00",
-      "analysis": {
-        "confidence": 0.85,
-        "contains_specific_intended_person": true,
-        "cross_quote_reasoning": "The rendered scene directly visualizes family Christmas warmth and traditions; the editorial meaning of the origin quote survives strongly even if the central figure is not recognized as Thatcher. The depiction is a relaxed domestic gathering rather than a political or historical claim, so cross-quote reuse carries minimal misattribution risk.",
-        "cross_quote_reuse_safety": "mostly_safe",
-        "identity_dependence": "low",
-        "identity_failure_reason": "",
-        "intended_person_label": "Margaret Thatcher",
-        "intended_person_source": "generation_prompt",
-        "likeness_ambiguity": "low",
-        "meaning_retention_without_identity": 8,
-        "meaning_without_identity": "A multi-generational family shares wine and cookies in a warm, festive Christmas living-room setting with a tree and fireplace.",
-        "misidentification_risk": "low",
-        "origin_quote_suitability": 9,
-        "person_prominence": "dominant",
-        "recognisability_to_politically_interested_viewer": 10,
-        "recognisability_to_typical_viewer": 8,
-        "recommended_cross_quote_policy": "unrestricted",
-        "recommended_penalty_strength": 1,
-        "specialist_knowledge_required": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "basename": "tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png",
-      "grounded_people": [
-        "Margaret Thatcher"
-      ],
-      "image_sha256": "e502e76c90daf7b1285f115d422c2bc685328307882395227082696a6e9a9ef8",
-      "origin_quote": "Christmas is a day of meaning and traditions, a special day spent in the warm circle of family and friends.",
-      "origin_quote_hash": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
-      "prompt_version": "identity-dependence-2026-07-10-v2",
-      "response_id": "158a8d1a-3386-9832-8dd8-5f620f8e2b52",
-      "usage": {
-        "context_details": {
-          "input_tokens": 3681,
-          "output_tokens": 981
-        },
-        "cost_in_usd_ticks": 63817500,
-        "input_tokens": 3681,
-        "input_tokens_details": {
-          "cached_tokens": 640
-        },
-        "num_server_side_tools_used": 0,
-        "num_sources_used": 0,
-        "output_tokens": 981,
-        "output_tokens_details": {
-          "reasoning_tokens": 702
-        },
-        "total_tokens": 4662
-      }
-    },
     "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png": {
       "analysed_at": "2026-07-10T06:51:30.014911+00:00",
       "analysis": {
         "confidence": 0.85,
         "contains_specific_intended_person": true,
-        "cross_quote_reasoning": "The image centres a recognisable Thatcher figure but the core editorial meaning—authoritative leadership on defence, military readiness and national resolve—remains intact and transferable without identity recognition. The scene does not recreate a specific historical event or factual claim tied to the origin quote, so cross-quote reuse carries minimal misattribution risk. General reusability for defence/leadership themes is high.",
+        "cross_quote_reasoning": "The image centres a recognisable Thatcher figure but the core editorial meaning\u2014authoritative leadership on defence, military readiness and national resolve\u2014remains intact and transferable without identity recognition. The scene does not recreate a specific historical event or factual claim tied to the origin quote, so cross-quote reuse carries minimal misattribution risk. General reusability for defence/leadership themes is high.",
         "cross_quote_reuse_safety": "mostly_safe",
         "identity_dependence": "low",
         "identity_failure_reason": "none",
@@ -2447,7 +2291,7 @@
         "intended_person_source": "none",
         "likeness_ambiguity": "none",
         "meaning_retention_without_identity": 9,
-        "meaning_without_identity": "Visual diptych contrasts grim Soviet-era confinement and oppression (barbed wire, watchtower, soldier, ragged civilians under hammer-and-sickle flag) with relaxed modern public life and daily freedoms (sunny café, smiling couple, Russian tricolor, socializing crowd).",
+        "meaning_without_identity": "Visual diptych contrasts grim Soviet-era confinement and oppression (barbed wire, watchtower, soldier, ragged civilians under hammer-and-sickle flag) with relaxed modern public life and daily freedoms (sunny caf\u00e9, smiling couple, Russian tricolor, socializing crowd).",
         "misidentification_risk": "none",
         "origin_quote_suitability": 7,
         "person_prominence": "none",
@@ -3361,58 +3205,6 @@
           "reasoning_tokens": 561
         },
         "total_tokens": 4438
-      }
-    },
-    "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png": {
-      "analysed_at": "2026-07-10T06:59:22.112174+00:00",
-      "analysis": {
-        "confidence": 0.82,
-        "contains_specific_intended_person": true,
-        "cross_quote_reasoning": "Portrait and surreal cage metaphor together express reflective warning on authority and liberty; high meaning retention without identity plus broad thematic fit allow reuse across similar editorial contexts without factual misattribution or anachronism.",
-        "cross_quote_reuse_safety": "mostly_safe",
-        "identity_dependence": "low",
-        "identity_failure_reason": "Clear likeness present yet core visual metaphor of power versus individual freedom functions independently of the specific identity.",
-        "intended_person_label": "Margaret Thatcher",
-        "intended_person_source": "generation_prompt",
-        "likeness_ambiguity": "low",
-        "meaning_retention_without_identity": 8,
-        "meaning_without_identity": "Formal female leader views giant clawed hand suspending a caged suited man above a foggy city, evoking state power, captivity and eroded liberty.",
-        "misidentification_risk": "low",
-        "origin_quote_suitability": 9,
-        "person_prominence": "dominant",
-        "recognisability_to_politically_interested_viewer": 9,
-        "recognisability_to_typical_viewer": 8,
-        "recommended_cross_quote_policy": "unrestricted",
-        "recommended_penalty_strength": 2,
-        "specialist_knowledge_required": "low"
-      },
-      "analysis_model": "grok-4.3",
-      "basename": "tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png",
-      "grounded_people": [
-        "Margaret Thatcher"
-      ],
-      "image_sha256": "c9511486a8d7705530c175709ade5b21ca755fcaf19afccb0cf332d7f9716008",
-      "origin_quote": "It is one of the great paradoxes of history that Socialism, which has done so much harm - was born of a great humanitarian urge - the desire to give people dignity and security. The trouble is that too much security removes a man's dignity by attenuating his freedom.",
-      "origin_quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
-      "prompt_version": "identity-dependence-2026-07-10-v2",
-      "response_id": "54db5338-2af5-957d-9a41-ccca7901a94c",
-      "usage": {
-        "context_details": {
-          "input_tokens": 3692,
-          "output_tokens": 1292
-        },
-        "cost_in_usd_ticks": 71730000,
-        "input_tokens": 3692,
-        "input_tokens_details": {
-          "cached_tokens": 640
-        },
-        "num_server_side_tools_used": 0,
-        "num_sources_used": 0,
-        "output_tokens": 1292,
-        "output_tokens_details": {
-          "reasoning_tokens": 1008
-        },
-        "total_tokens": 4984
       }
     },
     "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png": {
