@@ -1,0 +1,6 @@
+{
+  "Critic A": "grok",
+  "Critic B": "openai",
+  "Critic C": "anthropic",
+  "Critic D": "gemini"
+}

@@ -1,0 +1,1458 @@
+{
+  "items": {
+    "01da0feced09ed7e547a": {
+      "case_id": "01da0feced09ed7e547a",
+      "consequence_alignment_score": 30,
+      "directness_score": 30,
+      "editorial_power_score": 55,
+      "explanation": "The quote expresses an inclusive, aspirational vision of equal opportunity for all in Britain regardless of background. The image depicts a highly confrontational, aggressive female British politician pointing at the viewer against a dramatic backdrop of Union Jack flags. While it shows a successful woman in Britain, the aggressive, nationalist tone visually contradicts the inclusive, egalitarian message of the quote.",
+      "extraneous_image_arguments": [
+        "Confrontational or angry tone",
+        "Pointing aggressively",
+        "Dramatic, smoky background"
+      ],
+      "image_basename": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "image_depicted_consequences": [
+        "Audience attention",
+        "Confrontation or intense demand"
+      ],
+      "image_depicted_subject": [
+        "A female British political leader addressing an audience",
+        "Podium with microphones",
+        "Union Jack flags"
+      ],
+      "image_ideological_framing": [
+        "Patriotism",
+        "Strong, authoritative leadership",
+        "Nationalism"
+      ],
+      "image_implied_mechanism": [
+        "Forceful, commanding public rhetoric",
+        "Asserting authority"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "British identity (Britain / Union Jack flags)",
+        "Female leadership (A woman succeeding/speaking)"
+      ],
+      "mechanism_alignment_score": 20,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 50,
+      "primary_relationship": "illustrates_broader_principle",
+      "principle_alignment_score": 65,
+      "quote_broader_principles": [
+        "Meritocracy",
+        "Inclusive national vision",
+        "Social mobility"
+      ],
+      "quote_claimed_consequences": [
+        "Men and women truly have the same chance to succeed"
+      ],
+      "quote_hash": "277bfdc05cf8b85b769513f16e241fc5698dda5c29a253e15c8c0daf6237da7a",
+      "quote_mechanism": [
+        "Equal opportunity regardless of birth, background, colour, or religion"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "01da0feced09ed7e547a",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "J8BTaqmRDu2qmPUPuI3T-A4"
+      },
+      "relevance_score": 60,
+      "secondary_relationship": "ambiguous",
+      "specificity_score": 40,
+      "stronger_visual_direction": [
+        "A diverse group of British citizens in an educational or professional setting",
+        "A more unifying, optimistic portrait of a leader engaging warmly with a diverse public",
+        "Visuals symbolizing open doors or equal pathways to success"
+      ],
+      "unillustrated_primary_elements": [
+        "Diversity of birth, background, colour, or religion",
+        "Equal chance to succeed",
+        "Inclusive vision of society"
+      ]
+    },
+    "06c0f5db148ade11d1e3": {
+      "case_id": "06c0f5db148ade11d1e3",
+      "consequence_alignment_score": 0,
+      "directness_score": 10,
+      "editorial_power_score": 15,
+      "explanation": "The quote uses a highly critical metaphor, comparing socialism to a disease that governments suffer from, and claims socialism celebrates this 'disease'. The image, conversely, presents 19th-century socialism respectfully as a scholarly subject within the 'History of Ideas' in a grand library. The ideological framing is completely contradictory to the quote's harsh critique.",
+      "extraneous_image_arguments": [
+        "Socialism is a revered 19th-century intellectual tradition",
+        "Socialism belongs in a grand library"
+      ],
+      "image_basename": "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png",
+      "image_depicted_consequences": [
+        "Socialism is studied as a historical intellectual tradition"
+      ],
+      "image_depicted_subject": [
+        "Classical library setting",
+        "Antique books and framed portrait",
+        "Shelf label 'HISTORY OF IDEAS' and '19th Century SOCIALISM'"
+      ],
+      "image_ideological_framing": [
+        "Reverent, scholarly, traditional",
+        "Legitimization of socialism as part of the history of ideas"
+      ],
+      "image_implied_mechanism": [
+        "Preservation of ideas through books and academia"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Socialism (as a topic)"
+      ],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 10,
+      "primary_relationship": "contradictory",
+      "principle_alignment_score": 10,
+      "quote_broader_principles": [
+        "Critique of socialism",
+        "Inherent flaws in modern governance"
+      ],
+      "quote_claimed_consequences": [
+        "All governments are flawed",
+        "Socialism uniquely celebrates these flaws"
+      ],
+      "quote_hash": "7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4",
+      "quote_mechanism": [
+        "Infection of modern governments with metaphorical 'viruses'",
+        "Socialism making a virtue out of this 'disease'"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "06c0f5db148ade11d1e3",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "QsBTaqHHMvrEmPUPp72X6Qk"
+      },
+      "relevance_score": 15,
+      "secondary_relationship": "unrelated",
+      "specificity_score": 25,
+      "stronger_visual_direction": [
+        "Satirical illustration depicting a diseased or flawed government structure",
+        "Visual metaphor of a virus or infection applied to political bureaucracy",
+        "Contrasting imagery showing a general problem in government versus socialist propaganda celebrating it"
+      ],
+      "unillustrated_primary_elements": [
+        "Viruses/disease metaphor",
+        "Modern governments",
+        "Making a virtue of flaws",
+        "Critique of socialism"
+      ]
+    },
+    "163c3b381d8a35535b4c": {
+      "case_id": "163c3b381d8a35535b4c",
+      "consequence_alignment_score": 15,
+      "directness_score": 10,
+      "editorial_power_score": 15,
+      "explanation": "The quote argues against economic sanctions on South Africa, claiming they harm businesses providing jobs to black Africans and fail to end apartheid. The image depicts a female politician standing between a bleak, polluted, possibly socialist past and a prosperous, modern future. While Margaret Thatcher (a likely match for the figure) made the quote, the image's extreme visual metaphor of a divided past and future does not directly address sanctions, apartheid, or job creation for black Africans. It introduces extraneous themes of urban decay vs. renewal and ideological triumph, making the pairing ambiguous and largely unrelated to the specific arguments in the text.",
+      "extraneous_image_arguments": [
+        "Specific depiction of a grim, polluted past vs. a bright, cafe-filled future",
+        "Implied ideological victory of capitalism over socialism (red flags)",
+        "Female politician as the central savior figure"
+      ],
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "image_depicted_consequences": [
+        "Transition from poverty, pollution, and industrial decay",
+        "Transition to prosperity, clean environment, and modern commerce"
+      ],
+      "image_depicted_subject": [
+        "Older female politician at a podium",
+        "Divided background showing contrasting urban environments"
+      ],
+      "image_ideological_framing": [
+        "Female leader as the bridge between a grim past and a prosperous future",
+        "Contrast between socialist/industrial hardship (red flags, queues) and capitalist prosperity (glass towers, cafes)"
+      ],
+      "image_implied_mechanism": [
+        "Strong political leadership",
+        "Ideological shift or policy change leading to prosperity"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Political speechmaking (broadly related to a politician's quote)"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 20,
+      "primary_relationship": "ambiguous",
+      "principle_alignment_score": 20,
+      "quote_broader_principles": [
+        "Economic engagement rather than isolation promotes social progress",
+        "Private sector and job creation as drivers of political change"
+      ],
+      "quote_claimed_consequences": [
+        "not the way to promote peaceful change",
+        "Sanctions don't work",
+        "make problems worse",
+        "blow to all those firms and people who are in the forefront of efforts to end apartheid"
+      ],
+      "quote_hash": "51346064e36d2597e3cbe635dbe9ff8258b529b5f2c324d2114c7bdb6dc1c3d6",
+      "quote_mechanism": [
+        "Economic sanctions",
+        "giving black Africans more jobs & greater opportunity"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "163c3b381d8a35535b4c",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "SsBTarfhAdThz_IP3dHgwQw"
+      },
+      "relevance_score": 25,
+      "secondary_relationship": "unrelated",
+      "specificity_score": 10,
+      "stronger_visual_direction": [
+        "Photographs of black African workers in South African factories or businesses during the apartheid era",
+        "Images of business leaders or firms that actively provided opportunities in defiance of apartheid norms",
+        "A direct portrait of Margaret Thatcher speaking specifically about South Africa without the exaggerated allegorical background"
+      ],
+      "unillustrated_primary_elements": [
+        "Economic sanctions",
+        "South Africa / Apartheid",
+        "Black Africans",
+        "Firms providing jobs",
+        "Negative consequences of sanctions"
+      ]
+    },
+    "1bd1291ebdb140b606c6": {
+      "case_id": "1bd1291ebdb140b606c6",
+      "consequence_alignment_score": 35,
+      "directness_score": 25,
+      "editorial_power_score": 45,
+      "explanation": "The quote warns against domestic British socialism (the Labour Party) taking over by stealth ('in disguise'), whereas the image depicts a literal, international Cold War confrontation with Soviet communism amidst a battlefield. This is a related ideological substitution: it substitutes domestic electoral socialism for international Soviet communism. It misses the 'in disguise' aspect entirely by showing blatant Soviet symbols. Therefore, the image is too literal and historically displaced to accurately serve the specific domestic political quote, making replacement advisable.",
+      "extraneous_image_arguments": [
+        "Literal battlefield devastation",
+        "Soviet Union / Cold War international confrontation",
+        "Barbed wire and soldiers"
+      ],
+      "image_basename": "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png",
+      "image_depicted_consequences": [
+        "War, destruction, and ruin associated with communism"
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher speaking at a podium",
+        "Tattered Soviet flag with hammer and sickle",
+        "Silhouetted soldiers, barbed wire, and battlefield smoke"
+      ],
+      "image_ideological_framing": [
+        "Thatcher as a strong, uncompromising Cold War leader",
+        "Communism equated with physical conflict and devastation",
+        "Anti-communist resolve"
+      ],
+      "image_implied_mechanism": [
+        "Standing resolute against external communist threats",
+        "Fighting a literal or ideological war against Soviet communism"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Margaret Thatcher (implied author/speaker of the quote, though not explicitly in the quote text, she is famous for it)",
+        "Anti-socialism/anti-communism sentiment",
+        "The concept of 'red' socialism (literalized via the Soviet flag)"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 30,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 60,
+      "quote_broader_principles": [
+        "The inherent danger and radicalism of socialism, even when disguised",
+        "Vigilance against ideological threats"
+      ],
+      "quote_claimed_consequences": [
+        "A bitter irony for Britain",
+        "Subjection to socialism 'red in tooth and claw'"
+      ],
+      "quote_hash": "6323672fa80796cd7a7b28c7b5ec08a5e6514c19d7ba7e7204b7d292d2d6fd19",
+      "quote_mechanism": [
+        "Falling into the hands of the Labour Party's socialism",
+        "Falling by commission or omission",
+        "Socialism in disguise"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "1bd1291ebdb140b606c6",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "UsBTaqzGK4vjz_IPwZyr-Qw"
+      },
+      "relevance_score": 50,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 20,
+      "stronger_visual_direction": [
+        "Domestic British political context, such as Westminster or 1980s Labour/Conservative rallies",
+        "Visual metaphors of a moderate facade masking radical intent (e.g., red peeking out from behind a traditional or moderate symbol)",
+        "Margaret Thatcher campaigning or speaking in a domestic election context without explicit war zones"
+      ],
+      "unillustrated_primary_elements": [
+        "The British Labour Party",
+        "Socialism 'in disguise' (the image shows explicit Soviet communism)",
+        "Domestic British political context (commission or omission by voters)"
+      ]
+    },
+    "1d75a976eec6e983f955": {
+      "case_id": "1d75a976eec6e983f955",
+      "consequence_alignment_score": 80,
+      "directness_score": 90,
+      "editorial_power_score": 95,
+      "explanation": "The image provides an exceptionally strong and direct illustration of the quote. The quote speaks of banishing Marxist socialism from 'our land,' and the image depicts Margaret Thatcher (who actually spoke these words) aggressively making a 'stop' gesture toward a map of the UK overlaid with communist hammer-and-sickle symbols. The visual translates the rhetoric perfectly, aligning with the anti-Marxist theme and nationalistic defense.",
+      "extraneous_image_arguments": [
+        "Margaret Thatcher as the specific speaker (though highly appropriate given historical context)"
+      ],
+      "image_basename": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "image_depicted_consequences": [
+        "United Kingdom threatened by communism",
+        "stopping the spread of communism"
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher delivering a formal speech from a podium",
+        "UK map tinted red with hammer-and-sickle symbols",
+        "Thatcher making a stop gesture"
+      ],
+      "image_ideological_framing": [
+        "patriotic British leadership opposing communist menace",
+        "authoritative defense of the nation"
+      ],
+      "image_implied_mechanism": [
+        "strong leadership rejecting communism",
+        "public stance against ideological threats"
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "banishing Marxist socialism (Thatcher's stop gesture toward communism)",
+        "our land (UK map)",
+        "dark divisive clouds/menace (red glowing map with hammer-and-sickle)"
+      ],
+      "mechanism_alignment_score": 85,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 95,
+      "primary_relationship": "direct_illustration",
+      "principle_alignment_score": 95,
+      "quote_broader_principles": [
+        "anti-Marxist opposition",
+        "ideological purification of the land",
+        "national political struggle"
+      ],
+      "quote_claimed_consequences": [
+        "removal of dark divisive clouds of Marxist socialism"
+      ],
+      "quote_hash": "bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662",
+      "quote_mechanism": [
+        "fighting for a prize",
+        "banishing Marxist socialism from our land"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "1d75a976eec6e983f955",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "W8BTavq8LqOpmPUPn_b30A8"
+      },
+      "relevance_score": 95,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 95,
+      "stronger_visual_direction": [
+        "No stronger visual direction is needed; this is a near-perfect editorial match."
+      ],
+      "unillustrated_primary_elements": [
+        "the explicit metaphor of 'dark divisive clouds'"
+      ]
+    },
+    "2a86f5db13e31e3e99ff": {
+      "case_id": "2a86f5db13e31e3e99ff",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 10,
+      "explanation": "The quote discusses the destructive economic power of monopoly trade unions and the hardship they inflict on workers. The image depicts Margaret Thatcher standing triumphantly in front of an exploding Soviet hammer-and-sickle while blindfolded bureaucrats examine papers. While Thatcher was historically antagonistic toward trade unions, the image explicitly focuses on the fall of Soviet communism and bureaucratic blindness, bearing no visual or semantic relationship to trade union monopolies or domestic labor struggles. The pairing is completely disconnected.",
+      "extraneous_image_arguments": [
+        "collapse of Soviet communism",
+        "Margaret Thatcher as a resolute Cold War victor",
+        "blindfolded bureaucrats ignoring reality",
+        "destruction of hammer-and-sickle imagery"
+      ],
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "image_depicted_consequences": [
+        "destruction of communist symbols",
+        "rubble and debris"
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher",
+        "exploding stone hammer-and-sickle",
+        "blindfolded bureaucratic officials with documents"
+      ],
+      "image_ideological_framing": [
+        "triumphant Cold War victory",
+        "anti-communism",
+        "praise of Thatcher's steadfast leadership against bureaucracy"
+      ],
+      "image_implied_mechanism": [
+        "Thatcher's resolve",
+        "bureaucratic blindness",
+        "collapse of communist systems"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 0,
+      "primary_relationship": "contradictory",
+      "principle_alignment_score": 0,
+      "quote_broader_principles": [
+        "harmful effects of labor monopolies",
+        "intra-labor conflict and accountability"
+      ],
+      "quote_claimed_consequences": [
+        "inflict severe damage and hardship on fellow workers",
+        "harming fellow trade unionists"
+      ],
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_mechanism": [
+        "monopoly power of trade unions",
+        "potential for destruction"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "2a86f5db13e31e3e99ff",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "Y8BTavXnKLegmPUPxtiJwAI"
+      },
+      "relevance_score": 5,
+      "secondary_relationship": "unrelated",
+      "specificity_score": 5,
+      "stronger_visual_direction": [
+        "picket lines or strike action causing disruptions",
+        "idle factories and unemployed workers",
+        "frustrated workers clashing with union leadership",
+        "images of domestic economic hardship caused by labor disputes"
+      ],
+      "unillustrated_primary_elements": [
+        "monopoly trade unions",
+        "fellow workers experiencing hardship",
+        "intra-labor damage"
+      ]
+    },
+    "31b112d3255f4fd68671": {
+      "case_id": "31b112d3255f4fd68671",
+      "consequence_alignment_score": 5,
+      "directness_score": 5,
+      "editorial_power_score": 10,
+      "explanation": "The quote expresses moral outrage at Western countries' unwillingness to stop massacres occurring in Europe. The image depicts a highly specific, unrelated ideological scenario showing a female leader standing defiant against a combined siege of Islamic extremists, communists, and union members in front of a burning building. There is no thematic, conceptual, or visual overlap between the speaker's plea for intervention in European massacres and the image's framing of domestic multi-front radical threats.",
+      "extraneous_image_arguments": [
+        "Union agitation as a violent threat alongside terrorism",
+        "Communist revolution",
+        "Defiant national leadership amid a burning capital"
+      ],
+      "image_basename": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "image_depicted_consequences": [
+        "National crisis, burning capital, violent multi-front unrest"
+      ],
+      "image_depicted_subject": [
+        "A resolute female leader standing at a podium",
+        "A burning government building",
+        "Armed extremists, communist revolutionaries, and union protesters",
+        "Security forces responding to chaos"
+      ],
+      "image_ideological_framing": [
+        "Equating union power with armed extremism and communist revolution",
+        "Glorification of defiant conservative leadership under siege"
+      ],
+      "image_implied_mechanism": [
+        "Multiple radical and extremist factions are simultaneously attacking the state, requiring strong, defiant leadership."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 5,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 5,
+      "primary_relationship": "contradictory",
+      "principle_alignment_score": 5,
+      "quote_broader_principles": [
+        "Moral outrage at the failure of political will",
+        "Responsibility of Western powers to intervene in atrocities"
+      ],
+      "quote_claimed_consequences": [
+        "Massacres are allowed to continue in Europe due to deliberate Western inaction."
+      ],
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_mechanism": [
+        "Western countries have the capability to act against massacres in Europe but choose not to."
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "31b112d3255f4fd68671",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "asBTasTxK6K0mPUP8Z6_kQQ"
+      },
+      "relevance_score": 10,
+      "secondary_relationship": "unrelated",
+      "specificity_score": 10,
+      "stronger_visual_direction": [
+        "Destroyed civilian areas or mass graves in a European setting (e.g., the Balkans)",
+        "Idle Western military or diplomatic settings contrasting with scenes of devastation",
+        "Displaced civilians fleeing a conflict zone in Europe",
+        "Visuals capturing political gridlock or indifference at Western summits"
+      ],
+      "unillustrated_primary_elements": [
+        "Western inaction",
+        "Massacres in the midst of Europe",
+        "The contrast between capability and will to act"
+      ]
+    },
+    "4033cdcc11cd5ad48f80": {
+      "case_id": "4033cdcc11cd5ad48f80",
+      "consequence_alignment_score": 35,
+      "directness_score": 30,
+      "editorial_power_score": 50,
+      "explanation": "The quote discusses the conservative philosophy of limited government, focusing on the rejection of a standardised society in favor of providing a framework for individual freedom. The image depicts a female British politician (resembling Margaret Thatcher, given the attire and Big Ben) contemplating official matters while a domestic scene plays out behind her. While the image evokes British conservatism and leadership, it emphasizes the personal tension between public duty and private life rather than the abstract political philosophy of limited government and individual liberty described in the quote. Therefore, the image is at best a thematic or ideological substitution rather than a direct illustration.",
+      "extraneous_image_arguments": [
+        "Work-family tension for female leaders",
+        "Domestic life continuing alongside high office"
+      ],
+      "image_basename": "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png",
+      "image_depicted_consequences": [
+        "Tension or solemn reflection on public duty",
+        "Simultaneous existence of government authority and everyday household life"
+      ],
+      "image_depicted_subject": [
+        "Older woman in formal attire with pearls",
+        "Holding typed documents",
+        "Looking out window at Big Ben",
+        "Blurred domestic scene with woman and child in background"
+      ],
+      "image_ideological_framing": [
+        "Female political power",
+        "British statesmanship",
+        "Work-family tension in high office"
+      ],
+      "image_implied_mechanism": [
+        "Political leader contemplating official duties",
+        "Balancing state responsibilities with private domestic life"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "British politics (via Big Ben, loosely connecting to British conservatism)"
+      ],
+      "mechanism_alignment_score": 25,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 40,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 40,
+      "quote_broader_principles": [
+        "Conservatives reject forging a standardised society",
+        "Limited government enables individual freedom",
+        "Political liberty is fundamental"
+      ],
+      "quote_claimed_consequences": [
+        "Political liberty is lost in states aiming for a standardised society",
+        "Everyone is free to pursue a better life within the proper government framework"
+      ],
+      "quote_hash": "0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3",
+      "quote_mechanism": [
+        "Government provides a framework",
+        "Individuals freely pursue a better life"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "4033cdcc11cd5ad48f80",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "usBTau72Je2qmPUPuI3T-A4"
+      },
+      "relevance_score": 45,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 30,
+      "stronger_visual_direction": [
+        "A diverse crowd of individuals pursuing varied careers or lifestyles side by side",
+        "A symbolic contrast between uniform rows of identical figures and a vibrant, diverse marketplace",
+        "A courthouse or parliament building framing an open public square where free association occurs"
+      ],
+      "unillustrated_primary_elements": [
+        "Standardised society versus individual freedom",
+        "Loss of political liberty",
+        "Government acting as a framework rather than a shaper of society"
+      ]
+    },
+    "9588c850bb3b06ab3214": {
+      "case_id": "9588c850bb3b06ab3214",
+      "consequence_alignment_score": 80,
+      "directness_score": 75,
+      "editorial_power_score": 88,
+      "explanation": "The image strongly captures the political essence of the quote by illustrating the reduction of the individual and exaltation of the state through its depiction of a domineering, faceless communist leader controlling a uniform mass. The inclusion of a Thatcher-like figure strongly grounds the visual in the quote's British context, aligning perfectly with her famous rhetoric against socialism. Although the image omits the specific economic consequences (wealth drain, economic problems), its dramatic ideological contrast provides exceptional editorial power and deeply resonates with the broader principles of the text.",
+      "extraneous_image_arguments": [
+        "specific democratic figure emitting radiant light",
+        "extreme communist dictatorship imagery rather than democratic socialism"
+      ],
+      "image_basename": "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png",
+      "image_depicted_consequences": [
+        "uniform conformity and dehumanization under communism vs. enlightenment and individuality in a democracy"
+      ],
+      "image_depicted_subject": [
+        "split composition showing a communist dictator emitting controlling red beams onto a uniform crowd vs. a democratic female orator speaking under golden radiant light to a free audience"
+      ],
+      "image_ideological_framing": [
+        "anti-communist/anti-authoritarian framing, praising Western democratic/capitalist leadership (styled like Margaret Thatcher)"
+      ],
+      "image_implied_mechanism": [
+        "communist/authoritarian control via state power vs. democratic freedom via individual leadership"
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "reduction of the individual (uniform crowd under red beams)",
+        "exaltation of the State (giant faceless leader, hammer and sickle)",
+        "Thatcher-like speaker mapping to 'We in Britain'"
+      ],
+      "mechanism_alignment_score": 70,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 85,
+      "primary_relationship": "illustrates_broader_principle",
+      "principle_alignment_score": 90,
+      "quote_broader_principles": [
+        "Socialism diminishes individuality and empowers authoritarian state structures"
+      ],
+      "quote_claimed_consequences": [
+        "reduces the individual",
+        "exalts the State",
+        "exacerbates economic problems",
+        "drains away wealth"
+      ],
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_mechanism": [
+        "advances to Socialism"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "9588c850bb3b06ab3214",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "w8BTavOsLNThz_IP3dHgwQw"
+      },
+      "relevance_score": 85,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 70,
+      "stronger_visual_direction": [
+        "A visual that explicitly shows the economic stagnation or wealth drain alongside the diminishing of individual agency under an expanding state apparatus."
+      ],
+      "unillustrated_primary_elements": [
+        "exacerbation of economic problems",
+        "drains away wealth"
+      ]
+    },
+    "95b9610a03cd601acce1": {
+      "case_id": "95b9610a03cd601acce1",
+      "consequence_alignment_score": 10,
+      "directness_score": 20,
+      "editorial_power_score": 25,
+      "explanation": "The quote outlines a broad, defensive claim that foundational Western/Christian values, including family, decency, and patriotism, are currently under attack. The image shows a triumphant mountaineer waving a British flag on a summit. While the flag connects loosely to the concept of 'patriotism' mentioned in the quote, the image's heroic, victorious tone contradicts the quote's anxious, embattled tone. The image fails to illustrate the core theme of cultural values being menaced, making it an unsuitable editorial pairing.",
+      "extraneous_image_arguments": [
+        "Mountaineering or physical endurance as the primary subject",
+        "Triumphant victory (contrasts with the quote's tone of being under attack)"
+      ],
+      "image_basename": "tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png",
+      "image_depicted_consequences": [
+        "Triumphant display of national pride",
+        "Conquest over natural obstacles"
+      ],
+      "image_depicted_subject": [
+        "Climber on a mountain summit",
+        "Union Jack flag waving prominently",
+        "Snowy mountain landscape"
+      ],
+      "image_ideological_framing": [
+        "Heroic, triumphant nationalism",
+        "Glorification of exploration and individual achievement"
+      ],
+      "image_implied_mechanism": [
+        "Achieving a difficult summit through endurance",
+        "Planting a national flag to claim success"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Patriotism (represented by the Union Jack)"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 20,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 40,
+      "quote_broader_principles": [
+        "Christian values resting on Hebrew and Hellenic foundations",
+        "Defense of foundational Western civilizational pillars"
+      ],
+      "quote_claimed_consequences": [
+        "Family life, children's innocence, and public decency are threatened",
+        "Respect for law, pride in work, patriotism, and democracy are endangered"
+      ],
+      "quote_hash": "a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd",
+      "quote_mechanism": [
+        "Unprecedented menace to basic values today",
+        "Various institutions and concepts are actively under attack"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "95b9610a03cd601acce1",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "7cBTaqa-Iovjz_IPwZyr-Qw"
+      },
+      "relevance_score": 30,
+      "secondary_relationship": "ambiguous",
+      "specificity_score": 15,
+      "stronger_visual_direction": [
+        "A conceptual image showing foundational pillars or classic architecture weathering a storm",
+        "A subtle, somber image of a multi-generational family or traditional community setting facing uncertainty",
+        "A symbolic image representing classical Western heritage (e.g., weathered statues or ancient texts)"
+      ],
+      "unillustrated_primary_elements": [
+        "Threat or menace to values",
+        "Christian, Hebrew, Hellenic foundations",
+        "Family life and innocence of children",
+        "Democracy, law, and public decency"
+      ]
+    },
+    "96a9bbeeeda31eb67370": {
+      "case_id": "96a9bbeeeda31eb67370",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 0,
+      "explanation": "The quote discusses the personal satisfaction derived from completing a busy day of tasks compared to a day of idleness. The image shows a female political leader speaking at a podium while being protested by women holding feminist symbols. The image and quote are completely unrelated in subject matter, theme, and tone.",
+      "extraneous_image_arguments": [
+        "Feminism and women's rights",
+        "Political protests",
+        "Public speaking and composure"
+      ],
+      "image_basename": "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png",
+      "image_depicted_consequences": [
+        "Composure amid interruption",
+        "Juxtaposition of formal authority and grassroots activism"
+      ],
+      "image_depicted_subject": [
+        "A senior female political figure speaking at a podium",
+        "Younger women protesting in the background with female gender symbols"
+      ],
+      "image_ideological_framing": [
+        "Women's political power",
+        "Feminist protest",
+        "Women in leadership"
+      ],
+      "image_implied_mechanism": [
+        "Political engagement",
+        "Public protest",
+        "Generational or ideological tension"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 0,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 0,
+      "quote_broader_principles": [
+        "The value of hard work and task completion over idleness",
+        "Satisfaction is linked to accomplishment"
+      ],
+      "quote_claimed_consequences": [
+        "supreme satisfaction at the end of the day",
+        "personal fulfillment from accomplishment"
+      ],
+      "quote_hash": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "quote_mechanism": [
+        "completing a full load of tasks",
+        "accomplishment of a full set of demands"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "96a9bbeeeda31eb67370",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "UcFTasOFMbegmPUPxtiJwAI"
+      },
+      "relevance_score": 0,
+      "secondary_relationship": null,
+      "specificity_score": 0,
+      "stronger_visual_direction": [
+        "A person looking satisfied at the end of a busy day, perhaps checking off the final item on a long to-do list",
+        "A tidy workspace with a completed stack of work at dusk",
+        "An individual standing proudly after completing a physically demanding or complex project"
+      ],
+      "unillustrated_primary_elements": [
+        "accomplishing a long list of tasks",
+        "supreme satisfaction at the end of the day",
+        "contrast between activity and lounging"
+      ]
+    },
+    "9a19c714bcf33f9be13d": {
+      "case_id": "9a19c714bcf33f9be13d",
+      "consequence_alignment_score": 60,
+      "directness_score": 60,
+      "editorial_power_score": 75,
+      "explanation": "The image strongly depicts an authoritative British conservative political figure (resembling Margaret Thatcher) delivering a forceful speech, which aligns well with the tone and broader principles of the quote (rallying against the Left to rebuild a free nation). While it does not literally show 'rebuilding' or 'Labour's Orwellian nightmare', the visual effectively captures the urgency and ideological stance of the speaker. It is a powerful editorial choice that sets the right political context.",
+      "extraneous_image_arguments": [
+        "Specific resemblance to Margaret Thatcher",
+        "Pointing aggressively at the viewer"
+      ],
+      "image_basename": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "image_depicted_consequences": [
+        "Projection of national strength",
+        "Rallying of political support"
+      ],
+      "image_depicted_subject": [
+        "Commanding female British political leader speaking at a podium",
+        "Union Jack flags in the background",
+        "Formal navy suit and pearls"
+      ],
+      "image_ideological_framing": [
+        "British patriotism and national identity",
+        "Authoritative, high-stakes conservative leadership"
+      ],
+      "image_implied_mechanism": [
+        "Delivering a forceful, confrontational speech",
+        "Asserting authority and demanding action"
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "British national identity (Union Jack flags)",
+        "Forceful, urgent rhetoric",
+        "Political opposition and ideological framing"
+      ],
+      "mechanism_alignment_score": 50,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 70,
+      "primary_relationship": "illustrates_broader_principle",
+      "principle_alignment_score": 85,
+      "quote_broader_principles": [
+        "Urgent political dedication",
+        "Ideological opposition to the Left",
+        "National rebuilding and freedom"
+      ],
+      "quote_claimed_consequences": [
+        "Rebuilding the fortunes of this free nation"
+      ],
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "quote_mechanism": [
+        "Dedicating every ounce of energy and moral strength",
+        "Using Labour's Orwellian nightmare as a spur"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "9a19c714bcf33f9be13d",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "WcFTaum4H6K0mPUP8Z6_kQQ"
+      },
+      "relevance_score": 70,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 65,
+      "stronger_visual_direction": [
+        "Images contrasting political freedom with bureaucratic control",
+        "Citizens engaging in active rebuilding under a national flag",
+        "A divided screen showing a dystopian left-wing vision versus a prosperous free nation"
+      ],
+      "unillustrated_primary_elements": [
+        "Labour's Orwellian nightmare",
+        "Specific acts of rebuilding"
+      ]
+    },
+    "a6d95a012acf91c8a55e": {
+      "case_id": "a6d95a012acf91c8a55e",
+      "consequence_alignment_score": 40,
+      "directness_score": 40,
+      "editorial_power_score": 60,
+      "explanation": "The quote is famously attributed to Margaret Thatcher and discusses conditional patience to achieve one's way. The image shows a Thatcher-esque female leader projecting immense military power (perhaps hinting at the Falklands War). While this strongly aligns with the persona of the speaker and the idea of 'getting her own way,' the image focuses heavily on overt military strength rather than the psychological concept of patience or delayed gratification. It works as an ideological or persona-driven illustration but misses the specific mechanism of the quote (patience).",
+      "extraneous_image_arguments": [
+        "Military power projection.",
+        "Wartime authority.",
+        "Armed forces."
+      ],
+      "image_basename": "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png",
+      "image_depicted_consequences": [
+        "Command over forces.",
+        "National resolve in high-stakes crises."
+      ],
+      "image_depicted_subject": [
+        "A resolute female leader at a podium.",
+        "Armed forces, fighter jets, and a warship."
+      ],
+      "image_ideological_framing": [
+        "Equating personal political authority with military might.",
+        "Civilian command over the military."
+      ],
+      "image_implied_mechanism": [
+        "Projecting authority and military strength."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Willpower.",
+        "Control and determination.",
+        "Getting one's own way (represented by the projection of immense power)."
+      ],
+      "mechanism_alignment_score": 30,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 50,
+      "primary_relationship": "illustrates_broader_principle",
+      "principle_alignment_score": 75,
+      "quote_broader_principles": [
+        "Conditional patience.",
+        "Determination and control.",
+        "Self-interest."
+      ],
+      "quote_claimed_consequences": [
+        "Getting one's own way in the end.",
+        "Achieving a preferred personal outcome."
+      ],
+      "quote_hash": "d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350",
+      "quote_mechanism": [
+        "Waiting for prolonged periods.",
+        "Exercising extraordinary patience conditionally."
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "a6d95a012acf91c8a55e",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "YMFTaqugLO2Ez_IPmJ3HuAw"
+      },
+      "relevance_score": 65,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 35,
+      "stronger_visual_direction": [
+        "A tense negotiation table with a calm figure outlasting opponents.",
+        "A chess match where a player is patiently waiting to make a winning move.",
+        "A political leader patiently listening during a long meeting, knowing they hold the deciding vote."
+      ],
+      "unillustrated_primary_elements": [
+        "Patience.",
+        "The act of waiting or conditional delayed gratification."
+      ]
+    },
+    "b3e703fae5b1b1a34344": {
+      "case_id": "b3e703fae5b1b1a34344",
+      "consequence_alignment_score": 20,
+      "directness_score": 25,
+      "editorial_power_score": 50,
+      "explanation": "The quote argues that Augusto Pinochet is facing trial as a politically motivated punishment for defeating communism, rather than for the contents of Garzon's legal indictment. The image depicts Margaret Thatcher standing triumphantly before an exploding Soviet hammer and sickle while blindfolded bureaucrats handle papers. While both share a strong anti-communist theme and the idea of 'defeating communism' (as well as dismissing bureaucrats/legalities with the blindfolded men handling papers), the image specifically depicts Thatcher and the Soviet collapse, substituting one historical anti-communist figure/context for another. This substitution misrepresents the specific subject of the quote (Pinochet), making it unsuitable for direct publication alongside the text despite the shared broader ideological principle.",
+      "extraneous_image_arguments": [
+        "Margaret Thatcher as the primary agent of the collapse",
+        "Soviet/Eastern European context rather than Latin American context",
+        "Bureaucratic blindness to the collapse"
+      ],
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "image_depicted_consequences": [
+        "The fall of Soviet communism",
+        "Destruction of communist symbols"
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher standing resolute",
+        "Exploding stone hammer and sickle",
+        "Blindfolded bureaucrats handling documents"
+      ],
+      "image_ideological_framing": [
+        "Triumphant anti-communism",
+        "Vindication of conservative Western leadership",
+        "Mockery of bureaucratic blindness"
+      ],
+      "image_implied_mechanism": [
+        "Thatcher's steadfast leadership destroying the communist system",
+        "Bureaucrats remaining blind to the historic collapse around them"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Defeating communism",
+        "Destruction of communist symbols",
+        "Anti-communist ideological framing"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 30,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 60,
+      "quote_broader_principles": [
+        "Political motivations behind legal indictments",
+        "The historical legacy and consequences of defeating communism"
+      ],
+      "quote_claimed_consequences": [
+        "Pinochet is persecuted for defeating communism"
+      ],
+      "quote_hash": "d238243726b4a6ea0bf7c6bbd3080ee59cb31f92a87ce19a36e3d789da425252",
+      "quote_mechanism": [
+        "Senator Pinochet is on trial",
+        "the prosecution is politically motivated by his defeat of communism",
+        "disregard for the formal indictment by Judge Garzon"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "b3e703fae5b1b1a34344",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "Z8FTaq2bOvrEmPUPp72X6Qk"
+      },
+      "relevance_score": 50,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 20,
+      "stronger_visual_direction": [
+        "A portrait of Augusto Pinochet, perhaps juxtaposed with legal documents or a courtroom",
+        "Images of the Pinochet extradition trial or protests surrounding it",
+        "Visuals reflecting the Chilean context of the Cold War and anti-communism"
+      ],
+      "unillustrated_primary_elements": [
+        "Augusto Pinochet",
+        "Judge Garzon's indictment",
+        "A trial or courtroom setting",
+        "The political persecution of Pinochet"
+      ]
+    },
+    "bb618dd9fc7a28e21c3a": {
+      "case_id": "bb618dd9fc7a28e21c3a",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 0,
+      "explanation": "The image depicts an optimistic, patriotic American political rally, which has no connection to the quote's core message about the inherent fiscal unsustainability and eventual economic failure of socialism. The pairing is entirely unrelated.",
+      "extraneous_image_arguments": [
+        "American political campaigning",
+        "patriotic enthusiasm and U.S. flags",
+        "celebratory public rallies"
+      ],
+      "image_basename": "tg_b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png",
+      "image_depicted_consequences": [
+        "a successful, energetic public event",
+        "widespread applause and approval"
+      ],
+      "image_depicted_subject": [
+        "American political leader at a rally",
+        "enthusiastic crowd waving U.S. flags",
+        "smiling man in a suit waving"
+      ],
+      "image_ideological_framing": [
+        "optimistic American patriotism",
+        "popular political leadership"
+      ],
+      "image_implied_mechanism": [
+        "political charisma and popularity generate public support",
+        "patriotic symbols foster national unity"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 0,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 0,
+      "quote_broader_principles": [
+        "fiscal unsustainability",
+        "the limits of wealth redistribution"
+      ],
+      "quote_claimed_consequences": [
+        "socialist systems eventually exhaust available funds",
+        "economic failure of socialism"
+      ],
+      "quote_hash": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+      "quote_mechanism": [
+        "wealth redistribution relies on taking money from others",
+        "the supply of other people's money is finite"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "bb618dd9fc7a28e21c3a",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "fcFTatOUBO2qmPUPuI3T-A4"
+      },
+      "relevance_score": 0,
+      "secondary_relationship": null,
+      "specificity_score": 0,
+      "stronger_visual_direction": [
+        "an empty government treasury vault or bare coffers",
+        "a visual metaphor of a taxpayer's pockets being turned inside out and emptied",
+        "historical or symbolic depictions of empty store shelves or breadlines in a state-controlled economy",
+        "a ledger showing depleted public funds"
+      ],
+      "unillustrated_primary_elements": [
+        "socialism",
+        "running out of money",
+        "other people's money",
+        "fiscal failure"
+      ]
+    },
+    "c38fa0c8248f00f75587": {
+      "case_id": "c38fa0c8248f00f75587",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 0,
+      "explanation": "The quote describes a personal, private moment of emotional vulnerability and silent tears at home after being overwhelmed. The image is a political cartoon-style illustration of a horse burdened by taxes and regulations in the UK. There is no thematic, literal, or conceptual overlap between the intimate personal confession in the quote and the overt political allegory in the image.",
+      "extraneous_image_arguments": [
+        "Political critique of UK tax policy",
+        "Allegorical depiction of Britain as a burdened beast",
+        "Government bureaucracy themes"
+      ],
+      "image_basename": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "image_depicted_consequences": [
+        "The nation (symbolized by the horse) struggling under the burden",
+        "Strain on the economy and working class"
+      ],
+      "image_depicted_subject": [
+        "A grey horse severely overloaded with crates and sacks",
+        "Sacks labeled 'TAXES' and 'REGULATIONS'",
+        "A man in a suit and Union Jack top hat riding atop the load",
+        "Dusty industrial or warehouse setting"
+      ],
+      "image_ideological_framing": [
+        "Anti-tax and anti-regulation sentiment",
+        "Critique of British governmental authority burdening the country"
+      ],
+      "image_implied_mechanism": [
+        "Government imposition of heavy taxation and excessive regulation"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 0,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 0,
+      "quote_broader_principles": [
+        "Private emotional release after public suppression",
+        "Human vulnerability in the face of stress"
+      ],
+      "quote_claimed_consequences": [
+        "Shedding silent tears alone"
+      ],
+      "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "quote_mechanism": [
+        "Feeling overwhelmed by pressures ('everything has got on top of me')",
+        "Returning home at night"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "c38fa0c8248f00f75587",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "oMFTasKPHtThz_IP3dHgwQw"
+      },
+      "relevance_score": 0,
+      "secondary_relationship": null,
+      "specificity_score": 0,
+      "stronger_visual_direction": [
+        "A somber, dimly lit portrait of a person alone in a domestic setting at night",
+        "A solitary figure standing in a shadowed hallway, conveying quiet overwhelm",
+        "Close-up of a person with a tired expression, perhaps wiping a tear, in a private space"
+      ],
+      "unillustrated_primary_elements": [
+        "Private domestic setting",
+        "A solitary human figure experiencing emotional overwhelm",
+        "Silent crying at night"
+      ]
+    },
+    "dba0179df5f2f4cb4c5b": {
+      "case_id": "dba0179df5f2f4cb4c5b",
+      "consequence_alignment_score": 10,
+      "directness_score": 20,
+      "editorial_power_score": 30,
+      "explanation": "The quote argues specifically against economic sanctions in South Africa, claiming they harm black Africans' employment opportunities. The image shows a generic speech by a British stateswoman (resembling Thatcher, the likely author of the quote) in front of a Union Jack. While there is a historical connection between the speaker and the quote, the image fails to illustrate any of the quote's mechanisms, consequences, or specific subjects (apartheid, sanctions, black African jobs). Therefore, it serves only as a weak secondary theme match (speaker identity) rather than illustrating the text.",
+      "extraneous_image_arguments": [
+        "Heavy emphasis on British nationalism with the Union Jack",
+        "Generic speech setting without specific reference to South Africa or economics"
+      ],
+      "image_basename": "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "image_depicted_consequences": [
+        "Projecting firm leadership and sovereignty"
+      ],
+      "image_depicted_subject": [
+        "British political leader (resembling Margaret Thatcher)",
+        "Formal public speech",
+        "Union Jack flag",
+        "Globe"
+      ],
+      "image_ideological_framing": [
+        "British national identity",
+        "Statesmanship",
+        "Political authority"
+      ],
+      "image_implied_mechanism": [
+        "Delivering a formal, authoritative speech on national or international matters"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "The image depicts a figure strongly resembling Margaret Thatcher, who historically made the quoted argument."
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 25,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 25,
+      "quote_broader_principles": [
+        "Economic sanctions are not the way to promote peaceful change",
+        "Private-sector opportunity as a vehicle for ending apartheid"
+      ],
+      "quote_claimed_consequences": [
+        "Sanctions don't work",
+        "They would be a blow to firms and people at the forefront of efforts to end apartheid",
+        "Harming job creation and greater opportunity for black Africans"
+      ],
+      "quote_hash": "51346064e36d2597e3cbe635dbe9ff8258b529b5f2c324d2114c7bdb6dc1c3d6",
+      "quote_mechanism": [
+        "Economic sanctions",
+        "making problems worse"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "dba0179df5f2f4cb4c5b",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "vcFTaqnKN4vjz_IPwZyr-Qw"
+      },
+      "relevance_score": 35,
+      "secondary_relationship": "ambiguous",
+      "specificity_score": 15,
+      "stronger_visual_direction": [
+        "Black African workers in factories or offices in South Africa during the apartheid era",
+        "Signs of business or industrial activity providing employment",
+        "A contrast between idle factories and working individuals to illustrate the economic blow"
+      ],
+      "unillustrated_primary_elements": [
+        "Economic sanctions",
+        "Apartheid",
+        "Black Africans",
+        "Jobs and opportunity",
+        "Firms and people ending apartheid"
+      ]
+    },
+    "e931dd610a0b12b99c75": {
+      "case_id": "e931dd610a0b12b99c75",
+      "consequence_alignment_score": 25,
+      "directness_score": 20,
+      "editorial_power_score": 35,
+      "explanation": "The quote is a concise critique of socialist rhetoric regarding 'social justice', claiming it actually means 'selective justice'. The image is a broad, hyperbolic visual contrast between a sinister communist dictator and a radiant Western democratic leader. While both criticize the left, the image does not illustrate justice, courts, partiality, or rhetoric. It substitutes a specific claim about semantic hypocrisy with a massive, generic ideological clash, making it an extremely poor fit for the quote.",
+      "extraneous_image_arguments": [
+        "Communism as a totalitarian cult of personality",
+        "Western democratic orators as enlightened saviors",
+        "Margaret Thatcher-like figure as the specific antithesis"
+      ],
+      "image_basename": "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png",
+      "image_depicted_consequences": [
+        "Mass conformity and loss of individuality under communism",
+        "Free public engagement and individual identity under democracy"
+      ],
+      "image_depicted_subject": [
+        "A communist dictator controlling identical silhouettes with red beams",
+        "A woman resembling Margaret Thatcher speaking in golden light to an audience"
+      ],
+      "image_ideological_framing": [
+        "Communism is evil, dark, controlling, and collectivist",
+        "Western democracy is good, bright, individualistic, and heroic"
+      ],
+      "image_implied_mechanism": [
+        "Communist regimes rule by sinister manipulation and depersonalization",
+        "Democratic leadership rules through enlightened public oratory"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Critique of left-wing ideology (socialists/communism)"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 25,
+      "primary_relationship": "ambiguous",
+      "principle_alignment_score": 45,
+      "quote_broader_principles": [
+        "Political language often masks true intentions",
+        "Justice must be impartial to be true justice"
+      ],
+      "quote_claimed_consequences": [
+        "Justice is applied selectively rather than impartially",
+        "Public messaging conceals ideological hypocrisy"
+      ],
+      "quote_hash": "5a7d71ca8c8a80423f1e3c5aabbc27479228e4eddff8082ad04184bad624f153",
+      "quote_mechanism": [
+        "Socialists use rhetorical misrepresentation ('social justice')",
+        "Socialists apply principles hypocritically or unevenly ('selective justice')"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "e931dd610a0b12b99c75",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "4sFTao6yG6OpmPUPn_b30A8"
+      },
+      "relevance_score": 40,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 15,
+      "stronger_visual_direction": [
+        "Scales of justice being manipulated or tipped unfairly by political hands",
+        "A courtroom or protest setting highlighting hypocrisy in how groups are treated",
+        "An editorial cartoon of a politician literally changing the definition of justice in a dictionary"
+      ],
+      "unillustrated_primary_elements": [
+        "The concept of 'justice'",
+        "The phrase 'social justice'",
+        "Selective application or partiality",
+        "Rhetorical manipulation or hypocrisy"
+      ]
+    },
+    "ed33e12a1fa6726bf8da": {
+      "case_id": "ed33e12a1fa6726bf8da",
+      "consequence_alignment_score": 0,
+      "directness_score": 5,
+      "editorial_power_score": 5,
+      "explanation": "The quote discusses the geopolitical risks of confronting versus ignoring a dictator, referencing historical lessons learned by an older generation. The image depicts a generic older woman in a position of authority looking contemplative at a desk. While she could theoretically be a politician pondering such decisions, the image provides no visual context linking her to foreign policy, warfare, dictatorships, or the historical lessons implied by the quote. It is essentially stock imagery of a female executive, making it too ambiguous and unrelated to serve as an editorial illustration for the quote.",
+      "extraneous_image_arguments": [
+        "Corporate or generic political authority",
+        "Wealth and formal grooming (pearls, brooch)"
+      ],
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "image_depicted_consequences": [
+        "Professional competence",
+        "Authority and contemplation"
+      ],
+      "image_depicted_subject": [
+        "An older woman in formal business attire",
+        "An executive office setting with books and papers"
+      ],
+      "image_ideological_framing": [
+        "Traditional establishment power",
+        "Formal status and quiet intensity"
+      ],
+      "image_implied_mechanism": [
+        "Careful deliberation",
+        "High-status decision making"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Decision-making (loosely related to assessing risks)"
+      ],
+      "mechanism_alignment_score": 5,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 5,
+      "primary_relationship": "ambiguous",
+      "principle_alignment_score": 5,
+      "quote_broader_principles": [
+        "Generational lessons on the risks of confronting vs. ignoring dictators",
+        "The costs of appeasement outweigh the costs of intervention"
+      ],
+      "quote_claimed_consequences": [
+        "Incurs risks",
+        "Incurs great risks"
+      ],
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "quote_mechanism": [
+        "Stopping a dictator",
+        "Not stopping a dictator"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "ed33e12a1fa6726bf8da",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "6sFTasyxHbegmPUPxtiJwAI"
+      },
+      "relevance_score": 10,
+      "secondary_relationship": "unrelated",
+      "specificity_score": 0,
+      "stronger_visual_direction": [
+        "Historical imagery of resistance against dictators (e.g., WWII)",
+        "Ruins or military build-ups representing the costs of appeasement",
+        "A world leader addressing the UN or troops with relevant background context"
+      ],
+      "unillustrated_primary_elements": [
+        "Dictators",
+        "Stopping dictators",
+        "Generational lessons",
+        "Great risks of inaction"
+      ]
+    },
+    "fa88be84d9caf8a1abbb": {
+      "case_id": "fa88be84d9caf8a1abbb",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 5,
+      "explanation": "The image contrasts an older woman doing traditional paperwork with a younger woman taking a selfie, focusing on generational differences in work and self-presentation. The quote discusses economic freedom, hard work for one's family, and preventing government from seizing earnings for 'Ministerial empires'. There is no semantic overlap between the two.",
+      "extraneous_image_arguments": [
+        "Generational contrast",
+        "Traditional vs modern professionalism",
+        "Selfie culture and social media"
+      ],
+      "image_basename": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "image_depicted_consequences": [
+        "different eras or styles of achievement and public presentation"
+      ],
+      "image_depicted_subject": [
+        "split screen showing an older woman doing traditional paperwork",
+        "younger woman taking a selfie amid awards and gifts"
+      ],
+      "image_ideological_framing": [
+        "traditional serious work versus modern self-promotion and content creation"
+      ],
+      "image_implied_mechanism": [
+        "generational shift in how work and success are performed and presented"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [],
+      "mechanism_alignment_score": 0,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 5,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 5,
+      "quote_broader_principles": [
+        "economic freedom",
+        "limited government taxation",
+        "rewards of personal effort"
+      ],
+      "quote_claimed_consequences": [
+        "man is allowed to hold on to most of what his efforts have brought him"
+      ],
+      "quote_hash": "62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427",
+      "quote_mechanism": [
+        "working hard and earning money for his family",
+        "having earnings seized to build Ministerial empires"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "original_attempts": "gemini_ledger.json",
+        "parent_case_id": "fa88be84d9caf8a1abbb",
+        "parent_run_id": "provider_bakeoff_250_20260712_v1",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "8cFTaufMO6K0mPUP8Z6_kQQ"
+      },
+      "relevance_score": 5,
+      "secondary_relationship": null,
+      "specificity_score": 0,
+      "stronger_visual_direction": [
+        "a hard-working person or family managing household finances",
+        "a contrast between a small business worker and imposing government ministry buildings",
+        "symbolic depiction of heavy taxation or keeping one's earnings"
+      ],
+      "unillustrated_primary_elements": [
+        "working hard for a family",
+        "retaining earnings",
+        "taxation or seizure of earnings",
+        "Ministerial empires"
+      ]
+    }
+  },
+  "model": "gemini-3.1-pro-preview",
+  "prompt_version": "provider-neutral-picture-editor-v1",
+  "provider": "gemini_vertex",
+  "schema_version": 1
+}

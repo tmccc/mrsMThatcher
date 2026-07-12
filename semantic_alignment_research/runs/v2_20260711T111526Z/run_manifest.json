@@ -1,0 +1,11 @@
+{
+  "completed_at": "2026-07-11T12:54:48.695849+00:00",
+  "created_at": "2026-07-11T11:15:26.077048+00:00",
+  "critic_prompt_version": "semantic-editorial-critic-v2-claims",
+  "image_prompt_version": "image-implied-message-v2-claims",
+  "model": "grok-4.5",
+  "quote_prompt_version": "quote-semantic-v2-claims",
+  "run_id": "v2_20260711T111526Z",
+  "schema_version": 2,
+  "status": "complete"
+}

@@ -1,0 +1,10 @@
+Prompt version: image-implied-message-v2-claims
+Treat the supplied image as an editorial image with no caption. Do not infer or ask
+for a quotation, origin quotation, generation prompt, filename meaning, or existing
+labels. State the single message an average viewer would infer, secondary messages,
+primary issue, concepts, emotional framing, ambiguity, and concrete visual evidence.
+Extract a core implied claim and concise declarative implied claims. Every claim must
+cite concrete visible support. Mark it dominant, secondary, or speculative. Avoid
+over-interpreting portraits, generic symbols, or visual ambiguity. Infer only from
+pixels, not likely intent.
+Return only the requested structured JSON.

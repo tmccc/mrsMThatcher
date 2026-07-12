@@ -1,0 +1,53 @@
+ M generated_image_analysis.json
+ M generated_image_identity_dependence_audit.json
+ D generated_review_approved_images/tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png
+ D generated_review_approved_images/tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png
+ D generated_review_approved_images/tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png
+ D generated_review_approved_images/tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png
+?? .generated_image_analysis.lock
+?? .mrs_asset_analysis.lock
+?? .mrs_log_digest_state.json.lock
+?? analyse_mrs_assets_xai.py
+?? analyse_mrs_assets_xai_v2.py
+?? analyse_mrs_assets_xai_v3.py
+?? analyse_semantic_alignment_xai.py
+?? calibrate_semantic_alignment.py
+?? check_and_fix_thatcher_faces_xai_revised.py
+?? digest063_analysis.txt
+?? digest_latest_state_window_boundary_fix_report.txt
+?? generate_first10_from_quote_analysis.py
+?? generate_openai_low_first10.py
+?? generated_image_analysis.json.before_face_corrections
+?? generated_image_observability_report.txt
+?? generated_image_pool_review_report.txt
+?? generated_review_approved_images/grok_face_corrected/
+?? generated_review_approved_images/grok_face_correction_manifest_v2.json
+?? generated_review_approved_images/grok_face_rejected_candidates/
+?? generated_review_approved_images/pre_face_correction_backup_20260709_033026/
+?? grok_image_test_first10/
+?? images.tar
+?? images_used.json.pre-basename-migration
+?? images_used.pickle.pre-deployment.
+?? lines_used.json.pre-hash-migration
+?? lines_used.pickle.pre-deployment.
+?? mrsMThatcher.local.json.before_generated_pool_20260709_034909
+?? mrsMThatcher.local.json.before_generated_spacing_20260709_115742
+?? openai_generated_quote_images/
+?? openai_image_test_first10/
+?? original_editorial_matching_backtest.json
+?? pre_generated_identity_policy_activation_20260710_215610/
+?? pre_generated_identity_shadow_deployment_20260710_095701/
+?? pre_original_editorial_shadow_deployment_20260710_070852/
+?? pre_reply_humour_prompt_deployment_20260710_112259/
+?? pre_reply_spacing_30min_deployment_20260710_153705/
+?? production_safety_digest_hardening_deployment_report.md
+?? review/
+?? semantic_alignment/
+?? semantic_alignment_first_three_stages_execution_report.md
+?? semantic_alignment_research/
+?? semantic_alignment_research_pipeline_implementation_report.md
+?? simulation_runs/
+?? tests/test_semantic_alignment_calibration.py
+?? tests/test_semantic_alignment_pipeline.py
+?? thorough_review_mrsmthatcher2_and_log_digest_followup.md
+?? tools/semantic_alignment_calibration_app.py

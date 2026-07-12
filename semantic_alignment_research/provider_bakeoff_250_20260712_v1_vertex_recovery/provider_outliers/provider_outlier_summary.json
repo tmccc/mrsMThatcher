@@ -1,0 +1,506 @@
+{
+  "four_complete": 250,
+  "gemini_completed": 250,
+  "gemini_exhausted": 0,
+  "gemini_only_keep": {
+    "count": 15,
+    "human_keep": 8,
+    "human_labelled": 15,
+    "meta_interaction": {
+      "deferred": 2,
+      "disagreement_bands": {
+        "moderate": 15
+      },
+      "human_agreed_gemini": 8,
+      "human_agreed_majority": 7,
+      "labelled": 15,
+      "meta_decisions": {
+        "replace": 13,
+        "unsure": 2
+      },
+      "meta_errors_labelled": 7
+    },
+    "score_differences": {
+      "consequence_alignment_score": {
+        "count": 15,
+        "maximum": 47.0,
+        "mean_absolute_difference": 26.466666666666665,
+        "median_difference": 30.0,
+        "minimum": -5.0,
+        "q1": 17.5,
+        "q3": 35.0
+      },
+      "directness_score": {
+        "count": 15,
+        "maximum": 57.0,
+        "mean_absolute_difference": 35.333333333333336,
+        "median_difference": 35.0,
+        "minimum": 21.0,
+        "q1": 27.5,
+        "q3": 42.0
+      },
+      "editorial_power_score": {
+        "count": 15,
+        "maximum": 45.0,
+        "mean_absolute_difference": 29.4,
+        "median_difference": 25.0,
+        "minimum": 10.0,
+        "q1": 20.0,
+        "q3": 40.0
+      },
+      "mechanism_alignment_score": {
+        "count": 15,
+        "maximum": 55.0,
+        "mean_absolute_difference": 27.4,
+        "median_difference": 25.0,
+        "minimum": -10.0,
+        "q1": 12.5,
+        "q3": 38.0
+      },
+      "overall_suitability_score": {
+        "count": 15,
+        "maximum": 50.0,
+        "mean_absolute_difference": 35.666666666666664,
+        "median_difference": 33.0,
+        "minimum": 26.0,
+        "q1": 30.0,
+        "q3": 40.0
+      },
+      "principle_alignment_score": {
+        "count": 15,
+        "maximum": 43.0,
+        "mean_absolute_difference": 26.6,
+        "median_difference": 25.0,
+        "minimum": 15.0,
+        "q1": 20.0,
+        "q3": 33.5
+      },
+      "relevance_score": {
+        "count": 15,
+        "maximum": 37.0,
+        "mean_absolute_difference": 24.066666666666666,
+        "median_difference": 23.0,
+        "minimum": 13.0,
+        "q1": 17.0,
+        "q3": 29.0
+      },
+      "specificity_score": {
+        "count": 15,
+        "maximum": 50.0,
+        "mean_absolute_difference": 30.733333333333334,
+        "median_difference": 35.0,
+        "minimum": 2.0,
+        "q1": 19.5,
+        "q3": 41.5
+      }
+    },
+    "taxonomy": {
+      "direct_illustration": 1,
+      "illustrates_broader_principle": 12,
+      "illustrates_mechanism": 1,
+      "related_ideological_substitution": 1
+    }
+  },
+  "human_reviews": 250,
+  "hypotheses": {
+    "H1_more_permissive": "partially_supported",
+    "H2_better_indirect_matches": "partially_supported",
+    "H3_borderline_instability": "partially_supported",
+    "H4_majority_too_strict": "supported"
+  },
+  "immutable_hashes": {
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1_vertex_recovery/recovered_view/anthropic_results.json": "e0304adf8391005d462e11d507115dc4aa7599b7c66371e861c57c9bf8f2e884",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1_vertex_recovery/recovered_view/gemini_results.json": "7972016ea5db50190c4bbf706e0099c87c38c7690ad32d4e2f905bb971326fe7",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1_vertex_recovery/recovered_view/grok_results.json": "aac7f00a37c10e8cca901d3fab2319e1694b9f5b16800b2a04566dd5814f8140",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1_vertex_recovery/recovered_view/openai_results.json": "22bb78425ff2df479c5e235458824b64ad69767ca4846d142544d54232e4bbc6",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/anthropic_results.json": "e555f5c97d395346a013e0d26471a269302b699a4f76564c8c6cb813ba6dc525",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/gemini_results.json": "9362207fe82fed4bbfc49d74e4cfad79725842836f54f9c1356ee6ebce60f1ff",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/grok_results.json": "1f3b119feb1e49fcab50f1fd19536f9854a732049ccd6fe69fd21cd67ab26ced",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/openai_results.json": "7d870df33ce2bcbfec44dd06ecfff4daa1e87961f186cdbf46306b12e529aba7",
+    "semantic_alignment_research/runs/v2_20260711T111526Z/image_implied_messages_generated.json": "d8d66885bc05dda0bd66658f169af1ef3b6b32f6e10fb1ad2a4c02398eab195b",
+    "semantic_alignment_research/runs/v2_20260711T111526Z/quote_semantic_fingerprints.json": "1c98a498c0254ac9706d43d070f12209203cf240db2bc96419160fd7494b10f3"
+  },
+  "manifest_cases": 250,
+  "missing_gemini": {
+    "case_ids": [],
+    "other_provider_votes": {},
+    "selection_reasons_completed": {
+      "broader_or_ideological": 20,
+      "canonical_editorial_winner": 83,
+      "canonical_identity_winner": 29,
+      "canonical_production_winner": 13,
+      "consequence_or_principle": 20,
+      "contradictory_or_conflict": 20,
+      "deterministic_fill": 16,
+      "original_25_regression": 25,
+      "secondary_theme_or_ambiguous": 4,
+      "weak_or_unrelated": 20
+    },
+    "selection_reasons_missing": {},
+    "sensitivity": [
+      {
+        "aggregate_keep_rate": 0.208,
+        "aggregate_keeps": 52,
+        "assumed_missing_keeps": 0,
+        "scenario": "all_missing_keep"
+      },
+      {
+        "aggregate_keep_rate": 0.208,
+        "aggregate_keeps": 52,
+        "assumed_missing_keeps": 0,
+        "scenario": "all_missing_replace"
+      },
+      {
+        "aggregate_keep_rate": 0.208,
+        "aggregate_keeps": 52,
+        "assumed_missing_keeps": 0,
+        "scenario": "observed_rate"
+      }
+    ]
+  },
+  "outlier_counts": {
+    "anthropic_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "anthropic_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "gemini_only_keep": {
+      "count": 15,
+      "of_3_1_splits": 0.9375,
+      "of_four_complete": 0.06,
+      "of_intended_250": 0.06,
+      "of_usable_gemini": 0.06
+    },
+    "gemini_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "grok_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "grok_only_replace": {
+      "count": 1,
+      "of_3_1_splits": 0.0625,
+      "of_four_complete": 0.004,
+      "of_intended_250": 0.004,
+      "of_usable_gemini": 0.004
+    },
+    "openai_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "openai_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    }
+  },
+  "patterns": {
+    "2_keep_2_replace": 4,
+    "3_keep_1_replace": 1,
+    "3_replace_1_keep": 15,
+    "4_keep": 4,
+    "4_replace": 177,
+    "mixed_with_unsure": 49
+  },
+  "provider_profiles": {
+    "anthropic": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 7,
+        "replace": 206,
+        "unsure": 37
+      },
+      "human": {
+        "accuracy": 0.792,
+        "accuracy_95ci": [
+          0.7374548978246092,
+          0.8377069353816109
+        ],
+        "correct": 198,
+        "false_keep": 1,
+        "false_replace": 14,
+        "keep_precision": 0.8571428571428571,
+        "keep_recall": 0.3,
+        "labelled": 250,
+        "replace_precision": 0.9320388349514563,
+        "replace_recall": 0.9948186528497409
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 27.876,
+        "directness_score": 18.684,
+        "editorial_power_score": 38.14,
+        "mechanism_alignment_score": 19.616,
+        "overall_suitability_score": 27.996,
+        "principle_alignment_score": 42.096,
+        "relevance_score": 39.772,
+        "specificity_score": 21.48
+      },
+      "model": "claude-sonnet-4-6",
+      "outlier_keep": 0,
+      "outlier_replace": 0,
+      "relationships": {
+        "ambiguous": 11,
+        "contradictory": 9,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 60,
+        "illustrates_claimed_consequence": 13,
+        "related_ideological_substitution": 111,
+        "secondary_theme_match": 14,
+        "unrelated": 30
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3921.575160741806,
+        "ended_at": 1783855810.8001506,
+        "exhausted": 0,
+        "known_cost_usd": 4.311918,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "anthropic",
+        "started_at": 1783851889.2249906,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "gemini": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 52,
+        "replace": 192,
+        "unsure": 6
+      },
+      "human": {
+        "accuracy": 0.928,
+        "accuracy_95ci": [
+          0.8890706197648033,
+          0.9539748069895191
+        ],
+        "correct": 232,
+        "false_keep": 10,
+        "false_replace": 2,
+        "keep_precision": 0.8076923076923077,
+        "keep_recall": 0.9545454545454546,
+        "labelled": 250,
+        "replace_precision": 0.9895833333333334,
+        "replace_recall": 0.95
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 29,
+        "directness_score": 28.84,
+        "editorial_power_score": 42.756,
+        "mechanism_alignment_score": 21.96,
+        "overall_suitability_score": 36.432,
+        "principle_alignment_score": 44.44,
+        "relevance_score": 42.26,
+        "specificity_score": 27.66
+      },
+      "model": "gemini-3.1-pro-preview",
+      "outlier_keep": 15,
+      "outlier_replace": 0,
+      "relationships": {
+        "ambiguous": 8,
+        "contradictory": 36,
+        "direct_illustration": 8,
+        "illustrates_broader_principle": 65,
+        "illustrates_claimed_consequence": 2,
+        "illustrates_mechanism": 5,
+        "related_ideological_substitution": 15,
+        "secondary_theme_match": 66,
+        "unrelated": 45
+      },
+      "worker": {
+        "attempts": 273,
+        "completed": 227,
+        "elapsed_seconds": 1755.8301267623901,
+        "ended_at": 1783853645.055905,
+        "exhausted": 23,
+        "known_cost_usd": 2.4690459999999996,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "gemini",
+        "started_at": 1783851889.225779,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "grok": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 16,
+        "replace": 223,
+        "unsure": 11
+      },
+      "human": {
+        "accuracy": 0.856,
+        "accuracy_95ci": [
+          0.8070866646773006,
+          0.8941380360809675
+        ],
+        "correct": 214,
+        "false_keep": 2,
+        "false_replace": 23,
+        "keep_precision": 0.875,
+        "keep_recall": 0.3783783783783784,
+        "labelled": 250,
+        "replace_precision": 0.8968609865470852,
+        "replace_recall": 0.9900990099009901
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 20.772,
+        "directness_score": 16.664,
+        "editorial_power_score": 34.524,
+        "mechanism_alignment_score": 12.348,
+        "overall_suitability_score": 27.172,
+        "principle_alignment_score": 38.492,
+        "relevance_score": 33.42,
+        "specificity_score": 21.952
+      },
+      "model": "grok-4.5",
+      "outlier_keep": 0,
+      "outlier_replace": 1,
+      "relationships": {
+        "contradictory": 5,
+        "direct_illustration": 1,
+        "illustrates_broader_principle": 21,
+        "illustrates_claimed_consequence": 20,
+        "illustrates_mechanism": 3,
+        "related_ideological_substitution": 70,
+        "secondary_theme_match": 33,
+        "unrelated": 97
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 2936.7361755371094,
+        "ended_at": 1783854825.9602218,
+        "exhausted": 0,
+        "known_cost_usd": 2.840153999999999,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "grok",
+        "started_at": 1783851889.2240467,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "openai": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 22,
+        "replace": 222,
+        "unsure": 6
+      },
+      "human": {
+        "accuracy": 0.868,
+        "accuracy_95ci": [
+          0.8204189328669529,
+          0.9044425555573243
+        ],
+        "correct": 217,
+        "false_keep": 3,
+        "false_replace": 24,
+        "keep_precision": 0.8636363636363636,
+        "keep_recall": 0.4418604651162791,
+        "labelled": 250,
+        "replace_precision": 0.8918918918918919,
+        "replace_recall": 0.9850746268656716
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 21.272,
+        "directness_score": 22.844,
+        "editorial_power_score": 59.52,
+        "mechanism_alignment_score": 20.964,
+        "overall_suitability_score": 38.54,
+        "principle_alignment_score": 47.876,
+        "relevance_score": 46.648,
+        "specificity_score": 28.008
+      },
+      "model": "gpt-5.6-sol",
+      "outlier_keep": 0,
+      "outlier_replace": 0,
+      "relationships": {
+        "contradictory": 3,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 20,
+        "illustrates_claimed_consequence": 14,
+        "illustrates_mechanism": 12,
+        "related_ideological_substitution": 128,
+        "secondary_theme_match": 51,
+        "unrelated": 20
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3111.7142572402954,
+        "ended_at": 1783855000.9386463,
+        "exhausted": 0,
+        "known_cost_usd": 7.252130000000004,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "openai",
+        "started_at": 1783851889.2243893,
+        "uncertain_possible_exposure_usd": 0
+      }
+    }
+  },
+  "regression": {
+    "anthropic": {
+      "keep_to_replace": 0,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 0,
+      "taxonomy_changes": 3,
+      "unchanged": 25
+    },
+    "gemini": {
+      "keep_to_replace": 1,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 2,
+      "taxonomy_changes": 7,
+      "unchanged": 22
+    },
+    "grok": {
+      "keep_to_replace": 1,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 0,
+      "taxonomy_changes": 6,
+      "unchanged": 24
+    },
+    "openai": {
+      "keep_to_replace": 2,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 1,
+      "taxonomy_changes": 6,
+      "unchanged": 20
+    }
+  },
+  "schema_version": 1,
+  "three_one_splits": 16
+}

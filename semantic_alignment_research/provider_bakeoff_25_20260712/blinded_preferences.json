@@ -1,0 +1,20 @@
+{
+  "analysis_kind": "blinded_provider_preferences",
+  "items": {
+    "55f5cd6d633c143f5170": {
+      "case_id": "55f5cd6d633c143f5170",
+      "critique_preference": "both_equal",
+      "image_decision_agreement": "B",
+      "notes": "",
+      "updated_at": "2026-07-12T00:21:56.500589+00:00"
+    },
+    "d95fd04248974978c79e": {
+      "case_id": "d95fd04248974978c79e",
+      "critique_preference": "A",
+      "image_decision_agreement": "A",
+      "notes": "",
+      "updated_at": "2026-07-12T00:23:21.098506+00:00"
+    }
+  },
+  "schema_version": 1
+}

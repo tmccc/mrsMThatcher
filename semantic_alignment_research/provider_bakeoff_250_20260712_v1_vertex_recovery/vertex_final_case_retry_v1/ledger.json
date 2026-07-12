@@ -1,0 +1,28 @@
+{
+  "ambiguous": [],
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "case_id": "378fbf96d18c2e10f5a3",
+      "input_hash": "6cd96fc818a192dab6f037030eeada142be95c50035803cfa4e696f53a34044b",
+      "lifecycle_state": "completed",
+      "model": "gemini-3.1-pro-preview",
+      "timestamp": 1783874248.6803162
+    }
+  ],
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "378fbf96d18c2e10f5a3",
+      "cost_usd": 0.014866,
+      "input_tokens": 2897,
+      "latency_seconds": 19.411869348026812,
+      "model_version": "gemini-3.1-pro-preview",
+      "output_tokens": 756,
+      "reasoning_tokens": 0,
+      "request_id": "ycJTavvvKregmPUPxtiJwAI",
+      "traffic_type": "TrafficType.ON_DEMAND"
+    }
+  ],
+  "failures": []
+}

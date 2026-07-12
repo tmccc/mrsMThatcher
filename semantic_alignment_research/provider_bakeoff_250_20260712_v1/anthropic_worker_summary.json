@@ -1,0 +1,13 @@
+{
+  "attempts": 250,
+  "completed": 250,
+  "elapsed_seconds": 3921.575160741806,
+  "ended_at": 1783855810.8001506,
+  "exhausted": 0,
+  "known_cost_usd": 4.311918,
+  "max_active_requests": 1,
+  "paused_reason": null,
+  "provider": "anthropic",
+  "started_at": 1783851889.2249906,
+  "uncertain_possible_exposure_usd": 0
+}

@@ -1,0 +1,38 @@
+{
+  "automatic_coverage": {
+    "A": {
+      "coverage": 0.724,
+      "resolved": 181
+    },
+    "B": {
+      "coverage": 0.856,
+      "resolved": 214
+    },
+    "C": {
+      "coverage": 0.84,
+      "resolved": 210
+    },
+    "D": {
+      "coverage": 0.944,
+      "resolved": 236
+    },
+    "E": {
+      "coverage": 0.78,
+      "resolved": 195
+    },
+    "F": {
+      "coverage": 0.856,
+      "resolved": 214
+    },
+    "G": {
+      "coverage": 0.716,
+      "resolved": 179
+    },
+    "H": {
+      "coverage": 0.856,
+      "resolved": 214
+    }
+  },
+  "denominator_complete_cases": 250,
+  "schema_version": 1
+}

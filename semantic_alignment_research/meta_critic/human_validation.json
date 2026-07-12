@@ -1,0 +1,231 @@
+{
+  "analysis_kind": "meta_critic_human_validation",
+  "items": {
+    "0117c8919c5fdb98d8ff": {
+      "case_id": "0117c8919c5fdb98d8ff",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:42:59.587468+00:00"
+    },
+    "15d14fb68d063c94ab76": {
+      "case_id": "15d14fb68d063c94ab76",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:47:04.963330+00:00"
+    },
+    "34804ca152e0e279c7ff": {
+      "case_id": "34804ca152e0e279c7ff",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:46:25.656044+00:00"
+    },
+    "45aff3c1240a3010165b": {
+      "case_id": "45aff3c1240a3010165b",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:47:53.488828+00:00"
+    },
+    "55f5cd6d633c143f5170": {
+      "case_id": "55f5cd6d633c143f5170",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:45:14.167717+00:00"
+    },
+    "588a0074decf861a546b": {
+      "case_id": "588a0074decf861a546b",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:47:32.249785+00:00"
+    },
+    "5adcb6f1fbaad21d5ae0": {
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "no",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:42:05.309819+00:00"
+    },
+    "68c044ce4d015237c2fe": {
+      "case_id": "68c044ce4d015237c2fe",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:44:15.297604+00:00"
+    },
+    "6eb60852343c65542ab6": {
+      "case_id": "6eb60852343c65542ab6",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:45:52.516659+00:00"
+    },
+    "70f14e2e72a292a3ae05": {
+      "case_id": "70f14e2e72a292a3ae05",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:42:14.837845+00:00"
+    },
+    "9729da4b58d3d56e5c05": {
+      "case_id": "9729da4b58d3d56e5c05",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:44:01.730670+00:00"
+    },
+    "a53c2ebadd2dde95cd5f": {
+      "case_id": "a53c2ebadd2dde95cd5f",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:45:33.582871+00:00"
+    },
+    "ad5a52dcf9f0f123e8ee": {
+      "case_id": "ad5a52dcf9f0f123e8ee",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:44:48.121327+00:00"
+    },
+    "b467ac8ccfc2f225aad3": {
+      "case_id": "b467ac8ccfc2f225aad3",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:46:39.470944+00:00"
+    },
+    "b7cd43663a96e63b5b69": {
+      "case_id": "b7cd43663a96e63b5b69",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:44:31.089041+00:00"
+    },
+    "b98adf9e78161b670ad5": {
+      "case_id": "b98adf9e78161b670ad5",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "no",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:42:47.966001+00:00"
+    },
+    "bb9f364836998e185eec": {
+      "case_id": "bb9f364836998e185eec",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:43:21.983705+00:00"
+    },
+    "bdd510a8157a6fb7ec70": {
+      "case_id": "bdd510a8157a6fb7ec70",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:46:08.692624+00:00"
+    },
+    "cd34f0ecdf6711ec4b2d": {
+      "case_id": "cd34f0ecdf6711ec4b2d",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:40:29.258835+00:00"
+    },
+    "d95fd04248974978c79e": {
+      "case_id": "d95fd04248974978c79e",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:45:01.144453+00:00"
+    },
+    "db9adeebf2c41956d290": {
+      "case_id": "db9adeebf2c41956d290",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:46:50.151374+00:00"
+    },
+    "e05e08ebeb6230dec78c": {
+      "case_id": "e05e08ebeb6230dec78c",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:40:46.009812+00:00"
+    },
+    "e233a9d10b3eea4cbd37": {
+      "case_id": "e233a9d10b3eea4cbd37",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:47:43.505440+00:00"
+    },
+    "e64eaa98b9e825be7e66": {
+      "case_id": "e64eaa98b9e825be7e66",
+      "closest_critics": [],
+      "human_action": "keep",
+      "meta_acceptable": "no",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:43:50.229878+00:00"
+    },
+    "f0ededbfbe6886c49db8": {
+      "case_id": "f0ededbfbe6886c49db8",
+      "closest_critics": [],
+      "human_action": "replace",
+      "meta_acceptable": "yes",
+      "notes": "",
+      "reason": "direct_fit",
+      "updated_at": "2026-07-12T08:47:16.927641+00:00"
+    }
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,83 @@
+{
+  "items": {
+    "378fbf96d18c2e10f5a3": {
+      "case_id": "378fbf96d18c2e10f5a3",
+      "consequence_alignment_score": 85,
+      "directness_score": 40,
+      "editorial_power_score": 85,
+      "explanation": "The quote argues for a moral society based on individual freedom, choice, and compassion, contrasting it with a system where the state controls everything. The image shows the physical ruin of Soviet communism, a historical example of a state that attempted to control everything. While the image does not illustrate the positive mechanisms of the quote (free choice, compassion), it strongly illustrates the claimed negative consequence of the opposing system (the inevitable ruin of total state control). The pairing works as a powerful ideological substitution, using the fall of the Soviet Union to underscore the quote's critique of an all-encompassing state.",
+      "extraneous_image_arguments": [
+        "specific reference to Soviet communism and its historical collapse",
+        "physical destruction of Moscow landmarks"
+      ],
+      "image_basename": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "image_depicted_consequences": [
+        "physical ruin of Soviet communism",
+        "fallen symbols of state power",
+        "desolation of the capital"
+      ],
+      "image_depicted_subject": [
+        "scattered rubble and broken masonry",
+        "large hammer-and-sickle sculpture tilted on a rubble pile",
+        "severed stone head resembling Lenin",
+        "tattered red flag with yellow hammer and sickle",
+        "Kremlin-like Spasskaya Tower in the background"
+      ],
+      "image_ideological_framing": [
+        "ideological defeat",
+        "ruin of empire",
+        "the inevitable failure of total state control"
+      ],
+      "image_implied_mechanism": [
+        "collapse of a state-controlled system",
+        "failure of a totalitarian ideology"
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "rejection of total state control",
+        "failure of a system where the state is responsible for everything"
+      ],
+      "mechanism_alignment_score": 30,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 75,
+      "primary_relationship": "illustrates_broader_principle",
+      "principle_alignment_score": 80,
+      "quote_broader_principles": [
+        "individual freedom of choice",
+        "personal responsibility",
+        "limits of state responsibility",
+        "rejection of total state control"
+      ],
+      "quote_claimed_consequences": [
+        "creation of a moral society",
+        "avoiding a society where the state is responsible for everything"
+      ],
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_mechanism": [
+        "people are free to make choices, to make mistakes",
+        "to be generous and compassionate"
+      ],
+      "recovered_via_vertex_ai": true,
+      "recovery_provenance": {
+        "kind": "operator_authorized_final_case_retry",
+        "parent_case_id": "378fbf96d18c2e10f5a3",
+        "traffic_type": "TrafficType.ON_DEMAND",
+        "vertex_request_id": "ycJTavvvKregmPUPxtiJwAI"
+      },
+      "relevance_score": 75,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 50,
+      "stronger_visual_direction": [
+        "images showing everyday people making choices",
+        "scenes of community mutual aid or grassroots compassion",
+        "a juxtaposition of individual freedom with bureaucratic overreach"
+      ],
+      "unillustrated_primary_elements": [
+        "people being free to make choices and mistakes",
+        "acts of generosity and compassion",
+        "the positive vision of a moral society"
+      ]
+    }
+  },
+  "schema_version": 1
+}

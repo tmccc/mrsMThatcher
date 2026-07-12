@@ -1,0 +1,1274 @@
+{
+  "contradictions": [
+    {
+      "analysed_at": "2026-07-11T12:48:27.077661+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "contradiction",
+      "confidence": 0.93,
+      "directness_score": 8,
+      "dominant_message_match": "contradictory",
+      "editorial_power_score": 35,
+      "explanation": "The quote's primary propositions treat socialism as a pejorative, mutating virus that defeats successive remedies. The image instead canonizes 19th-century socialism as a revered chapter in the history of ideas inside a classical library. No virus, remedy, evolution, or obsolescence imagery is present; the image introduces scholarly prestige and archival dignity the quote neither requires nor supports, producing a clear contradiction in valence and claim.",
+      "image_basename": "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png",
+      "image_claims_not_required_by_quote": [
+        "19th-century socialism is framed as part of the formal history of ideas.",
+        "A bearded historical figure is associated with this intellectual tradition.",
+        "The subject is treated as academic material suited to a grand research library.",
+        "Books suggest a long-standing archival body of writing on the topic."
+      ],
+      "image_core_implied_claim": "Socialism belongs in the scholarly history of ideas as an important 19th-century intellectual tradition.",
+      "matched_claims": [],
+      "mismatch_type": "contradiction",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Socialism is like a horrible virus that spontaneously evolves into a new version as soon as a remedy for the previous one is discovered.",
+      "quote_hash": "bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de",
+      "schema_version": 2,
+      "semantic_alignment_score": 12,
+      "stronger_visual_direction": [
+        "Lab or microscope view of a virus particle morphing into successive political symbols",
+        "Editorial sequence of socialist emblems mutating after each 'cure' attempt",
+        "Scientist applying a remedy that immediately fails as the virus changes form",
+        "Timeline of successive socialist icons evolving while remedies are discarded",
+        "Shape-shifting virus graphic labeled with successive socialist variants"
+      ],
+      "unillustrated_primary_claims": [
+        "Socialism is like one of those horrible viruses.",
+        "You no sooner discover a remedy for one version of socialism than it spontaneously evolves into another.",
+        "Socialism continually mutates so remedies become obsolete."
+      ],
+      "visual_specificity_score": 82
+    },
+    {
+      "analysed_at": "2026-07-11T12:49:35.489837+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "contradiction",
+      "confidence": 0.92,
+      "directness_score": 8,
+      "dominant_message_match": "contradictory",
+      "editorial_power_score": 35,
+      "explanation": "The quote asserts that peace, freedom and justice require active popular readiness to defend them. The image instead depicts a composed authority figure speaking while armed enforcers suppress civilians, implying repression rather than defense of those values. No proposition-level claims match; the image introduces coercion and staged control absent from the quote and inverts the required agency of people protecting rights.",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "image_claims_not_required_by_quote": [
+        "Composed leader speaks from a podium while remaining detached from nearby violence",
+        "Armed uniformed figures use force against civilians in the background",
+        "Speech setting is staged over a backdrop of coercion and disorder",
+        "Background force evokes authoritarian symbolism"
+      ],
+      "image_core_implied_claim": "Authority projects polished control at a podium while force and submission dominate the scene behind her.",
+      "matched_claims": [],
+      "mismatch_type": "contradiction",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Peace, freedom and justice are only to be found where people are prepared to defend them.",
+      "quote_hash": "c9040d5f09e96cfcae62fba63d73e4d255213b39864fd89b623b67c4f8dbd18b",
+      "schema_version": 2,
+      "semantic_alignment_score": 12,
+      "stronger_visual_direction": [
+        "Citizens assembling to protect rights at a public square",
+        "Military or civil-defense personnel training or standing watch",
+        "Historical memorials to those who defended liberty",
+        "Protest or civic gathering asserting freedoms under threat",
+        "Symbolic scales of justice paired with a shield or barrier"
+      ],
+      "unillustrated_primary_claims": [
+        "Peace, freedom and justice exist only where people are prepared to defend them",
+        "Readiness to defend is a necessary condition for peace, freedom and justice",
+        "Without defenders those values cannot be found"
+      ],
+      "visual_specificity_score": 82
+    },
+    {
+      "analysed_at": "2026-07-11T12:50:13.947544+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "contradiction",
+      "confidence": 0.91,
+      "directness_score": 8,
+      "dominant_message_match": "contradictory",
+      "editorial_power_score": 55,
+      "explanation": "The quote asserts resolve against terrorism while defending democratic principles. The image instead depicts elite composure masking repression of civilians by armed force, implying authoritarian control rather than resistance to terrorism or protection of democracy. No terrorism threat is shown; the visual argument inverts the quote’s democratic resolve into staged coercion.",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "image_claims_not_required_by_quote": [
+        "Armed uniformed figures using force against civilians",
+        "Speech staged over a backdrop of coercion and disorder",
+        "Authoritarian symbolism via armbands and batons",
+        "Civilians appear powerless under armed control"
+      ],
+      "image_core_implied_claim": "A composed leader at a podium projects control while armed force suppresses civilians behind her.",
+      "matched_claims": [],
+      "mismatch_type": "contradiction",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Terrorism is a deadly threat to our way of life that will not cow us; we will resist it with full power while upholding democratic government.",
+      "quote_hash": "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+      "schema_version": 2,
+      "semantic_alignment_score": 12,
+      "stronger_visual_direction": [
+        "Security or emergency personnel protecting public spaces from attack",
+        "Parliament or legislative assembly in open democratic session",
+        "Ballot boxes, polling stations, or citizens in everyday democratic life",
+        "Unbowed civilian or symbolic figure facing a dark threat cloud without repression of the public",
+        "Flags or institutions of democratic government intact against chaos"
+      ],
+      "unillustrated_primary_claims": [
+        "Terrorism is a deadly threat to our way of life",
+        "We will not be cowed by terrorism",
+        "We will continue to resist terrorism with all our power",
+        "We will uphold the principles of democratic government"
+      ],
+      "visual_specificity_score": 82
+    }
+  ],
+  "count": 150,
+  "high_power_low_alignment": [
+    {
+      "analysed_at": "2026-07-11T12:50:07.433461+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.93,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 72,
+      "explanation": "The quote is a specific claim about the true incidence of nationalised-industry wage costs on workers, housewives and consumers versus the appearance of claims against government. The image instead stages a polarised Thatcher-versus-communism prosperity/ruin narrative with no nationalised industries, pay claims, cost incidence, or household/consumer burden. No proposition-level claims match; shared broad economic framing is insufficient and constitutes generic substitution of Cold-War ideology for the quote’s concrete point.",
+      "image_basename": "tg_a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png",
+      "image_claims_not_required_by_quote": [
+        "Thatcher represents British leadership delivering economic growth and market abundance.",
+        "Communism is linked to devastation, poverty, and societal ruin.",
+        "Free-market prosperity is contrasted with communist failure as opposing paths."
+      ],
+      "image_core_implied_claim": "British free-market leadership under Thatcher brings abundance and growth, while communism produces poverty and urban collapse.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Although nationalised-industry pay claims are sometimes presented as claims against governments, they can only be paid for by fellow workers, housewives and consumers generally.",
+      "quote_hash": "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283",
+      "schema_version": 2,
+      "semantic_alignment_score": 8,
+      "stronger_visual_direction": [
+        "Split scene: government ministry facade labelled as target of pay claim versus factory gate or boardroom wage negotiation",
+        "Housewives/shoppers at checkout or kitchen table with rising utility bills",
+        "Fellow workers’ pay packets or wages funding nationalised industry costs",
+        "Editorial caption contrast: “presented as against Government” vs “paid by ordinary people”"
+      ],
+      "unillustrated_primary_claims": [
+        "Nationalised-industry pay claims can only be paid for by fellow workers, housewives and consumers generally.",
+        "The real incidence of nationalised-industry pay claims falls on ordinary people rather than on government.",
+        "Pay claims are sometimes presented as claims against governments but are not really so."
+      ],
+      "visual_specificity_score": 88
+    },
+    {
+      "analysed_at": "2026-07-11T12:51:42.657125+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "generic_ideological_substitution",
+      "confidence": 0.91,
+      "directness_score": 18,
+      "dominant_message_match": "weak",
+      "editorial_power_score": 72,
+      "explanation": "The quote asserts a specific causal claim: socialist aims shared by Marxist regimes (exemplified by the USSR) subordinate individual rights to political theory. The image replaces that proposition with a generic anti-communist plague metaphor—hammer-and-sickle virus destroying a capitol—introducing biological invasion, institutional capture, and horror imagery the quote never requires while leaving the rights-versus-theory argument and Soviet self-identification unillustrated.",
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "image_claims_not_required_by_quote": [
+        "Communism is a deadly virus/pathogen.",
+        "A giant virus is engulfing a classical government building.",
+        "Viral tendrils and blood-red infection are consuming the state.",
+        "The takeover is catastrophic and plague-like."
+      ],
+      "image_core_implied_claim": "Communism is a virulent pathogen seizing and destroying a national seat of government.",
+      "matched_claims": [
+        {
+          "image_claim": "Communism (hammer-and-sickle) is a destructive force attacking the state.",
+          "match_strength": 0.35,
+          "quote_claim": "Marxist societies such as the USSR embody harmful socialist aims."
+        }
+      ],
+      "mismatch_type": "generic_ideological_substitution",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Some aims of socialism that define Marxist societies like the USSR result in the subjugation of people's rights to political theory.",
+      "quote_hash": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "schema_version": 2,
+      "semantic_alignment_score": 28,
+      "stronger_visual_direction": [
+        "Soviet public square with red banners and hammer-and-sickle emblems over citizens",
+        "Individuals before state authority or courtroom under Marxist slogans",
+        "Scales tipping toward political theory texts over personal liberty symbols",
+        "Eastern Bloc surveillance or queue scenes with official Marxist-Leninist volumes",
+        "Factory or collective farm under political banners suppressing individual agency"
+      ],
+      "unillustrated_primary_claims": [
+        "Marxist societies call themselves and are the Union of Soviet Socialist Republics.",
+        "Some aims of socialism are the aims of a Marxist society.",
+        "Those aims result in the subjugation of the rights of people to political theory."
+      ],
+      "visual_specificity_score": 88
+    },
+    {
+      "analysed_at": "2026-07-11T12:37:19.081182+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "secondary_theme_only",
+      "confidence": 0.9,
+      "directness_score": 25,
+      "dominant_message_match": "weak",
+      "editorial_power_score": 72,
+      "explanation": "The image powerfully depicts the physical and symbolic collapse of Soviet communism as desolate ruins with toppled hammer-and-sickle and Lenin imagery, which loosely evokes 'scars' and defeat of one ideology named in the quote. However, it leaves unillustrated the quote's primary quantitative death-toll claims, the enslavement/impoverishment contrasts, and the grouping of Nazism/Fascism as socialist variants. The dominant visual message of post-Soviet rubble substitutes a secondary aftermath theme for the quote's core mass-death and multi-regime indictment, yielding only weak partial overlap.",
+      "image_basename": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "image_claims_not_required_by_quote": [
+        "Soviet communism has collapsed into physical ruin with rubble and smoke.",
+        "Moscow landmarks like Spasskaya Tower still stand amid destruction.",
+        "A remnant Soviet flag still flies over the ruins.",
+        "Specific fallen Lenin bust and tilted giant hammer-and-sickle sculpture."
+      ],
+      "image_core_implied_claim": "The Soviet system and its ideology have been defeated and reduced to rubble.",
+      "matched_claims": [
+        {
+          "image_claim": "Soviet communism has collapsed into physical ruin with broken symbols amid wreckage.",
+          "match_strength": 0.45,
+          "quote_claim": "All of these ideologies have left scars on our societies."
+        },
+        {
+          "image_claim": "Communist symbols of power (hammer-and-sickle, Lenin head, Soviet flags) have been toppled in a ruined Soviet capital.",
+          "match_strength": 0.3,
+          "quote_claim": "Communism enslaved the East."
+        }
+      ],
+      "mismatch_type": "secondary_theme_only",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Communism killed nearly 100 million and enslaved the East, socialism impoverished much of the West, and Nazism plus Fascism killed about 25 million, all scarring societies.",
+      "quote_hash": "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560",
+      "schema_version": 2,
+      "semantic_alignment_score": 38,
+      "stronger_visual_direction": [
+        "Historical photos of Soviet gulag prisoners and barbed-wire camps",
+        "Mass graves or memorials to Holodomor and Cultural Revolution victims",
+        "Empty shelves and queues in Eastern Bloc stores illustrating impoverishment",
+        "Nazi concentration camp gates, barracks and crematoria ruins",
+        "Side-by-side death-toll graphics or memorials for communism (~100M) versus Nazism/Fascism (~25M)",
+        "Symbolic chains or scarred landscapes linking East enslavement and West impoverishment"
+      ],
+      "unillustrated_primary_claims": [
+        "Communism accounted for approaching a hundred million deaths.",
+        "Socialism impoverished much of the West.",
+        "Nazism and Fascism killed about 25 million.",
+        "Nazism as another brand of socialism and Fascism as its tamer forbear.",
+        "Comparative death tolls and East-West contrast in outcomes."
+      ],
+      "visual_specificity_score": 88
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:20.441311+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 70,
+      "explanation": "The quote contrasts everyday names for roads and rail with economists' abstract jargon 'infrastructure'. The image instead depicts a Thatcher figure offering bitter ale with mild unavailable, a political temperament metaphor with no shared claims, subjects, or themes.",
+      "image_basename": "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png",
+      "image_claims_not_required_by_quote": [
+        "The woman representing Margaret Thatcher offers bitter beer as the available choice.",
+        "Mild options are unavailable or rejected.",
+        "The setting links her to British pub culture and Conservative politics.",
+        "Her expression and gesture convey stern authority rather than warmth."
+      ],
+      "image_core_implied_claim": "Thatcher-style leadership supplies bitterness and firmness, not mildness.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Ordinary people travel by road or rail while economists travel on infrastructure, highlighting a contrast in terminology rather than means of transport.",
+      "quote_hash": "5d362ba54e7c2a8a0e70353dfe3d434ef151b45d9b49b76d3297d6c55a1c41a1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Side-by-side street-level road and rail scene versus abstract infrastructure network diagram",
+        "Commuters boarding a train next to an economist labeling the same facilities 'infrastructure'",
+        "Dictionary or speech bubble equating road/rail with infrastructure jargon",
+        "Physical highway and rail tracks contrasted with schematic transport map"
+      ],
+      "unillustrated_primary_claims": [
+        "You and I come by road or rail.",
+        "Economists travel on infrastructure.",
+        "Economists employ specialized jargon for common transportation facilities that ordinary people name directly."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:41:14.403851+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "secondary_theme_only",
+      "confidence": 0.88,
+      "directness_score": 18,
+      "dominant_message_match": "weak",
+      "editorial_power_score": 62,
+      "explanation": "Quote primaries are four explicit moral transformations (discord→harmony, error→truth, doubt→faith, despair→hope). Image centers political podium authority, formal power, and alpine grandeur; at best it weakly evokes secondary moral-leadership/positive-agency themes while omitting every primary contrast and desired evidence of reconciliation, truth-seeking, or mutual aid.",
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "image_claims_not_required_by_quote": [
+        "A determined woman leader is delivering a public address with commanding gesture.",
+        "The setting equates her authority with monumental scale and elevated purpose via mountains and sun.",
+        "She is portrayed as composed and formally powerful through attire and jewelry.",
+        "The scene suggests triumph or vision over adversity."
+      ],
+      "image_core_implied_claim": "Strong political leadership projects determination and high purpose, framed by monumental natural grandeur.",
+      "matched_claims": [
+        {
+          "image_claim": "A determined woman leader delivers a public address with commanding presence and formal power.",
+          "match_strength": 0.28,
+          "quote_claim": "A prayerful resolve and moral leadership to replace negative conditions with positive ones."
+        }
+      ],
+      "mismatch_type": "secondary_theme_only",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Where discord, error, doubt, and despair exist, people should bring harmony, truth, faith, and hope.",
+      "quote_hash": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "schema_version": 2,
+      "semantic_alignment_score": 28,
+      "stronger_visual_direction": [
+        "Hands joining across a divide or people mediating after conflict",
+        "Community dialogue or open teaching books conveying truth",
+        "Quiet reflection or places of worship for faith",
+        "Acts of mutual aid amid hardship or dawn light over troubled landscape",
+        "Symbolic olive branch or scales rather than podium and peaks"
+      ],
+      "unillustrated_primary_claims": [
+        "Where there is discord, may we bring harmony.",
+        "Where there is error, may we bring truth.",
+        "Where there is doubt, may we bring faith.",
+        "Where there is despair, may we bring hope."
+      ],
+      "visual_specificity_score": 84
+    }
+  ],
+  "lowest_scoring": [
+    {
+      "analysed_at": "2026-07-11T12:43:47.824826+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.96,
+      "directness_score": 0,
+      "dominant_message_match": "none",
+      "editorial_power_score": 5,
+      "explanation": "The quote advances a specific political critique that climate alarmism serves as pretext for global socialism; the image shows only pastoral poultry husbandry with zero shared propositions, symbols, institutions, or themes, yielding total disconnection rather than support, substitution, or even secondary relevance.",
+      "image_basename": "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png",
+      "image_claims_not_required_by_quote": [
+        "Rooster prominently perched on fence post overlooking yard",
+        "Hen sitting on straw nest with several eggs",
+        "Rural farmyard with free-roaming chickens and wooden barn",
+        "Warm golden light creating pastoral atmosphere"
+      ],
+      "image_core_implied_claim": "A proud rooster stands watch over a hen nesting with eggs in a calm traditional farmyard.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Climate change is the doomsters' preferred topic and supplies a marvellous excuse for worldwide supra-national socialism because any plan to alter climate can only be global-scale.",
+      "quote_hash": "760a25127dfb9c39cd24af73cf86cbbb76b89d31f6ecdc1eba90b09b0923bbf2",
+      "schema_version": 2,
+      "semantic_alignment_score": 2,
+      "stronger_visual_direction": [
+        "International climate summit halls filled with national flags and leaders signing accords",
+        "UN or transnational buildings with green banners and protest crowds",
+        "Editorial montage overlaying red socialist symbols on Earth or climate icons",
+        "Factories under multi-nation regulatory banners illustrating global-scale control"
+      ],
+      "unillustrated_primary_claims": [
+        "Doomsters' favourite subject today is climate change",
+        "No plan to alter climate could be considered on anything but a global scale",
+        "Climate change provides a marvellous excuse for worldwide, supra-national socialism"
+      ],
+      "visual_specificity_score": 88
+    },
+    {
+      "analysed_at": "2026-07-11T12:37:23.309445+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote asserts human unique gifts, duty to develop them, and heroism from any background. The image shows only a rooster, hen, and eggs on a farm with no people, gifts, development, or heroism, introducing an entirely separate pastoral poultry scene with zero propositional overlap.",
+      "image_basename": "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png",
+      "image_claims_not_required_by_quote": [
+        "A rooster is prominently standing on a fence post overlooking the yard.",
+        "A hen is sitting on a straw nest with several eggs.",
+        "The scene depicts a rural farmyard with chickens free to roam.",
+        "Warm morning or evening light creates a calm pastoral atmosphere."
+      ],
+      "image_core_implied_claim": "The rooster is guarding or surveying a productive hen and her eggs in a traditional farm setting.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Everyone possesses something unique to offer and bears responsibility to develop those gifts, while heroes come from all backgrounds.",
+      "quote_hash": "08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "diverse people practicing or refining personal skills in everyday settings",
+        "individuals from varied social or cultural backgrounds engaged in acts of courage or service",
+        "mentors or teachers helping students discover talents",
+        "ordinary workplaces, homes, or community spaces where people cultivate abilities",
+        "symbolic montage of different life paths leading to heroic action",
+        "group of people of mixed ages, races, and occupations standing together as equals"
+      ],
+      "unillustrated_primary_claims": [
+        "Everyone had something unique to offer in life.",
+        "People's responsibility was to develop those gifts.",
+        "Heroes come from all backgrounds."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:38:23.747771+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 3,
+      "dominant_message_match": "none",
+      "editorial_power_score": 8,
+      "explanation": "The quote's propositions concern enablement versus suppression of individual talents as the condition for societal and economic progress. The image asserts only homeownership, keys, and personal authority over a suburban house. No shared claims, issues, or contrasts exist; the visual introduces entirely foreign property-status themes.",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "image_claims_not_required_by_quote": [
+        "The woman has possession of the house keys and is associated with the home behind her.",
+        "She presents herself as formal, affluent, and in control.",
+        "The property is a conventional, well-maintained suburban residence.",
+        "The keys are being deliberately shown to the viewer as significant."
+      ],
+      "image_core_implied_claim": "The woman holds the keys that grant control of this respectable house.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Allowing distinctive individual talents to flourish causes states, societies and economies to flourish, whereas dwarfing, crushing, distorting, manipulating or ignoring those talents prevents progress.",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Diverse individuals inventing or teaching freely in open workplaces and labs",
+        "Institutions and markets visibly supporting entrepreneurship and arts",
+        "Side-by-side contrast of a free-growing seedling versus one being crushed",
+        "Rigid factories or bureaucracies enforcing uniformity against creative crowds"
+      ],
+      "unillustrated_primary_claims": [
+        "States, societies and economies that allow distinctive individual talents to flourish themselves also flourish.",
+        "States, societies and economies that dwarf, crush, distort, manipulate or ignore individual talents cannot progress."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:39:09.355604+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 15,
+      "explanation": "The quote centers on the tension between personal mountaineering ambition and national flag-planting symbolism on Everest. The image instead depicts a Cold War-style class and ideology contrast between luxurious Communist elites and American industrial workers; no summit, climbing, personal-to-national conversion, or Everest motifs appear, rendering the visuals wholly independent of the quote's propositions.",
+      "image_basename": "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png",
+      "image_claims_not_required_by_quote": [
+        "Soviet-style elites celebrate in luxury while workers toil under a different national system.",
+        "The left side represents privileged Communist leadership.",
+        "The right side represents American industrial workers.",
+        "The two groups are presented as opposing social and political worlds.",
+        "Workers appear determined and ready for labor rather than leisure."
+      ],
+      "image_core_implied_claim": "Communist elites enjoy champagne, cigars, and finery under the hammer-and-sickle flag while American workers hold tools and face a skyline of skyscrapers and the U.S. flag.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "A man may climb Everest for himself, but at the summit he plants his country's flag, converting private achievement into national symbolism.",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Lone climber at a snowy summit planting a national flag",
+        "Close-up of a flag unfurling against a mountain peak with a solitary figure",
+        "Silhouette of a climber and flag against an alpine backdrop",
+        "Historic summit flag display or base-camp national emblems"
+      ],
+      "unillustrated_primary_claims": [
+        "A man may climb Everest for himself.",
+        "At the summit he plants his country's flag.",
+        "Individual achievement is publicly converted into national representation."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:39:14.424181+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 3,
+      "dominant_message_match": "none",
+      "editorial_power_score": 15,
+      "explanation": "The quote asserts the historical and practical failure of socialism and its deserved rejection. The image instead depicts a resolute female speaker at a podium before snow-capped mountains, conveying leadership authority and grandeur. No visual element references socialism, failure, trash heaps, discarded symbols, or ideological rejection, making the fingerprints propositionally disjoint.",
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "image_claims_not_required_by_quote": [
+        "A determined woman leader is delivering a public address with commanding gesture.",
+        "The setting equates her authority with monumental scale and elevated purpose.",
+        "She is portrayed as composed and formally powerful.",
+        "The scene suggests triumph or vision over adversity."
+      ],
+      "image_core_implied_claim": "Strong political leadership projects determination and high purpose, framed by monumental natural grandeur.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "literal scrapyard or trash heap containing broken statues of socialist leaders",
+        "abandoned factories and empty shelves from former socialist states",
+        "crowds dismantling socialist monuments or propaganda",
+        "editorial illustration of an ideology being thrown into a historical refuse pile",
+        "museum display of discarded socialist emblems"
+      ],
+      "unillustrated_primary_claims": [
+        "Socialism was a patent failure.",
+        "Socialism should be cast onto the trash heap of history."
+      ],
+      "visual_specificity_score": 70
+    },
+    {
+      "analysed_at": "2026-07-11T12:39:25.227814+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 15,
+      "explanation": "The quote addresses the stubborn persistence and rapid succession of abstract political myths among commentators after events disprove them. The image instead depicts communism literally as an anthropomorphic virus confronted by syringes and vials. No shared propositions, actors, or mechanisms exist; the image introduces a specific ideology-as-disease metaphor entirely absent from the quote.",
+      "image_basename": "tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png",
+      "image_claims_not_required_by_quote": [
+        "A large coronavirus-like pathogen is marked with a communist hammer-and-sickle emblem and appears as the central threat.",
+        "Medical intervention with injectables is being readied against that threat.",
+        "The pathogen is personified as malevolent rather than merely biological.",
+        "The communist symbol is fused with the virus, equating ideology with disease."
+      ],
+      "image_core_implied_claim": "Communism is embodied as a dangerous pathogen that medicine must confront with vaccines or drugs.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Political myths die hard and are promptly replaced by new ones after events explode them, especially among political commentators who use them as the basis of expert analysis and prediction.",
+      "quote_hash": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Pundits or TV talking heads in a news studio",
+        "Shattered idol or myth symbol being replaced by a new identical one on a conveyor",
+        "Stack of discarded outdated political posters next to fresh identical ones",
+        "Cycle diagram of successive narrative bubbles exploding then reforming",
+        "Commentators ignoring contradictory election or event footage"
+      ],
+      "unillustrated_primary_claims": [
+        "Political myths die hard.",
+        "Myths cherished by political commentators are especially resilient.",
+        "As soon as events explode one political myth, another is promptly created to replace it.",
+        "Replacement myths fill the place of exploded ones as the basis of expert analysis and prediction."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:41:18.899619+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 3,
+      "dominant_message_match": "none",
+      "editorial_power_score": 8,
+      "explanation": "The quote advances a balanced British social vision of welfare for the vulnerable plus self-direction for the able-bodied. The image instead depicts communist political imprisonment and terror via hammer-and-sickle symbolism. No proposition from the quote is illustrated; the image introduces an entirely different primary issue of authoritarian repression.",
+      "image_basename": "tg_f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png",
+      "image_claims_not_required_by_quote": [
+        "A woman is imprisoned and terrified under communist rule.",
+        "The setting is a harsh prison cell associated with state power.",
+        "The hammer-and-sickle flag marks the oppressive force behind the imprisonment.",
+        "She may be a political prisoner or dissident."
+      ],
+      "image_core_implied_claim": "Communist authority locks people in cages and fills them with terror; a woman is imprisoned under a communist regime.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "The Britain desired is one that cares for the weak, old and sick while affirming that the able-bodied have both the duty and the right to shape their own lives.",
+      "quote_hash": "4ac9c0148408ada0192ebedefab8a0910fbce8bbbb5c6a37288dbc1d7ad410f9",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Elderly people receiving care in homes or from carers",
+        "Hospital staff treating the sick",
+        "Able-bodied workers or entrepreneurs managing their own work",
+        "Side-by-side scenes of carers supporting the frail while others pursue independent careers",
+        "Symbolic two-panel or balanced composition of compassion and self-reliance"
+      ],
+      "unillustrated_primary_claims": [
+        "Britain should care for the weak, the old and the sick.",
+        "The able-bodied have the duty and the right to shape their own lives.",
+        "Care for the vulnerable coexists with self-direction by the able-bodied."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:41:23.678677+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 20,
+      "explanation": "The quote advances a precise distinction between freedom of discussion and mere speech, centered on mutual listening, reciprocal teaching/learning, and growth of collective understanding. The image instead depicts a contemplative female political leader amid work-family tension with British government landmarks; none of its propositions illustrate or support any quote claim, producing total topical mismatch.",
+      "image_basename": "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png",
+      "image_claims_not_required_by_quote": [
+        "The central figure is a senior political leader considering official matters.",
+        "She is thoughtfully or solemnly evaluating a decision.",
+        "A private family or domestic sphere continues in the same home.",
+        "The setting is London, linking her role to British governance.",
+        "Work-family tension in public leadership.",
+        "Female political power and duty versus family."
+      ],
+      "image_core_implied_claim": "An older woman in formal attire holds documents and gazes thoughtfully toward a government landmark while a domestic scene unfolds behind her, implying leadership tension between state and home.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Freedom of discussion is more than freedom of speech because it demands willingness to listen as well as capacity to debate, allowing participants both to teach and learn so that wider discussion increases the stock of human understanding.",
+      "quote_hash": "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Diverse people seated in a circle actively listening and speaking",
+        "Public forum or town-hall meeting with open floor discussion",
+        "Classroom seminar with teacher and students exchanging ideas",
+        "Debate stage showing both speakers and attentive audience",
+        "Library or archive shelves symbolizing accumulated knowledge",
+        "Symbolic speech bubbles transforming into shared light or books"
+      ],
+      "unillustrated_primary_claims": [
+        "Freedom of discussion is something more than just freedom of speech.",
+        "Discussion requires a willingness to listen as much as a capacity to debate.",
+        "Through discussion we both teach and learn.",
+        "The wider discussion goes the more likely we are to increase the stock of human understanding."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:41:50.498149+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 8,
+      "explanation": "The quote's core propositions concern the peril of neutrality or centrism, metaphorically via being struck by opposing traffic. The image depicts only a formal parliamentary address by a senior female leader, introducing authority, gender, and institutional speech claims with no visual reference to middle positions, dual-sided attack, collision risk, or non-alignment. No proposition-level overlap exists; the image neither supports nor contradicts the quote and substitutes an unrelated political-leadership scene.",
+      "image_basename": "tg_fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544.png",
+      "image_claims_not_required_by_quote": [
+        "A woman resembling Margaret Thatcher is speaking as the central authority figure at a wooden podium.",
+        "The setting is a formal parliamentary chamber with wooden paneling and seated members.",
+        "The address is serious and official rather than casual or celebratory.",
+        "The audience is primarily composed of formally dressed adults listening to the speaker."
+      ],
+      "image_core_implied_claim": "A woman in power is commanding a formal legislative assembly from the podium.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Standing in the middle of the road is very dangerous because traffic from both sides knocks you down.",
+      "quote_hash": "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Lone figure standing still in the center of a multi-lane road",
+        "Vehicles approaching from opposite directions toward a stationary person",
+        "Symbolic figure between two opposing crowds or armies",
+        "Median strip or crossroads with clear collision risk",
+        "Person being knocked down by traffic from both sides"
+      ],
+      "unillustrated_primary_claims": [
+        "Standing in the middle of the road is very dangerous.",
+        "You get knocked down by the traffic from both sides.",
+        "Occupying a neutral or middle position is highly dangerous because opposing forces from both sides will strike you down."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:08.157467+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote asserts a spectrum of law-subverting threats from external terrorist sponsorship to internal Hard Left institutional abuse. The image instead presents a Soviet-gulag versus modern-Russia freedom diptych. No shared propositions, actors, or issues exist; the image introduces entirely extraneous historical-national claims.",
+      "image_basename": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "image_claims_not_required_by_quote": [
+        "Soviet life was characterized by military control, confinement, and suffering.",
+        "Present-day Russia is free, open, and enjoyable for ordinary people.",
+        "The two scenes represent a historical progression from repression to liberty associated with Russia."
+      ],
+      "image_core_implied_claim": "Life under Soviet rule was grim and repressive, while contemporary Russia is free, sunny, and pleasant.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "A spectrum of threats runs from terrorist gangs within borders and the states that finance them to the Hard Left inside the system that uses unions and local government to defy and subvert the law.",
+      "quote_hash": "59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Split-panel spectrum graphic: left side barbed-wire border raid or arms crates labeled foreign state; right side union pickets and town-hall disruption of statutes",
+        "Editorial continuum illustration linking terrorist cells to Hard Left council/union scenes under a shared 'subvert the law' banner",
+        "Courthouse or statute books being ignored beside union banners and local-government chambers"
+      ],
+      "unillustrated_primary_claims": [
+        "Terrorist gangs within our borders, and terrorist states which finance and arm them, stand at one end of the spectrum of threats.",
+        "At the other end of the spectrum are the Hard Left operating inside our system.",
+        "The Hard Left conspires to use union power and the apparatus of local government to break, defy and subvert the law."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:20.441311+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 70,
+      "explanation": "The quote contrasts everyday names for roads and rail with economists' abstract jargon 'infrastructure'. The image instead depicts a Thatcher figure offering bitter ale with mild unavailable, a political temperament metaphor with no shared claims, subjects, or themes.",
+      "image_basename": "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png",
+      "image_claims_not_required_by_quote": [
+        "The woman representing Margaret Thatcher offers bitter beer as the available choice.",
+        "Mild options are unavailable or rejected.",
+        "The setting links her to British pub culture and Conservative politics.",
+        "Her expression and gesture convey stern authority rather than warmth."
+      ],
+      "image_core_implied_claim": "Thatcher-style leadership supplies bitterness and firmness, not mildness.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Ordinary people travel by road or rail while economists travel on infrastructure, highlighting a contrast in terminology rather than means of transport.",
+      "quote_hash": "5d362ba54e7c2a8a0e70353dfe3d434ef151b45d9b49b76d3297d6c55a1c41a1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Side-by-side street-level road and rail scene versus abstract infrastructure network diagram",
+        "Commuters boarding a train next to an economist labeling the same facilities 'infrastructure'",
+        "Dictionary or speech bubble equating road/rail with infrastructure jargon",
+        "Physical highway and rail tracks contrasted with schematic transport map"
+      ],
+      "unillustrated_primary_claims": [
+        "You and I come by road or rail.",
+        "Economists travel on infrastructure.",
+        "Economists employ specialized jargon for common transportation facilities that ordinary people name directly."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:38.584429+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 40,
+      "explanation": "The quote asserts hard work as the essential recipe for reaching or nearly reaching the top. The image instead presents a Cold War-style ideological contrast between luxurious Communist elites and American industrial workers. No proposition about effort, achievement, or near-success is illustrated; the image introduces entirely different political and class claims absent from the quote.",
+      "image_basename": "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png",
+      "image_claims_not_required_by_quote": [
+        "Soviet-style elites celebrate in luxury while workers toil under a different national system.",
+        "The left side represents privileged Communist leadership.",
+        "The right side represents American industrial workers.",
+        "The two groups are presented as opposing social and political worlds.",
+        "Workers appear determined and ready for labor rather than leisure."
+      ],
+      "image_core_implied_claim": "Communist elites enjoy champagne, cigars, and finery under the hammer-and-sickle flag while American workers hold tools and face a skyline of skyscrapers and the U.S. flag.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "No one reaches the top without hard work, which is the recipe that should get one pretty near even if it does not always deliver the absolute top.",
+      "quote_hash": "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "people studying or working late at desks",
+        "athletes training intensely",
+        "workers on construction sites or factory floors",
+        "climbers ascending a steep mountain path",
+        "symbolic ladder or staircase with figures midway and near summit",
+        "empty podium or near-miss finish line scenes"
+      ],
+      "unillustrated_primary_claims": [
+        "I do not know anyone who has got to the top without hard work.",
+        "Hard work is the recipe for getting to the top.",
+        "Hard work will not always get you to the top, but should get you pretty near."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:55.404526+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 15,
+      "explanation": "The quote advances a specific causal claim about purposeless military force producing net problems. The image depicts only a formal podium speech by a woman amid flags and a ceremonial flame, conveying leadership resolve with no visual reference to intervention, strategy, purpose, or problem creation. No proposition-level claims overlap.",
+      "image_basename": "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png",
+      "image_claims_not_required_by_quote": [
+        "A senior female political figure is giving a speech from a podium.",
+        "The setting is a formal international or diplomatic occasion.",
+        "The speaker is conveying determination or emphasis.",
+        "The event may involve commemoration or solemn symbolism."
+      ],
+      "image_core_implied_claim": "The speaker is asserting authority and resolve while addressing an audience amid national symbols and a ceremonial flame.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Military intervention without an attainable purpose creates as many problems as it solves.",
+      "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "troops advancing through damaged urban streets with no clear objective markers",
+        "abandoned military outposts and ruined civilian infrastructure side by side",
+        "command center maps showing open-ended campaign zones",
+        "civilian aid distribution amid ongoing conflict debris",
+        "symbolic balance scale with weapons on one pan and broken buildings on the other"
+      ],
+      "unillustrated_primary_claims": [
+        "Military intervention without an attainable purpose creates as many problems as it solves.",
+        "An attainable purpose is a necessary condition for military intervention to avoid net problem creation."
+      ],
+      "visual_specificity_score": 75
+    },
+    {
+      "analysed_at": "2026-07-11T12:42:59.553921+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote addresses net negative outcomes of purposeless military force; the image exclusively depicts UK-Turkey diplomatic protocol and a handshake deal. No shared propositions, issues, or themes exist, making the pairing fully unrelated rather than merely indirect or ideological.",
+      "image_basename": "tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png",
+      "image_claims_not_required_by_quote": [
+        "A formal handshake between a British-aligned woman and a Turkish-aligned man signals a completed or affirmed diplomatic agreement.",
+        "The encounter is an official state or government meeting rather than a casual social greeting.",
+        "The woman represents the United Kingdom and the man represents Turkey.",
+        "Both parties present a cooperative, cordial public face."
+      ],
+      "image_core_implied_claim": "A British leader and a Turkish counterpart have just concluded or are affirming an official bilateral deal.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Military intervention without an attainable purpose creates as many problems as it solves.",
+      "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Troops advancing through damaged urban streets with no clear objective markers",
+        "Abandoned military outposts beside ruined civilian infrastructure",
+        "Command-center maps of open-ended campaign zones",
+        "Balance-scale editorial graphic of weapons versus broken buildings",
+        "Civilian aid amid ongoing conflict debris"
+      ],
+      "unillustrated_primary_claims": [
+        "Military intervention without an attainable purpose creates as many problems as it solves.",
+        "An attainable purpose is a necessary condition for military intervention to avoid net problem creation."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:43:04.005184+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote asserts a specific economic proposition contrasting the socialist myth of pre-existing wealth for redistribution with the necessity of wealth creation. The image is a formal portrait conveying personal authority, status, and composure of an older woman, with zero visual or implied reference to production, redistribution, fixed-pie fallacies, or any economic process. No proposition-level claims overlap; the image introduces unrelated leadership-image claims and leaves every primary quote claim unillustrated.",
+      "image_basename": "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png",
+      "image_claims_not_required_by_quote": [
+        "The subject is a dignified, high-status woman whose posture and dress project firm authority.",
+        "The setting and accessories convey traditional wealth and institutional formality.",
+        "Her expression and pose suggest thoughtful determination rather than casual warmth."
+      ],
+      "image_core_implied_claim": "The subject is a dignified, high-status woman whose posture and dress project firm authority.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Contrary to the socialist myth that wealth simply exists to be redistributed, the truth is that wealth has to be created.",
+      "quote_hash": "6ac017d0c76fbcec1a7ab2e2ab9ba7b26948530df626f42de04192b15fda4039",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Factory or workshop scenes of goods being manufactured",
+        "Entrepreneurs or workers innovating and building products",
+        "Construction sites and infrastructure projects showing value production",
+        "Symbolic editorial image of a growing tree or expanding pie versus a fixed pie being sliced",
+        "Contrasting empty shelves or mere money-transfer counters against productive activity"
+      ],
+      "unillustrated_primary_claims": [
+        "The socialist view that wealth is already there to be redistributed is a myth.",
+        "The truth is that wealth has to be created.",
+        "Redistribution alone does not produce wealth."
+      ],
+      "visual_specificity_score": 15
+    },
+    {
+      "analysed_at": "2026-07-11T12:43:53.306151+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 8,
+      "explanation": "The quote's primary propositions target UN consensus decision-making as inadequate for action and combat risk, turning the body into an illusion factory of paper resolutions. The image instead depicts anti-communist atrocity propaganda: a Soviet flag over mass death, soldiers, ruins, and an accusatory podium speaker. No shared claims, institutions, or contrasts appear; the image introduces an entirely different ideology-and-war argument absent from the quote, yielding near-zero semantic alignment despite high visual specificity.",
+      "image_basename": "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png",
+      "image_claims_not_required_by_quote": [
+        "Soviet/communist cause linked to mass corpses on a battlefield",
+        "Stern woman at podium accusing/warning viewers about communist threat",
+        "Armed soldiers advancing under hammer-and-sickle flag amid destruction",
+        "Urban ruin, fire, and ongoing combat as costs of communism"
+      ],
+      "image_core_implied_claim": "Communist/Soviet power is tied to catastrophic battlefield slaughter and ruin, and a stern Western leader at a podium must accuse and warn against it.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Because the UN depends on consensus, sole reliance on it cannot support adequate action or combat readiness and will expose the organization as an illusion factory where copious resolutions replace effective action.",
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "UN General Assembly or Security Council chamber stalled in debate",
+        "Piles of formal UN resolution documents as a paper factory",
+        "Diplomats around a conference table failing to decide",
+        "Empty podium or delayed vote scene at UN headquarters",
+        "Military units ready or declining combat while UN process continues"
+      ],
+      "unillustrated_primary_claims": [
+        "UN depends on consensus, which is inadequate for action",
+        "Consensus is inadequate for readiness to take combat risks",
+        "Sole reliance on the UN makes it an illusion factory",
+        "Copious resolutions substitute for effective action"
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:43:58.014515+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote criticizes UN consensus decision-making as inadequate for action and combat risks, reducing it to an illusion factory of resolutions. The image instead depicts Thatcher-like figure triumphantly defeating Soviet communism via a burning hammer-and-sickle flag. No shared propositions, issues, or themes; pure mismatch with no support or contradiction on the UN topic.",
+      "image_basename": "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png",
+      "image_claims_not_required_by_quote": [
+        "Margaret Thatcher is triumphantly opposing and defeating Soviet communism.",
+        "The speaker is delivering a stern public condemnation from a podium.",
+        "Communism is portrayed as a collapsing, destructive force being overcome."
+      ],
+      "image_core_implied_claim": "Margaret Thatcher is triumphantly opposing and defeating Soviet communism.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Because the UN depends on consensus, sole reliance on it cannot support adequate action or combat readiness and will expose the organization as an illusion factory where copious resolutions replace effective action.",
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "UN Security Council or General Assembly chamber stalled in prolonged debate",
+        "Stacks of formal UN resolution documents piled high",
+        "Diplomats at a large conference table with no decision outcome",
+        "Empty podium or stalled UN headquarters scene",
+        "Symbolic factory producing endless paper resolutions instead of action",
+        "Military units ready but undeployed due to lack of consensus"
+      ],
+      "unillustrated_primary_claims": [
+        "The UN depends on consensus, which is simply not an adequate basis for action or for readiness to take combat risks.",
+        "If we try to rely solely on the UN, we shall rapidly come to see it as an illusion factory.",
+        "Copious resolutions become a substitute for effective action."
+      ],
+      "visual_specificity_score": 85
+    },
+    {
+      "analysed_at": "2026-07-11T12:44:25.070830+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote asserts a specific historical class-and-education claim about grammar schools enabling social mobility against privileged peers. The image instead depicts homeownership, status, and key-holding by an affluent woman, introducing property-control propositions entirely absent from the quote and omitting every educational or grammar-school element.",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "image_claims_not_required_by_quote": [
+        "Woman holds house keys granting control of the property",
+        "Woman presents as formal, affluent, and authoritative",
+        "Background is a conventional well-maintained suburban residence",
+        "Keys are deliberately displayed as significant"
+      ],
+      "image_core_implied_claim": "The woman holds the keys that grant control of this respectable house.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "People from non-privileged backgrounds needed Grammar schools to compete with children from privileged homes such as those of Shirley Williams and Anthony Wedgwood Benn.",
+      "quote_hash": "7cf7275ebbf5e64b621dfc2cc81cc891d5ae02bbcf0d567d2674baafe18bd66a",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Classroom of mixed-background pupils in a traditional grammar school",
+        "Exterior of a selective secondary school building",
+        "Contrast of modest terraced house versus large privileged residence",
+        "1950s-60s British schoolchildren in uniform or prize-giving ceremony",
+        "Symbolic ladder or pathway labeled educational opportunity"
+      ],
+      "unillustrated_primary_claims": [
+        "People from ordinary backgrounds needed Grammar schools",
+        "Grammar schools enabled competition with privileged children",
+        "Shirley Williams and Anthony Wedgwood Benn as examples of privileged homes"
+      ],
+      "visual_specificity_score": 75
+    },
+    {
+      "analysed_at": "2026-07-11T12:44:50.304462+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 5,
+      "dominant_message_match": "none",
+      "editorial_power_score": 10,
+      "explanation": "The quote asserts a strict necessary-condition claim linking liberty to economic liberty. The image instead depicts a female political speaker facing feminist-style protest with Venus symbols, conveying themes of women’s leadership, generational tension, and public dissent. No shared propositions, contrasts, or economic-liberty evidence appear; the image introduces an entirely different primary issue.",
+      "image_basename": "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png",
+      "image_claims_not_required_by_quote": [
+        "A mature woman in formal attire delivers remarks from a wooden podium.",
+        "Younger women protest holding signs with the female gender symbol.",
+        "The speaker remains composed amid demonstration.",
+        "The protest centers on women’s issues or feminism.",
+        "Generational or ideological tension around women in power."
+      ],
+      "image_core_implied_claim": "An established woman leader speaks composedly from a podium while younger women protest with feminist gender symbols.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "Liberty is impossible unless economic liberty is present as a necessary precondition.",
+      "quote_hash": "866738ba29cb509f048a2a1a8215e8f7e729c266e88d8fcaab482dd97ab8cd4a",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Open marketplace with free buyers and sellers",
+        "Independent shopkeepers versus state-controlled storefronts",
+        "Workers freely choosing jobs or starting businesses",
+        "Ration queues or locked factory gates as absence of economic choice",
+        "Scales balancing liberty symbols with currency or trade tools"
+      ],
+      "unillustrated_primary_claims": [
+        "There can be no liberty unless there is economic liberty.",
+        "Economic liberty is a necessary condition for liberty.",
+        "True liberty cannot exist without economic liberty."
+      ],
+      "visual_specificity_score": 75
+    },
+    {
+      "analysed_at": "2026-07-11T12:46:01.748623+00:00",
+      "analysis_kind": "quote_image_semantic_alignment",
+      "claim_relationship": "unrelated",
+      "confidence": 0.95,
+      "directness_score": 3,
+      "dominant_message_match": "none",
+      "editorial_power_score": 8,
+      "explanation": "The quote draws a precise moral distinction between productive wealth creation (acceptable) and loving money for its own sake (wrong). The image instead depicts a solemn female leader at a podium framed by angel-versus-demon cosmic symbolism, advancing claims about political authority, good-versus-evil struggle, and spiritualized leadership that share no propositions, contrasts, or primary issue with the quote.",
+      "image_basename": "tg_bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png",
+      "image_claims_not_required_by_quote": [
+        "A female political speaker at a podium is confronting a moral conflict.",
+        "Her leadership is framed as a cosmic battle of angelic good versus demonic evil.",
+        "She is associated with divine light against dark demonic forces.",
+        "Her role is elevated to a quasi-spiritual or messianic public figure."
+      ],
+      "image_core_implied_claim": "This leader's public stance is framed as a righteous struggle of angelic good versus demonic evil.",
+      "matched_claims": [],
+      "mismatch_type": "unrelated",
+      "model": "grok-4.5",
+      "primary_issue_match": false,
+      "prompt_version": "semantic-editorial-critic-v2-claims",
+      "provenance": {
+        "independent_input": "validated_fingerprints_only",
+        "source": "xai_structured_critic"
+      },
+      "quote_core_claim": "The creation of wealth is not wrong; the love of money for its own sake is wrong.",
+      "quote_hash": "9183c5b1e07efe9c0401a28a0d0a9b7d480a6cb6e9a4e2c9e777d7f952b3418e",
+      "schema_version": 2,
+      "semantic_alignment_score": 5,
+      "stronger_visual_direction": [
+        "Entrepreneurs or factory workers building products and businesses",
+        "Trading floor or banking scene focused on status-driven accumulation",
+        "Contrast of charitable giving from earned wealth versus hoarding gold or cash",
+        "Simple ledger or coin pile symbolizing money as object of love",
+        "Editorial scale balancing industry tools against a heart clutching currency"
+      ],
+      "unillustrated_primary_claims": [
+        "The creation of wealth is not wrong.",
+        "The love of money for its own sake is wrong.",
+        "Moral fault lies in the motive of loving money rather than in the act of generating wealth."
+      ],
+      "visual_specificity_score": 15
+    }
+  ],
+  "relationships": {
+    "contradiction": 3,
+    "generic_ideological_substitution": 17,
+    "partial_support": 2,
+    "related_but_not_equivalent": 43,
+    "secondary_theme_only": 8,
+    "strong_support": 1,
+    "unrelated": 76
+  }
+}

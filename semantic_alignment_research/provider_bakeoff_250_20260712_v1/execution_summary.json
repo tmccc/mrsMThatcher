@@ -1,0 +1,395 @@
+{
+  "combined_known_spend": 16.873248000000004,
+  "coordinator": {
+    "ended_at": 1783855810.81415,
+    "providers": {
+      "anthropic": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3921.575160741806,
+        "ended_at": 1783855810.8001506,
+        "exhausted": 0,
+        "known_cost_usd": 4.311918,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "anthropic",
+        "started_at": 1783851889.2249906,
+        "uncertain_possible_exposure_usd": 0
+      },
+      "gemini": {
+        "attempts": 273,
+        "completed": 227,
+        "elapsed_seconds": 1755.8301267623901,
+        "ended_at": 1783853645.055905,
+        "exhausted": 23,
+        "known_cost_usd": 2.4690459999999996,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "gemini",
+        "started_at": 1783851889.225779,
+        "uncertain_possible_exposure_usd": 0
+      },
+      "grok": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 2936.7361755371094,
+        "ended_at": 1783854825.9602218,
+        "exhausted": 0,
+        "known_cost_usd": 2.840153999999999,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "grok",
+        "started_at": 1783851889.2240467,
+        "uncertain_possible_exposure_usd": 0
+      },
+      "openai": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3111.7142572402954,
+        "ended_at": 1783855000.9386463,
+        "exhausted": 0,
+        "known_cost_usd": 7.252130000000004,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "openai",
+        "started_at": 1783851889.2243893,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "speedup": 2.990076595056303,
+    "started_at": 1783851889.2237327,
+    "theoretical_sequential_seconds": 11725.855720281601,
+    "wall_clock_seconds": 3921.5904166698456
+  },
+  "disagreement": {
+    "high": 13,
+    "low": 54,
+    "moderate": 160
+  },
+  "four_provider_complete": 227,
+  "free_trade": {
+    "anthropic": {
+      "consequence_alignment_score": 45,
+      "directness_score": 15,
+      "keep_or_replace": "replace",
+      "overall_suitability_score": 22,
+      "primary_relationship": "illustrates_broader_principle",
+      "relevance_score": 38,
+      "secondary_relationship": "secondary_theme_match"
+    },
+    "disagreement": {
+      "case_id": "55f5cd6d633c143f5170",
+      "components": {
+        "internal_inconsistency": 25,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 4,
+        "rationale": 78.91,
+        "score_dispersion": 54.75,
+        "taxonomy": 16.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 35,
+      "explanation": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show broad calibration spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "gemini:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 24.5,
+          "mad": 12.5,
+          "median": 65.5
+        },
+        "directness_score": {
+          "iqr": 21.0,
+          "mad": 8.0,
+          "median": 24.5
+        },
+        "editorial_power_score": {
+          "iqr": 40.25,
+          "mad": 21.0,
+          "median": 53.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 13.5,
+          "mad": 5.0,
+          "median": 13.5
+        },
+        "overall_suitability_score": {
+          "iqr": 36.5,
+          "mad": 18.0,
+          "median": 43.0
+        },
+        "principle_alignment_score": {
+          "iqr": 23.5,
+          "mad": 8.5,
+          "median": 50.5
+        },
+        "relevance_score": {
+          "iqr": 31.75,
+          "mad": 15.0,
+          "median": 53.0
+        },
+        "specificity_score": {
+          "iqr": 28.0,
+          "mad": 12.0,
+          "median": 24.5
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 35.5,
+          "field": "directness_score",
+          "provider": "gemini"
+        },
+        {
+          "distance_from_median": 36.5,
+          "field": "mechanism_alignment_score",
+          "provider": "gemini"
+        },
+        {
+          "distance_from_median": 34.5,
+          "field": "principle_alignment_score",
+          "provider": "gemini"
+        },
+        {
+          "distance_from_median": 40.5,
+          "field": "specificity_score",
+          "provider": "gemini"
+        },
+        {
+          "distance_from_median": 35.0,
+          "field": "overall_suitability_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    "gemini": {
+      "consequence_alignment_score": 80,
+      "directness_score": 60,
+      "keep_or_replace": "keep",
+      "overall_suitability_score": 78,
+      "primary_relationship": "illustrates_broader_principle",
+      "relevance_score": 75,
+      "secondary_relationship": "related_ideological_substitution"
+    },
+    "grok": {
+      "consequence_alignment_score": 55,
+      "directness_score": 18,
+      "keep_or_replace": "replace",
+      "overall_suitability_score": 28,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "relevance_score": 38,
+      "secondary_relationship": "related_ideological_substitution"
+    },
+    "meta": {
+      "case_id": "55f5cd6d633c143f5170",
+      "confidence": "low",
+      "disagreement_band": "moderate",
+      "disagreement_score": 35,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'replace': 3, 'keep': 1}. Relationship votes: {'illustrates_claimed_consequence': 2, 'illustrates_broader_principle': 2}.",
+      "numerical_consensus": "wide",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 1,
+        "replace": 3
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 2,
+        "illustrates_claimed_consequence": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "unsure",
+      "relationship_consensus": "two_two_split",
+      "requires_human_review": true,
+      "review_reasons": [
+        "score_outlier:gemini",
+        "unrecognised_consequence:gemini",
+        "wide_score_spread"
+      ],
+      "score_summary": {
+        "directness_median": 24.5,
+        "overall_suitability_iqr": 36.5,
+        "overall_suitability_median": 43.0,
+        "relevance_median": 53.0
+      },
+      "secondary_interpretation": "illustrates_broader_principle",
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "gemini",
+          "value": "keep"
+        }
+      ],
+      "weighted_recommended_action": "replace"
+    },
+    "openai": {
+      "consequence_alignment_score": 76,
+      "directness_score": 31,
+      "keep_or_replace": "replace",
+      "overall_suitability_score": 58,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "relevance_score": 68,
+      "secondary_relationship": "related_ideological_substitution"
+    }
+  },
+  "manifest_cases": 250,
+  "meta": {
+    "actions": {
+      "keep": 9,
+      "replace": 181,
+      "unsure": 37
+    },
+    "automatic": 190,
+    "cases": 227,
+    "confidence": {
+      "high": 161,
+      "low": 37,
+      "moderate": 29
+    }
+  },
+  "providers": {
+    "anthropic": {
+      "ambiguous": 0,
+      "attempts": 250,
+      "completed": 250,
+      "confirmed_failures": 0,
+      "cost_per_completed": 0.017247672000000002,
+      "decisions": {
+        "keep": 7,
+        "replace": 206,
+        "unsure": 37
+      },
+      "exhausted": 0,
+      "first_attempt_success": 250,
+      "known_cost_usd": 4.311918,
+      "mean_latency": 15.553863691776991,
+      "median_latency": 15.595551279489882,
+      "relationships": {
+        "ambiguous": 11,
+        "contradictory": 9,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 60,
+        "illustrates_claimed_consequence": 13,
+        "related_ideological_substitution": 111,
+        "secondary_theme_match": 14,
+        "unrelated": 30
+      },
+      "retry_success": 0
+    },
+    "gemini": {
+      "ambiguous": 0,
+      "attempts": 273,
+      "completed": 227,
+      "confirmed_failures": 46,
+      "cost_per_completed": 0.01087685462555066,
+      "decisions": {
+        "keep": 48,
+        "replace": 173,
+        "unsure": 6
+      },
+      "exhausted": 23,
+      "first_attempt_success": 227,
+      "known_cost_usd": 2.4690459999999996,
+      "mean_latency": 6.942836702841289,
+      "median_latency": 6.981657592114061,
+      "relationships": {
+        "ambiguous": 5,
+        "contradictory": 33,
+        "direct_illustration": 7,
+        "illustrates_broader_principle": 60,
+        "illustrates_claimed_consequence": 2,
+        "illustrates_mechanism": 5,
+        "related_ideological_substitution": 12,
+        "secondary_theme_match": 62,
+        "unrelated": 41
+      },
+      "retry_success": 0
+    },
+    "grok": {
+      "ambiguous": 0,
+      "attempts": 250,
+      "completed": 250,
+      "confirmed_failures": 0,
+      "cost_per_completed": 0.011360615999999997,
+      "decisions": {
+        "keep": 16,
+        "replace": 223,
+        "unsure": 11
+      },
+      "exhausted": 0,
+      "first_attempt_success": 250,
+      "known_cost_usd": 2.840153999999999,
+      "mean_latency": 11.617424609630369,
+      "median_latency": 11.166239441139624,
+      "relationships": {
+        "contradictory": 5,
+        "direct_illustration": 1,
+        "illustrates_broader_principle": 21,
+        "illustrates_claimed_consequence": 20,
+        "illustrates_mechanism": 3,
+        "related_ideological_substitution": 70,
+        "secondary_theme_match": 33,
+        "unrelated": 97
+      },
+      "retry_success": 0
+    },
+    "openai": {
+      "ambiguous": 0,
+      "attempts": 250,
+      "completed": 250,
+      "confirmed_failures": 0,
+      "cost_per_completed": 0.029008520000000013,
+      "decisions": {
+        "keep": 22,
+        "replace": 222,
+        "unsure": 6
+      },
+      "exhausted": 0,
+      "first_attempt_success": 250,
+      "known_cost_usd": 7.252130000000004,
+      "mean_latency": 12.319110997421667,
+      "median_latency": 12.26432839455083,
+      "relationships": {
+        "contradictory": 3,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 20,
+        "illustrates_claimed_consequence": 14,
+        "illustrates_mechanism": 12,
+        "related_ideological_substitution": 128,
+        "secondary_theme_match": 51,
+        "unrelated": 20
+      },
+      "retry_success": 0
+    }
+  },
+  "regression": {
+    "anthropic": {
+      "available": 25,
+      "decision_same": 25,
+      "primary_same": 22
+    },
+    "gemini": {
+      "available": 25,
+      "decision_same": 22,
+      "primary_same": 18
+    },
+    "grok": {
+      "available": 25,
+      "decision_same": 24,
+      "primary_same": 19
+    },
+    "openai": {
+      "available": 25,
+      "decision_same": 20,
+      "primary_same": 19
+    }
+  },
+  "schema_version": 1
+}

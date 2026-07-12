@@ -1,0 +1,17 @@
+{
+  "developer_recovered": 2,
+  "original_completed": 227,
+  "recovered_view_completed": 250,
+  "still_missing": 0,
+  "vertex_initial_recovered": 20,
+  "vertex_summary": {
+    "ambiguous": 0,
+    "attempts": 23,
+    "completed": 20,
+    "elapsed_seconds": 465.3142840862274,
+    "known_cost_usd": 0.2779580000000001,
+    "still_missing": 1,
+    "targeted": 21
+  },
+  "vertex_supplemental_recovered": 1
+}

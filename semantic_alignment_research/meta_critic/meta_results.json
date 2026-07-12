@@ -1,0 +1,870 @@
+{
+  "items": [
+    {
+      "case_id": "55f5cd6d633c143f5170",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 23,
+      "dominant_interpretation": "illustrates_broader_principle",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'related_ideological_substitution': 1, 'illustrates_claimed_consequence': 1, 'illustrates_broader_principle': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 2,
+        "illustrates_claimed_consequence": 1,
+        "related_ideological_substitution": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 21.0,
+        "overall_suitability_iqr": 24.0,
+        "overall_suitability_median": 38.5,
+        "relevance_median": 48.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "d95fd04248974978c79e",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "dominant_interpretation": "related_ideological_substitution",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 1, 'related_ideological_substitution': 2, 'secondary_theme_match': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 2,
+        "secondary_theme_match": 1,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 10.0,
+        "overall_suitability_iqr": 5.0,
+        "overall_suitability_median": 21.0,
+        "relevance_median": 32.5
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "45aff3c1240a3010165b",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_score": 12,
+      "dominant_interpretation": "unrelated",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "unrelated": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 0.0,
+        "overall_suitability_iqr": 1.75,
+        "overall_suitability_median": 2.5,
+        "relevance_median": 3.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "db9adeebf2c41956d290",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 34,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 2, 'related_ideological_substitution': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 2,
+        "unrelated": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "two_two_split",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 6.5,
+        "overall_suitability_iqr": 19.25,
+        "overall_suitability_median": 17.0,
+        "relevance_median": 18.0
+      },
+      "secondary_interpretation": "related_ideological_substitution",
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "bdd510a8157a6fb7ec70",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "dominant_interpretation": "related_ideological_substitution",
+      "explanation": "Operational votes: {'replace': 3, 'keep': 1}. Relationship votes: {'related_ideological_substitution': 3, 'contradictory': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 1,
+        "replace": 3
+      },
+      "primary_relationship_votes": {
+        "contradictory": 1,
+        "related_ideological_substitution": 3
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "three_of_four",
+      "requires_human_review": false,
+      "review_reasons": [
+        "score_outlier:gemini"
+      ],
+      "score_summary": {
+        "directness_median": 17.5,
+        "overall_suitability_iqr": 15.5,
+        "overall_suitability_median": 28.5,
+        "relevance_median": 41.5
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "gemini",
+          "value": "keep"
+        }
+      ],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "cd34f0ecdf6711ec4b2d",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 29,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 1, 'secondary_theme_match': 1, 'related_ideological_substitution': 1, 'contradictory': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "contradictory": 1,
+        "related_ideological_substitution": 1,
+        "secondary_theme_match": 1,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "complete_disagreement",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 11.0,
+        "overall_suitability_iqr": 13.75,
+        "overall_suitability_median": 19.5,
+        "relevance_median": 25.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "15d14fb68d063c94ab76",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 27,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'related_ideological_substitution': 2, 'unrelated': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 2,
+        "unrelated": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "two_two_split",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 8.0,
+        "overall_suitability_iqr": 6.5,
+        "overall_suitability_median": 16.5,
+        "relevance_median": 19.0
+      },
+      "secondary_interpretation": "unrelated",
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "9729da4b58d3d56e5c05",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 27,
+      "dominant_interpretation": "secondary_theme_match",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 1, 'secondary_theme_match': 2, 'related_ideological_substitution': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 1,
+        "secondary_theme_match": 2,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 9.0,
+        "overall_suitability_iqr": 8.0,
+        "overall_suitability_median": 22.0,
+        "relevance_median": 24.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "0117c8919c5fdb98d8ff",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "dominant_interpretation": "contradictory",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 1, 'related_ideological_substitution': 1, 'contradictory': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "contradictory": 2,
+        "related_ideological_substitution": 1,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 9.0,
+        "overall_suitability_iqr": 7.25,
+        "overall_suitability_median": 13.5,
+        "relevance_median": 19.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "ad5a52dcf9f0f123e8ee",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "dominant_interpretation": "secondary_theme_match",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'unrelated': 1, 'secondary_theme_match': 2, 'related_ideological_substitution': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 1,
+        "secondary_theme_match": 2,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 9.0,
+        "overall_suitability_iqr": 3.5,
+        "overall_suitability_median": 21.0,
+        "relevance_median": 27.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "a53c2ebadd2dde95cd5f",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 23,
+      "dominant_interpretation": "secondary_theme_match",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'secondary_theme_match': 2, 'related_ideological_substitution': 1, 'unrelated': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 1,
+        "secondary_theme_match": 2,
+        "unrelated": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 11.0,
+        "overall_suitability_iqr": 7.0,
+        "overall_suitability_median": 17.5,
+        "relevance_median": 28.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "b467ac8ccfc2f225aad3",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "dominant_interpretation": "illustrates_claimed_consequence",
+      "explanation": "Operational votes: {'keep': 3, 'unsure': 1}. Relationship votes: {'illustrates_claimed_consequence': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 3,
+        "unsure": 1
+      },
+      "primary_relationship_votes": {
+        "illustrates_claimed_consequence": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "keep",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 68.5,
+        "overall_suitability_iqr": 8.0,
+        "overall_suitability_median": 81.0,
+        "relevance_median": 83.5
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "anthropic",
+          "value": "unsure"
+        }
+      ],
+      "weighted_recommended_action": "keep"
+    },
+    {
+      "case_id": "e64eaa98b9e825be7e66",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 30,
+      "dominant_interpretation": "illustrates_broader_principle",
+      "explanation": "Operational votes: {'replace': 3, 'keep': 1}. Relationship votes: {'illustrates_broader_principle': 3, 'related_ideological_substitution': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 1,
+        "replace": 3
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 3,
+        "related_ideological_substitution": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "three_of_four",
+      "requires_human_review": false,
+      "review_reasons": [
+        "unrecognised_consequence:gemini"
+      ],
+      "score_summary": {
+        "directness_median": 32.5,
+        "overall_suitability_iqr": 9.75,
+        "overall_suitability_median": 50.5,
+        "relevance_median": 62.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "gemini",
+          "value": "keep"
+        }
+      ],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "6eb60852343c65542ab6",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_score": 17,
+      "dominant_interpretation": "related_ideological_substitution",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'related_ideological_substitution': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [
+        "unrecognised_consequence:gemini"
+      ],
+      "score_summary": {
+        "directness_median": 27.5,
+        "overall_suitability_iqr": 17.0,
+        "overall_suitability_median": 42.5,
+        "relevance_median": 56.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "confidence": "low",
+      "disagreement_band": "high",
+      "disagreement_score": 45,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'unsure': 2, 'replace': 1, 'keep': 1}. Relationship votes: {'illustrates_broader_principle': 2, 'related_ideological_substitution': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "plurality_only",
+      "operational_votes": {
+        "keep": 1,
+        "replace": 1,
+        "unsure": 2
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 2,
+        "related_ideological_substitution": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "unsure",
+      "relationship_consensus": "two_two_split",
+      "requires_human_review": true,
+      "review_reasons": [
+        "unrecognised_consequence:gemini",
+        "unrecognised_consequence:openai"
+      ],
+      "score_summary": {
+        "directness_median": 47.0,
+        "overall_suitability_iqr": 10.25,
+        "overall_suitability_median": 65.5,
+        "relevance_median": 73.5
+      },
+      "secondary_interpretation": "related_ideological_substitution",
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "anthropic",
+          "value": "replace"
+        },
+        {
+          "field": "keep_or_replace",
+          "provider": "gemini",
+          "value": "keep"
+        }
+      ],
+      "weighted_recommended_action": "unsure"
+    },
+    {
+      "case_id": "588a0074decf861a546b",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_score": 15,
+      "dominant_interpretation": "related_ideological_substitution",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'related_ideological_substitution': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 19.0,
+        "overall_suitability_iqr": 17.25,
+        "overall_suitability_median": 37.0,
+        "relevance_median": 55.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "e233a9d10b3eea4cbd37",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_score": 14,
+      "dominant_interpretation": "related_ideological_substitution",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'related_ideological_substitution': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "related_ideological_substitution": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 12.0,
+        "overall_suitability_iqr": 2.0,
+        "overall_suitability_median": 22.0,
+        "relevance_median": 34.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "34804ca152e0e279c7ff",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 25,
+      "dominant_interpretation": "illustrates_claimed_consequence",
+      "explanation": "Operational votes: {'keep': 3, 'unsure': 1}. Relationship votes: {'illustrates_claimed_consequence': 4}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 3,
+        "unsure": 1
+      },
+      "primary_relationship_votes": {
+        "illustrates_claimed_consequence": 4
+      },
+      "provider_count": 4,
+      "recommended_action": "keep",
+      "relationship_consensus": "unanimous",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 45.0,
+        "overall_suitability_iqr": 11.75,
+        "overall_suitability_median": 70.0,
+        "relevance_median": 75.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "anthropic",
+          "value": "unsure"
+        }
+      ],
+      "weighted_recommended_action": "keep"
+    },
+    {
+      "case_id": "e05e08ebeb6230dec78c",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 25,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'keep': 4}. Relationship votes: {'illustrates_claimed_consequence': 1, 'illustrates_mechanism': 1, 'illustrates_broader_principle': 1, 'direct_illustration': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "keep": 4
+      },
+      "primary_relationship_votes": {
+        "direct_illustration": 1,
+        "illustrates_broader_principle": 1,
+        "illustrates_claimed_consequence": 1,
+        "illustrates_mechanism": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "keep",
+      "relationship_consensus": "complete_disagreement",
+      "requires_human_review": false,
+      "review_reasons": [
+        "unrecognised_consequence:openai"
+      ],
+      "score_summary": {
+        "directness_median": 72.5,
+        "overall_suitability_iqr": 15.0,
+        "overall_suitability_median": 79.0,
+        "relevance_median": 84.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "keep"
+    },
+    {
+      "case_id": "70f14e2e72a292a3ae05",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 36,
+      "dominant_interpretation": null,
+      "explanation": "Operational votes: {'keep': 3, 'unsure': 1}. Relationship votes: {'illustrates_mechanism': 2, 'illustrates_broader_principle': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 3,
+        "unsure": 1
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 2,
+        "illustrates_mechanism": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "keep",
+      "relationship_consensus": "two_two_split",
+      "requires_human_review": false,
+      "review_reasons": [
+        "unrecognised_consequence:gemini"
+      ],
+      "score_summary": {
+        "directness_median": 67.5,
+        "overall_suitability_iqr": 13.75,
+        "overall_suitability_median": 80.0,
+        "relevance_median": 81.5
+      },
+      "secondary_interpretation": "illustrates_broader_principle",
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "anthropic",
+          "value": "unsure"
+        }
+      ],
+      "weighted_recommended_action": "keep"
+    },
+    {
+      "case_id": "b98adf9e78161b670ad5",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 34,
+      "dominant_interpretation": "illustrates_claimed_consequence",
+      "explanation": "Operational votes: {'replace': 3, 'keep': 1}. Relationship votes: {'illustrates_claimed_consequence': 2, 'illustrates_mechanism': 1, 'illustrates_broader_principle': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "keep": 1,
+        "replace": 3
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 1,
+        "illustrates_claimed_consequence": 2,
+        "illustrates_mechanism": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 57.0,
+        "overall_suitability_iqr": 16.25,
+        "overall_suitability_median": 57.0,
+        "relevance_median": 77.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "gemini",
+          "value": "keep"
+        }
+      ],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "bb9f364836998e185eec",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "dominant_interpretation": "illustrates_broader_principle",
+      "explanation": "Operational votes: {'replace': 3, 'unsure': 1}. Relationship votes: {'secondary_theme_match': 1, 'illustrates_mechanism': 1, 'illustrates_broader_principle': 2}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "three_of_four",
+      "operational_votes": {
+        "replace": 3,
+        "unsure": 1
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 2,
+        "illustrates_mechanism": 1,
+        "secondary_theme_match": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 35.0,
+        "overall_suitability_iqr": 13.5,
+        "overall_suitability_median": 50.0,
+        "relevance_median": 59.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [
+        {
+          "field": "keep_or_replace",
+          "provider": "anthropic",
+          "value": "unsure"
+        }
+      ],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "68c044ce4d015237c2fe",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 26,
+      "dominant_interpretation": "secondary_theme_match",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'secondary_theme_match': 2, 'illustrates_mechanism': 1, 'illustrates_broader_principle': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "illustrates_broader_principle": 1,
+        "illustrates_mechanism": 1,
+        "secondary_theme_match": 2
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "plurality_only",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 30.0,
+        "overall_suitability_iqr": 15.25,
+        "overall_suitability_median": 38.0,
+        "relevance_median": 50.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "f0ededbfbe6886c49db8",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_score": 22,
+      "dominant_interpretation": "contradictory",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'contradictory': 3, 'secondary_theme_match': 1}.",
+      "numerical_consensus": "compact",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "contradictory": 3,
+        "secondary_theme_match": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "replace",
+      "relationship_consensus": "three_of_four",
+      "requires_human_review": false,
+      "review_reasons": [],
+      "score_summary": {
+        "directness_median": 5.0,
+        "overall_suitability_iqr": 6.25,
+        "overall_suitability_median": 11.0,
+        "relevance_median": 21.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    },
+    {
+      "case_id": "b7cd43663a96e63b5b69",
+      "confidence": "low",
+      "disagreement_band": "moderate",
+      "disagreement_score": 26,
+      "dominant_interpretation": "contradictory",
+      "explanation": "Operational votes: {'replace': 4}. Relationship votes: {'contradictory': 3, 'illustrates_claimed_consequence': 1}.",
+      "numerical_consensus": "wide",
+      "operational_consensus": "unanimous",
+      "operational_votes": {
+        "replace": 4
+      },
+      "primary_relationship_votes": {
+        "contradictory": 3,
+        "illustrates_claimed_consequence": 1
+      },
+      "provider_count": 4,
+      "recommended_action": "unsure",
+      "relationship_consensus": "three_of_four",
+      "requires_human_review": true,
+      "review_reasons": [
+        "wide_score_spread"
+      ],
+      "score_summary": {
+        "directness_median": 21.0,
+        "overall_suitability_iqr": 25.75,
+        "overall_suitability_median": 30.0,
+        "relevance_median": 44.0
+      },
+      "secondary_interpretation": null,
+      "single_provider_outliers": [],
+      "weighted_recommended_action": "replace"
+    }
+  ],
+  "providers": [
+    "grok",
+    "openai",
+    "anthropic",
+    "gemini"
+  ],
+  "schema_version": 2
+}

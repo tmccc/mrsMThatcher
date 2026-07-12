@@ -1,0 +1,143 @@
+{
+  "failures": {},
+  "items": {
+    "8b2857cc4d88ae962312": {
+      "case_id": "8b2857cc4d88ae962312",
+      "consequence_alignment_score": 60,
+      "directness_score": 40,
+      "editorial_power_score": 75,
+      "explanation": "The quote argues for private enterprise over nationalization based on the creative and pioneering spirit of individuals. The image depicts a Thatcher-like figure standing victorious over the ruins of Soviet communism. While ideologically related (Thatcher was a primary proponent of the quote's philosophy and a fierce opponent of the depicted communist system), the image substitutes the philosophical argument about economic progress and inventiveness with a stark political victory over communism. The image illustrates the defeat of extreme state control, but misses the quote's focus on economic dynamism and individual inventiveness.",
+      "extraneous_image_arguments": [
+        "the specific collapse of the Soviet Union",
+        "toppled statues and communist flags",
+        "the Cold War context"
+      ],
+      "image_basename": "tg_ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417.png",
+      "image_depicted_consequences": [
+        "the physical and symbolic destruction of Soviet communism",
+        "a victorious establishment figure surveying the ruins of a failed system"
+      ],
+      "image_depicted_subject": [
+        "composed elderly woman in formal navy suit with pearls",
+        "ruined backdrop",
+        "toppled metal bust of a bearded communist leader",
+        "red flag with hammer and sickle on debris"
+      ],
+      "image_ideological_framing": [
+        "triumph of Western capitalism/democracy over communism",
+        "the endurance of established order against revolutionary ideologies"
+      ],
+      "image_implied_mechanism": [
+        "resolute Western leadership defeating or outlasting communist systems"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "the woman representing an 'extraordinary' individual (Thatcher figure)",
+        "opposition to socialism/communism (related to nationalization)",
+        "triumph of Western values"
+      ],
+      "mechanism_alignment_score": 20,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 65,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 85,
+      "quote_broader_principles": [
+        "opposition to nationalization",
+        "support for private enterprise",
+        "belief in the primacy of the individual in driving progress"
+      ],
+      "quote_claimed_consequences": [
+        "economic progress",
+        "the philosophical reason for which we are against nationalization and for private enterprise"
+      ],
+      "quote_hash": "921c766344671fdd29089f9f1801cb9343aa5f8a825f8342ebd8ba35b47705d5",
+      "quote_mechanism": [
+        "economic progress comes from the inventiveness, ability, determination and the pioneering spirit of extraordinary men and women"
+      ],
+      "relevance_score": 65,
+      "secondary_relationship": "illustrates_claimed_consequence",
+      "specificity_score": 50,
+      "stronger_visual_direction": [
+        "an image showing dynamic entrepreneurs, inventors, or scientists at work",
+        "a historical photograph of a pioneering innovator",
+        "a visual contrast between a vibrant private business and a stagnant state bureaucracy"
+      ],
+      "unillustrated_primary_elements": [
+        "inventiveness and pioneering spirit",
+        "economic progress",
+        "private enterprise in action"
+      ]
+    },
+    "ec35ced3ad04afd42313": {
+      "case_id": "ec35ced3ad04afd42313",
+      "consequence_alignment_score": 20,
+      "directness_score": 20,
+      "editorial_power_score": 45,
+      "explanation": "The quote discusses the economic principle that the state cannot perpetually provide a higher standard of living without individual effort. The image shows a Margaret Thatcher-like figure working late at a desk covered in papers. While the figure in the image might be associated with the ideology of the quote (Thatcherism), the visual depicts executive diligence and bureaucracy rather than the economic mechanism or consequences described in the quote. This creates an indirect, personality-driven connection rather than a conceptual illustration of the text.",
+      "extraneous_image_arguments": [
+        "the sheer volume of bureaucratic paperwork",
+        "late-night executive dedication"
+      ],
+      "image_basename": "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png",
+      "image_depicted_consequences": [
+        "burden of executive power",
+        "late-night official labor"
+      ],
+      "image_depicted_subject": [
+        "senior woman leader working late",
+        "heavy paperwork in a formal office",
+        "solitary concentration"
+      ],
+      "image_ideological_framing": [
+        "serious formal authority",
+        "bureaucratic or executive diligence"
+      ],
+      "image_implied_mechanism": [
+        "leadership requires long hours of diligence",
+        "decision-making involves heavy documentation"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "government or state authority (implied by the setting and figure)"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gemini-3.1-pro-preview",
+      "overall_suitability_score": 35,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 50,
+      "quote_broader_principles": [
+        "limits of government provision",
+        "necessity of individual effort for prosperity",
+        "debunking economic myths"
+      ],
+      "quote_claimed_consequences": [
+        "economic dependency",
+        "debilitating effect of the myth",
+        "failure of perpetual state provision"
+      ],
+      "quote_hash": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_mechanism": [
+        "state provision of higher standard of living",
+        "disregard of individual effort"
+      ],
+      "relevance_score": 40,
+      "secondary_relationship": "ambiguous",
+      "specificity_score": 30,
+      "stronger_visual_direction": [
+        "A conceptual image contrasting government welfare offices with active labor",
+        "Historical scenes of individuals striving for self-reliance vs state dependency",
+        "A symbolic image of an empty state treasury or broken welfare mechanism",
+        "Working-class individuals engaged in productive effort"
+      ],
+      "unillustrated_primary_elements": [
+        "individual effort of citizens",
+        "state provision of living standards",
+        "myth of endless support"
+      ]
+    }
+  },
+  "model": "gemini-3.1-pro-preview",
+  "prompt_version": "provider-neutral-picture-editor-v1",
+  "provider": "gemini",
+  "schema_version": 1
+}

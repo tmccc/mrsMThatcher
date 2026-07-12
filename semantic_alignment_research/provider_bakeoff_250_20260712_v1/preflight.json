@@ -1,0 +1,65 @@
+{
+  "combined_ceiling_usd": 45.0,
+  "combined_conservative_known_cost_usd": 31.539227999999998,
+  "combined_expected_cost_usd": 20.381892,
+  "note": "Execution ceilings prevent all-case retry maxima from being realised; each next attempt is gated independently.",
+  "providers": {
+    "anthropic": {
+      "calls": 250,
+      "ceiling_usd": 10.0,
+      "conservative_maximum_base_cost_usd": 7.551723,
+      "conservative_single_retry_reserve_usd": 0.031884,
+      "estimated_input_tokens": 517241,
+      "estimated_output_tokens": 225000,
+      "expected_cost_usd": 4.926723,
+      "maximum_ambiguous_exposure_usd": 7.551723,
+      "maximum_output_tokens": 400000,
+      "model": "claude-sonnet-4-6",
+      "theoretical_all_cases_retry_cost_usd": 7.551723,
+      "tools_enabled": false
+    },
+    "gemini": {
+      "calls": 250,
+      "ceiling_usd": 10.0,
+      "conservative_maximum_base_cost_usd": 5.8344819999999995,
+      "conservative_single_retry_reserve_usd": 0.024456,
+      "estimated_input_tokens": 517241,
+      "estimated_output_tokens": 225000,
+      "expected_cost_usd": 3.734482,
+      "maximum_ambiguous_exposure_usd": 5.8344819999999995,
+      "maximum_output_tokens": 400000,
+      "model": "gemini-3.1-pro-preview",
+      "theoretical_all_cases_retry_cost_usd": 5.8344819999999995,
+      "tools_enabled": false
+    },
+    "grok": {
+      "calls": 250,
+      "ceiling_usd": 10.0,
+      "conservative_maximum_base_cost_usd": 3.434482,
+      "conservative_single_retry_reserve_usd": 0.014856,
+      "estimated_input_tokens": 517241,
+      "estimated_output_tokens": 225000,
+      "expected_cost_usd": 2.384482,
+      "maximum_ambiguous_exposure_usd": 3.434482,
+      "maximum_output_tokens": 400000,
+      "model": "grok-4.5",
+      "theoretical_all_cases_retry_cost_usd": 3.434482,
+      "tools_enabled": false
+    },
+    "openai": {
+      "calls": 250,
+      "ceiling_usd": 15.0,
+      "conservative_maximum_base_cost_usd": 14.586205,
+      "conservative_single_retry_reserve_usd": 0.06114,
+      "estimated_input_tokens": 517241,
+      "estimated_output_tokens": 225000,
+      "expected_cost_usd": 9.336205,
+      "maximum_ambiguous_exposure_usd": 14.586205,
+      "maximum_output_tokens": 400000,
+      "model": "gpt-5.6-sol",
+      "theoretical_all_cases_retry_cost_usd": 14.586205,
+      "tools_enabled": false
+    }
+  },
+  "schema_version": 1
+}

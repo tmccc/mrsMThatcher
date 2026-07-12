@@ -1,0 +1,16 @@
+{
+  "image_decision": {
+    "available": false,
+    "cases": 0,
+    "excluded_indeterminate": 0,
+    "reason": "requires at least 20 labelled critic pairs with positive and negative classes",
+    "target": "image_decision"
+  },
+  "publish_likelihood": {
+    "available": false,
+    "cases": 0,
+    "excluded_indeterminate": 0,
+    "reason": "requires at least 20 labelled critic pairs with positive and negative classes",
+    "target": "publish_likelihood"
+  }
+}

@@ -1,0 +1,5 @@
+band,cases,coverage,actionable_accuracy,false_keep,false_replace
+low,4,1.0,1.0,0,0
+moderate,20,0.95,0.8947368421052632,0,2
+high,1,0.0,,0,0
+extreme,0,,,0,0

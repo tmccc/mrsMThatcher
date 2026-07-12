@@ -1,0 +1,13 @@
+{
+  "cases": 23,
+  "ceiling_usd": 1.5,
+  "conservative_base_cost_usd": 0.5952040000000001,
+  "estimated_input_tokens": 49202,
+  "estimated_output_tokens": 20700,
+  "expected_cost_usd": 0.346804,
+  "max_attempts_per_case": 2,
+  "maximum_two_attempt_exposure_usd": 1.1904080000000001,
+  "model": "gemini-3.1-pro-preview",
+  "pacing_seconds": 12,
+  "tools_enabled": false
+}

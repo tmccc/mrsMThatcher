@@ -1,0 +1,50 @@
+{
+  "accessible": {
+    "anthropic": true,
+    "gemini": true,
+    "grok": true,
+    "openai": true
+  },
+  "prices_per_million": {
+    "anthropic": {
+      "cached": 0.3,
+      "input": 3,
+      "output": 15
+    },
+    "gemini": {
+      "cached": 0.2,
+      "input": 2,
+      "output_including_thinking": 12
+    },
+    "grok": {
+      "cached": 0.5,
+      "input": 2,
+      "output": 6
+    },
+    "openai": {
+      "cached": 0.5,
+      "input": 5,
+      "output": 30
+    }
+  },
+  "schema_version": 1,
+  "selected_models": {
+    "anthropic": "claude-sonnet-4-6",
+    "gemini": "gemini-3.1-pro-preview",
+    "grok": "grok-4.5",
+    "openai": "gpt-5.6-sol"
+  },
+  "status": {
+    "anthropic": "available",
+    "gemini": "preview",
+    "grok": "available",
+    "openai": "available"
+  },
+  "structured_outputs": {
+    "anthropic": true,
+    "gemini": true,
+    "grok": true,
+    "openai": true
+  },
+  "tools_enabled": false
+}

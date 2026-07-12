@@ -1,0 +1,30 @@
+{
+  "appropriateness_distribution": {},
+  "by_old_critic_score_band": {},
+  "by_relationship": {},
+  "correlations": {
+    "critic_directness_vs_human_appropriateness": null,
+    "critic_overall_suitability_vs_publish_likelihood": null,
+    "critic_relevance_vs_human_appropriateness": null
+  },
+  "decision_by_appropriateness_rating": {},
+  "decision_by_critic_overall_band": {},
+  "decision_by_primary_relationship": {},
+  "decision_by_publish_likelihood_rating": {},
+  "high_appropriateness_prefer_different": [],
+  "high_critic_low_publish": [],
+  "high_critic_prefer_different": [],
+  "image_decision_distribution": {},
+  "low_critic_high_publish": [],
+  "low_critic_keep_current": [],
+  "low_publish_keep_current": [],
+  "paired_critic_cases": 0,
+  "preliminary": true,
+  "progress": {
+    "complete": 0,
+    "incomplete": 100,
+    "total": 100
+  },
+  "publish_likelihood_distribution": {},
+  "unsure_cases": []
+}

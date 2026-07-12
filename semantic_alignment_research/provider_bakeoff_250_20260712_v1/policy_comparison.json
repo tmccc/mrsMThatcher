@@ -1,0 +1,38 @@
+{
+  "automatic_coverage": {
+    "A": {
+      "coverage": 0.7136563876651982,
+      "resolved": 162
+    },
+    "B": {
+      "coverage": 0.8502202643171806,
+      "resolved": 193
+    },
+    "C": {
+      "coverage": 0.8370044052863436,
+      "resolved": 190
+    },
+    "D": {
+      "coverage": 0.9427312775330396,
+      "resolved": 214
+    },
+    "E": {
+      "coverage": 0.775330396475771,
+      "resolved": 176
+    },
+    "F": {
+      "coverage": 0.8502202643171806,
+      "resolved": 193
+    },
+    "G": {
+      "coverage": 0.7048458149779736,
+      "resolved": 160
+    },
+    "H": {
+      "coverage": 0.8502202643171806,
+      "resolved": 193
+    }
+  },
+  "denominator_complete_cases": 227,
+  "schema_version": 1
+}

@@ -1,0 +1,13 @@
+{
+  "attempts": 45,
+  "completed": 2,
+  "elapsed_seconds": 508.5582842826843,
+  "ended_at": 1783858701.8662066,
+  "exhausted": 21,
+  "known_cost_usd": 0.0225,
+  "max_active_requests": 1,
+  "paused_reason": null,
+  "provider": "gemini",
+  "started_at": 1783858193.3079228,
+  "uncertain_possible_exposure_usd": 0
+}

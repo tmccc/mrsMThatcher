@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "archive_id": "pilot_20260711_blocked",
+  "status": "archived_blocked",
+  "resumable": false,
+  "reason": "ambiguous unreported billing outcome",
+  "model": "grok-4.5",
+  "quote_schema_version": 1,
+  "quote_prompt_version": "quote-semantic-v1",
+  "completed_quote_fingerprints": 136,
+  "known_cost_usd": 0.691074,
+  "ambiguous_item_key": "3dd04269c7014b5ab25d7fc9d7b2ea5195ed1e8a2b2c44278ed5cad73486a2d5",
+  "server_response_received": false,
+  "contents": [
+    "quote_semantic_fingerprints.json",
+    "cost_ledger.json",
+    "preflight_estimate.json",
+    "pricing/",
+    "responses/",
+    "semantic_alignment_first_three_stages_execution_report.md"
+  ]
+}

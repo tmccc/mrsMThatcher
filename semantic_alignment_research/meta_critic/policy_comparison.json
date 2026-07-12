@@ -1,0 +1,84 @@
+{
+  "human_labels_available": 0,
+  "policies": {
+    "A": {
+      "accuracy": null,
+      "coverage": 0.68,
+      "false_keep": 0,
+      "false_replace": 0,
+      "human_labelled_resolved": 0,
+      "resolved": 17,
+      "review_burden": 8
+    },
+    "B": {
+      "accuracy": null,
+      "coverage": 0.96,
+      "false_keep": 0,
+      "false_replace": 0,
+      "human_labelled_resolved": 0,
+      "resolved": 24,
+      "review_burden": 1
+    },
+    "C": {
+      "accuracy": null,
+      "coverage": 0.92,
+      "false_keep": 0,
+      "false_replace": 0,
+      "human_labelled_resolved": 0,
+      "resolved": 23,
+      "review_burden": 2
+    },
+    "D": {
+      "accuracy": null,
+      "coverage": 0.96,
+      "false_keep": 0,
+      "false_replace": 0,
+      "human_labelled_resolved": 0,
+      "resolved": 24,
+      "review_burden": 1
+    },
+    "E": {
+      "accuracy": null,
+      "coverage": 0.8,
+      "false_keep": 0,
+      "false_replace": 0,
+      "human_labelled_resolved": 0,
+      "resolved": 20,
+      "review_burden": 5
+    },
+    "F": {
+      "accuracy": null,
+      "coverage": 0.96,
+      "deferred": 1,
+      "false_keep": 0,
+      "false_replace": 0,
+      "labelled_resolved": 0,
+      "resolved": 24,
+      "review_burden": 1,
+      "review_efficiency": null
+    },
+    "G": {
+      "accuracy": null,
+      "coverage": 0.68,
+      "deferred": 8,
+      "false_keep": 0,
+      "false_replace": 0,
+      "labelled_resolved": 0,
+      "resolved": 17,
+      "review_burden": 8,
+      "review_efficiency": null
+    },
+    "H": {
+      "accuracy": null,
+      "coverage": 0.96,
+      "deferred": 1,
+      "false_keep": 0,
+      "false_replace": 0,
+      "labelled_resolved": 0,
+      "resolved": 24,
+      "review_burden": 1,
+      "review_efficiency": null
+    }
+  },
+  "schema_version": 2
+}

@@ -1,0 +1,4 @@
+aggregate_keep_rate,aggregate_keeps,assumed_missing_keeps,scenario
+0.284,71,23,all_missing_keep
+0.192,48,0,all_missing_replace
+0.212,53,5,observed_rate

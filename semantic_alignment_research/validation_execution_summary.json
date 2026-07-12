@@ -1,0 +1,120 @@
+{
+  "analysis_kind": "semantic_alignment_validation_execution_summary",
+  "exact_cumulative_cost_usd": 0.691074,
+  "false_negatives": [],
+  "false_positives": [],
+  "free_trade_case": {
+    "critic": null,
+    "human_expected_category": "related_but_indirect",
+    "image": null,
+    "quote": {
+      "analysed_at": "2026-07-11T10:39:55.421069+00:00",
+      "analysis_kind": "quote_semantic_fingerprint",
+      "confidence": 0.92,
+      "desired_visual_evidence": [
+        "rising global trade-volume charts after 1945",
+        "declining real consumer-price indices in open economies",
+        "GDP-growth comparisons linked to trade openness",
+        "graphs showing increased market competition and firm entry",
+        "illustrations of expanded consumer choice and lower costs of goods"
+      ],
+      "dominant_message": "Post-war freer trade and payments have served as a major driver of economic growth that has delivered broad gains—especially lower prices, heightened competition, and faster expansion—benefiting every consumer.",
+      "explicit_contrasts": [
+        "freer trade versus restricted trade",
+        "gains for all versus zero-sum trade outcomes"
+      ],
+      "model": "grok-4.5",
+      "not_about": [
+        "trade deficits or imbalances",
+        "job losses or adjustment costs",
+        "specific countries or modern trade wars",
+        "inequality or distributional conflicts",
+        "environmental or labor standards",
+        "protectionist arguments or tariffs"
+      ],
+      "primary_issue": "Benefits of freer post-war trade for growth and consumers",
+      "primary_themes": [
+        "freer trade as engine of growth",
+        "universal gains from trade liberalization",
+        "consumer benefits from open markets",
+        "post-war economic expansion"
+      ],
+      "prompt_version": "quote-semantic-v1",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "schema_version": 1,
+      "secondary_themes": [
+        "lower prices through competition",
+        "freedom of payments",
+        "faster economic growth",
+        "broad-based prosperity"
+      ],
+      "specific_concepts": [
+        "post-war growth",
+        "greater freedom of trade and payments",
+        "lower prices",
+        "more competition",
+        "faster growth",
+        "every consumer has benefited"
+      ]
+    }
+  },
+  "human_agreement_rate": null,
+  "human_comparisons": [],
+  "mismatch_distribution": {},
+  "schema_version": 1,
+  "score_distribution": {},
+  "score_mean": null,
+  "score_median": null,
+  "stages": {
+    "critic": {
+      "cached_tokens": 0,
+      "calls": 0,
+      "completion_tokens": 0,
+      "cost_usd": 0,
+      "failures": 0,
+      "input_tokens": 0,
+      "maximum_call_cost_usd": 0,
+      "mean_call_cost_usd": 0,
+      "median_call_cost_usd": 0,
+      "reasoning_tokens": 0,
+      "retry_calls": 0,
+      "retry_cost_usd": 0,
+      "successes": 0
+    },
+    "image": {
+      "cached_tokens": 0,
+      "calls": 0,
+      "completion_tokens": 0,
+      "cost_usd": 0,
+      "failures": 0,
+      "input_tokens": 0,
+      "maximum_call_cost_usd": 0,
+      "mean_call_cost_usd": 0,
+      "median_call_cost_usd": 0,
+      "reasoning_tokens": 0,
+      "retry_calls": 0,
+      "retry_cost_usd": 0,
+      "successes": 0
+    },
+    "quote": {
+      "cached_tokens": 51072,
+      "calls": 136,
+      "completion_tokens": 48042,
+      "cost_usd": 0.691074,
+      "failures": 0,
+      "input_tokens": 87348,
+      "maximum_call_cost_usd": 0.007504,
+      "mean_call_cost_usd": 0.005081426470588235,
+      "median_call_cost_usd": 0.005032,
+      "reasoning_tokens": 50789,
+      "retry_calls": 0,
+      "retry_cost_usd": 0,
+      "successes": 136
+    }
+  },
+  "top_direct_matches": [],
+  "top_related_but_indirect": [],
+  "top_semantic_mismatches": [],
+  "uncertain_cases": []
+}

@@ -1,0 +1,5 @@
+{
+  "Critic A": "openai",
+  "Critic B": "anthropic",
+  "Critic C": "grok"
+}

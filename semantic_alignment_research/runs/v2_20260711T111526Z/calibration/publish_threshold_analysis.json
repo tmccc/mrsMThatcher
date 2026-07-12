@@ -1,0 +1,5 @@
+{
+  "available": false,
+  "cases": 0,
+  "reason": "requires at least 20 labelled critic pairs with positive and negative classes"
+}

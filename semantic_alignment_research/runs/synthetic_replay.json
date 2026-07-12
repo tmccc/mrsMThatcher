@@ -1,0 +1,51 @@
+{
+  "analysis_kind": "semantic_alignment_replay",
+  "formulas": {
+    "gate_45": {
+      "average_alignment_improvement": 55.0,
+      "candidate_exhaustion": 0,
+      "entropy": -0.0,
+      "selections": 1,
+      "top_10_share": 1.0,
+      "unique_images": 1,
+      "winner_changes": 1
+    },
+    "generic_overlap_penalty": {
+      "average_alignment_improvement": 55.0,
+      "candidate_exhaustion": 0,
+      "entropy": -0.0,
+      "selections": 1,
+      "top_10_share": 1.0,
+      "unique_images": 1,
+      "winner_changes": 1
+    },
+    "moderate_adjustment": {
+      "average_alignment_improvement": 55.0,
+      "candidate_exhaustion": 0,
+      "entropy": -0.0,
+      "selections": 1,
+      "top_10_share": 1.0,
+      "unique_images": 1,
+      "winner_changes": 1
+    },
+    "semantic_only": {
+      "average_alignment_improvement": 55.0,
+      "candidate_exhaustion": 0,
+      "entropy": -0.0,
+      "selections": 1,
+      "top_10_share": 1.0,
+      "unique_images": 1,
+      "winner_changes": 1
+    },
+    "small_adjustment": {
+      "average_alignment_improvement": 55.0,
+      "candidate_exhaustion": 0,
+      "entropy": -0.0,
+      "selections": 1,
+      "top_10_share": 1.0,
+      "unique_images": 1,
+      "winner_changes": 1
+    }
+  },
+  "schema_version": 1
+}

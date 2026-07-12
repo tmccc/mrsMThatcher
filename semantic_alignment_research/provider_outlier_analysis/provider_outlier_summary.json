@@ -1,0 +1,538 @@
+{
+  "four_complete": 227,
+  "gemini_completed": 227,
+  "gemini_exhausted": 23,
+  "gemini_only_keep": {
+    "count": 14,
+    "human_keep": 8,
+    "human_labelled": 14,
+    "meta_interaction": {
+      "deferred": 2,
+      "disagreement_bands": {
+        "moderate": 14
+      },
+      "human_agreed_gemini": 8,
+      "human_agreed_majority": 6,
+      "labelled": 14,
+      "meta_decisions": {
+        "replace": 12,
+        "unsure": 2
+      },
+      "meta_errors_labelled": 7
+    },
+    "score_differences": {
+      "consequence_alignment_score": {
+        "count": 14,
+        "maximum": 42.0,
+        "mean_absolute_difference": 25.0,
+        "median_difference": 30.0,
+        "minimum": -5.0,
+        "q1": 16.25,
+        "q3": 32.75
+      },
+      "directness_score": {
+        "count": 14,
+        "maximum": 57.0,
+        "mean_absolute_difference": 36.285714285714285,
+        "median_difference": 35.0,
+        "minimum": 21.0,
+        "q1": 30.0,
+        "q3": 42.0
+      },
+      "editorial_power_score": {
+        "count": 14,
+        "maximum": 45.0,
+        "mean_absolute_difference": 28.857142857142858,
+        "median_difference": 25.0,
+        "minimum": 10.0,
+        "q1": 20.0,
+        "q3": 40.0
+      },
+      "mechanism_alignment_score": {
+        "count": 14,
+        "maximum": 55.0,
+        "mean_absolute_difference": 29.0,
+        "median_difference": 27.5,
+        "minimum": -10.0,
+        "q1": 15.75,
+        "q3": 38.0
+      },
+      "overall_suitability_score": {
+        "count": 14,
+        "maximum": 50.0,
+        "mean_absolute_difference": 35.857142857142854,
+        "median_difference": 34.5,
+        "minimum": 26.0,
+        "q1": 30.0,
+        "q3": 41.0
+      },
+      "principle_alignment_score": {
+        "count": 14,
+        "maximum": 43.0,
+        "mean_absolute_difference": 27.214285714285715,
+        "median_difference": 26.0,
+        "minimum": 15.0,
+        "q1": 20.5,
+        "q3": 34.25
+      },
+      "relevance_score": {
+        "count": 14,
+        "maximum": 37.0,
+        "mean_absolute_difference": 24.142857142857142,
+        "median_difference": 23.0,
+        "minimum": 13.0,
+        "q1": 17.0,
+        "q3": 29.5
+      },
+      "specificity_score": {
+        "count": 14,
+        "maximum": 50.0,
+        "mean_absolute_difference": 30.928571428571427,
+        "median_difference": 35.0,
+        "minimum": 2.0,
+        "q1": 15.75,
+        "q3": 43.25
+      }
+    },
+    "taxonomy": {
+      "direct_illustration": 1,
+      "illustrates_broader_principle": 11,
+      "illustrates_mechanism": 1,
+      "related_ideological_substitution": 1
+    }
+  },
+  "human_reviews": 250,
+  "hypotheses": {
+    "H1_more_permissive": "partially_supported",
+    "H2_better_indirect_matches": "partially_supported",
+    "H3_borderline_instability": "partially_supported",
+    "H4_majority_too_strict": "supported"
+  },
+  "immutable_hashes": {
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1/anthropic_results.json": "e0304adf8391005d462e11d507115dc4aa7599b7c66371e861c57c9bf8f2e884",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1/gemini_results.json": "33283fdf8e0094bce9d2173caaf67b2cf42a05fa743a9f30a0254551165a97da",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1/grok_results.json": "aac7f00a37c10e8cca901d3fab2319e1694b9f5b16800b2a04566dd5814f8140",
+    "semantic_alignment_research/provider_bakeoff_250_20260712_v1/openai_results.json": "22bb78425ff2df479c5e235458824b64ad69767ca4846d142544d54232e4bbc6",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/anthropic_results.json": "e555f5c97d395346a013e0d26471a269302b699a4f76564c8c6cb813ba6dc525",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/gemini_results.json": "9362207fe82fed4bbfc49d74e4cfad79725842836f54f9c1356ee6ebce60f1ff",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/grok_results.json": "1f3b119feb1e49fcab50f1fd19536f9854a732049ccd6fe69fd21cd67ab26ced",
+    "semantic_alignment_research/provider_bakeoff_25_20260712/openai_results.json": "7d870df33ce2bcbfec44dd06ecfff4daa1e87961f186cdbf46306b12e529aba7",
+    "semantic_alignment_research/runs/v2_20260711T111526Z/image_implied_messages_generated.json": "d8d66885bc05dda0bd66658f169af1ef3b6b32f6e10fb1ad2a4c02398eab195b",
+    "semantic_alignment_research/runs/v2_20260711T111526Z/quote_semantic_fingerprints.json": "1c98a498c0254ac9706d43d070f12209203cf240db2bc96419160fd7494b10f3"
+  },
+  "manifest_cases": 250,
+  "missing_gemini": {
+    "case_ids": [
+      "01da0feced09ed7e547a",
+      "06c0f5db148ade11d1e3",
+      "163c3b381d8a35535b4c",
+      "1bd1291ebdb140b606c6",
+      "1d75a976eec6e983f955",
+      "2a86f5db13e31e3e99ff",
+      "31b112d3255f4fd68671",
+      "378fbf96d18c2e10f5a3",
+      "4033cdcc11cd5ad48f80",
+      "8b2857cc4d88ae962312",
+      "9588c850bb3b06ab3214",
+      "95b9610a03cd601acce1",
+      "96a9bbeeeda31eb67370",
+      "9a19c714bcf33f9be13d",
+      "a6d95a012acf91c8a55e",
+      "b3e703fae5b1b1a34344",
+      "bb618dd9fc7a28e21c3a",
+      "c38fa0c8248f00f75587",
+      "dba0179df5f2f4cb4c5b",
+      "e931dd610a0b12b99c75",
+      "ec35ced3ad04afd42313",
+      "ed33e12a1fa6726bf8da",
+      "fa88be84d9caf8a1abbb"
+    ],
+    "other_provider_votes": {
+      "keep/keep/unsure": 1,
+      "keep/replace/replace": 1,
+      "replace/replace/replace": 20,
+      "replace/replace/unsure": 1
+    },
+    "selection_reasons_completed": {
+      "broader_or_ideological": 20,
+      "canonical_editorial_winner": 83,
+      "canonical_identity_winner": 29,
+      "canonical_production_winner": 13,
+      "consequence_or_principle": 20,
+      "contradictory_or_conflict": 20,
+      "original_25_regression": 25,
+      "secondary_theme_or_ambiguous": 4,
+      "weak_or_unrelated": 13
+    },
+    "selection_reasons_missing": {
+      "deterministic_fill": 16,
+      "weak_or_unrelated": 7
+    },
+    "sensitivity": [
+      {
+        "aggregate_keep_rate": 0.284,
+        "aggregate_keeps": 71,
+        "assumed_missing_keeps": 23,
+        "scenario": "all_missing_keep"
+      },
+      {
+        "aggregate_keep_rate": 0.192,
+        "aggregate_keeps": 48,
+        "assumed_missing_keeps": 0,
+        "scenario": "all_missing_replace"
+      },
+      {
+        "aggregate_keep_rate": 0.212,
+        "aggregate_keeps": 53,
+        "assumed_missing_keeps": 5,
+        "scenario": "observed_rate"
+      }
+    ]
+  },
+  "outlier_counts": {
+    "anthropic_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "anthropic_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "gemini_only_keep": {
+      "count": 14,
+      "of_3_1_splits": 0.9333333333333333,
+      "of_four_complete": 0.06167400881057269,
+      "of_intended_250": 0.056,
+      "of_usable_gemini": 0.06167400881057269
+    },
+    "gemini_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "grok_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "grok_only_replace": {
+      "count": 1,
+      "of_3_1_splits": 0.06666666666666667,
+      "of_four_complete": 0.004405286343612335,
+      "of_intended_250": 0.004,
+      "of_usable_gemini": 0.004405286343612335
+    },
+    "openai_only_keep": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    },
+    "openai_only_replace": {
+      "count": 0,
+      "of_3_1_splits": 0.0,
+      "of_four_complete": 0.0,
+      "of_intended_250": 0.0,
+      "of_usable_gemini": 0.0
+    }
+  },
+  "patterns": {
+    "2_keep_2_replace": 3,
+    "3_keep_1_replace": 1,
+    "3_replace_1_keep": 14,
+    "4_keep": 4,
+    "4_replace": 158,
+    "incomplete_provider_set": 23,
+    "mixed_with_unsure": 47
+  },
+  "provider_profiles": {
+    "anthropic": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 7,
+        "replace": 206,
+        "unsure": 37
+      },
+      "human": {
+        "accuracy": 0.792,
+        "accuracy_95ci": [
+          0.7374548978246092,
+          0.8377069353816109
+        ],
+        "correct": 198,
+        "false_keep": 1,
+        "false_replace": 14,
+        "keep_precision": 0.8571428571428571,
+        "keep_recall": 0.3,
+        "labelled": 250,
+        "replace_precision": 0.9320388349514563,
+        "replace_recall": 0.9948186528497409
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 27.876,
+        "directness_score": 18.684,
+        "editorial_power_score": 38.14,
+        "mechanism_alignment_score": 19.616,
+        "overall_suitability_score": 27.996,
+        "principle_alignment_score": 42.096,
+        "relevance_score": 39.772,
+        "specificity_score": 21.48
+      },
+      "model": "claude-sonnet-4-6",
+      "outlier_keep": 0,
+      "outlier_replace": 0,
+      "relationships": {
+        "ambiguous": 11,
+        "contradictory": 9,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 60,
+        "illustrates_claimed_consequence": 13,
+        "related_ideological_substitution": 111,
+        "secondary_theme_match": 14,
+        "unrelated": 30
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3921.575160741806,
+        "ended_at": 1783855810.8001506,
+        "exhausted": 0,
+        "known_cost_usd": 4.311918,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "anthropic",
+        "started_at": 1783851889.2249906,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "gemini": {
+      "completed": 227,
+      "completion_rate": 0.908,
+      "decisions": {
+        "keep": 48,
+        "replace": 173,
+        "unsure": 6
+      },
+      "human": {
+        "accuracy": 0.9295154185022027,
+        "accuracy_95ci": [
+          0.8885829475218636,
+          0.9561521435535751
+        ],
+        "correct": 211,
+        "false_keep": 8,
+        "false_replace": 2,
+        "keep_precision": 0.8333333333333334,
+        "keep_recall": 0.9523809523809523,
+        "labelled": 227,
+        "replace_precision": 0.9884393063583815,
+        "replace_recall": 0.9553072625698324
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 29.251101321585903,
+        "directness_score": 29.273127753303964,
+        "editorial_power_score": 43.242290748898675,
+        "mechanism_alignment_score": 22.378854625550662,
+        "overall_suitability_score": 36.863436123348016,
+        "principle_alignment_score": 44.801762114537446,
+        "relevance_score": 42.68722466960352,
+        "specificity_score": 27.819383259911895
+      },
+      "model": "gemini-3.1-pro-preview",
+      "outlier_keep": 14,
+      "outlier_replace": 0,
+      "relationships": {
+        "ambiguous": 5,
+        "contradictory": 33,
+        "direct_illustration": 7,
+        "illustrates_broader_principle": 60,
+        "illustrates_claimed_consequence": 2,
+        "illustrates_mechanism": 5,
+        "related_ideological_substitution": 12,
+        "secondary_theme_match": 62,
+        "unrelated": 41
+      },
+      "worker": {
+        "attempts": 273,
+        "completed": 227,
+        "elapsed_seconds": 1755.8301267623901,
+        "ended_at": 1783853645.055905,
+        "exhausted": 23,
+        "known_cost_usd": 2.4690459999999996,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "gemini",
+        "started_at": 1783851889.225779,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "grok": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 16,
+        "replace": 223,
+        "unsure": 11
+      },
+      "human": {
+        "accuracy": 0.856,
+        "accuracy_95ci": [
+          0.8070866646773006,
+          0.8941380360809675
+        ],
+        "correct": 214,
+        "false_keep": 2,
+        "false_replace": 23,
+        "keep_precision": 0.875,
+        "keep_recall": 0.3783783783783784,
+        "labelled": 250,
+        "replace_precision": 0.8968609865470852,
+        "replace_recall": 0.9900990099009901
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 20.772,
+        "directness_score": 16.664,
+        "editorial_power_score": 34.524,
+        "mechanism_alignment_score": 12.348,
+        "overall_suitability_score": 27.172,
+        "principle_alignment_score": 38.492,
+        "relevance_score": 33.42,
+        "specificity_score": 21.952
+      },
+      "model": "grok-4.5",
+      "outlier_keep": 0,
+      "outlier_replace": 1,
+      "relationships": {
+        "contradictory": 5,
+        "direct_illustration": 1,
+        "illustrates_broader_principle": 21,
+        "illustrates_claimed_consequence": 20,
+        "illustrates_mechanism": 3,
+        "related_ideological_substitution": 70,
+        "secondary_theme_match": 33,
+        "unrelated": 97
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 2936.7361755371094,
+        "ended_at": 1783854825.9602218,
+        "exhausted": 0,
+        "known_cost_usd": 2.840153999999999,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "grok",
+        "started_at": 1783851889.2240467,
+        "uncertain_possible_exposure_usd": 0
+      }
+    },
+    "openai": {
+      "completed": 250,
+      "completion_rate": 1.0,
+      "decisions": {
+        "keep": 22,
+        "replace": 222,
+        "unsure": 6
+      },
+      "human": {
+        "accuracy": 0.868,
+        "accuracy_95ci": [
+          0.8204189328669529,
+          0.9044425555573243
+        ],
+        "correct": 217,
+        "false_keep": 3,
+        "false_replace": 24,
+        "keep_precision": 0.8636363636363636,
+        "keep_recall": 0.4418604651162791,
+        "labelled": 250,
+        "replace_precision": 0.8918918918918919,
+        "replace_recall": 0.9850746268656716
+      },
+      "mean_scores": {
+        "consequence_alignment_score": 21.272,
+        "directness_score": 22.844,
+        "editorial_power_score": 59.52,
+        "mechanism_alignment_score": 20.964,
+        "overall_suitability_score": 38.54,
+        "principle_alignment_score": 47.876,
+        "relevance_score": 46.648,
+        "specificity_score": 28.008
+      },
+      "model": "gpt-5.6-sol",
+      "outlier_keep": 0,
+      "outlier_replace": 0,
+      "relationships": {
+        "contradictory": 3,
+        "direct_illustration": 2,
+        "illustrates_broader_principle": 20,
+        "illustrates_claimed_consequence": 14,
+        "illustrates_mechanism": 12,
+        "related_ideological_substitution": 128,
+        "secondary_theme_match": 51,
+        "unrelated": 20
+      },
+      "worker": {
+        "attempts": 250,
+        "completed": 250,
+        "elapsed_seconds": 3111.7142572402954,
+        "ended_at": 1783855000.9386463,
+        "exhausted": 0,
+        "known_cost_usd": 7.252130000000004,
+        "max_active_requests": 1,
+        "paused_reason": null,
+        "provider": "openai",
+        "started_at": 1783851889.2243893,
+        "uncertain_possible_exposure_usd": 0
+      }
+    }
+  },
+  "regression": {
+    "anthropic": {
+      "keep_to_replace": 0,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 0,
+      "taxonomy_changes": 3,
+      "unchanged": 25
+    },
+    "gemini": {
+      "keep_to_replace": 1,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 2,
+      "taxonomy_changes": 7,
+      "unchanged": 22
+    },
+    "grok": {
+      "keep_to_replace": 1,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 0,
+      "taxonomy_changes": 6,
+      "unchanged": 24
+    },
+    "openai": {
+      "keep_to_replace": 2,
+      "missing": 0,
+      "model_changes": 0,
+      "replace_to_keep": 1,
+      "taxonomy_changes": 6,
+      "unchanged": 20
+    }
+  },
+  "schema_version": 1,
+  "three_one_splits": 15
+}

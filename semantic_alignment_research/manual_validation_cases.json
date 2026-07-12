@@ -1,0 +1,1207 @@
+{
+  "analysis_kind": "semantic_alignment_manual_validation_cases",
+  "created_at": "2026-07-11T10:01:08.219313+00:00",
+  "items": [
+    {
+      "expected_category": "related_but_indirect",
+      "forced_reason": "recent_production_free_trade_pairing",
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "reviewer_notes": "Recent production pairing: assess whether generic capitalism/socialism imagery directly illustrates free trade."
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png",
+      "post_index": 3,
+      "quote_hash": "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
+      "quote_text": "Whether it is in the United States or in mainland Europe, written constitutions have one great weakness. That is that they contain the potential to have judges take decisions which should properly be made by democratically elected politicians.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png",
+      "post_index": 6,
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png",
+      "post_index": 6,
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png",
+      "post_index": 9,
+      "quote_hash": "bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de",
+      "quote_text": "Socialism is like one of those horrible viruses. You no sooner discover a remedy for one version, than it spontaneously evolves into another.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2.png",
+      "post_index": 12,
+      "quote_hash": "d5371da309d337df802d77431c030251c5fa2c0d453c7e3cc683895f9438875c",
+      "quote_text": "Marxists are quite unable to say why a proletarian revolution, a hate-filled and violent act of expropriation, should be morally cleansing and lead to a better society.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "post_index": 15,
+      "quote_hash": "75f102a1b859b3fb5b260f7a35da8a63eeddbf04babd3ed2cdcac22889acd2c0",
+      "quote_text": "I look to the day when we throw off the Socialist yoke and together turn to the task of setting our country on the road to a real and lasting recovery.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png",
+      "post_index": 18,
+      "quote_hash": "a9b4ea7f342a8cbc4ae919c097a9e968d5617e956dd0439e8f423fb6c8dc9942",
+      "quote_text": "To me, consensus seems to be the process of abandoning all beliefs, principles, values and policies. So it is something in which no one believes and to which no one objects.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "post_index": 21,
+      "quote_hash": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3",
+      "quote_text": "There'll never be a perfectly balanced economy. There's no such thing as total security. No job, no business can be guaranteed for ever. No government can free the people from material worries. But government can make people poor. It can waste what people create. Or it can provide the conditions which favour those private efforts and endeavours that bring prosperity.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png",
+      "post_index": 24,
+      "quote_hash": "bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662",
+      "quote_text": "And what a prize we have to fight for: no less than the chance to banish from our land the dark divisive clouds of Marxist socialism.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png",
+      "post_index": 27,
+      "quote_hash": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "quote_text": "If my critics saw me walking over the Thames they would say it was because I couldn't swim.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "post_index": 30,
+      "quote_hash": "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1",
+      "quote_text": "A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A top rate of 83 per cent is not much of a revenue raiser, it is the symbol of British socialism - the symbol of envy. (1978 speech)",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png",
+      "post_index": 33,
+      "quote_hash": "c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956",
+      "quote_text": "Communism was the regime for the privileged elite, capitalism the creed for the common man.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "post_index": 36,
+      "quote_hash": "6871cbac95a92fcbc6b383ed1031d694399351a54e3bf1c81bd86239a1b807e4",
+      "quote_text": "There is still in our own countries, particularly in the media class, a pervasive culture of puerile anti-westernism that needs to be changed.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png",
+      "post_index": 39,
+      "quote_hash": "486ac8259439d7b2857b5accce1e57ee83bce66c0408024af831510649a4ef5e",
+      "quote_text": "No-one with a conscience can let this go on.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d.png",
+      "post_index": 42,
+      "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+      "quote_text": "Being prime minister is a lonely job... you cannot lead from the crowd.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "post_index": 45,
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "quote_text": "Our sovereignty does not come from Brussels - it is ours by right and by heritage.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662.png",
+      "post_index": 48,
+      "quote_hash": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
+      "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png",
+      "post_index": 51,
+      "quote_hash": "cc31169b91e03f39caf805734be0fb1dcc08c8289016b7e3e34815530004a043",
+      "quote_text": "Modern liberty rests upon three pillars. They are: representative democracy; economic freedom; and the rule of law.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png",
+      "post_index": 54,
+      "quote_hash": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+      "quote_text": "Am I alone in suspecting that those in the West, in whose hearts lurked some sympathy with the system the other side of the Berlin Wall, have since been trying to re-write the history of those years?",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "post_index": 57,
+      "quote_hash": "6ce062f766de2e605a62853639dcef2be3e92d097b7d69533e3711975447114b",
+      "quote_text": "The battle against socialism is more than the attempt to replace economic error by economic truth. It is a battle for moral and spiritual values. It is precisely socialism which promotes universal dependency on the State and the neglect of all primary duties.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png",
+      "post_index": 60,
+      "quote_hash": "4ac9c0148408ada0192ebedefab8a0910fbce8bbbb5c6a37288dbc1d7ad410f9",
+      "quote_text": "The Britain I want is a land which cares for the weak the old and the sick but which says that the able-bodied have the duty and the right to shape their own lives.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png",
+      "post_index": 64,
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png",
+      "post_index": 64,
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417.png",
+      "post_index": 67,
+      "quote_hash": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png",
+      "post_index": 70,
+      "quote_hash": "5d362ba54e7c2a8a0e70353dfe3d434ef151b45d9b49b76d3297d6c55a1c41a1",
+      "quote_text": "You and I come by road or rail, but economists travel on infrastructure.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png",
+      "post_index": 74,
+      "quote_hash": "bab24f7b3ae332817862430c146968a8179f1d6610af50ede8b9218a6c0eb760",
+      "quote_text": "When we can't run our own financial affairs properly - we don't command much respect in the world.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png",
+      "post_index": 77,
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "quote_text": "The UN depends on consensus & that is simply not an adequate basis for action or for readiness to take combat risks. If we try to rely solely on the UN, we shall rapidly come to see it is as an illusion factory, where copious resolutions become a substitute for effective action.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png",
+      "post_index": 77,
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "quote_text": "The UN depends on consensus & that is simply not an adequate basis for action or for readiness to take combat risks. If we try to rely solely on the UN, we shall rapidly come to see it is as an illusion factory, where copious resolutions become a substitute for effective action.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f.png",
+      "post_index": 80,
+      "quote_hash": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+      "quote_text": "I've no idea why people keep attacking me. I don't deserve it at all.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png",
+      "post_index": 83,
+      "quote_hash": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "quote_text": "The only way to do the best you can is to work as hard as you can.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png",
+      "post_index": 86,
+      "quote_hash": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "quote_text": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351.png",
+      "post_index": 89,
+      "quote_hash": "54bcfa6d526fe5de3d3f6db6ee2b1707030258c07c941f3a2c1dcfb9dde87dc1",
+      "quote_text": "The power of a highly organised minority is great. But it should not be greater than the power of an elected majority. That is the basis of the democratic contract.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82.png",
+      "post_index": 92,
+      "quote_hash": "60c95d7ae755ca327f2afc73fcc86c7366f38547623d806ad69be07a590205d2",
+      "quote_text": "Socialism is the denial of choice, the denial of choice for ordinary people in their everyday lives.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "post_index": 95,
+      "quote_hash": "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
+      "quote_text": "I believe in the acceptance of personal responsibility, freedom of choice, and the British Empire, which took freedom and the rule of law to countries which would never have known it otherwise.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png",
+      "post_index": 98,
+      "quote_hash": "1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500",
+      "quote_text": "Socialism's results have ranged between the merely shabby and the truly catastrophic - poverty, strife, oppression and, on the killing fields of communism, the deaths this century of perhaps 100 million people.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "post_index": 102,
+      "quote_hash": "df1781edfd001245e669e91a3befd28630e7800981a8709c9625da712fcf0cf2",
+      "quote_text": "One only gets to the top rung of the ladder by steadily climbing up one at a time, and suddenly all sorts of powers, all sorts of abilities which you thought never belonged to you suddenly become within your own possibility and you think, Well, I'll have a go, too.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png",
+      "post_index": 105,
+      "quote_hash": "cf0f6b4c44d88fd3ebefd7ddbdbf9f01c2f895b774c43ad6c5f390db5c067e0c",
+      "quote_text": "We should be warned. A society only needs one generation to abandon the task of learning and transmitting its culture, for that culture to become an alien, lifeless, irrelevance. A powerful, radical left-wing clerisy is bent on destroying what every past generation would have understood to be the central purpose of education.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png",
+      "post_index": 108,
+      "quote_hash": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "quote_text": "Islamic extremism today, like Bolshevism in the past, is an armed doctrine. It is an aggressive ideology promoted by fanatical, well-armed devotees. And, like Communism, it requires an all-embracing long-term strategy to defeat it.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649.png",
+      "post_index": 111,
+      "quote_hash": "40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8",
+      "quote_text": "Britain has a unique and proud record in history of safeguarding and advancing the rights of small nations and oppressed peoples. It was the Royal Navy which abolished the Slave Trade - the most altruistic use of force by a great power the world has seen.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png",
+      "post_index": 114,
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "post_index": 114,
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png",
+      "post_index": 117,
+      "quote_hash": "fed6f26674cb44a80b2c25de69c3d0e560183571724d5a704ef7b664266ba667",
+      "quote_text": "You can't make people good, kind, generous, thoughtful or dutiful by compulsion. True harmony comes from the willing cooperation of free men. It is not served by an over-regulated society.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png",
+      "post_index": 120,
+      "quote_hash": "866738ba29cb509f048a2a1a8215e8f7e729c266e88d8fcaab482dd97ab8cd4a",
+      "quote_text": "There can be no liberty unless there is economic liberty.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png",
+      "post_index": 121,
+      "quote_hash": "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+      "quote_text": "Freedom of discussion is something more than just freedom of speech. Discussion requires a willingness to listen as much as a capacity to debate. Through it we both teach and learn - and the wider it goes the more likely we are to increase the stock of human understanding.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "post_index": 123,
+      "quote_hash": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "quote_text": "The primary duty of government is to maintain the absolute sovereignty of the law, always, everywhere and against any institution, however powerful.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544.png",
+      "post_index": 124,
+      "quote_hash": "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4",
+      "quote_text": "Standing in the middle of the road is very dangerous; you get knocked down by the traffic from both sides.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "post_index": 126,
+      "quote_hash": "2c199e4d003a077c147b447efa9eb68941bf1291a7f4dd3653a7562414950d9a",
+      "quote_text": "Plan your work for today and every day, then work your plan.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png",
+      "post_index": 128,
+      "quote_hash": "03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68",
+      "quote_text": "Great political economists, the greatest of them Adam Smith, have shown how a market economy, by devolving the power of consumer choice to customers, runs with the grain of democracy, which disperses the power of political choice to voters.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "post_index": 129,
+      "quote_hash": "1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9",
+      "quote_text": "Labour accuse us of being divisive. I find this hypocritical coming from the party which actually believes, and practises, the theory of class warfare, the block vote, and the closed shop, and whose road to power lies in turning one section of the people against another.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png",
+      "post_index": 131,
+      "quote_hash": "92e3b501f3e59eb4be98daa8addd6711649d56e8d31e3c7b8582a5f0f4fd740e",
+      "quote_text": "Just rewards for inventiveness, energy, foresight and skills; incentives for saving; the creation of real jobs, paid in real money, not confetti money; a nation safe from foreign attack, which stands resolutely in the world for what it knows to be right. Those are our aims.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png",
+      "post_index": 132,
+      "quote_hash": "faad97e5b07130a98c0531f43df62852be170f85927407334fa458f157868935",
+      "quote_text": "A world without nuclear weapons would be less stable and more dangerous for all of us.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "post_index": 134,
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "quote_text": "I set out to destroy socialism because it was at odds with the character of the people. We were the first country in the world to roll back the frontiers of socialism, then roll forward the frontiers of freedom. We reclaimed our heritage; we are renewing and carrying it forward.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09.png",
+      "post_index": 135,
+      "quote_hash": "9ecec6084281c202bdda93dc9dc66a98afb06069ce51f4795383021105351b60",
+      "quote_text": "The Socialist myth is that we can make Britain strong by nationalisation and government interference. The truth is that government interference and nationalisation are sapping Britain's strength.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09.png",
+      "post_index": 137,
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_text": "We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and drains away our wealth.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png",
+      "post_index": 138,
+      "quote_hash": "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
+      "quote_text": "To be successful you have to be selfish, or else you never achieve. And once you get to your highest level, then you have to be unselfish. Stay reachable. Stay in touch. Don't isolate.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "post_index": 140,
+      "quote_hash": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7.png",
+      "post_index": 141,
+      "quote_hash": "2c95b35a3faf922bc70b661477646328e4cf52ddf75943a3fb94df9bcbb4dbea",
+      "quote_text": "I came to office with one deliberate intent: to change Britain from a dependent to a self-reliant society, from a give-it-to-me to a do-it-yourself nation. A get-up-and-go, instead of a sit-back-and-wait-for-it Britain.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "post_index": 143,
+      "quote_hash": "e61f14550883eef5e138633ec95c5dcfe63a5834732fa31807ea33a7e936a2f2",
+      "quote_text": "We should learn the lesson that as long as a free political system, a free society and a free economy are maintained, the ingenuity of mankind is boundless.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "post_index": 144,
+      "quote_hash": "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01",
+      "quote_text": "The undermining of our traditional education systems, which in the New Age of political correctness seems to have gone into over-drive, is now a very grave danger. It threatens the collective memory of our society from which its habits and even its identity flow.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "post_index": 146,
+      "quote_hash": "c9040d5f09e96cfcae62fba63d73e4d255213b39864fd89b623b67c4f8dbd18b",
+      "quote_text": "Peace, freedom and justice are only to be found where people are prepared to defend them.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544.png",
+      "post_index": 147,
+      "quote_hash": "9890a7d58f441fb9e3bf4f193be0870d6d4a137d6fa074cc2a53dd2ce9a721ef",
+      "quote_text": "The Government interferes here much more than it did in the past and much more than it does in other free countries. That interference has hindered us from achieving greater prosperity.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "post_index": 149,
+      "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "quote_text": "One of the things being in politics has taught me is that men are not a reasoned or reasonable sex.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png",
+      "post_index": 150,
+      "quote_hash": "ecdc08b676d1b1ed7ee2272d9959f809684c41d4cb3b5463727b247713320be7",
+      "quote_text": "Those who don't understand the past are destined to repeat its errors. In words of Thucydides \"History repeats itself\" or Dionysius \"History is philosophy teaching by example\" or  my favourite from Edmund Burke, \"History is a pact between the dead, the living, & the yet unborn.\"",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png",
+      "post_index": 152,
+      "quote_hash": "08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa",
+      "quote_text": "Everyone had something unique to offer in life and their responsibility was to develop those gifts - and heroes come from all backgrounds.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "post_index": 153,
+      "quote_hash": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "quote_text": "There are too many people who imagine that there is something sophisticated about always believing the best of those who hate your country, and the worst of those who defend it.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png",
+      "post_index": 155,
+      "quote_hash": "80ab240be6309f87afedd11a4dfe5825371088de16d5aa5aff86326f673c73d9",
+      "quote_text": "The balance has moved too far towards collectivism.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "post_index": 156,
+      "quote_hash": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "quote_text": "Conservatives know that the British are at their best in a society where individual people - not the state - make the running and take most of the decisions. Where rewards are related to effort and skill, and where the innovators and creators can breathe deeply and feel at home.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png",
+      "post_index": 158,
+      "quote_hash": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "quote_text": "Constitutions have to be written on hearts, not just paper.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png",
+      "post_index": 159,
+      "quote_hash": "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+      "quote_text": "I do not know anyone who has got to the top without hard work. That is the recipe. It will not always get you to the top, but should get you pretty near.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "post_index": 165,
+      "quote_hash": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "post_index": 165,
+      "quote_hash": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png",
+      "post_index": 168,
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "post_index": 168,
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "post_index": 171,
+      "quote_hash": "586df70d0ca762e0c657a22adfee9caa7946da42acf90ca013bc3ddfb867b033",
+      "quote_text": "I simply do not understand how Ken Clarke could lead today's Conservative Party to anything other than disaster.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "post_index": 175,
+      "quote_hash": "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb",
+      "quote_text": "The choice facing the nation is between two totally different ways of life: no less than the chance to banish from our land the dark, divisive clouds of Marxist socialism and bring together men and women from all walks of life who share a belief in freedom.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png",
+      "post_index": 179,
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png",
+      "post_index": 179,
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "post_index": 183,
+      "quote_hash": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png",
+      "post_index": 185,
+      "quote_hash": "760a25127dfb9c39cd24af73cf86cbbb76b89d31f6ecdc1eba90b09b0923bbf2",
+      "quote_text": "The doomsters' favourite subject today is climate change. Clearly no plan to alter climate could be considered on anything but a global scale, it provides a marvellous excuse for worldwide, supra-national socialism.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "post_index": 186,
+      "quote_hash": "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560",
+      "quote_text": "Communism accounted for approaching a hundred million deaths. It enslaved the East, while its first cousin socialism impoverished much of the West. Nazism - that other brand of socialism - & its tamer forbear Fascism killed about 25 million. All have left scars on our societies.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74.png",
+      "post_index": 188,
+      "quote_hash": "90e6b073b8fdc2532e7e75c2f372dbe05d766d1aa1b9d68474aa56519f8864b0",
+      "quote_text": "Limited government doesn't mean weak government, only less government.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74.png",
+      "post_index": 189,
+      "quote_hash": "8047b34365bcd0ac1ea0af6681153acc265b24b2828ae6e2de34d1ae794a5c2a",
+      "quote_text": "Socialism's central dogma is to make the State the ultimate authority for the whole of life. It's based on coercion. It denies the dignity of people. It is a secular creed which has utterly failed.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png",
+      "post_index": 191,
+      "quote_hash": "8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16",
+      "quote_text": "Politics is the art of making the impossible happen.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "post_index": 193,
+      "quote_hash": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_text": "All collectivism is always conducive to oppression: it is only the victims who differ.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "post_index": 194,
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png",
+      "post_index": 197,
+      "quote_hash": "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+      "quote_text": "Creating the practical circumstances in which freedom can flourish requires more than the mere parroting of empty phrases like 'human rights'.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png",
+      "post_index": 198,
+      "quote_hash": "4e255992099e6fbb8794ae0e3e044a12c9f38c263b58015ef9e318a7227a5a21",
+      "quote_text": "I call the Conservative Party now to a crusade. Not only the Conservative Party. I appeal to all those men and women of goodwill who do not want a Marxist future for themselves or their children.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "post_index": 198,
+      "quote_hash": "4e255992099e6fbb8794ae0e3e044a12c9f38c263b58015ef9e318a7227a5a21",
+      "quote_text": "I call the Conservative Party now to a crusade. Not only the Conservative Party. I appeal to all those men and women of goodwill who do not want a Marxist future for themselves or their children.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png",
+      "post_index": 200,
+      "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "quote_text": "Military intervention without an attainable purpose creates as many problems as it solves.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "post_index": 201,
+      "quote_hash": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png",
+      "post_index": 201,
+      "quote_hash": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "post_index": 203,
+      "quote_hash": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "quote_text": "Where there is discord, may we bring harmony. Where there is error, may we bring truth. Where there is doubt, may we bring faith. And where there is despair, may we bring hope.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png",
+      "post_index": 205,
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png",
+      "post_index": 206,
+      "quote_hash": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "quote_text": "Political myths - especially those cherished by political commentators - die hard; and as soon as one has been exploded by events, another is promptly created to fill its place as the basis of \"expert\" analysis and prediction.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png",
+      "post_index": 207,
+      "quote_hash": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "quote_text": "The use of quotas applying to the appointment or promotion of individuals because of their collective identity or background is an unacceptable incursion on freedom, however well-intentioned the motives.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "post_index": 208,
+      "quote_hash": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "quote_text": "This Party of ours has been on the defensive for too long. The time has come to counter-attack. The intellectual counter-attack is as important as the counter-attack in Parliament and in the constituencies. If we can win the battle of ideas, then the war will already be half-won.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png",
+      "post_index": 210,
+      "quote_hash": "de2724534055f3ec826ed3f1b9f41bd05a3c555b01bac2b05ee9c7d2ed6a263d",
+      "quote_text": "The Labour Party itself may have changed many of its policies, but it hasn't changed its spots. You can tell this from the unpleasant noises it makes when anything like profits are mentioned.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png",
+      "post_index": 211,
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png",
+      "post_index": 211,
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "post_index": 213,
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "post_index": 214,
+      "quote_hash": "a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b",
+      "quote_text": "Communism has totally failed to deliver happiness or prosperity, and its failure has been at the expense of human lives and human dignity. The cost has been terrible.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png",
+      "post_index": 214,
+      "quote_hash": "a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b",
+      "quote_text": "Communism has totally failed to deliver happiness or prosperity, and its failure has been at the expense of human lives and human dignity. The cost has been terrible.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "post_index": 216,
+      "quote_hash": "3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586",
+      "quote_text": "To many of us it seems that there is precious little difference between the policies of the Communist Party and the policies of the Labour Party.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "post_index": 217,
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "quote_text": "States, societies and economies, which allow the distinctive talents of individuals to flourish, themselves also flourish. Those which dwarf, crush, distort, manipulate or ignore them cannot progress.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "post_index": 219,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "post_index": 219,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "post_index": 224,
+      "quote_hash": "59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa",
+      "quote_text": "At one end of the spectrum are terrorist gangs within our borders, and terrorist states which finance and arm them. At the other are the Hard Left operating inside our system, conspiring to use union power and the apparatus of local government to break, defy and subvert the law.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "post_index": 224,
+      "quote_hash": "59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa",
+      "quote_text": "At one end of the spectrum are terrorist gangs within our borders, and terrorist states which finance and arm them. At the other are the Hard Left operating inside our system, conspiring to use union power and the apparatus of local government to break, defy and subvert the law.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png",
+      "post_index": 227,
+      "quote_hash": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87",
+      "quote_text": "Socialism. We reject it utterly for, however well-intended, it leads in one direction only: to the erosion and finally the destruction of the democratic way of life.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "post_index": 227,
+      "quote_hash": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87",
+      "quote_text": "Socialism. We reject it utterly for, however well-intended, it leads in one direction only: to the erosion and finally the destruction of the democratic way of life.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png",
+      "post_index": 230,
+      "quote_hash": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png",
+      "post_index": 233,
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "quote_text": "When you stop a dictator there are always risks, but there are great risks in not stopping a dictator. My generation learnt that long ago.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_production_winner",
+      "image_basename": "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png",
+      "post_index": 233,
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "quote_text": "When you stop a dictator there are always risks, but there are great risks in not stopping a dictator. My generation learnt that long ago.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png",
+      "post_index": 240,
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "quote_text": "Let Labour's Orwellian nightmare of the Left be the spur for us to dedicate with a new urgency our every ounce of energy and moral strength to rebuild the fortunes of this free nation.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png",
+      "post_index": 241,
+      "quote_hash": "6ac017d0c76fbcec1a7ab2e2ab9ba7b26948530df626f42de04192b15fda4039",
+      "quote_text": "The Socialist myth is that wealth is there to be redistributed. The truth is that wealth has to be created.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png",
+      "post_index": 244,
+      "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "quote_text": "During my lifetime most of the problems the world has faced have come, in one fashion or other, from mainland Europe, and the solutions from outside it.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png",
+      "post_index": 248,
+      "quote_hash": "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283",
+      "quote_text": "When [nationalised industry] pay claims are made, they are sometimes presented as claims against Governments. But they are really claims which can only be paid for by fellow workers, housewives and consumers generally.",
+      "run_id": "run_0000"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "post_index": 3,
+      "quote_hash": "c4e1b1ec6b7929df457805fc87fa5f66b85706894c0b62ffe1fb57ba64569237",
+      "quote_text": "No drunken sailor, no shrunken Socialist fleet of drunken sailors, could have spent more money less wisely or less well [than this Labour government].",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "post_index": 6,
+      "quote_hash": "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+      "quote_text": "Terrorism is a deadly threat to our way of life, and we will not be cowed by it. We will continue to resist it with all our power and to uphold the principles of democratic government.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png",
+      "post_index": 9,
+      "quote_hash": "ef0e8fcbe96cad9cfaf5809358ba9f75fce704c3a4ffa711b360d4f1ef0aa07b",
+      "quote_text": "People increasingly yearn for the path of freedom, free enterprise & self reliance. Even in the newly liberated East, they are not seeking a third way between free enterprise and Socialism: they know that, even if Labour doesn't, it leads to the Third World.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png",
+      "post_index": 12,
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png",
+      "post_index": 15,
+      "quote_hash": "9183c5b1e07efe9c0401a28a0d0a9b7d480a6cb6e9a4e2c9e777d7f952b3418e",
+      "quote_text": "It is not the creation of wealth that is wrong, but the love of money for its own sake.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "post_index": 18,
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "post_index": 27,
+      "quote_hash": "9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223",
+      "quote_text": "Socialism whetted appetites for more, but has resulted in less being available.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png",
+      "post_index": 30,
+      "quote_hash": "866738ba29cb509f048a2a1a8215e8f7e729c266e88d8fcaab482dd97ab8cd4a",
+      "quote_text": "There can be no liberty unless there is economic liberty.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png",
+      "post_index": 33,
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png",
+      "post_index": 36,
+      "quote_hash": "1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192",
+      "quote_text": "A Labour Britain would be a neutralist Britain. It would be the greatest gain for the Soviet Union in forty years. And they would have got it without firing a shot.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png",
+      "post_index": 36,
+      "quote_hash": "1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192",
+      "quote_text": "A Labour Britain would be a neutralist Britain. It would be the greatest gain for the Soviet Union in forty years. And they would have got it without firing a shot.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png",
+      "post_index": 39,
+      "quote_hash": "b593a0ec642d5ab87e1bacd8d0f5d26f6ee48d48c41b0fd410e02c68e062c7df",
+      "quote_text": "The woman's mission is not to enhance the masculine spirit, but to express the feminine; hers is not to preserve a man-made world, but to create a human world by the infusion of the feminine element into all of its activities.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "post_index": 39,
+      "quote_hash": "b593a0ec642d5ab87e1bacd8d0f5d26f6ee48d48c41b0fd410e02c68e062c7df",
+      "quote_text": "The woman's mission is not to enhance the masculine spirit, but to express the feminine; hers is not to preserve a man-made world, but to create a human world by the infusion of the feminine element into all of its activities.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "post_index": 42,
+      "quote_hash": "e420176a6b146e2eda0f52594cc44bc7623c8c4f62a9125b1ea5d1b5e6def100",
+      "quote_text": "Britain must stop being the kind of country that drives success into exile. That's another reason for cutting taxes. High personal taxes squeeze out talent and hard work. When that happens we are all diminished. We should honour success in all fields; in science, in commerce, in the arts, in sport. We must encourage it and help people to profit from it. Why begrudge them? We can be proud of their success. It enriches the lives of all our people.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2.png",
+      "post_index": 45,
+      "quote_hash": "6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b",
+      "quote_text": "If a Tory does not believe that private property is one of the main bulwarks of individual freedom, then he had better become a socialist and have done with it.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png",
+      "post_index": 48,
+      "quote_hash": "b316430b4f3e47f2816d0d7b44c211301234c9521bfa2417864b17be11ea9b32",
+      "quote_text": "Politicians mustn't promise more than the people can produce and the people mustn't be taken in by those who do.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png",
+      "post_index": 51,
+      "quote_hash": "4229308295bc2b967b2ef17596473f6dec8d9f1ae5c12bf9a80e75a522b38ae7",
+      "quote_text": "To cure the British disease with socialism was like trying to cure leukaemia with leeches.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "post_index": 54,
+      "quote_hash": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "quote_text": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png",
+      "post_index": 57,
+      "quote_hash": "d42c41683c492620e153ba90e29fc6f99642bc181011321d18d9b6bab5024409",
+      "quote_text": "Conservatives believe that the right way to meet our housing needs is to spend money on helping more and more families to become home owners rather than to subsidise them indefinitely as council tenants.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "post_index": 60,
+      "quote_hash": "7cf7275ebbf5e64b621dfc2cc81cc891d5ae02bbcf0d567d2674baafe18bd66a",
+      "quote_text": "People from my sort of background needed Grammar schools to compete with children from privileged homes like Shirley Williams and Anthony Wedgwood Benn.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "post_index": 63,
+      "quote_hash": "d5371da309d337df802d77431c030251c5fa2c0d453c7e3cc683895f9438875c",
+      "quote_text": "Marxists are quite unable to say why a proletarian revolution, a hate-filled and violent act of expropriation, should be morally cleansing and lead to a better society.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662.png",
+      "post_index": 66,
+      "quote_hash": "e901673a2a91f9dadb8b896ef8232aa5d7e6f20c0602f12721d74810db8233f0",
+      "quote_text": "Socialism has only one remedy for anything - spend more of the people's money and raise higher taxes.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png",
+      "post_index": 69,
+      "quote_hash": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351.png",
+      "post_index": 72,
+      "quote_hash": "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+      "quote_text": "We must never give in to the oldest and least democratic trick of all - the coercion of many by the ruthless, manipulating few.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png",
+      "post_index": 75,
+      "quote_hash": "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
+      "quote_text": "The State has sucked industry dry to finance its own schemes. But only thriving and profitable industry will give us the money to make real improvements in health, education and pensions.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png",
+      "post_index": 78,
+      "quote_hash": "faad97e5b07130a98c0531f43df62852be170f85927407334fa458f157868935",
+      "quote_text": "A world without nuclear weapons would be less stable and more dangerous for all of us.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png",
+      "post_index": 81,
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png",
+      "post_index": 82,
+      "quote_hash": "f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161",
+      "quote_text": "Communism, whose denial of liberty of all kinds, personal and economic, was the utter negation of the human spirit.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png",
+      "post_index": 84,
+      "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "quote_text": "Military intervention without an attainable purpose creates as many problems as it solves.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png",
+      "post_index": 85,
+      "quote_hash": "9fb2f7bc48ebf132080deced2446f1b2903b43ff70464a4234310934cfd09329",
+      "quote_text": "The Labour Party still clings to the tenets of primeval socialism; still strives for the kind of rigid and controlled society from which even Mr Gorbachev is still struggling to escape.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_editorial_winner",
+      "image_basename": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "post_index": 91,
+      "quote_hash": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
+      "run_id": "run_0001"
+    },
+    {
+      "forced_reason": "canonical_identity_winner",
+      "image_basename": "tg_c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82.png",
+      "post_index": 95,
+      "quote_hash": "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1",
+      "quote_text": "A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A top rate of 83 per cent is not much of a revenue raiser, it is the symbol of British socialism - the symbol of envy. (1978 speech)",
+      "run_id": "run_0001"
+    }
+  ],
+  "schema_version": 1
+}

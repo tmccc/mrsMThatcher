@@ -1,0 +1,1674 @@
+{
+  "bands": {
+    "extreme": "70-100",
+    "high": "45-69",
+    "low": "0-19",
+    "moderate": "20-44"
+  },
+  "formula": {
+    "internal_inconsistency": 0.1,
+    "operational": 0.35,
+    "rationale": 0.15,
+    "score_dispersion": 0.15,
+    "taxonomy": 0.25
+  },
+  "items": [
+    {
+      "case_id": "55f5cd6d633c143f5170",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 2,
+        "rationale": 74.14,
+        "score_dispersion": 33.88,
+        "taxonomy": 26.17
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 23,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 13.5,
+          "mad": 9.0,
+          "median": 56.0
+        },
+        "directness_score": {
+          "iqr": 11.5,
+          "mad": 6.0,
+          "median": 21.0
+        },
+        "editorial_power_score": {
+          "iqr": 28.25,
+          "mad": 14.0,
+          "median": 52.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 5.5,
+          "mad": 1.0,
+          "median": 10.0
+        },
+        "overall_suitability_score": {
+          "iqr": 24.0,
+          "mad": 13.5,
+          "median": 38.5
+        },
+        "principle_alignment_score": {
+          "iqr": 22.0,
+          "mad": 10.5,
+          "median": 48.0
+        },
+        "relevance_score": {
+          "iqr": 20.5,
+          "mad": 10.0,
+          "median": 48.0
+        },
+        "specificity_score": {
+          "iqr": 10.25,
+          "mad": 3.5,
+          "median": 21.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "d95fd04248974978c79e",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 80.57,
+        "score_dispersion": 18.12,
+        "taxonomy": 35.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 8.25,
+          "mad": 4.0,
+          "median": 17.5
+        },
+        "directness_score": {
+          "iqr": 1.0,
+          "mad": 1.0,
+          "median": 10.0
+        },
+        "editorial_power_score": {
+          "iqr": 37.75,
+          "mad": 20.0,
+          "median": 40.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 6.25,
+          "mad": 2.5,
+          "median": 12.5
+        },
+        "overall_suitability_score": {
+          "iqr": 5.0,
+          "mad": 4.0,
+          "median": 21.0
+        },
+        "principle_alignment_score": {
+          "iqr": 2.75,
+          "mad": 1.0,
+          "median": 39.0
+        },
+        "relevance_score": {
+          "iqr": 9.25,
+          "mad": 5.0,
+          "median": 32.5
+        },
+        "specificity_score": {
+          "iqr": 2.25,
+          "mad": 2.0,
+          "median": 10.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 36.0,
+          "field": "editorial_power_score",
+          "provider": "openai"
+        }
+      ]
+    },
+    {
+      "case_id": "45aff3c1240a3010165b",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 73.9,
+        "score_dispersion": 3.62,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "low",
+      "disagreement_score": 12,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 0.75,
+          "mad": 0.0,
+          "median": 0.0
+        },
+        "directness_score": {
+          "iqr": 0.5,
+          "mad": 0.0,
+          "median": 0.0
+        },
+        "editorial_power_score": {
+          "iqr": 4.75,
+          "mad": 2.5,
+          "median": 6.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 0.5,
+          "mad": 0.0,
+          "median": 0.0
+        },
+        "overall_suitability_score": {
+          "iqr": 1.75,
+          "mad": 1.0,
+          "median": 2.5
+        },
+        "principle_alignment_score": {
+          "iqr": 3.5,
+          "mad": 1.5,
+          "median": 3.5
+        },
+        "relevance_score": {
+          "iqr": 0.75,
+          "mad": 0.0,
+          "median": 3.0
+        },
+        "specificity_score": {
+          "iqr": 2.0,
+          "mad": 1.0,
+          "median": 1.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "db9adeebf2c41956d290",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 2,
+        "rationale": 84.81,
+        "score_dispersion": 39.81,
+        "taxonomy": 60.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 34,
+      "explanation": [
+        "All providers agree operationally.",
+        "Primary editorial interpretations are substantially incompatible.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 10.5,
+          "mad": 7.0,
+          "median": 12.0
+        },
+        "directness_score": {
+          "iqr": 7.25,
+          "mad": 4.0,
+          "median": 6.5
+        },
+        "editorial_power_score": {
+          "iqr": 46.0,
+          "mad": 21.5,
+          "median": 33.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.5,
+          "mad": 5.0,
+          "median": 6.5
+        },
+        "overall_suitability_score": {
+          "iqr": 19.25,
+          "mad": 12.0,
+          "median": 17.0
+        },
+        "principle_alignment_score": {
+          "iqr": 24.5,
+          "mad": 15.5,
+          "median": 23.0
+        },
+        "relevance_score": {
+          "iqr": 26.25,
+          "mad": 14.0,
+          "median": 18.0
+        },
+        "specificity_score": {
+          "iqr": 14.0,
+          "mad": 6.0,
+          "median": 8.5
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 33.5,
+          "field": "editorial_power_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    {
+      "case_id": "bdd510a8157a6fb7ec70",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 81.52,
+        "score_dispersion": 22.12,
+        "taxonomy": 30.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "explanation": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 16.0,
+          "mad": 5.0,
+          "median": 16.0
+        },
+        "directness_score": {
+          "iqr": 5.25,
+          "mad": 2.5,
+          "median": 17.5
+        },
+        "editorial_power_score": {
+          "iqr": 17.25,
+          "mad": 6.5,
+          "median": 61.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.0,
+          "mad": 4.0,
+          "median": 14.0
+        },
+        "overall_suitability_score": {
+          "iqr": 15.5,
+          "mad": 4.0,
+          "median": 28.5
+        },
+        "principle_alignment_score": {
+          "iqr": 7.5,
+          "mad": 2.5,
+          "median": 32.5
+        },
+        "relevance_score": {
+          "iqr": 11.5,
+          "mad": 5.0,
+          "median": 41.5
+        },
+        "specificity_score": {
+          "iqr": 4.5,
+          "mad": 1.5,
+          "median": 25.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 34.0,
+          "field": "consequence_alignment_score",
+          "provider": "anthropic"
+        },
+        {
+          "distance_from_median": 46.5,
+          "field": "overall_suitability_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    {
+      "case_id": "cd34f0ecdf6711ec4b2d",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 5,
+        "rationale": 83.42,
+        "score_dispersion": 23.62,
+        "taxonomy": 52.83
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 29,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 3.5,
+          "mad": 1.5,
+          "median": 13.5
+        },
+        "directness_score": {
+          "iqr": 4.5,
+          "mad": 2.0,
+          "median": 11.0
+        },
+        "editorial_power_score": {
+          "iqr": 17.5,
+          "mad": 7.5,
+          "median": 26.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.75,
+          "mad": 6.5,
+          "median": 14.0
+        },
+        "overall_suitability_score": {
+          "iqr": 13.75,
+          "mad": 7.5,
+          "median": 19.5
+        },
+        "principle_alignment_score": {
+          "iqr": 19.75,
+          "mad": 12.0,
+          "median": 27.5
+        },
+        "relevance_score": {
+          "iqr": 12.75,
+          "mad": 9.0,
+          "median": 25.0
+        },
+        "specificity_score": {
+          "iqr": 11.0,
+          "mad": 6.5,
+          "median": 16.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 35.0,
+          "field": "editorial_power_score",
+          "provider": "openai"
+        }
+      ]
+    },
+    {
+      "case_id": "15d14fb68d063c94ab76",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 4,
+        "rationale": 78.24,
+        "score_dispersion": 19.62,
+        "taxonomy": 48.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 27,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 9.5,
+          "mad": 5.0,
+          "median": 7.0
+        },
+        "directness_score": {
+          "iqr": 3.75,
+          "mad": 3.5,
+          "median": 8.0
+        },
+        "editorial_power_score": {
+          "iqr": 19.75,
+          "mad": 7.5,
+          "median": 41.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.0,
+          "mad": 2.5,
+          "median": 4.0
+        },
+        "overall_suitability_score": {
+          "iqr": 6.5,
+          "mad": 6.0,
+          "median": 16.5
+        },
+        "principle_alignment_score": {
+          "iqr": 18.75,
+          "mad": 13.5,
+          "median": 23.0
+        },
+        "relevance_score": {
+          "iqr": 9.75,
+          "mad": 7.5,
+          "median": 19.0
+        },
+        "specificity_score": {
+          "iqr": 6.5,
+          "mad": 5.0,
+          "median": 11.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 31.5,
+          "field": "editorial_power_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    {
+      "case_id": "9729da4b58d3d56e5c05",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 3,
+        "rationale": 77.07,
+        "score_dispersion": 17.38,
+        "taxonomy": 49.67
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 27,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 5.25,
+          "mad": 2.5,
+          "median": 3.5
+        },
+        "directness_score": {
+          "iqr": 4.0,
+          "mad": 2.5,
+          "median": 9.0
+        },
+        "editorial_power_score": {
+          "iqr": 17.5,
+          "mad": 9.0,
+          "median": 34.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 5.5,
+          "mad": 2.0,
+          "median": 2.0
+        },
+        "overall_suitability_score": {
+          "iqr": 8.0,
+          "mad": 5.0,
+          "median": 22.0
+        },
+        "principle_alignment_score": {
+          "iqr": 12.75,
+          "mad": 3.5,
+          "median": 18.5
+        },
+        "relevance_score": {
+          "iqr": 13.5,
+          "mad": 8.0,
+          "median": 24.0
+        },
+        "specificity_score": {
+          "iqr": 3.0,
+          "mad": 1.0,
+          "median": 10.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 32.0,
+          "field": "editorial_power_score",
+          "provider": "openai"
+        }
+      ]
+    },
+    {
+      "case_id": "0117c8919c5fdb98d8ff",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 1,
+        "rationale": 77.36,
+        "score_dispersion": 21.06,
+        "taxonomy": 70.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "explanation": [
+        "All providers agree operationally.",
+        "Primary editorial interpretations are substantially incompatible.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 9.25,
+          "mad": 3.5,
+          "median": 12.5
+        },
+        "directness_score": {
+          "iqr": 3.25,
+          "mad": 2.0,
+          "median": 9.0
+        },
+        "editorial_power_score": {
+          "iqr": 32.5,
+          "mad": 18.0,
+          "median": 36.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.0,
+          "mad": 3.0,
+          "median": 10.0
+        },
+        "overall_suitability_score": {
+          "iqr": 7.25,
+          "mad": 2.5,
+          "median": 13.5
+        },
+        "principle_alignment_score": {
+          "iqr": 10.0,
+          "mad": 2.5,
+          "median": 17.5
+        },
+        "relevance_score": {
+          "iqr": 9.0,
+          "mad": 6.0,
+          "median": 19.0
+        },
+        "specificity_score": {
+          "iqr": 9.0,
+          "mad": 3.5,
+          "median": 8.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "ad5a52dcf9f0f123e8ee",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 5,
+        "rationale": 80.82,
+        "score_dispersion": 11.56,
+        "taxonomy": 41.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 3.5,
+          "mad": 1.0,
+          "median": 9.0
+        },
+        "directness_score": {
+          "iqr": 2.75,
+          "mad": 1.0,
+          "median": 9.0
+        },
+        "editorial_power_score": {
+          "iqr": 12.5,
+          "mad": 6.0,
+          "median": 25.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.0,
+          "mad": 2.5,
+          "median": 4.0
+        },
+        "overall_suitability_score": {
+          "iqr": 3.5,
+          "mad": 1.0,
+          "median": 21.0
+        },
+        "principle_alignment_score": {
+          "iqr": 6.25,
+          "mad": 2.5,
+          "median": 17.5
+        },
+        "relevance_score": {
+          "iqr": 10.25,
+          "mad": 5.5,
+          "median": 27.0
+        },
+        "specificity_score": {
+          "iqr": 3.5,
+          "mad": 1.5,
+          "median": 13.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "a53c2ebadd2dde95cd5f",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 78.29,
+        "score_dispersion": 13.5,
+        "taxonomy": 35.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 23,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 12.5,
+          "mad": 6.0,
+          "median": 13.0
+        },
+        "directness_score": {
+          "iqr": 2.0,
+          "mad": 1.0,
+          "median": 11.0
+        },
+        "editorial_power_score": {
+          "iqr": 8.5,
+          "mad": 1.0,
+          "median": 19.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 3.75,
+          "mad": 2.5,
+          "median": 4.5
+        },
+        "overall_suitability_score": {
+          "iqr": 7.0,
+          "mad": 3.0,
+          "median": 17.5
+        },
+        "principle_alignment_score": {
+          "iqr": 10.25,
+          "mad": 6.0,
+          "median": 34.0
+        },
+        "relevance_score": {
+          "iqr": 4.75,
+          "mad": 3.0,
+          "median": 28.0
+        },
+        "specificity_score": {
+          "iqr": 5.25,
+          "mad": 3.5,
+          "median": 16.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "b467ac8ccfc2f225aad3",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 84.35,
+        "score_dispersion": 14.94,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 24,
+      "explanation": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 5.75,
+          "mad": 1.5,
+          "median": 93.0
+        },
+        "directness_score": {
+          "iqr": 7.0,
+          "mad": 6.0,
+          "median": 68.5
+        },
+        "editorial_power_score": {
+          "iqr": 9.25,
+          "mad": 3.0,
+          "median": 86.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 2.0,
+          "mad": 0.5,
+          "median": 45.5
+        },
+        "overall_suitability_score": {
+          "iqr": 8.0,
+          "mad": 4.0,
+          "median": 81.0
+        },
+        "principle_alignment_score": {
+          "iqr": 6.25,
+          "mad": 3.5,
+          "median": 78.0
+        },
+        "relevance_score": {
+          "iqr": 6.0,
+          "mad": 2.5,
+          "median": 83.5
+        },
+        "specificity_score": {
+          "iqr": 15.5,
+          "mad": 5.0,
+          "median": 79.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "e64eaa98b9e825be7e66",
+      "components": {
+        "internal_inconsistency": 25,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 5,
+        "rationale": 80.39,
+        "score_dispersion": 25.75,
+        "taxonomy": 12.83
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 30,
+      "explanation": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "gemini:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 16.75,
+          "mad": 11.0,
+          "median": 51.5
+        },
+        "directness_score": {
+          "iqr": 11.75,
+          "mad": 3.5,
+          "median": 32.5
+        },
+        "editorial_power_score": {
+          "iqr": 14.0,
+          "mad": 5.0,
+          "median": 76.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 14.5,
+          "mad": 9.0,
+          "median": 35.0
+        },
+        "overall_suitability_score": {
+          "iqr": 9.75,
+          "mad": 3.5,
+          "median": 50.5
+        },
+        "principle_alignment_score": {
+          "iqr": 20.5,
+          "mad": 10.5,
+          "median": 69.0
+        },
+        "relevance_score": {
+          "iqr": 4.25,
+          "mad": 2.0,
+          "median": 62.0
+        },
+        "specificity_score": {
+          "iqr": 11.5,
+          "mad": 8.5,
+          "median": 41.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "6eb60852343c65542ab6",
+      "components": {
+        "internal_inconsistency": 25,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 71.68,
+        "score_dispersion": 26.0,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "low",
+      "disagreement_score": 17,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "gemini:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 13.75,
+          "mad": 3.5,
+          "median": 42.0
+        },
+        "directness_score": {
+          "iqr": 8.0,
+          "mad": 5.0,
+          "median": 27.5
+        },
+        "editorial_power_score": {
+          "iqr": 19.5,
+          "mad": 11.5,
+          "median": 62.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 9.25,
+          "mad": 4.5,
+          "median": 27.5
+        },
+        "overall_suitability_score": {
+          "iqr": 17.0,
+          "mad": 8.0,
+          "median": 42.5
+        },
+        "principle_alignment_score": {
+          "iqr": 8.0,
+          "mad": 6.0,
+          "median": 61.0
+        },
+        "relevance_score": {
+          "iqr": 9.25,
+          "mad": 4.0,
+          "median": 56.0
+        },
+        "specificity_score": {
+          "iqr": 19.25,
+          "mad": 10.0,
+          "median": 31.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 33.0,
+          "field": "consequence_alignment_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    {
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "components": {
+        "internal_inconsistency": 75,
+        "operational": 55,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 76.06,
+        "score_dispersion": 19.75,
+        "taxonomy": 14.0
+      },
+      "disagreement_band": "high",
+      "disagreement_score": 45,
+      "explanation": [
+        "Operational votes are split {'unsure': 2, 'replace': 1, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap.",
+        "3 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "grok:mechanism_not_classified",
+        "openai:consequence_not_classified",
+        "gemini:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 13.75,
+          "mad": 5.0,
+          "median": 60.0
+        },
+        "directness_score": {
+          "iqr": 9.0,
+          "mad": 7.0,
+          "median": 47.0
+        },
+        "editorial_power_score": {
+          "iqr": 11.75,
+          "mad": 3.5,
+          "median": 80.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.75,
+          "mad": 6.5,
+          "median": 54.0
+        },
+        "overall_suitability_score": {
+          "iqr": 10.25,
+          "mad": 3.0,
+          "median": 65.5
+        },
+        "principle_alignment_score": {
+          "iqr": 5.25,
+          "mad": 1.5,
+          "median": 83.0
+        },
+        "relevance_score": {
+          "iqr": 5.75,
+          "mad": 2.0,
+          "median": 73.5
+        },
+        "specificity_score": {
+          "iqr": 11.5,
+          "mad": 7.5,
+          "median": 38.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "588a0074decf861a546b",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 76.85,
+        "score_dispersion": 24.12,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "low",
+      "disagreement_score": 15,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 18.0,
+          "mad": 9.5,
+          "median": 38.0
+        },
+        "directness_score": {
+          "iqr": 7.75,
+          "mad": 2.5,
+          "median": 19.0
+        },
+        "editorial_power_score": {
+          "iqr": 15.0,
+          "mad": 7.5,
+          "median": 57.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 9.5,
+          "mad": 5.0,
+          "median": 17.0
+        },
+        "overall_suitability_score": {
+          "iqr": 17.25,
+          "mad": 8.0,
+          "median": 37.0
+        },
+        "principle_alignment_score": {
+          "iqr": 9.25,
+          "mad": 3.5,
+          "median": 62.5
+        },
+        "relevance_score": {
+          "iqr": 10.75,
+          "mad": 4.0,
+          "median": 55.0
+        },
+        "specificity_score": {
+          "iqr": 9.0,
+          "mad": 5.0,
+          "median": 23.5
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 32.5,
+          "field": "editorial_power_score",
+          "provider": "grok"
+        }
+      ]
+    },
+    {
+      "case_id": "e233a9d10b3eea4cbd37",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 78.44,
+        "score_dispersion": 12.31,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "low",
+      "disagreement_score": 14,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 7.0,
+          "mad": 1.0,
+          "median": 9.0
+        },
+        "directness_score": {
+          "iqr": 1.25,
+          "mad": 1.0,
+          "median": 12.0
+        },
+        "editorial_power_score": {
+          "iqr": 12.0,
+          "mad": 9.0,
+          "median": 42.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.5,
+          "mad": 2.5,
+          "median": 9.5
+        },
+        "overall_suitability_score": {
+          "iqr": 2.0,
+          "mad": 1.0,
+          "median": 22.0
+        },
+        "principle_alignment_score": {
+          "iqr": 7.5,
+          "mad": 2.5,
+          "median": 37.5
+        },
+        "relevance_score": {
+          "iqr": 9.0,
+          "mad": 5.0,
+          "median": 34.0
+        },
+        "specificity_score": {
+          "iqr": 6.0,
+          "mad": 4.0,
+          "median": 19.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "34804ca152e0e279c7ff",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 84.52,
+        "score_dispersion": 22.69,
+        "taxonomy": 0.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 25,
+      "explanation": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 8.0,
+          "mad": 4.0,
+          "median": 84.0
+        },
+        "directness_score": {
+          "iqr": 21.75,
+          "mad": 11.0,
+          "median": 45.0
+        },
+        "editorial_power_score": {
+          "iqr": 7.0,
+          "mad": 1.5,
+          "median": 85.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.0,
+          "mad": 6.5,
+          "median": 36.5
+        },
+        "overall_suitability_score": {
+          "iqr": 11.75,
+          "mad": 6.0,
+          "median": 70.0
+        },
+        "principle_alignment_score": {
+          "iqr": 11.25,
+          "mad": 6.0,
+          "median": 75.5
+        },
+        "relevance_score": {
+          "iqr": 10.25,
+          "mad": 6.5,
+          "median": 75.0
+        },
+        "specificity_score": {
+          "iqr": 9.75,
+          "mad": 7.5,
+          "median": 56.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "e05e08ebeb6230dec78c",
+      "components": {
+        "internal_inconsistency": 25,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 4,
+        "rationale": 67.62,
+        "score_dispersion": 25.12,
+        "taxonomy": 34.67
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 25,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "openai:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 18.0,
+          "mad": 11.0,
+          "median": 75.0
+        },
+        "directness_score": {
+          "iqr": 18.75,
+          "mad": 10.0,
+          "median": 72.5
+        },
+        "editorial_power_score": {
+          "iqr": 8.5,
+          "mad": 4.0,
+          "median": 86.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 11.25,
+          "mad": 6.0,
+          "median": 76.0
+        },
+        "overall_suitability_score": {
+          "iqr": 15.0,
+          "mad": 8.0,
+          "median": 79.0
+        },
+        "principle_alignment_score": {
+          "iqr": 7.0,
+          "mad": 4.0,
+          "median": 82.5
+        },
+        "relevance_score": {
+          "iqr": 12.25,
+          "mad": 6.0,
+          "median": 84.0
+        },
+        "specificity_score": {
+          "iqr": 9.75,
+          "mad": 2.5,
+          "median": 71.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "70f14e2e72a292a3ae05",
+      "components": {
+        "internal_inconsistency": 50,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 76.59,
+        "score_dispersion": 27.62,
+        "taxonomy": 26.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 36,
+      "explanation": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "2 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "gemini:mechanism_not_classified",
+        "gemini:consequence_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 23.5,
+          "mad": 9.5,
+          "median": 42.5
+        },
+        "directness_score": {
+          "iqr": 10.5,
+          "mad": 7.5,
+          "median": 67.5
+        },
+        "editorial_power_score": {
+          "iqr": 12.0,
+          "mad": 6.0,
+          "median": 76.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 13.75,
+          "mad": 9.5,
+          "median": 78.5
+        },
+        "overall_suitability_score": {
+          "iqr": 13.75,
+          "mad": 6.0,
+          "median": 80.0
+        },
+        "principle_alignment_score": {
+          "iqr": 12.25,
+          "mad": 5.5,
+          "median": 85.0
+        },
+        "relevance_score": {
+          "iqr": 11.0,
+          "mad": 6.5,
+          "median": 81.5
+        },
+        "specificity_score": {
+          "iqr": 13.75,
+          "mad": 5.0,
+          "median": 65.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 37.5,
+          "field": "consequence_alignment_score",
+          "provider": "gemini"
+        }
+      ]
+    },
+    {
+      "case_id": "b98adf9e78161b670ad5",
+      "components": {
+        "internal_inconsistency": 50,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 73.19,
+        "score_dispersion": 28.0,
+        "taxonomy": 21.5
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 34,
+      "explanation": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "2 provider-internal consistency flag(s)."
+      ],
+      "internal_inconsistencies": [
+        "grok:mechanism_not_classified",
+        "openai:mechanism_not_classified"
+      ],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 9.5,
+          "mad": 4.0,
+          "median": 85.0
+        },
+        "directness_score": {
+          "iqr": 22.25,
+          "mad": 13.0,
+          "median": 57.0
+        },
+        "editorial_power_score": {
+          "iqr": 17.75,
+          "mad": 11.0,
+          "median": 66.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.5,
+          "mad": 2.0,
+          "median": 66.5
+        },
+        "overall_suitability_score": {
+          "iqr": 16.25,
+          "mad": 8.5,
+          "median": 57.0
+        },
+        "principle_alignment_score": {
+          "iqr": 10.25,
+          "mad": 8.5,
+          "median": 76.0
+        },
+        "relevance_score": {
+          "iqr": 13.25,
+          "mad": 6.5,
+          "median": 77.0
+        },
+        "specificity_score": {
+          "iqr": 18.25,
+          "mad": 9.0,
+          "median": 62.5
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "bb9f364836998e185eec",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 25,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 82.58,
+        "score_dispersion": 23.94,
+        "taxonomy": 27.5
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 32,
+      "explanation": [
+        "Operational votes are split {'replace': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 19.75,
+          "mad": 11.0,
+          "median": 26.5
+        },
+        "directness_score": {
+          "iqr": 15.0,
+          "mad": 6.0,
+          "median": 35.0
+        },
+        "editorial_power_score": {
+          "iqr": 13.5,
+          "mad": 7.5,
+          "median": 52.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 12.75,
+          "mad": 5.0,
+          "median": 32.5
+        },
+        "overall_suitability_score": {
+          "iqr": 13.5,
+          "mad": 8.5,
+          "median": 50.0
+        },
+        "principle_alignment_score": {
+          "iqr": 8.0,
+          "mad": 5.0,
+          "median": 63.5
+        },
+        "relevance_score": {
+          "iqr": 8.25,
+          "mad": 6.0,
+          "median": 59.0
+        },
+        "specificity_score": {
+          "iqr": 5.0,
+          "mad": 1.0,
+          "median": 40.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "68c044ce4d015237c2fe",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 4,
+        "rationale": 75.34,
+        "score_dispersion": 34.44,
+        "taxonomy": 36.17
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 26,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 15.25,
+          "mad": 7.5,
+          "median": 24.0
+        },
+        "directness_score": {
+          "iqr": 21.0,
+          "mad": 11.0,
+          "median": 30.0
+        },
+        "editorial_power_score": {
+          "iqr": 20.75,
+          "mad": 12.0,
+          "median": 43.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 29.5,
+          "mad": 15.0,
+          "median": 37.5
+        },
+        "overall_suitability_score": {
+          "iqr": 15.25,
+          "mad": 7.0,
+          "median": 38.0
+        },
+        "principle_alignment_score": {
+          "iqr": 8.5,
+          "mad": 1.5,
+          "median": 46.5
+        },
+        "relevance_score": {
+          "iqr": 18.75,
+          "mad": 10.0,
+          "median": 50.0
+        },
+        "specificity_score": {
+          "iqr": 8.75,
+          "mad": 4.5,
+          "median": 26.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "f0ededbfbe6886c49db8",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 82.26,
+        "score_dispersion": 16.38,
+        "taxonomy": 30.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 22,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 13.5,
+          "mad": 5.0,
+          "median": 5.0
+        },
+        "directness_score": {
+          "iqr": 3.25,
+          "mad": 0.0,
+          "median": 5.0
+        },
+        "editorial_power_score": {
+          "iqr": 9.0,
+          "mad": 2.5,
+          "median": 12.5
+        },
+        "mechanism_alignment_score": {
+          "iqr": 5.75,
+          "mad": 2.5,
+          "median": 2.5
+        },
+        "overall_suitability_score": {
+          "iqr": 6.25,
+          "mad": 2.0,
+          "median": 11.0
+        },
+        "principle_alignment_score": {
+          "iqr": 8.5,
+          "mad": 2.5,
+          "median": 13.5
+        },
+        "relevance_score": {
+          "iqr": 9.5,
+          "mad": 6.0,
+          "median": 21.0
+        },
+        "specificity_score": {
+          "iqr": 9.75,
+          "mad": 2.5,
+          "median": 9.0
+        }
+      },
+      "score_outliers": []
+    },
+    {
+      "case_id": "b7cd43663a96e63b5b69",
+      "components": {
+        "internal_inconsistency": 0,
+        "operational": 0,
+        "primary_secondary_overlap_pairs": 6,
+        "rationale": 78.63,
+        "score_dispersion": 45.19,
+        "taxonomy": 30.0
+      },
+      "disagreement_band": "moderate",
+      "disagreement_score": 26,
+      "explanation": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "internal_inconsistencies": [],
+      "score_fields": {
+        "consequence_alignment_score": {
+          "iqr": 20.25,
+          "mad": 7.5,
+          "median": 30.0
+        },
+        "directness_score": {
+          "iqr": 20.25,
+          "mad": 11.0,
+          "median": 21.0
+        },
+        "editorial_power_score": {
+          "iqr": 44.0,
+          "mad": 21.5,
+          "median": 55.0
+        },
+        "mechanism_alignment_score": {
+          "iqr": 4.25,
+          "mad": 1.0,
+          "median": 20.0
+        },
+        "overall_suitability_score": {
+          "iqr": 25.75,
+          "mad": 14.0,
+          "median": 30.0
+        },
+        "principle_alignment_score": {
+          "iqr": 17.5,
+          "mad": 9.0,
+          "median": 26.0
+        },
+        "relevance_score": {
+          "iqr": 36.25,
+          "mad": 19.5,
+          "median": 44.0
+        },
+        "specificity_score": {
+          "iqr": 12.5,
+          "mad": 7.5,
+          "median": 35.0
+        }
+      },
+      "score_outliers": [
+        {
+          "distance_from_median": 41.0,
+          "field": "consequence_alignment_score",
+          "provider": "openai"
+        },
+        {
+          "distance_from_median": 32.0,
+          "field": "principle_alignment_score",
+          "provider": "openai"
+        },
+        {
+          "distance_from_median": 33.0,
+          "field": "editorial_power_score",
+          "provider": "grok"
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

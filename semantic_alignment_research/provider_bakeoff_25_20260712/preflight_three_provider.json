@@ -1,0 +1,45 @@
+{
+  "combined_conservative_maximum_cost_usd": 2.559,
+  "combined_expected_cost_usd": 1.6665000000000003,
+  "combined_hard_ceiling_usd": 3.0,
+  "prompt_version": "provider-neutral-picture-editor-v1",
+  "providers": {
+    "anthropic": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 0.7557,
+      "estimated_input_tokens": 51900,
+      "estimated_output_tokens": 22500,
+      "expected_cost_usd": 0.4932,
+      "hard_ceiling_usd": 1.5,
+      "maximum_output_tokens": 40000,
+      "model": "claude-sonnet-4-6",
+      "reasoning_effort": "low",
+      "tools_enabled": false
+    },
+    "grok": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 0.3438,
+      "estimated_input_tokens": 51900,
+      "estimated_output_tokens": 22500,
+      "expected_cost_usd": 0.2388,
+      "hard_ceiling_usd": 0.75,
+      "maximum_output_tokens": 40000,
+      "model": "grok-4.5",
+      "reasoning_effort": "low",
+      "tools_enabled": false
+    },
+    "openai": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 1.4595,
+      "estimated_input_tokens": 51900,
+      "estimated_output_tokens": 22500,
+      "expected_cost_usd": 0.9345000000000001,
+      "hard_ceiling_usd": 1.75,
+      "maximum_output_tokens": 40000,
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "low",
+      "tools_enabled": false
+    }
+  },
+  "schema_version": 1
+}

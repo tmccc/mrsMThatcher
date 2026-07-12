@@ -1,0 +1,26 @@
+{
+  "cases": 25,
+  "providers": {
+    "anthropic": {
+      "available": 25,
+      "decision_same": 25,
+      "primary_same": 22
+    },
+    "gemini": {
+      "available": 25,
+      "decision_same": 22,
+      "primary_same": 18
+    },
+    "grok": {
+      "available": 25,
+      "decision_same": 24,
+      "primary_same": 19
+    },
+    "openai": {
+      "available": 25,
+      "decision_same": 20,
+      "primary_same": 19
+    }
+  },
+  "schema_version": 1
+}

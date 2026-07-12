@@ -1,0 +1,12 @@
+{
+  "case_id": "378fbf96d18c2e10f5a3",
+  "ceiling_usd": 0.1,
+  "input_hash": "6cd96fc818a192dab6f037030eeada142be95c50035803cfa4e696f53a34044b",
+  "maximum_attempts": 1,
+  "maximum_cost_usd": 0.023672,
+  "model": "gemini-3.1-pro-preview",
+  "parent_recovery": "provider_bakeoff_250_20260712_v1_vertex_recovery",
+  "record_kind": "operator_authorized_vertex_final_case_retry",
+  "schema_version": 1,
+  "status": "prepared"
+}

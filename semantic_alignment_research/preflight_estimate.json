@@ -1,0 +1,54 @@
+{
+  "cumulative_estimated_cost_usd": 5.7489,
+  "hard_total_ceiling_usd": 12.0,
+  "model": "grok-4.5",
+  "pricing_source": "authenticated /v1/models plus xAI cost-tracking documentation",
+  "stages": [
+    {
+      "estimated_input_tokens": 568800,
+      "estimated_output_tokens": 410800,
+      "estimated_stage_cost_usd": 3.6024,
+      "hard_ceiling_usd": 6.0,
+      "image_input_token_allowance": 0,
+      "input_usd_per_million": 2.0,
+      "max_completion_tokens_per_call": 1000,
+      "model": "grok-4.5",
+      "output_usd_per_million": 6.0,
+      "reasoning_output_allowance_per_call": 250,
+      "remaining_calls": 632,
+      "retry_allowance_calls": 0,
+      "stage": "quote"
+    },
+    {
+      "estimated_input_tokens": 31600,
+      "estimated_output_tokens": 59250,
+      "estimated_stage_cost_usd": 1.0665,
+      "hard_ceiling_usd": 3.0,
+      "image_input_token_allowance": 323900,
+      "input_usd_per_million": 2.0,
+      "max_completion_tokens_per_call": 1000,
+      "model": "grok-4.5",
+      "output_usd_per_million": 6.0,
+      "reasoning_output_allowance_per_call": 250,
+      "remaining_calls": 79,
+      "retry_allowance_calls": 0,
+      "stage": "image"
+    },
+    {
+      "estimated_input_tokens": 225000,
+      "estimated_output_tokens": 105000,
+      "estimated_stage_cost_usd": 1.08,
+      "hard_ceiling_usd": 3.0,
+      "image_input_token_allowance": 0,
+      "input_usd_per_million": 2.0,
+      "max_completion_tokens_per_call": 1000,
+      "model": "grok-4.5",
+      "output_usd_per_million": 6.0,
+      "reasoning_output_allowance_per_call": 300,
+      "remaining_calls": 150,
+      "retry_allowance_calls": 0,
+      "stage": "critic"
+    }
+  ],
+  "usd_ticks_per_dollar": 10000000000
+}

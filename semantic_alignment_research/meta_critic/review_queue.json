@@ -1,0 +1,649 @@
+{
+  "items": [
+    {
+      "automatic": true,
+      "case_id": "cd34f0ecdf6711ec4b2d",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 29,
+      "estimated_review_value": 5,
+      "priority": "urgent",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "urgent",
+      "review_reasons": [
+        "complete_taxonomy_disagreement",
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "e05e08ebeb6230dec78c",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 25,
+      "estimated_review_value": 5,
+      "priority": "urgent",
+      "provider_decisions": {
+        "anthropic": "keep",
+        "gemini": "keep",
+        "grok": "keep",
+        "openai": "keep"
+      },
+      "recommended_action": "keep",
+      "review_priority": "urgent",
+      "review_reasons": [
+        "complete_taxonomy_disagreement",
+        "sharp_rationale_conflict",
+        "unrecognised_consequence:openai"
+      ]
+    },
+    {
+      "automatic": false,
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "confidence": "low",
+      "disagreement_band": "high",
+      "disagreement_reasons": [
+        "Operational votes are split {'unsure': 2, 'replace': 1, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap.",
+        "3 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 45,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "keep",
+        "grok": "unsure",
+        "openai": "unsure"
+      },
+      "recommended_action": "unsure",
+      "review_priority": "high",
+      "review_reasons": [
+        "high_internal_inconsistency",
+        "unrecognised_consequence:gemini",
+        "unrecognised_consequence:openai"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "70f14e2e72a292a3ae05",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "2 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 36,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "unsure",
+        "gemini": "keep",
+        "grok": "keep",
+        "openai": "keep"
+      },
+      "recommended_action": "keep",
+      "review_priority": "high",
+      "review_reasons": [
+        "high_internal_inconsistency",
+        "unrecognised_consequence:gemini"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "b98adf9e78161b670ad5",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "2 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 34,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "keep",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "high_internal_inconsistency",
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "0117c8919c5fdb98d8ff",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Primary editorial interpretations are substantially incompatible.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 32,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "bb9f364836998e185eec",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'replace': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 32,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "unsure",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "e64eaa98b9e825be7e66",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 30,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "keep",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "unrecognised_consequence:gemini"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "9729da4b58d3d56e5c05",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 27,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "68c044ce4d015237c2fe",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 26,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": false,
+      "case_id": "b7cd43663a96e63b5b69",
+      "confidence": "low",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 26,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "unsure",
+      "review_priority": "high",
+      "review_reasons": [
+        "wide_score_spread"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "ad5a52dcf9f0f123e8ee",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 24,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "d95fd04248974978c79e",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 24,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "55f5cd6d633c143f5170",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 23,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "free_trade_case",
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "a53c2ebadd2dde95cd5f",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 23,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "sharp_rationale_conflict"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "6eb60852343c65542ab6",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap.",
+        "1 provider-internal consistency flag(s)."
+      ],
+      "disagreement_score": 17,
+      "estimated_review_value": 4,
+      "priority": "high",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "high",
+      "review_reasons": [
+        "unrecognised_consequence:gemini"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "bdd510a8157a6fb7ec70",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'replace': 3, 'keep': 1}.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 32,
+      "estimated_review_value": 2,
+      "priority": "low",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "keep",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "low",
+      "review_reasons": [
+        "score_outlier:gemini"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "34804ca152e0e279c7ff",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 25,
+      "estimated_review_value": 2,
+      "priority": "low",
+      "provider_decisions": {
+        "anthropic": "unsure",
+        "gemini": "keep",
+        "grok": "keep",
+        "openai": "keep"
+      },
+      "recommended_action": "keep",
+      "review_priority": "low",
+      "review_reasons": []
+    },
+    {
+      "automatic": true,
+      "case_id": "b467ac8ccfc2f225aad3",
+      "confidence": "moderate",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "Operational votes are split {'keep': 3, 'unsure': 1}.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 24,
+      "estimated_review_value": 2,
+      "priority": "low",
+      "provider_decisions": {
+        "anthropic": "unsure",
+        "gemini": "keep",
+        "grok": "keep",
+        "openai": "keep"
+      },
+      "recommended_action": "keep",
+      "review_priority": "low",
+      "review_reasons": []
+    },
+    {
+      "automatic": true,
+      "case_id": "db9adeebf2c41956d290",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Primary editorial interpretations are substantially incompatible.",
+        "Scores show moderate spread.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 34,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "15d14fb68d063c94ab76",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 27,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "f0ededbfbe6886c49db8",
+      "confidence": "high",
+      "disagreement_band": "moderate",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship labels differ but retain some conceptual overlap.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 22,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "588a0074decf861a546b",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 15,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "e233a9d10b3eea4cbd37",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 14,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    },
+    {
+      "automatic": true,
+      "case_id": "45aff3c1240a3010165b",
+      "confidence": "high",
+      "disagreement_band": "low",
+      "disagreement_reasons": [
+        "All providers agree operationally.",
+        "Relationship differences are mostly adjacent or ordering-only.",
+        "Structured rationales have limited token overlap."
+      ],
+      "disagreement_score": 12,
+      "estimated_review_value": 1,
+      "priority": "control",
+      "provider_decisions": {
+        "anthropic": "replace",
+        "gemini": "replace",
+        "grok": "replace",
+        "openai": "replace"
+      },
+      "recommended_action": "replace",
+      "review_priority": "control",
+      "review_reasons": [
+        "unanimous_control"
+      ]
+    }
+  ],
+  "schema_version": 2
+}

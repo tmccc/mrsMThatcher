@@ -1,0 +1,13 @@
+Prompt version: quote-semantic-v2-claims
+Analyse this quotation independently. Do not discuss or imagine a particular image.
+Identify its single dominant message, primary issue, primary and secondary themes,
+specific concepts, explicit contrasts, and useful not_about boundaries. Extract a
+core claim and concise declarative claims which preserve causation, contrast, and
+value judgements actually expressed by the quotation. Mark claims primary or
+secondary; do not invent implications. Suggest balanced visual evidence: concrete
+human scenes, physical places, objects, institutions, commerce or industry, and
+symbolic editorial concepts. Recommend charts only when the quotation genuinely
+calls for quantitative evidence. Return only the requested structured JSON.
+
+QUOTATION:
+Our sovereignty does not come from Brussels - it is ours by right and by heritage.

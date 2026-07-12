@@ -1,0 +1,1775 @@
+{
+  "failures": {},
+  "items": {
+    "0117c8919c5fdb98d8ff": {
+      "case_id": "0117c8919c5fdb98d8ff",
+      "consequence_alignment_score": 8,
+      "directness_score": 12,
+      "editorial_power_score": 58,
+      "explanation": "The image substitutes coercive confinement and surveillance for the quotation's stated mechanism of public instruction. It shares a broad authority-and-order theme, but depicts neither officials communicating a legal message nor people being urged to comply. Its strong oppressive framing introduces arguments about punishment and institutional abuse that the quotation does not make.",
+      "extraneous_image_arguments": [
+        "Legal obedience is maintained through walls, surveillance, or confinement",
+        "Authority is inherently oppressive",
+        "Noncompliance may result in detention or physical exclusion"
+      ],
+      "image_basename": "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png",
+      "image_depicted_consequences": [
+        "Isolation",
+        "Restricted movement",
+        "Powerlessness under surveillance",
+        "Division and oppression"
+      ],
+      "image_depicted_subject": [
+        "Fortified concrete barrier topped with barbed wire",
+        "Guard tower and silhouetted watcher",
+        "Lone person isolated beside the wall",
+        "Bleak institutional or detention-like environment"
+      ],
+      "image_ideological_framing": [
+        "Authority presented as coercive and oppressive",
+        "Law or institutional order implicitly associated with confinement and control",
+        "Individual vulnerability before state-like power"
+      ],
+      "image_implied_mechanism": [
+        "Physical confinement and separation",
+        "Surveillance from an elevated guard post",
+        "Institutional control through barriers and intimidation"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "General presence of authority and social control",
+        "Broad theme of obedience imposed by institutions",
+        "Possible association with law enforcement"
+      ],
+      "mechanism_alignment_score": 16,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 30,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 40,
+      "quote_broader_principles": [
+        "Duty and responsibility",
+        "Obedience to law",
+        "Civic order",
+        "Legitimate authority roles"
+      ],
+      "quote_claimed_consequences": [],
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_mechanism": [
+        "Authority figures actively telling the public to obey the law",
+        "Professional duty expressed through public instruction and messaging"
+      ],
+      "relevance_score": 38,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 20,
+      "stronger_visual_direction": [
+        "An official addressing residents at a public meeting",
+        "Police or civic officers conducting a law-compliance campaign",
+        "A public-service poster urging lawful conduct",
+        "A government spokesperson speaking through a microphone beside neutral legal symbols"
+      ],
+      "unillustrated_primary_elements": [
+        "Officials communicating with the public",
+        "The act of telling or instructing everybody",
+        "Professional duty to promote lawful conduct",
+        "Voluntary public compliance with law"
+      ]
+    },
+    "15d14fb68d063c94ab76": {
+      "case_id": "15d14fb68d063c94ab76",
+      "consequence_alignment_score": 4,
+      "directness_score": 8,
+      "editorial_power_score": 48,
+      "explanation": "The image is visually forceful but does not show quotas, hiring, promotion, identity criteria or restricted freedom. Its lone authority figure supplies only a remote workplace-status association and substitutes strong-leader industrial symbolism for the quotation's specific argument about selection policy.",
+      "extraneous_image_arguments": [
+        "Strong personal leadership is desirable in industrial crisis.",
+        "Elite authority can remain composed over industrial labor or turmoil.",
+        "Industrial power and political resolve are central concerns."
+      ],
+      "image_basename": "tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png",
+      "image_depicted_consequences": [
+        "Authority and resolve amid apparent industrial crisis or intense activity."
+      ],
+      "image_depicted_subject": [
+        "A formally dressed, resolute woman in a heavy-industrial setting.",
+        "Sparks, smoke and machinery surrounding an apparent authority figure."
+      ],
+      "image_ideological_framing": [
+        "Strong-leader or 'iron lady' imagery.",
+        "Political authority, industrial grit and class-status contrast."
+      ],
+      "image_implied_mechanism": [
+        "Formal status and composure project leadership and control amid industrial turbulence.",
+        "The contrast between elite dress and a harsh workplace associates the woman with industrial power."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "The central figure could loosely evoke professional advancement, authority or leadership.",
+        "Both fingerprints touch broadly on power and status in working life."
+      ],
+      "mechanism_alignment_score": 3,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 17,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 18,
+      "quote_broader_principles": [
+        "Individual freedom should take precedence over collective identity criteria in selection.",
+        "Good intentions do not make restrictive selection policies acceptable."
+      ],
+      "quote_claimed_consequences": [
+        "Identity-based quotas constitute an unacceptable incursion on freedom."
+      ],
+      "quote_hash": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "quote_mechanism": [
+        "Appointment or promotion quotas classify individuals by collective identity or background.",
+        "Well-intentioned policy motives are rejected as insufficient justification."
+      ],
+      "relevance_score": 20,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 10,
+      "stronger_visual_direction": [
+        "A hiring or promotion panel evaluating candidates as individuals.",
+        "Résumés or applications shown without identity checkboxes.",
+        "A quota policy document beside an open competitive-selection process.",
+        "An editorial justice-scale image contrasting individual merit with collective allocation."
+      ],
+      "unillustrated_primary_elements": [
+        "Identity-based quotas.",
+        "Appointment or promotion procedures.",
+        "Collective identity or background criteria.",
+        "Individual freedom versus quota policy.",
+        "The insufficiency of well-intentioned motives.",
+        "Selection panels, candidates or policy documents."
+      ]
+    },
+    "34804ca152e0e279c7ff": {
+      "case_id": "34804ca152e0e279c7ff",
+      "consequence_alignment_score": 86,
+      "directness_score": 52,
+      "editorial_power_score": 88,
+      "explanation": "The image powerfully illustrates a consequence implied by the quotation: freedom suppressed through communist authoritarianism. Its prison-camp imagery makes that consequence immediately legible. However, it substitutes the narrower and more extreme case of Stalinist Soviet repression for the quotation's broad claim about socialism, and it does not directly depict the asserted inability of socialism and freedom to coexist over time. The pairing is editorially forceful but ideologically reductive.",
+      "extraneous_image_arguments": [
+        "The image equates the quotation's broad category of socialism with Stalinist communism.",
+        "It introduces a specific leader, regime and gulag history despite the quotation not being about particular countries or leaders.",
+        "It foregrounds dissident writing and historical testimony, which are not explicit in the quotation."
+      ],
+      "image_basename": "tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png",
+      "image_depicted_consequences": [
+        "Political imprisonment and confinement.",
+        "An atmosphere of fear, repression and restricted expression.",
+        "Dissident documentation produced under threat."
+      ],
+      "image_depicted_subject": [
+        "Stalin looming over a bearded writer.",
+        "Soviet prison-camp imagery, including barbed wire and watchtowers.",
+        "A writer documenting repression under communist rule."
+      ],
+      "image_ideological_framing": [
+        "Stalinist communism is presented as oppressive and totalitarian.",
+        "Communist symbolism is associated with prison camps and coercive state power.",
+        "Intellectual resistance is contrasted with authoritarian control."
+      ],
+      "image_implied_mechanism": [
+        "Authoritarian state power uses surveillance, imprisonment and intimidation to suppress liberty.",
+        "Political authority overshadows and constrains individual testimony."
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "The hammer-and-sickle clearly connects the image to the socialist/communist ideological field.",
+        "Prison fences and watchtowers visualize the loss of freedom implied by the quotation.",
+        "The threatened writer embodies constrained expression and individual liberty.",
+        "The oppressive state setting supports the quotation's broad incompatibility claim."
+      ],
+      "mechanism_alignment_score": 38,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 72,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "principle_alignment_score": 73,
+      "quote_broader_principles": [
+        "Political systems can be judged by whether they preserve liberty.",
+        "Ideological commitments may conflict with individual and civic freedom."
+      ],
+      "quote_claimed_consequences": [
+        "Freedom eventually disappears or is suppressed in a socialist society.",
+        "Long-term coexistence between socialism and freedom is impossible."
+      ],
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_mechanism": [
+        "Socialism and freedom are presented as structurally unable to coexist over time."
+      ],
+      "relevance_score": 78,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 58,
+      "stronger_visual_direction": [
+        "Use symbolic imagery that places socialist state power and civic freedom in visible tension without tying the claim solely to Stalin.",
+        "Show a public square divided between state control and open assembly or expression.",
+        "Contrast chains, surveillance or sealed institutions with an open door, free press or uncensored civic space.",
+        "Use comparative historical imagery spanning multiple socialist regimes to support the quotation's generality rather than a single extreme case."
+      ],
+      "unillustrated_primary_elements": [
+        "The image does not show socialism and freedom coexisting and then becoming incompatible over time.",
+        "It does not represent socialism in general beyond the specific Stalinist Soviet case.",
+        "The quotation's societal and long-duration proposition is not directly visualized.",
+        "No explicit contrast with an open or free society is shown."
+      ]
+    },
+    "45aff3c1240a3010165b": {
+      "case_id": "45aff3c1240a3010165b",
+      "consequence_alignment_score": 0,
+      "directness_score": 0,
+      "editorial_power_score": 8,
+      "explanation": "The image's bitter-versus-mild political pun does not illustrate the quotation's road-or-rail versus infrastructure contrast. Their only overlap is a very broad reliance on linguistic wordplay and British associations; the depicted subjects, mechanism, and argument are otherwise distinct. Alongside the quotation, the image would redirect readers toward Thatcher and political temperament rather than economists' jargon.",
+      "extraneous_image_arguments": [
+        "Thatcher-style leadership is bitter or tough rather than mild.",
+        "Mild political options are unavailable or rejected.",
+        "Conservative politics and British pub culture are linked."
+      ],
+      "image_basename": "tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png",
+      "image_depicted_consequences": [
+        "Bitter ale is available while mild ale is unavailable.",
+        "The political figure appears unyielding and confrontational."
+      ],
+      "image_depicted_subject": [
+        "A Margaret Thatcher-like woman behind a British pub bar",
+        "A pint of bitter ale, a tap labeled “BITTER,” and a sign reading “SORRY, OUT OF MILD!”",
+        "Stern political authority presented through a bitter-versus-mild visual pun"
+      ],
+      "image_ideological_framing": [
+        "Thatcher-style conservatism is framed as stern, bitter, and opposed to mildness.",
+        "British pub culture is used as a stage for commentary on political leadership."
+      ],
+      "image_implied_mechanism": [
+        "The beer labels and pub signage turn “bitter” and “mild” into metaphors for political temperament.",
+        "The Thatcher likeness, stern expression, and pointing gesture associate leadership with toughness rather than mildness."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Both quotation and image use wordplay involving concrete objects and abstract characterization.",
+        "Both have a broadly British cultural context."
+      ],
+      "mechanism_alignment_score": 0,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 2,
+      "primary_relationship": "unrelated",
+      "principle_alignment_score": 5,
+      "quote_broader_principles": [
+        "Professional jargon can obscure familiar, concrete things.",
+        "Different groups frame the same physical reality through different terminology."
+      ],
+      "quote_claimed_consequences": [
+        "Common transport facilities sound abstract or technical when described in economists' jargon."
+      ],
+      "quote_hash": "5d362ba54e7c2a8a0e70353dfe3d434ef151b45d9b49b76d3297d6c55a1c41a1",
+      "quote_mechanism": [
+        "Economists relabel ordinary roads and railways with the abstract professional term “infrastructure.”",
+        "The contrast between everyday and specialist language creates the quotation's irony."
+      ],
+      "relevance_score": 3,
+      "secondary_relationship": null,
+      "specificity_score": 2,
+      "stronger_visual_direction": [
+        "A split scene showing commuters on roads and railways beside an economist labeling both “infrastructure”",
+        "A highway and railway overlaid with contrasting captions: “road or rail” and “infrastructure”",
+        "An editorial illustration of an economist traveling across an abstract transport-network diagram while ordinary travelers use a train and car",
+        "A dictionary-style visual equating roads and railways with the technical term “infrastructure”"
+      ],
+      "unillustrated_primary_elements": [
+        "Road travel",
+        "Rail travel",
+        "Infrastructure",
+        "Economists",
+        "The contrast between ordinary terminology and professional jargon"
+      ]
+    },
+    "55f5cd6d633c143f5170": {
+      "case_id": "55f5cd6d633c143f5170",
+      "consequence_alignment_score": 72,
+      "directness_score": 24,
+      "editorial_power_score": 68,
+      "explanation": "The image strongly visualizes prosperity as an outcome, but it does not show the quotation’s causal mechanism of freer trade and payments. Instead, it assigns the transformation to forceful political leadership and an implied ideological transition. Its before-and-after contrast has editorial impact, yet the missing trade, price and competition evidence makes the pairing materially indirect and potentially misleading.",
+      "extraneous_image_arguments": [
+        "A particular leader is the pivotal cause of transformation",
+        "Pollution and urban decay characterize the prior system",
+        "Clean urban life follows political or ideological change"
+      ],
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "image_depicted_consequences": [
+        "Urban renewal",
+        "Cleaner surroundings",
+        "Commercial prosperity",
+        "Improved living conditions and consumption"
+      ],
+      "image_depicted_subject": [
+        "Authoritative female political leader at a podium",
+        "Contrast between polluted industrial hardship and clean urban prosperity",
+        "Modern commerce, leisure and affluent city life"
+      ],
+      "image_ideological_framing": [
+        "Leader-centred account of economic progress",
+        "Old industrial order contrasted with a prosperous modern order",
+        "Possible transition from state-oriented hardship to market-oriented affluence"
+      ],
+      "image_implied_mechanism": [
+        "Strong political leadership enables societal transformation",
+        "A political or ideological shift bridges decline and prosperity"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Economic growth and prosperity",
+        "Consumer-oriented affluent life",
+        "Contrast between constrained hardship and a more prosperous modern condition"
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 49,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "principle_alignment_score": 56,
+      "quote_broader_principles": [
+        "Economic openness promotes prosperity",
+        "Consumers broadly benefit from freer markets"
+      ],
+      "quote_claimed_consequences": [
+        "Strong post-war economic growth",
+        "Lower consumer prices",
+        "Greater competition",
+        "Benefits for every consumer"
+      ],
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_mechanism": [
+        "Greater freedom of trade and payments",
+        "Freer trade producing lower prices",
+        "Increased competition driving faster growth"
+      ],
+      "relevance_score": 58,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 20,
+      "stronger_visual_direction": [
+        "A busy commercial port with cargo ships, cranes and containers",
+        "A retail scene featuring varied imported goods and visible prices",
+        "A split image linking cross-border trade activity to consumer choice and lower prices",
+        "A post-war trade-growth graphic combined with commerce or manufacturing imagery"
+      ],
+      "unillustrated_primary_elements": [
+        "International trade",
+        "Freedom of payments",
+        "Lower prices",
+        "Market competition",
+        "Imports, exports or cross-border commerce",
+        "Universal consumer benefit",
+        "Post-war historical context"
+      ]
+    },
+    "588a0074decf861a546b": {
+      "case_id": "588a0074decf861a546b",
+      "consequence_alignment_score": 31,
+      "directness_score": 20,
+      "editorial_power_score": 70,
+      "explanation": "The image shares the quotation's anti-government economic critique but substitutes excessive taxation and regulation for the quotation's specific accusation of reckless Labour spending. It illustrates a broader principle of government-caused economic strain, not the stated spending mechanism or naval metaphor. The substitution is substantial enough to risk misrepresenting the quote.",
+      "extraneous_image_arguments": [
+        "Taxes are excessive.",
+        "Regulations are excessive.",
+        "Government policy is crushing Britain through imposed burdens rather than wasteful expenditure.",
+        "A detached authority figure is riding atop the country's hardship."
+      ],
+      "image_basename": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "image_depicted_consequences": [
+        "National economic strain and distress.",
+        "A country laboring beneath excessive policy burdens.",
+        "Implied industrial hardship or decline."
+      ],
+      "image_depicted_subject": [
+        "An overloaded horse representing Britain.",
+        "Sacks and crates labeled TAXES and REGULATIONS.",
+        "A suited British authority figure riding atop the burden."
+      ],
+      "image_ideological_framing": [
+        "Anti-tax and anti-regulation critique.",
+        "British government presented as oppressive or detached.",
+        "Economic hardship attributed to state-imposed burdens."
+      ],
+      "image_implied_mechanism": [
+        "Taxes and regulations impose a crushing load on the country.",
+        "Government authority directs or benefits from the system while Britain bears the strain."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "British government criticism.",
+        "Fiscal and economic mismanagement theme.",
+        "Public burden caused by government policy.",
+        "Critical, hyperbolic political-cartoon framing."
+      ],
+      "mechanism_alignment_score": 14,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 44,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 67,
+      "quote_broader_principles": [
+        "Government-imposed economic burdens can reflect political mismanagement.",
+        "Socialist or Labour governance is associated with fiscal irresponsibility."
+      ],
+      "quote_claimed_consequences": [
+        "Public money is wasted.",
+        "Government expenditure produces poor value or results.",
+        "Labour is portrayed as fiscally incompetent."
+      ],
+      "quote_hash": "c4e1b1ec6b7929df457805fc87fa5f66b85706894c0b62ffe1fb57ba64569237",
+      "quote_mechanism": [
+        "Labour government spends unusually large amounts of public money unwisely and ineffectively.",
+        "Drunken sailors and a diminished Socialist fleet serve as hyperbolic comparisons for fiscal recklessness."
+      ],
+      "relevance_score": 58,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 27,
+      "stronger_visual_direction": [
+        "Labour politicians scattering or wasting public money.",
+        "A minister dressed as a drunken sailor pouring treasury funds down a drain.",
+        "Budget papers, receipts, or public accounts visibly marked as waste.",
+        "A diminished fleet or ship imagery combined with reckless government expenditure."
+      ],
+      "unillustrated_primary_elements": [
+        "Wasteful government spending.",
+        "Labour government specificity.",
+        "Money being spent unwisely or ineffectively.",
+        "Drunken sailor metaphor.",
+        "Shrunken Socialist fleet comparison."
+      ]
+    },
+    "5adcb6f1fbaad21d5ae0": {
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "consequence_alignment_score": 65,
+      "directness_score": 46,
+      "editorial_power_score": 82,
+      "explanation": "The image strongly echoes the quotation's broad preference for individual agency over state direction, but substitutes a polemical capitalism-versus-communism contrast for the more specific British conservative argument. It depicts prosperity, choice and freedom as outcomes rather than directly showing merit-based rewards or innovators making decisions. Its visual force is high, but the ideological overreach and absence of British specificity make the pairing only moderately suitable.",
+      "extraneous_image_arguments": [
+        "An explicit capitalism-versus-communism binary",
+        "Hammer-and-sickle symbolism",
+        "Claim that communism inherently causes pollution and queues",
+        "Claim that capitalism is inherently greener"
+      ],
+      "image_basename": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "image_depicted_consequences": [
+        "Consumer abundance and visible prosperity",
+        "Individual mobility and confidence",
+        "Queues and social conformity",
+        "Industrial pollution"
+      ],
+      "image_depicted_subject": [
+        "Split contrast between a prosperous capitalist city and a drab communist industrial street",
+        "Urban market abundance, technology, mobility and greenery",
+        "Communist symbols, queues, conformity and factory pollution"
+      ],
+      "image_ideological_framing": [
+        "Capitalism is presented as free, green and prosperous",
+        "Communism is presented as oppressive, scarce and polluted"
+      ],
+      "image_implied_mechanism": [
+        "Free markets enable choice, mobility and individual independence",
+        "Communist state control produces regimentation, scarcity and environmental degradation"
+      ],
+      "keep_or_replace": "unsure",
+      "matched_elements": [
+        "Individual agency contrasted with state control",
+        "Private commerce and consumer choice",
+        "Freedom and prosperity associated with individual-led society",
+        "Conformity associated with centralized control"
+      ],
+      "mechanism_alignment_score": 58,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 67,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 84,
+      "quote_broader_principles": [
+        "Individual initiative over state control",
+        "Merit-based reward",
+        "Limited government",
+        "Enterprise and personal responsibility"
+      ],
+      "quote_claimed_consequences": [
+        "British people flourish",
+        "Innovators and creators feel free and at home"
+      ],
+      "quote_hash": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "quote_mechanism": [
+        "Individuals rather than the state make most decisions",
+        "Rewards are linked to effort and skill"
+      ],
+      "relevance_score": 76,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 42,
+      "stronger_visual_direction": [
+        "British entrepreneurs or small-business owners making operational decisions",
+        "Skilled workers or creators being recognized for their work",
+        "Inventors, designers or start-up teams working in an open studio",
+        "A restrained contrast between independent enterprise and centralized bureaucracy without communist caricature"
+      ],
+      "unillustrated_primary_elements": [
+        "British national context",
+        "Rewards explicitly tied to effort and skill",
+        "Innovators and creators doing substantive work",
+        "Conservative political identity"
+      ]
+    },
+    "68c044ce4d015237c2fe": {
+      "case_id": "68c044ce4d015237c2fe",
+      "consequence_alignment_score": 18,
+      "directness_score": 42,
+      "editorial_power_score": 52,
+      "explanation": "The image plausibly illustrates the planning or deliberation half of the quotation, but it does not show a daily schedule, task prioritization, execution or follow-through. Its strongest message is executive authority rather than the quote's universal sequence of planning and doing, making the pairing relevant but insufficiently specific.",
+      "extraneous_image_arguments": [
+        "High social or professional status signifies competence.",
+        "Affluence, jewelry and executive surroundings imply authority.",
+        "Leadership is foregrounded although the quotation concerns individual daily productivity."
+      ],
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "image_depicted_consequences": [
+        "No visible completion, execution or measurable productivity outcome."
+      ],
+      "image_depicted_subject": [
+        "Formally dressed older woman seated at an executive desk.",
+        "Open documents, books and eyeglasses suggesting office work.",
+        "A contemplative pause while reviewing material."
+      ],
+      "image_ideological_framing": [
+        "Authority and competence are associated with executive status, formal attire and an affluent office.",
+        "Leadership and establishment power substitute partly for the quote's ordinary daily self-discipline."
+      ],
+      "image_implied_mechanism": [
+        "Careful review and deliberation before acting.",
+        "Concentrated attention to official documents."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Desk-based work context.",
+        "Documents that could plausibly represent a plan.",
+        "Thoughtful preparation before action.",
+        "Serious, disciplined professional tone."
+      ],
+      "mechanism_alignment_score": 55,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 44,
+      "primary_relationship": "illustrates_mechanism",
+      "principle_alignment_score": 48,
+      "quote_broader_principles": [
+        "Work discipline.",
+        "Personal responsibility.",
+        "Consistency and time management."
+      ],
+      "quote_claimed_consequences": [
+        "Effective daily productivity.",
+        "Consistent follow-through on intended work."
+      ],
+      "quote_hash": "2c199e4d003a077c147b447efa9eb68941bf1291a7f4dd3653a7562414950d9a",
+      "quote_mechanism": [
+        "Deliberately plan today's work.",
+        "Repeat planning as a daily practice.",
+        "Execute the plan after creating it."
+      ],
+      "relevance_score": 58,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 31,
+      "stronger_visual_direction": [
+        "A person writing prioritized tasks in a dated daily planner.",
+        "A split or sequential scene showing a plan followed by active task execution.",
+        "A worker checking completed items off a visible checklist.",
+        "A morning desk scene with a calendar, notebook and clearly marked tasks in progress."
+      ],
+      "unillustrated_primary_elements": [
+        "A clearly identifiable daily plan or schedule.",
+        "The explicit sequence from planning to execution.",
+        "Active work on planned tasks.",
+        "Repeated today-and-every-day routine.",
+        "Completed or checked-off work."
+      ]
+    },
+    "6eb60852343c65542ab6": {
+      "case_id": "6eb60852343c65542ab6",
+      "consequence_alignment_score": 39,
+      "directness_score": 30,
+      "editorial_power_score": 78,
+      "explanation": "The image has strong thematic relevance and recognizable communist symbolism, but it substitutes a sensational contagion-and-state-destruction metaphor for the quotation's specific claim that Marxist-socialist aims subordinate individual rights to political theory. It illustrates the broader anti-communist principle more than the stated mechanism or consequence. Its visual force is high, but the missing human-rights dimension and added plague argument make replacement preferable.",
+      "extraneous_image_arguments": [
+        "Communism behaves like a contagious pathogen.",
+        "Communism attacks or destroys the seat of government.",
+        "Institutional capture is catastrophic in a physically violent sense."
+      ],
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "image_depicted_consequences": [
+        "A government institution is overwhelmed and apparently destroyed.",
+        "The ideological takeover is framed as catastrophic and threatening."
+      ],
+      "image_depicted_subject": [
+        "A giant coronavirus-like form bearing a hammer and sickle.",
+        "A classical government building engulfed by red tendrils and droplets."
+      ],
+      "image_ideological_framing": [
+        "Communism is equated with disease, invasion and institutional ruin.",
+        "Anti-communist alarm imagery replaces a rights-based political argument with a plague metaphor."
+      ],
+      "image_implied_mechanism": [
+        "Communism spreads like an invasive biological contagion.",
+        "Communist ideology physically seizes or consumes state institutions."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Hammer-and-sickle symbolism connects the image to Marxist and Soviet ideology.",
+        "Both quotation and image portray Marxist communism as harmful.",
+        "The engulfed government building loosely conveys political ideology overpowering established institutions."
+      ],
+      "mechanism_alignment_score": 34,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 57,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 76,
+      "quote_broader_principles": [
+        "Marxist socialism threatens individual liberty.",
+        "Political ideology should not override personal rights."
+      ],
+      "quote_claimed_consequences": [
+        "People's rights are subjugated to political theory."
+      ],
+      "quote_hash": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "quote_mechanism": [
+        "Socialist and Marxist political aims elevate political theory above individual rights.",
+        "The USSR is presented as an exemplar of a society organized around those aims."
+      ],
+      "relevance_score": 65,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 43,
+      "stronger_visual_direction": [
+        "An individual confronted by Soviet state authority, surveillance or a political tribunal.",
+        "Citizens beneath Soviet banners while officials or ideological texts dominate the scene.",
+        "A symbolic composition showing individual rights or liberty outweighed by Marxist political doctrine.",
+        "Documentary imagery from the USSR that visibly connects party ideology with restrictions on personal freedom."
+      ],
+      "unillustrated_primary_elements": [
+        "Subjugation of individual people's rights.",
+        "The contrast between personal liberty and political theory.",
+        "The quotation's specific discussion of socialism's shared aims with Marxism.",
+        "The USSR as a concrete historical society rather than generic communist symbolism."
+      ]
+    },
+    "70f14e2e72a292a3ae05": {
+      "case_id": "70f14e2e72a292a3ae05",
+      "consequence_alignment_score": 31,
+      "directness_score": 82,
+      "editorial_power_score": 84,
+      "explanation": "The image strongly visualizes the quotation's mechanism through concentrated, after-hours work amid substantial paperwork. It also supports the broader work-ethic principle. However, it does not show the claimed consequence of achieving one's best or establish the quotation's exclusive 'only way' assertion. The leadership and bureaucratic framing is additional but not materially conflicting.",
+      "extraneous_image_arguments": [
+        "The work concerns senior leadership or government authority",
+        "Important decisions require extensive paperwork",
+        "Serious work is solitary and often performed late at night"
+      ],
+      "image_basename": "tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png",
+      "image_depicted_consequences": [],
+      "image_depicted_subject": [
+        "A senior woman working alone at a formal office desk",
+        "Concentrated writing and document review amid extensive paperwork",
+        "Official work continuing under a desk lamp, apparently after hours"
+      ],
+      "image_ideological_framing": [
+        "Leadership as diligent and document-intensive",
+        "Authority exercised through serious private work",
+        "Long hours and solitary concentration as signs of commitment"
+      ],
+      "image_implied_mechanism": [
+        "Sustained, focused labor",
+        "Careful review and writing",
+        "Working beyond ordinary hours"
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "Hard work",
+        "Focused effort",
+        "Dedication",
+        "Sustained concentration",
+        "An office scene of concentrated labor"
+      ],
+      "mechanism_alignment_score": 94,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 87,
+      "primary_relationship": "illustrates_mechanism",
+      "principle_alignment_score": 91,
+      "quote_broader_principles": [
+        "Hard work is the exclusive route to personal excellence",
+        "Dedication enables achievement and self-improvement"
+      ],
+      "quote_claimed_consequences": [
+        "Achieving the best performance one is capable of"
+      ],
+      "quote_hash": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "quote_mechanism": [
+        "Working as hard as possible",
+        "Maximum effort and sustained diligence"
+      ],
+      "relevance_score": 91,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 70,
+      "stronger_visual_direction": [
+        "Show the same subject's effort alongside a visible completed achievement or measurable result",
+        "Use an intense training, study, or craft scene where maximum exertion is visually unmistakable",
+        "Pair sustained effort with a clear progression from difficult work to personal-best performance"
+      ],
+      "unillustrated_primary_elements": [
+        "The resulting achievement of one's personal best",
+        "The claim that hard work is the only route to best performance",
+        "Clear evidence that the subject is exerting her maximum possible effort"
+      ]
+    },
+    "9729da4b58d3d56e5c05": {
+      "case_id": "9729da4b58d3d56e5c05",
+      "consequence_alignment_score": 2,
+      "directness_score": 8,
+      "editorial_power_score": 66,
+      "explanation": "The image supplies a forceful political speaker and a tone of ideological resolve, but it does not depict socialism, democratic erosion, or the quotation's claimed causal progression. Its heroic leadership framing substitutes a generic argument about authority and elevated purpose for the specific anti-socialist warning, making the pairing evocative but editorially imprecise.",
+      "extraneous_image_arguments": [
+        "The leader is heroic or visionary.",
+        "Authority is validated through monumental natural grandeur.",
+        "Personal resolve and formal status are central to political legitimacy."
+      ],
+      "image_basename": "tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png",
+      "image_depicted_consequences": [],
+      "image_depicted_subject": [
+        "A formally dressed female political leader speaking at a podium.",
+        "A commanding gesture against monumental snow-covered mountains and bright sunlight."
+      ],
+      "image_ideological_framing": [
+        "Strong, composed political leadership.",
+        "Aspirational and heroic authority.",
+        "Determination and elevated purpose."
+      ],
+      "image_implied_mechanism": [
+        "Public authority is conveyed through posture, gesture, formal dress and a podium address.",
+        "Natural grandeur visually elevates the leader's determination and purpose."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Political speech and leadership.",
+        "Ideological seriousness and resolve.",
+        "A visual tone compatible with categorical rejection."
+      ],
+      "mechanism_alignment_score": 4,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 24,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 22,
+      "quote_broader_principles": [
+        "Political intentions do not prevent destructive institutional outcomes.",
+        "Democracy should be preserved against ideologies portrayed as inherently corrosive.",
+        "Socialism should be categorically rejected."
+      ],
+      "quote_claimed_consequences": [
+        "Erosion of democracy.",
+        "Final destruction of the democratic way of life."
+      ],
+      "quote_hash": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87",
+      "quote_mechanism": [
+        "Socialism, even when well-intended, is claimed to lead inevitably in one political direction.",
+        "That direction is progressive erosion followed by destruction of democratic life."
+      ],
+      "relevance_score": 28,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 10,
+      "stronger_visual_direction": [
+        "Citizens voting or a ballot box contrasted with signs of political restriction.",
+        "A parliament or democratic chamber shown under threat, closure or decline.",
+        "A visual sequence from open civic participation to an empty or suppressed public assembly.",
+        "A symbolic one-way path from socialism toward damaged democratic institutions, while avoiding unrelated economic claims."
+      ],
+      "unillustrated_primary_elements": [
+        "Socialism.",
+        "The causal claim that socialism erodes democracy.",
+        "The destruction or restriction of democratic institutions.",
+        "The contrast between good intentions and harmful outcomes.",
+        "Voting, parliament, free speech or other recognizable democratic practices."
+      ]
+    },
+    "a53c2ebadd2dde95cd5f": {
+      "case_id": "a53c2ebadd2dde95cd5f",
+      "consequence_alignment_score": 8,
+      "directness_score": 12,
+      "editorial_power_score": 46,
+      "explanation": "The image shares the broad vocabulary of work, achievement and reward, but substitutes a generational critique of selfie-era success for the quotation’s causal argument about high personal taxes driving talent out of Britain. It neither shows taxation nor exile, and its skeptical framing of conspicuous modern success may undercut the quotation’s call to honour and encourage achievers. The pairing is therefore only loosely thematic and should be replaced.",
+      "extraneous_image_arguments": [
+        "Modern success is increasingly based on self-promotion and curated imagery.",
+        "Older, traditional working styles possess greater seriousness or gravitas.",
+        "Generational differences explain changing ideas of achievement.",
+        "Trophies, gifts and glamour may represent superficial rather than socially beneficial success."
+      ],
+      "image_basename": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "image_depicted_consequences": [
+        "The younger figure appears celebrated through trophies and gifts.",
+        "Traditional gravitas is displaced by conspicuous, image-focused achievement."
+      ],
+      "image_depicted_subject": [
+        "An older woman performing solemn, paper-based office work.",
+        "A younger woman taking a selfie beside a trophy, gifts and a laptop.",
+        "A generational contrast between traditional professionalism and curated modern success."
+      ],
+      "image_ideological_framing": [
+        "Skepticism toward selfie culture and polished self-promotion.",
+        "Nostalgia for traditional, document-heavy professionalism.",
+        "A generational framing of changing success rather than an economic argument about taxation."
+      ],
+      "image_implied_mechanism": [
+        "Self-presentation, social media imagery and visible rewards shape contemporary perceptions of success.",
+        "The split composition contrasts serious work with glamorous personal branding."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Both concern success, work, recognition and reward.",
+        "The trophy loosely represents honouring achievement.",
+        "The traditional worker can loosely signify hard work and professional talent."
+      ],
+      "mechanism_alignment_score": 4,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 27,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 38,
+      "quote_broader_principles": [
+        "Success across science, commerce, the arts and sport should be honoured.",
+        "People should be proud of achievement rather than begrudge it.",
+        "Talent and hard work should be rewarded."
+      ],
+      "quote_claimed_consequences": [
+        "Britain and its people are diminished when talent leaves.",
+        "Encouraged success enriches the lives of everyone."
+      ],
+      "quote_hash": "e420176a6b146e2eda0f52594cc44bc7623c8c4f62a9125b1ea5d1b5e6def100",
+      "quote_mechanism": [
+        "High personal taxes squeeze out talent and hard work.",
+        "Tax pressure drives successful people into exile from Britain.",
+        "Cutting taxes and allowing people to profit would retain and encourage success."
+      ],
+      "relevance_score": 34,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 18,
+      "stronger_visual_direction": [
+        "Professionals or entrepreneurs leaving Britain with luggage, passports or departure-board imagery.",
+        "Talent visibly flowing out of a map or silhouette of Britain alongside tax documents.",
+        "A split scene contrasting burdensome personal taxation and departure with thriving, rewarded professionals who remain.",
+        "Scientists, businesspeople, artists and athletes shown together as nationally valued achievers.",
+        "Successful individuals whose work visibly benefits a wider public, linking achievement to shared enrichment."
+      ],
+      "unillustrated_primary_elements": [
+        "High personal taxes.",
+        "Tax cuts.",
+        "Talent or successful people leaving Britain.",
+        "Exile or outward migration.",
+        "Britain as the national setting.",
+        "Science, commerce, arts and sport as distinct fields.",
+        "Collective diminution caused by talent flight.",
+        "Benefits of success enriching the wider public."
+      ]
+    },
+    "ad5a52dcf9f0f123e8ee": {
+      "case_id": "ad5a52dcf9f0f123e8ee",
+      "consequence_alignment_score": 2,
+      "directness_score": 8,
+      "editorial_power_score": 38,
+      "explanation": "The image is a strong portrait of authority but does not depict wealth creation, redistribution, production or their contrast. Its relevance is limited to tone, status and a loose association with wealth. Without independently identifying the sitter or supplying outside context, it cannot directly carry the quotation's economic mechanism and risks substituting elite personal symbolism for the actual argument.",
+      "extraneous_image_arguments": [
+        "Elite dress and jewelry may imply that wealth is embodied in personal status or inherited privilege.",
+        "The portrait foregrounds individual authority rather than evidence for the economic argument.",
+        "Traditional institutional prestige is introduced without being part of the quotation's stated mechanism."
+      ],
+      "image_basename": "tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png",
+      "image_depicted_consequences": [
+        "The subject appears dignified, powerful and credible.",
+        "The portrait reinforces elite status and personal authority."
+      ],
+      "image_depicted_subject": [
+        "A composed, high-status older woman in a formal portrait.",
+        "Traditional markers of wealth, authority and institutional status."
+      ],
+      "image_ideological_framing": [
+        "Traditional elite presentation.",
+        "Institutional authority and refined personal status.",
+        "No explicit economic or socialist framing."
+      ],
+      "image_implied_mechanism": [
+        "Formal dress, jewelry, posture and setting confer authority and seriousness.",
+        "A contemplative pose suggests determination and considered judgment."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "The portrait's seriousness supports the quotation's assertive truth-versus-myth tone.",
+        "Visible status cues loosely connect to the broad topic of wealth.",
+        "Personal authority may lend rhetorical weight to the economic claim."
+      ],
+      "mechanism_alignment_score": 3,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 22,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 15,
+      "quote_broader_principles": [
+        "Economic value must be produced before it can be distributed.",
+        "The quotation rejects a socialist conception of wealth as pre-existing and transferable."
+      ],
+      "quote_claimed_consequences": [
+        "Treating wealth as merely available for redistribution promotes a fixed-pie misconception.",
+        "Prosperity depends on wealth creation, not redistribution alone."
+      ],
+      "quote_hash": "6ac017d0c76fbcec1a7ab2e2ab9ba7b26948530df626f42de04192b15fda4039",
+      "quote_mechanism": [
+        "Wealth must be actively created through production or value generation rather than assumed to exist as a fixed stock.",
+        "Redistribution transfers existing wealth but does not itself generate it."
+      ],
+      "relevance_score": 24,
+      "secondary_relationship": "ambiguous",
+      "specificity_score": 12,
+      "stronger_visual_direction": [
+        "Workers, entrepreneurs or machinery actively producing goods.",
+        "A factory, workshop, construction site or small business showing value creation.",
+        "An editorial contrast between a growing economic pie and a fixed pie being divided.",
+        "A split image contrasting production and investment with simple transfer or redistribution.",
+        "A symbolic sequence showing resources transformed into products, jobs and prosperity."
+      ],
+      "unillustrated_primary_elements": [
+        "Creation of wealth through work, enterprise, production or innovation.",
+        "The contrast between wealth creation and redistribution.",
+        "The critique of socialism and the fixed-pie conception of wealth.",
+        "Any visible economic process or consequence."
+      ]
+    },
+    "b467ac8ccfc2f225aad3": {
+      "case_id": "b467ac8ccfc2f225aad3",
+      "consequence_alignment_score": 94,
+      "directness_score": 69,
+      "editorial_power_score": 88,
+      "explanation": "The image strongly illustrates the quotation's claimed consequence—scarcity under socialism—through queues, limited purchases, and a bleak communist setting. Its split-screen abundance-versus-shortage contrast also gives the quote editorial force. However, it does not directly depict the mechanism of socialism whetting appetites, and it adds a broader pro-capitalist, anti-communist argument involving freedom, happiness, and pollution. The pairing is suitable but ideologically more expansive than the quotation.",
+      "extraneous_image_arguments": [
+        "Capitalism is explicitly asserted to be the happier and more prosperous alternative.",
+        "Communism is associated with loss of personal freedom and social regimentation.",
+        "Industrial pollution and drabness are used as additional indictments not present in the quotation.",
+        "The hammer-and-sickle imagery substitutes a specific communist regime aesthetic for the quotation's broader socialism."
+      ],
+      "image_basename": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "image_depicted_consequences": [
+        "Long queues for limited goods.",
+        "Material scarcity and austerity.",
+        "Consumer abundance and leisure on the capitalist side."
+      ],
+      "image_depicted_subject": [
+        "A split contrast between affluent consumer life and a bleak communist society.",
+        "Shoppers carrying many bags on a sunny commercial street.",
+        "A long queue beneath a hammer-and-sickle flag in a gray industrial setting.",
+        "An elderly woman carrying a single small bag."
+      ],
+      "image_ideological_framing": [
+        "Capitalism is presented as prosperous, free, and happy.",
+        "Communism is presented as impoverished, uniform, and oppressive.",
+        "The composition makes a propagandistic binary comparison between economic systems."
+      ],
+      "image_implied_mechanism": [
+        "Communist rule is visually associated with regimentation, industrial bleakness, and restricted access to goods.",
+        "Free-market consumer choice is contrasted with communist scarcity."
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "Socialism or communism linked to reduced availability.",
+        "A long queue visually conveys scarcity.",
+        "The single meager bag contrasts with the abundance desired or available elsewhere.",
+        "The abundance-versus-shortage split echoes the quotation's more-versus-less contrast."
+      ],
+      "mechanism_alignment_score": 46,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 82,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "principle_alignment_score": 78,
+      "quote_broader_principles": [
+        "Economic systems can create a gap between public expectations and material supply.",
+        "Socialist economic outcomes may include scarcity."
+      ],
+      "quote_claimed_consequences": [
+        "Fewer goods are available.",
+        "Raised demand or desire goes unfulfilled, producing scarcity."
+      ],
+      "quote_hash": "9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223",
+      "quote_mechanism": [
+        "Socialism increases material appetites or expectations.",
+        "Socialism reduces the availability of goods relative to those expectations."
+      ],
+      "relevance_score": 87,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 84,
+      "stronger_visual_direction": [
+        "Show people drawn by promises or advertisements toward an understocked socialist shop.",
+        "Pair visible consumer desire with empty shelves, ration coupons, or limited allotments.",
+        "Use a queue entering a shop where basic goods are visibly unavailable, avoiding an unrelated celebration of capitalist leisure."
+      ],
+      "unillustrated_primary_elements": [
+        "The image does not clearly show socialism itself whetting appetites or raising expectations.",
+        "The causal transition from increased desire to reduced supply is not depicted.",
+        "No understocked shop, empty shelf, rationing document, or explicit failed promise demonstrates how availability fell."
+      ]
+    },
+    "b7cd43663a96e63b5b69": {
+      "case_id": "b7cd43663a96e63b5b69",
+      "consequence_alignment_score": 71,
+      "directness_score": 35,
+      "editorial_power_score": 78,
+      "explanation": "The image powerfully depicts repression and the apparent loss of freedom and justice, making it a plausible illustration of the quotation's implied negative consequence. It does not show the quotation's central mechanism—people preparing to defend those values—and instead substitutes authoritarian coercion and passive civilian submission for civic defense. The pairing is evocative but semantically indirect and may steer readers toward a narrower claim about state brutality.",
+      "extraneous_image_arguments": [
+        "A leader is personally detached from violence.",
+        "Political speeches may function as staged cover for repression.",
+        "Authoritarian state force is the principal threat.",
+        "Specific militaristic symbolism, including the red armband."
+      ],
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "image_depicted_consequences": [
+        "Civil submission and powerlessness.",
+        "Suppression of civilians.",
+        "An atmosphere suggesting the absence of freedom and justice."
+      ],
+      "image_depicted_subject": [
+        "A composed political leader speaking at a podium.",
+        "Armed uniformed figures suppressing bowed or crouching civilians.",
+        "Violence and disorder positioned behind a polished public address."
+      ],
+      "image_ideological_framing": [
+        "Authoritarian optics and state repression.",
+        "A contrast between elite composure and coercive violence.",
+        "Political image-making concealing brutality."
+      ],
+      "image_implied_mechanism": [
+        "Political authority maintains control through armed coercion.",
+        "Public messaging masks or normalizes repression.",
+        "Civilians are rendered submissive by force."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "The threatened or absent condition of freedom and justice.",
+        "The vulnerability of civic values when people appear unable to resist.",
+        "A broad warning that rights require protection."
+      ],
+      "mechanism_alignment_score": 22,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 55,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "principle_alignment_score": 58,
+      "quote_broader_principles": [
+        "Liberty and justice require vigilance and active protection.",
+        "Valuable civic conditions cannot be taken for granted."
+      ],
+      "quote_claimed_consequences": [
+        "Peace, freedom and justice exist where people are ready to defend them.",
+        "Where such readiness is absent, those values cannot be secured."
+      ],
+      "quote_hash": "c9040d5f09e96cfcae62fba63d73e4d255213b39864fd89b623b67c4f8dbd18b",
+      "quote_mechanism": [
+        "People must be prepared to actively defend peace, freedom and justice.",
+        "Societal readiness and human agency preserve these values."
+      ],
+      "relevance_score": 67,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 45,
+      "stronger_visual_direction": [
+        "Citizens visibly organizing to protect civil rights under threat.",
+        "A peaceful civic assembly guarded by community or institutional defenders.",
+        "Protesters actively defending democratic freedoms without imagery of passive submission.",
+        "A justice institution paired with visible protective or civic vigilance measures."
+      ],
+      "unillustrated_primary_elements": [
+        "People actively preparing to defend peace, freedom and justice.",
+        "Collective civic vigilance or organized defense.",
+        "Peace as a visible outcome of preparedness.",
+        "Successful protection of freedom or justice."
+      ]
+    },
+    "b98adf9e78161b670ad5": {
+      "case_id": "b98adf9e78161b670ad5",
+      "consequence_alignment_score": 88,
+      "directness_score": 66,
+      "editorial_power_score": 72,
+      "explanation": "The Soviet camp panel powerfully illustrates the quotation's consequences and experiential context, but the modern-Russia panel adds a partisan historical claim absent from the quotation. It substitutes praise of a particular contemporary state for the quotation's general warning about all over-mighty states, making the pairing editorially misleading despite strong thematic relevance.",
+      "extraneous_image_arguments": [
+        "Contemporary Russia is free, open, and enjoyable.",
+        "The Russian Federation constitutes a clear historical escape from excessive state power.",
+        "National flags turn a general warning about state authority into a Soviet-versus-modern-Russia comparison."
+      ],
+      "image_basename": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "image_depicted_consequences": [
+        "Confinement, deprivation, fear, and suffering under Soviet rule.",
+        "Public leisure, openness, and everyday happiness in contemporary Russia."
+      ],
+      "image_depicted_subject": [
+        "A Soviet prison-camp-like scene with barbed wire, a watchtower, soldiers, and suffering civilians.",
+        "A contrasting sunny contemporary Russian street scene with a smiling cafe couple and Russian flag."
+      ],
+      "image_ideological_framing": [
+        "The Soviet Union represents repression.",
+        "Contemporary Russia represents freedom and pleasant ordinary life.",
+        "Russian history is framed as a progression from Soviet oppression to present-day liberty."
+      ],
+      "image_implied_mechanism": [
+        "Soviet military control, surveillance, and confinement produce oppression.",
+        "A change from Soviet to contemporary Russian political identity produces greater freedom."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "The camp imagery strongly evokes Solzhenitsyn's bitter experience.",
+        "Barbed wire, guards, and surveillance visualize curtailed individual freedom.",
+        "The dark-versus-bright contrast broadly communicates oppression versus liberty."
+      ],
+      "mechanism_alignment_score": 69,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 62,
+      "primary_relationship": "illustrates_claimed_consequence",
+      "principle_alignment_score": 77,
+      "quote_broader_principles": [
+        "State power and individual liberty have an inverse relationship.",
+        "Centralized authority poses a general danger to personal freedom.",
+        "Solzhenitsyn's bitter experience provides the insight behind the warning."
+      ],
+      "quote_claimed_consequences": [
+        "Less freedom for the individual citizen.",
+        "Reduced freedom to make decisions and personal choices.",
+        "Reduced freedom of ideas."
+      ],
+      "quote_hash": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_mechanism": [
+        "State power becomes over-mighty and increasingly accrues authority over citizens.",
+        "Concentrated state power restricts individual autonomy."
+      ],
+      "relevance_score": 82,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 73,
+      "stronger_visual_direction": [
+        "Use archival imagery of Solzhenitsyn alongside a Soviet labor camp or security apparatus.",
+        "Show citizens constrained by police, bureaucracy, censorship, or surveillance without presenting a modern state as the uncomplicated solution.",
+        "Use a balanced visual metaphor in which an enlarged state apparatus diminishes spaces for personal choice, speech, and ideas."
+      ],
+      "unillustrated_primary_elements": [
+        "The gradual accrual or concentration of state power.",
+        "Freedom of ideas specifically.",
+        "Everyday decision-making and personal choice beyond confinement.",
+        "Solzhenitsyn himself or his testimony.",
+        "The quotation's general principle applying beyond the Soviet case."
+      ]
+    },
+    "bb9f364836998e185eec": {
+      "case_id": "bb9f364836998e185eec",
+      "consequence_alignment_score": 18,
+      "directness_score": 58,
+      "editorial_power_score": 79,
+      "explanation": "The image strongly conveys assertive political speech and therefore partially illustrates the proposed counter-attack mechanism and broader principle of abandoning defensiveness. It does not specifically show intellectual contest, parliamentary action, constituency campaigning or the promised strategic consequence. Its worker-versus-civilian division also introduces an argument absent from the quotation, making it powerful but insufficiently precise.",
+      "extraneous_image_arguments": [
+        "A visual contrast between numbered workers and civilians not stated in the quotation.",
+        "A dominant individual-leader framing where the quotation emphasizes party strategy.",
+        "Possible authoritarian or accusatory overtones beyond the quotation's argument."
+      ],
+      "image_basename": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "image_depicted_consequences": [
+        "The speaker dominates the political scene and commands public attention.",
+        "Workers and civilians appear gathered within the leader's political orbit."
+      ],
+      "image_depicted_subject": [
+        "A stern female political leader delivering a podium speech.",
+        "Numbered workers and ordinary civilians gathered behind the speaker.",
+        "A commanding pointing gesture directed toward the audience."
+      ],
+      "image_ideological_framing": [
+        "Assertive, leader-centered political authority.",
+        "Confrontation rather than conciliation.",
+        "Possible division between regimented workers and ordinary civilians."
+      ],
+      "image_implied_mechanism": [
+        "Authoritative public rhetoric mobilizes or confronts social constituencies.",
+        "A political leader projects strength through speech and physical command."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Political speech as a form of counter-attack.",
+        "Assertive movement away from defensiveness.",
+        "A public-facing political audience suggestive of constituencies.",
+        "Confrontational rhetoric and posture."
+      ],
+      "mechanism_alignment_score": 61,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 62,
+      "primary_relationship": "illustrates_mechanism",
+      "principle_alignment_score": 78,
+      "quote_broader_principles": [
+        "Ideas are as important to political success as institutional and electoral action.",
+        "A party should shift from defensiveness to assertive strategic engagement."
+      ],
+      "quote_claimed_consequences": [
+        "Winning the battle of ideas would leave the larger political war half-won."
+      ],
+      "quote_hash": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "quote_mechanism": [
+        "Abandon a prolonged defensive posture and launch a political counter-attack.",
+        "Pursue the counter-attack through ideas, Parliament and constituency activity.",
+        "Win the intellectual battle as a means of advancing the wider political struggle."
+      ],
+      "relevance_score": 75,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 42,
+      "stronger_visual_direction": [
+        "A party conference speaker backed by visible references to Parliament, constituency canvassing and intellectual debate.",
+        "A montage combining a podium, parliamentary chamber, doorstep campaigning and books or debate notes.",
+        "A public debate or think-tank setting showing competing ideas alongside electoral and parliamentary symbols."
+      ],
+      "unillustrated_primary_elements": [
+        "The intellectual battle of ideas.",
+        "Equal emphasis on Parliament, constituencies and intellectual activity.",
+        "A clear transition from defense to counter-attack.",
+        "The claimed consequence that the wider political war becomes half-won."
+      ]
+    },
+    "bdd510a8157a6fb7ec70": {
+      "case_id": "bdd510a8157a6fb7ec70",
+      "consequence_alignment_score": 12,
+      "directness_score": 14,
+      "editorial_power_score": 68,
+      "explanation": "The image concerns political authority and power, but it replaces the quotation’s rule-of-law mechanism with coercive repression. No recognizable legal institution, process, or act of holding a powerful institution accountable is shown. Its ominous authoritarian critique may even suggest government acting above or outside the law, creating tension with the quotation rather than illustrating it.",
+      "extraneous_image_arguments": [
+        "Government authority may conceal or enable violent repression.",
+        "Public speeches can function as staged cover for coercion.",
+        "Civil submission is maintained by armed force."
+      ],
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "image_depicted_consequences": [
+        "Civilian submission and powerlessness",
+        "Public order presented as dependent on coercion",
+        "A divide between official composure and background repression"
+      ],
+      "image_depicted_subject": [
+        "A composed political leader speaking at a podium",
+        "Armed uniformed figures suppressing bowed or crouching civilians",
+        "Violence and smoke positioned behind a polished public address"
+      ],
+      "image_ideological_framing": [
+        "Authoritarian optics",
+        "Critique of political image-making amid state violence",
+        "Authority associated with coercion rather than impartial law"
+      ],
+      "image_implied_mechanism": [
+        "Political authority projects legitimacy through public messaging while coercive force operates behind it.",
+        "Armed personnel secure submission through intimidation and violence."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Governmental authority",
+        "Exercise and restraint of power",
+        "Tension between formal institutions and accountability"
+      ],
+      "mechanism_alignment_score": 18,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 27,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 35,
+      "quote_broader_principles": [
+        "Rule of law",
+        "Government duty",
+        "Limits on institutional power",
+        "Institutional accountability"
+      ],
+      "quote_claimed_consequences": [
+        "Powerful institutions remain subject to law.",
+        "Law applies universally across places and circumstances."
+      ],
+      "quote_hash": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "quote_mechanism": [
+        "Government continuously maintains the sovereignty of law.",
+        "Legal authority is enforced against every institution, regardless of its power."
+      ],
+      "relevance_score": 38,
+      "secondary_relationship": "contradictory",
+      "specificity_score": 22,
+      "stronger_visual_direction": [
+        "A court enforcing a judgment against a powerful corporation or state institution",
+        "A constitution or law code visually prevailing over military, corporate, and religious symbols",
+        "Officials applying the same statute to powerful and ordinary parties",
+        "A constitutional court, legislative chamber, or archive emphasizing legal supremacy"
+      ],
+      "unillustrated_primary_elements": [
+        "Sovereignty of law",
+        "Uniform legal application always and everywhere",
+        "Law prevailing against powerful institutions",
+        "Courts, statutes, constitutions, or other recognizable legal processes"
+      ]
+    },
+    "cd34f0ecdf6711ec4b2d": {
+      "case_id": "cd34f0ecdf6711ec4b2d",
+      "consequence_alignment_score": 12,
+      "directness_score": 20,
+      "editorial_power_score": 61,
+      "explanation": "The image shares the quotation's work theme but does not show hard work producing advancement or near-success. Its dominant argument is an ideological contrast between privileged Communist elites and American industrial workers, substituting a political class critique for the quotation's universal claim about effort and achievement. The workers are posed as ready for labor rather than visibly working or progressing toward a goal.",
+      "extraneous_image_arguments": [
+        "Communist elites are hypocritically luxurious.",
+        "American workers and industry are superior to Communist leadership.",
+        "National and ideological systems are opposing social worlds.",
+        "Privilege and political power explain elite status, although the quotation explicitly is not about privilege."
+      ],
+      "image_basename": "tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png",
+      "image_depicted_consequences": [
+        "Communist-coded elites possess luxury and status.",
+        "American workers appear proud and industrious, but no personal advancement or arrival near the top is shown."
+      ],
+      "image_depicted_subject": [
+        "American industrial workers holding tools beside machinery and skyscrapers.",
+        "Communist-coded political and social elites drinking champagne in luxury.",
+        "A divided contrast between American industry and Soviet-style privilege."
+      ],
+      "image_ideological_framing": [
+        "Anti-Communist contrast between privileged Soviet-style elites and heroic American labor.",
+        "American industry is framed as morally superior to elite Communist indulgence."
+      ],
+      "image_implied_mechanism": [
+        "Manual labor and industrial readiness are associated with productive national strength.",
+        "Political elites enjoy luxury while workers represent effort and industry."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Workers, tools, machinery, and work clothing evoke hard work.",
+        "The workers' determined presentation loosely supports perseverance and effort."
+      ],
+      "mechanism_alignment_score": 28,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 32,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 44,
+      "quote_broader_principles": [
+        "Effort is necessary for success.",
+        "Achievement is not guaranteed even with effort.",
+        "Perseverance supports personal and career advancement."
+      ],
+      "quote_claimed_consequences": [
+        "Hard work can bring a person to the top.",
+        "Even when it does not secure the absolute top, hard work should bring a person close."
+      ],
+      "quote_hash": "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
+      "quote_mechanism": [
+        "Sustained hard work is presented as the essential means of advancing toward high achievement."
+      ],
+      "relevance_score": 43,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 25,
+      "stronger_visual_direction": [
+        "Show a worker actively laboring and then advancing toward a clear milestone.",
+        "Use a climber, staircase, or ladder to visualize effort and nearing the top.",
+        "Depict sustained training, study, or workplace effort alongside a visible but not guaranteed achievement.",
+        "Avoid partisan national symbols unless the quotation is explicitly framed politically."
+      ],
+      "unillustrated_primary_elements": [
+        "Reaching or nearing the top through hard work.",
+        "A visible progression from effort to achievement.",
+        "The qualification that hard work does not always guarantee the top.",
+        "Personal success or career advancement."
+      ]
+    },
+    "d95fd04248974978c79e": {
+      "case_id": "d95fd04248974978c79e",
+      "consequence_alignment_score": 20,
+      "directness_score": 12,
+      "editorial_power_score": 76,
+      "explanation": "The image replaces the quotation's specific argument about who bears nationalised-industry wage costs with a sweeping pro-market, anti-communist polemic. Shoppers and state-economic symbolism offer limited thematic relevance, but the image neither shows pay claims nor explains how their costs reach workers and consumers. Its strong ideological framing risks materially misrepresenting the quotation.",
+      "extraneous_image_arguments": [
+        "Thatcher personally delivers prosperity.",
+        "Free markets necessarily generate abundance and urban growth.",
+        "Communism causes devastation, poverty and societal ruin.",
+        "The quote's narrow argument about cost incidence belongs to a capitalism-versus-communism struggle."
+      ],
+      "image_basename": "tg_a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png",
+      "image_depicted_consequences": [
+        "Market abundance, economic growth and urban prosperity on the free-market side.",
+        "Rubble, wreckage, deprivation and distressed civilians on the communist side."
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher-like British leader speaking at a podium.",
+        "Prosperous market, rising growth chart and modern city contrasted with communist symbols and urban ruin."
+      ],
+      "image_ideological_framing": [
+        "Triumphalist endorsement of free markets and Thatcherite leadership.",
+        "Binary capitalism-versus-communism contrast.",
+        "Nationalisation is implicitly displaced by the much broader and more extreme category of communism."
+      ],
+      "image_implied_mechanism": [
+        "Free-market British leadership produces growth and abundance.",
+        "Communism produces poverty, destruction and social collapse."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Shared concern with state-directed economic systems.",
+        "Market shoppers loosely correspond to the quote's consumers and housewives.",
+        "The political speaker and British setting are compatible with discussion of government economic policy."
+      ],
+      "mechanism_alignment_score": 15,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 28,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 38,
+      "quote_broader_principles": [
+        "The apparent payer of a public-sector cost may differ from its true economic bearer.",
+        "Nationalised-industry costs ultimately fall on the public."
+      ],
+      "quote_claimed_consequences": [
+        "Fellow workers, housewives and consumers bear the real financial burden of pay claims.",
+        "Ordinary people pay rather than government absorbing the cost independently."
+      ],
+      "quote_hash": "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283",
+      "quote_mechanism": [
+        "Nationalised-industry wage costs are presented as government liabilities.",
+        "Government functions as an intermediary; the costs must ultimately be transferred to workers, households and consumers."
+      ],
+      "relevance_score": 40,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 14,
+      "stronger_visual_direction": [
+        "A wage-negotiation meeting in a nationalised factory or public utility.",
+        "An editorial split between a government ministry and households receiving higher bills.",
+        "Workers and shoppers confronting increased prices or utility costs linked visually to a public-industry pay settlement."
+      ],
+      "unillustrated_primary_elements": [
+        "Nationalised-industry employees or workplaces.",
+        "Pay claims or wage negotiations.",
+        "The presentation of claims as demands upon government.",
+        "Transfer of wage costs to fellow workers, households and consumers.",
+        "Consumer bills, higher prices or household-budget pressure."
+      ]
+    },
+    "db9adeebf2c41956d290": {
+      "case_id": "db9adeebf2c41956d290",
+      "consequence_alignment_score": 14,
+      "directness_score": 8,
+      "editorial_power_score": 55,
+      "explanation": "The image substitutes a different political satire for the quotation's argument. The quotation concerns critics converting an extraordinary achievement into evidence of deficiency; the image instead argues that backbone or resolve can be rented. Although both touch on political character and perceived strength, the image depicts neither the quoted mechanism nor its central Thames-based contrast, and it introduces a substantial independent claim.",
+      "extraneous_image_arguments": [
+        "Political backbone can be rented.",
+        "Resolve is a commercial product.",
+        "Political toughness may be artificial, standardized or performative."
+      ],
+      "image_basename": "tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png",
+      "image_depicted_consequences": [
+        "Integrity and resolve appear standardized, commercialized and potentially temporary.",
+        "Political toughness is satirized as something that can be obtained rather than inherently possessed."
+      ],
+      "image_depicted_subject": [
+        "A stern, formally dressed older woman holding an anatomical spine outside a shop marked RENT-A-SPINE.",
+        "Several spine models displayed as retail merchandise."
+      ],
+      "image_ideological_framing": [
+        "Satire of political toughness and performative authority.",
+        "Commercialization of character and integrity."
+      ],
+      "image_implied_mechanism": [
+        "Political backbone or resolve is made available as a rentable commodity.",
+        "Authority is used to market acquired or performative toughness."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Political satire involving an authoritative public figure.",
+        "Shared concern with perceptions of personal strength or inadequacy.",
+        "Use of an absurd visual metaphor to comment on political character."
+      ],
+      "mechanism_alignment_score": 10,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 24,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 31,
+      "quote_broader_principles": [
+        "Critics can twist positive accomplishments into negative narratives.",
+        "Public or political perception may be shaped by hostile interpretation rather than observable achievement."
+      ],
+      "quote_claimed_consequences": [
+        "A remarkable success is publicly recast as personal failure.",
+        "The speaker cannot satisfy critics even through an apparently miraculous feat."
+      ],
+      "quote_hash": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "quote_mechanism": [
+        "Critics observe an extraordinary achievement and cynically reinterpret it as evidence of inadequacy.",
+        "Walking over the Thames is reframed as proof of an inability to swim."
+      ],
+      "relevance_score": 28,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 12,
+      "stronger_visual_direction": [
+        "An editorial cartoon of a political figure walking on the Thames while critics on the bank accuse the figure of being unable to swim.",
+        "A water-walking figure near recognizable Thames landmarks, surrounded by hostile reporters or speech bubbles supplying the negative reinterpretation.",
+        "A split composition contrasting the visible feat of walking on water with a headline framing it as failure."
+      ],
+      "unillustrated_primary_elements": [
+        "Critics or hostile commentators.",
+        "Walking on the surface of the Thames.",
+        "The contrast between a miraculous achievement and alleged inability to swim.",
+        "The act of negatively reframing visible success."
+      ]
+    },
+    "e05e08ebeb6230dec78c": {
+      "case_id": "e05e08ebeb6230dec78c",
+      "consequence_alignment_score": 68,
+      "directness_score": 80,
+      "editorial_power_score": 90,
+      "explanation": "The image strongly translates the quotation's denial of personal liberty into a clear act of forced silencing. Its communist symbolism and distressed subject make the broader anti-oppression principle immediately legible. However, it substitutes censorship for the quotation's comprehensive denial of both personal and economic liberty, while the British-national and industrial framing adds claims not contained in the text. Despite those limits, it is a forceful and suitable editorial pairing.",
+      "extraneous_image_arguments": [
+        "The image specifically frames Britain as the target, though the quotation makes no national claim.",
+        "It implies an external or invading communist threat rather than only a general philosophical indictment.",
+        "Industrial smoke introduces a possible pollution or industrial-decline theme unsupported by the quotation."
+      ],
+      "image_basename": "tg_9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png",
+      "image_depicted_consequences": [
+        "The individual appears frightened, powerless and silenced.",
+        "British society is presented as threatened by communist oppression."
+      ],
+      "image_depicted_subject": [
+        "A distressed British man with a hand forcibly covering his mouth.",
+        "A communist hammer-and-sickle flag behind him.",
+        "A Union Jack and industrial British setting."
+      ],
+      "image_ideological_framing": [
+        "Strongly anti-communist framing.",
+        "Communism is personified as a coercive threat to British freedom.",
+        "National British identity is positioned against communist domination."
+      ],
+      "image_implied_mechanism": [
+        "Communist power forcibly suppresses speech and personal expression.",
+        "Fear and physical coercion prevent an individual from speaking."
+      ],
+      "keep_or_replace": "keep",
+      "matched_elements": [
+        "Communism is explicitly represented by the hammer and sickle.",
+        "The covered mouth clearly visualizes denial of personal liberty.",
+        "The man's distress conveys damage to dignity and human agency.",
+        "The coercive scene supports the quotation's liberty-versus-oppression principle."
+      ],
+      "mechanism_alignment_score": 89,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 86,
+      "primary_relationship": "illustrates_mechanism",
+      "principle_alignment_score": 88,
+      "quote_broader_principles": [
+        "Liberty is essential to the human spirit.",
+        "Communism is fundamentally incompatible with comprehensive human freedom."
+      ],
+      "quote_claimed_consequences": [
+        "The denial of liberty utterly negates the human spirit."
+      ],
+      "quote_hash": "f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161",
+      "quote_mechanism": [
+        "Communism denies personal liberty.",
+        "Communism denies economic liberty."
+      ],
+      "relevance_score": 91,
+      "secondary_relationship": "illustrates_broader_principle",
+      "specificity_score": 73,
+      "stronger_visual_direction": [
+        "Show several forms of restriction together, such as censorship, surveillance, imprisonment and controlled commerce.",
+        "Include an unmistakable economic-freedom element, such as rationing, confiscation or a shuttered market under state control.",
+        "Use a broader human-centered symbol—such as an extinguished flame or constrained figures—to represent negation of the human spirit without adding a specifically British geopolitical claim."
+      ],
+      "unillustrated_primary_elements": [
+        "Economic liberty is not clearly depicted as being denied.",
+        "The full scope of 'liberty of all kinds' is reduced to censorship.",
+        "The utter negation of the human spirit is suggested emotionally rather than directly visualized."
+      ]
+    },
+    "e233a9d10b3eea4cbd37": {
+      "case_id": "e233a9d10b3eea4cbd37",
+      "consequence_alignment_score": 8,
+      "directness_score": 12,
+      "editorial_power_score": 58,
+      "explanation": "The image shares the quotation's communist theme but substitutes an alarmist claim about communism infecting the state for the quotation's specific comparison of Communist and Labour policies. With no Labour reference, policy evidence, or side-by-side comparison, it does not directly illustrate the central claim and introduces a much stronger, extraneous argument.",
+      "extraneous_image_arguments": [
+        "Communism is a deadly pathogen",
+        "Communism is actively destroying or capturing government",
+        "The ideological threat is catastrophic"
+      ],
+      "image_basename": "tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png",
+      "image_depicted_consequences": [
+        "Government structures are overwhelmed",
+        "Institutional capture is presented as catastrophic"
+      ],
+      "image_depicted_subject": [
+        "Hammer-and-sickle-marked virus",
+        "Classical government building engulfed by red tendrils"
+      ],
+      "image_ideological_framing": [
+        "Communism as a virulent plague",
+        "Communism as an existential threat to government",
+        "Alarmist anti-communist imagery"
+      ],
+      "image_implied_mechanism": [
+        "Communism spreads like a biological infection",
+        "Communist ideology seizes and consumes state institutions"
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Communism",
+        "Political ideology",
+        "Government institutions",
+        "Hostile political critique"
+      ],
+      "mechanism_alignment_score": 9,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 28,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 25,
+      "quote_broader_principles": [
+        "Ideological similarity among left-wing political parties",
+        "Public perception of party platforms"
+      ],
+      "quote_claimed_consequences": [
+        "Many observers regard the parties' policies as virtually indistinguishable"
+      ],
+      "quote_hash": "3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586",
+      "quote_mechanism": [
+        "Comparison of Communist Party and Labour Party policies",
+        "Perceived lack of meaningful policy distinction between the two parties"
+      ],
+      "relevance_score": 40,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 30,
+      "stronger_visual_direction": [
+        "Place Communist Party and Labour Party symbols or manifesto covers side by side",
+        "Show parallel policy documents with matching proposals highlighted",
+        "Use an editorial cartoon depicting the two parties as nearly identical figures",
+        "Show overlapping Communist and Labour posters or platforms in a comparative composition"
+      ],
+      "unillustrated_primary_elements": [
+        "Labour Party",
+        "Direct comparison between Communist and Labour policies",
+        "Similarity or indistinguishability of party platforms",
+        "Policies or policy documents",
+        "Shared public perception of the comparison"
+      ]
+    },
+    "e64eaa98b9e825be7e66": {
+      "case_id": "e64eaa98b9e825be7e66",
+      "consequence_alignment_score": 24,
+      "directness_score": 30,
+      "editorial_power_score": 72,
+      "explanation": "The image substitutes Soviet communism for the quotation's broader category of all collectivism. It offers a strong ideological association but depicts communist collapse and bureaucratic blindness, not the claimed mechanism of collectivism producing oppression or the consequence of changing victim groups. Thatcher's heroic prominence also introduces a specific Cold War leadership argument absent from the quotation.",
+      "extraneous_image_arguments": [
+        "Thatcher's personal resolve was instrumental in communism's collapse.",
+        "The fall of Soviet communism constitutes a Western political victory.",
+        "Bureaucratic blindness, rather than oppression of victims, is the central institutional failing."
+      ],
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "image_depicted_consequences": [
+        "Destruction and ideological defeat of Soviet communism.",
+        "Institutional collapse around inattentive officials."
+      ],
+      "image_depicted_subject": [
+        "Margaret Thatcher standing before a shattered hammer-and-sickle monument.",
+        "Blindfolded officials handling documents amid communist flags, rubble and dust."
+      ],
+      "image_ideological_framing": [
+        "Triumphalist Cold War imagery.",
+        "Personal leadership contrasted with failed collectivist bureaucracy.",
+        "Communism presented as blind, dysfunctional and defeated."
+      ],
+      "image_implied_mechanism": [
+        "Steadfast Western leadership confronts or helps defeat Soviet communism.",
+        "Bureaucratic blindness leaves officials oblivious as their system collapses."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Communist symbolism represents one historically collectivist system.",
+        "Blindfolded officials suggest systemic blindness and bureaucratic dysfunction.",
+        "The image shares the quotation's criticism of collectivist political structures."
+      ],
+      "mechanism_alignment_score": 40,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 49,
+      "primary_relationship": "related_ideological_substitution",
+      "principle_alignment_score": 57,
+      "quote_broader_principles": [
+        "Political systems should be judged by recurring coercive outcomes.",
+        "A common oppressive pattern can persist while the identities of victims change."
+      ],
+      "quote_claimed_consequences": [
+        "Oppression invariably results from collectivism.",
+        "Different collectivist systems victimize different people."
+      ],
+      "quote_hash": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_mechanism": [
+        "Collectivism systemically tends toward oppression regardless of its particular form."
+      ],
+      "relevance_score": 58,
+      "secondary_relationship": "secondary_theme_match",
+      "specificity_score": 42,
+      "stronger_visual_direction": [
+        "Show victims from several distinct collectivist regimes or eras under parallel forms of state coercion.",
+        "Use recurring chains, confiscation, surveillance or detention across different political settings to express the same oppressive mechanism.",
+        "Depict changing groups of victims beneath a constant collectivist state apparatus, avoiding a single-leader Cold War victory narrative."
+      ],
+      "unillustrated_primary_elements": [
+        "Oppression itself is not visibly depicted.",
+        "No victims of collectivism are shown.",
+        "The claim that victims differ across collectivist systems is absent.",
+        "The quotation's universal claim about all collectivism is narrowed to Soviet communism."
+      ]
+    },
+    "f0ededbfbe6886c49db8": {
+      "case_id": "f0ededbfbe6886c49db8",
+      "consequence_alignment_score": 24,
+      "directness_score": 18,
+      "editorial_power_score": 31,
+      "explanation": "The image shares the topic of socialism and weakly suggests historical persistence, but it does not visualize the quotation’s central mechanism of mutation after each attempted remedy. Its reverent academic framing also substitutes a substantially different ideological message for the quotation’s hostile virus analogy. As published together, the pairing would feel generic and potentially tonally misleading.",
+      "extraneous_image_arguments": [
+        "Socialism belongs in the canon of important intellectual traditions.",
+        "Grand libraries confer scholarly legitimacy and cultural prestige on socialism.",
+        "The focus on 19th-century archival history narrows the subject to one period rather than successive mutations."
+      ],
+      "image_basename": "tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png",
+      "image_depicted_consequences": [
+        "Socialism remains available for historical study.",
+        "The ideology receives formal placement within intellectual history."
+      ],
+      "image_depicted_subject": [
+        "A library collection labeled “HISTORY OF IDEAS” and “19th Century SOCIALISM.”",
+        "Antique books and a portrait of a bearded historical thinker in a grand reading room."
+      ],
+      "image_ideological_framing": [
+        "Reverent and scholarly treatment of socialism.",
+        "Socialism presented as serious intellectual heritage rather than a harmful pathogen."
+      ],
+      "image_implied_mechanism": [
+        "Books, archives and scholarship preserve socialism as an intellectual tradition."
+      ],
+      "keep_or_replace": "replace",
+      "matched_elements": [
+        "Socialism is the central subject in both.",
+        "The historical collection loosely evokes the endurance of socialist ideas over time.",
+        "Both concern socialism as an ideology with a continuing historical presence."
+      ],
+      "mechanism_alignment_score": 8,
+      "model": "gpt-5.6-sol",
+      "overall_suitability_score": 27,
+      "primary_relationship": "secondary_theme_match",
+      "principle_alignment_score": 35,
+      "quote_broader_principles": [
+        "Political ideologies can adapt and recur over time.",
+        "Socialism is framed negatively through a mutating-virus metaphor."
+      ],
+      "quote_claimed_consequences": [
+        "Socialism persists despite attempts to eliminate or counter it.",
+        "Successive remedies fail because the ideology changes form."
+      ],
+      "quote_hash": "bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de",
+      "quote_mechanism": [
+        "A remedy is discovered for one version of socialism.",
+        "Socialism then spontaneously evolves into another version, making the remedy obsolete."
+      ],
+      "relevance_score": 42,
+      "secondary_relationship": "related_ideological_substitution",
+      "specificity_score": 38,
+      "stronger_visual_direction": [
+        "An editorial illustration of socialist symbols embedded in a virus that mutates into successive forms.",
+        "A sequence of historical socialist movements changing appearance after repeated attempted cures or countermeasures.",
+        "A laboratory or microscope scene combining political iconography with visible mutation and failed remedies."
+      ],
+      "unillustrated_primary_elements": [
+        "Virus metaphor",
+        "Spontaneous mutation into new versions",
+        "Discovery and failure of remedies",
+        "Repeated ideological adaptation across eras",
+        "Hostile characterization of socialism as horrible and resistant to eradication"
+      ]
+    }
+  },
+  "model": "gpt-5.6-sol",
+  "prompt_version": "provider-neutral-picture-editor-v1",
+  "provider": "openai",
+  "schema_version": 1
+}
