@@ -1,0 +1,479 @@
+Generated Image Pool Review Report
+==================================
+
+Date: 2026-07-08
+Repository: /disks/disk1/etc/mrsMThatcher
+
+Scope
+-----
+
+Reviewed the newly implemented optional generated-image pool and the staged
+runtime artifacts it depends on.
+
+This review covered:
+
+- mrsMThatcher2.py generated-pool config and image selection changes
+- tests/test_unit_helpers.py generated-pool tests
+- generated_image_analysis.json
+- generated_review_approved_images/*.png
+- current live images_used.json compatibility
+
+It did not change or review unrelated reply, receipt, meme, xAI, digest, or
+scheduling behaviour.
+
+
+Summary Verdict
+---------------
+
+I do not see a remaining correctness blocker in the generated-image pool
+implementation.
+
+The implementation is deliberately guarded:
+
+- generated image pool is default-off;
+- existing original image pool behaviour is unchanged while disabled;
+- generated image files remain in generated_review_approved_images/;
+- generated image analysis remains in generated_image_analysis.json;
+- live images/ and live image_analysis.json are not modified;
+- generated images are normal scoring candidates, not forced by quote hash;
+- originating quote hash gives only a small configurable boost;
+- stale, missing, out-of-season, or strong-mismatch images are handled by the
+  existing image metadata checks;
+- legacy integer image history is not destructively migrated while the generated
+  pool is enabled.
+
+
+Issues Found And Fixed During Review
+------------------------------------
+
+1. Manifest was staged but not used by runtime
+
+The generated staging manifest:
+
+    generated_review_approved_images/manifest.json
+
+is useful provenance, but mrsMThatcher2.py does not read it. Runtime requires:
+
+    generated_image_analysis.json
+    generated_review_approved_images/tg_<quote_hash>.png
+
+I unstaged manifest.json so it remains unversioned.
+
+
+2. Generated glob traversal guard
+
+The first implementation accepted GENERATED_IMAGE_GLOB directly. A bad local
+config such as:
+
+    GENERATED_IMAGE_GLOB = "../outside/*.png"
+
+could make current_image_paths() see files outside GENERATED_IMAGE_DIR.
+
+Fix:
+
+    current_image_paths() now checks each generated image with
+    path_is_same_or_child(image_path, generated_dir) and skips anything outside
+    the configured generated-image directory.
+
+Added test:
+
+    test_generated_image_pool_rejects_paths_outside_generated_directory
+
+
+Production-Shaped Probe
+-----------------------
+
+I ran a no-posting probe against the actual staged generated corpus and live
+original image analysis with the generated pool enabled in-process.
+
+Observed:
+
+    original images: 69
+    generated images: 83
+    merged analysis entries: 152
+    generated images missing metadata: 0
+    forced generated selection: succeeded
+    selected generated path exists: true
+    origin quote boost applied: 4.0
+
+The probe did not post anything.
+
+The probe also showed three seasonally excluded images on the current date:
+
+    t23.jpg
+    tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png
+    tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png
+
+That is expected behaviour from existing image seasonality logic and the v4
+generated image metadata.
+
+
+Runtime Artifact Validation
+---------------------------
+
+Validated generated_image_analysis.json against staged PNG files.
+
+Results:
+
+    analysis_kind: images
+    schema_version: 3
+    path_index: 83
+    items: 83
+    png_files: 83
+    failures: 0
+    hash/path/item errors: 0
+    bad generated filenames: 0
+    extra PNGs not indexed: 0
+
+All generated filenames match:
+
+    tg_[0-9a-f]{64}.png
+
+
+Live State Compatibility
+------------------------
+
+Checked current live image history:
+
+    images_used.json entries: 17
+    legacy integer entries: 0
+    generated entries: 0
+
+This matters because the generated pool deliberately blocks legacy integer
+image-history migration while enabled. Since current live history is already
+basename-based, enabling the pool will not trip that guard.
+
+
+Configuration To Enable Later
+-----------------------------
+
+The pool remains disabled unless this is added to mrsMThatcher.local.json:
+
+    {
+      "ENABLE_GENERATED_IMAGE_POOL": true,
+      "GENERATED_IMAGE_DIR": "/disks/disk1/etc/mrsMThatcher/generated_review_approved_images",
+      "GENERATED_IMAGE_GLOB": "*.png",
+      "GENERATED_IMAGE_ANALYSIS_FILE": "/disks/disk1/etc/mrsMThatcher/generated_image_analysis.json",
+      "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 4
+    }
+
+
+Tests Run
+---------
+
+Focused generated/local config tests:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py -k 'local_config_can_enable_generated_image_pool or generated_image_pool or origin_quote_boost'
+
+Result:
+
+    6 passed, 262 deselected
+
+
+Image unit subset:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py -k 'image'
+
+Result:
+
+    46 passed, 221 deselected
+
+
+Full suite:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+
+Result:
+
+    449 passed, 1 skipped, 1 warning
+
+
+Compile and diff checks:
+
+    python3 -m py_compile mrsMThatcher2.py tests/test_unit_helpers.py
+    git diff --check
+
+Result:
+
+    clean
+
+
+Current Git State Relevant To This Change
+-----------------------------------------
+
+Modified, unstaged:
+
+    mrsMThatcher2.py
+    tests/test_unit_helpers.py
+
+Staged runtime artifacts:
+
+    generated_image_analysis.json
+    generated_review_approved_images/tg_<quote_hash>.png  (83 files)
+
+Untracked and deliberately not staged:
+
+    generated_review_approved_images/manifest.json
+
+Other unrelated untracked analysis/review artifacts remain untouched.
+
+
+Residual Limitations
+--------------------
+
+1. No generated-image frequency cap yet
+
+Generated images compete normally with original images once enabled, with only
+the origin-quote boost. If generated images visually dominate, a later change
+could add a generated-share cap. I did not add one here because it would alter
+selection policy more broadly.
+
+
+2. Generated-pool fallback on missing generated analysis
+
+If ENABLE_GENERATED_IMAGE_POOL is true but generated_image_analysis.json is
+missing or invalid, load_image_analysis() logs a warning and uses only the
+original image pool.
+
+This is operationally safe and avoids taking the whole regular post lane down
+because the optional pool is unavailable. It also means a misconfigured generated
+pool silently degrades to the original image pool except for warning logs.
+
+
+3. Basename identity remains global
+
+Image used history remains basename-based. This is safe with current generated
+filenames because they are tg_<quote_hash>.png and do not collide with tNN.jpg.
+The implementation also skips generated images whose basename collides with a
+primary image.
+
+
+4. Generated metadata is merged in memory only
+
+The live image_analysis.json is not modified. This is intentional and supports
+clean rollback by disabling ENABLE_GENERATED_IMAGE_POOL.
+
+
+Relevant Code Diff
+------------------
+
+diff --git a/mrsMThatcher2.py b/mrsMThatcher2.py
+index c177538..3fe80eb 100755
+--- a/mrsMThatcher2.py
++++ b/mrsMThatcher2.py
+@@ -138,6 +138,7 @@ THREAD_CONTEXT_MAX_DEPTH = 3
+ THREAD_CONTEXT_MAX_CHARS_PER_POST = 500
+ THREAD_CONTEXT_MAX_TOTAL_CHARS = 1500
+ MAX_REPLY_CONTEXT_PHOTOS = 2
++GENERATED_IMAGE_ORIGIN_QUOTE_BOOST = 4
+
+ TWEET_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
+ TWEET_CACHE_MAX_ITEMS = 500
+@@ -188,8 +189,12 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
+
+ LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
+ IMAGE_GLOB = str(BASE_DIR / "images/t*")
++ENABLE_GENERATED_IMAGE_POOL = False
++GENERATED_IMAGE_DIR = str(BASE_DIR / "generated_review_approved_images")
++GENERATED_IMAGE_GLOB = "*.png"
+ QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
+ IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
++GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
+ QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
+
+ LINES_USED_FILE = BASE_DIR / "lines_used.json"
+@@ -392,6 +397,13 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
+     "MAX_REPLY_CHARS",
+     "MAX_GROK_OUTPUT_TOKENS",
+
++    # Optional generated-image pool for regular quote/image posts
++    "ENABLE_GENERATED_IMAGE_POOL",
++    "GENERATED_IMAGE_DIR",
++    "GENERATED_IMAGE_GLOB",
++    "GENERATED_IMAGE_ANALYSIS_FILE",
++    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
++
+     # Operational hardening
+     "STATE_BACKUP_COUNT",
+ }
+@@ -436,6 +448,7 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
+     "COOLDOWN_AFTER_429_SECONDS",
+     "MAX_REPLY_CHARS",
+     "MAX_GROK_OUTPUT_TOKENS",
++    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+     "STATE_BACKUP_COUNT",
+ }
+
+@@ -3431,22 +3444,63 @@ def load_quote_analysis() -> dict | None:
+     return apply_quote_analysis_overrides(raw, overrides)
+
+
+-def load_image_analysis() -> dict | None:
+-    raw = load_json_object(IMAGE_ANALYSIS_FILE, label="image analysis")
++def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
++    raw = load_json_object(path, label=label)
+     if raw is None:
+         return None
+     if raw.get("analysis_kind") != "images":
+-        log.error("Image analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
++        log.error("%s file has unsupported analysis_kind=%r", label, raw.get("analysis_kind"))
+         return None
+     if raw.get("schema_version") != 3:
+-        log.error("Image analysis file has unsupported schema_version=%r", raw.get("schema_version"))
++        log.error("%s file has unsupported schema_version=%r", label, raw.get("schema_version"))
+         return None
+     if not isinstance(raw.get("items"), dict) or not isinstance(raw.get("path_index"), dict):
+-        log.error("Image analysis file has invalid required structure: %s", IMAGE_ANALYSIS_FILE)
++        log.error("%s file has invalid required structure: %s", label, path)
+         return None
+     return raw
+
+
++def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
++    if not isinstance(generated, dict):
++        return primary
++
++    merged = dict(primary)
++    merged_path_index = dict(primary.get("path_index") or {})
++    merged_items = dict(primary.get("items") or {})
++    primary_paths = set(merged_path_index)
++
++    for basename, image_hash in sorted((generated.get("path_index") or {}).items()):
++        basename = str(basename)
++        image_hash = str(image_hash)
++        if basename in primary_paths:
++            log.warning("Skipping generated image metadata with basename collision: %s", basename)
++            continue
++        item = (generated.get("items") or {}).get(image_hash)
++        if not isinstance(item, dict):
++            log.warning("Skipping generated image metadata with missing item hash=%s basename=%s", image_hash, basename)
++            continue
++        merged_path_index[basename] = image_hash
++        merged_items.setdefault(image_hash, item)
++
++    merged["path_index"] = merged_path_index
++    merged["items"] = merged_items
++    return merged
++
++
++def load_image_analysis() -> dict | None:
++    primary = load_image_analysis_file(IMAGE_ANALYSIS_FILE, label="image analysis")
++    if primary is None or not ENABLE_GENERATED_IMAGE_POOL:
++        return primary
++
++    generated_path = Path(str(GENERATED_IMAGE_ANALYSIS_FILE)).expanduser()
++    generated = load_image_analysis_file(generated_path, label="generated image analysis")
++    if generated is None:
++        log.warning("Generated image pool enabled but generated image analysis is unavailable; using original image pool only")
++        return primary
++
++    return merge_image_analysis(primary, generated)
++
++
+ def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
+     if start_mm_dd <= end_mm_dd:
+         return start_mm_dd <= mm_dd <= end_mm_dd
+@@ -3643,7 +3697,34 @@ def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]
+ def current_image_paths() -> list[str]:
+     images = glob(IMAGE_GLOB)
+     images.sort()
+-    return [path for path in images if Path(path).is_file()]
++    result = [path for path in images if Path(path).is_file()]
++    if not ENABLE_GENERATED_IMAGE_POOL:
++        return result
++
++    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
++    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
++    generated_images = []
++    for path in sorted(glob(generated_glob)):
++        image_path = Path(path)
++        if not image_path.is_file():
++            continue
++        if not path_is_same_or_child(image_path, generated_dir):
++            log.warning("Skipping generated image outside configured generated image directory: %s", path)
++            continue
++        generated_images.append(path)
++    if not generated_images:
++        log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
++        return result
++
++    seen_basenames = {Path(path).name for path in result}
++    for path in generated_images:
++        basename = Path(path).name
++        if basename in seen_basenames:
++            log.warning("Skipping generated image with basename collision: %s path=%s", basename, path)
++            continue
++        result.append(path)
++        seen_basenames.add(basename)
++    return result
+
+
+ def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
+@@ -4099,6 +4180,8 @@ def image_used_history_has_legacy_indices(images_used: set) -> bool:
+
+
+ def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
++    if ENABLE_GENERATED_IMAGE_POOL:
++        return False
+     if not isinstance(image_analysis, dict):
+         return False
+     expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
+@@ -4680,6 +4763,13 @@ def image_metadata_for_basename(image_analysis: dict | None, basename: str, path
+     return str(image_hash), analysis
+
+
++def generated_image_origin_quote_hash(basename: str) -> str | None:
++    match = re.fullmatch(r"tg_([0-9a-fA-F]{64})\.[A-Za-z0-9]+", str(basename))
++    if not match:
++        return None
++    return match.group(1).lower()
++
++
+ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dict) -> dict:
+     images = current_image_paths()
+     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
+@@ -4747,6 +4837,12 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
+         if not eligible:
+             log.info("Skipping image %s: strong visual mismatch with selected quote", basename)
+             continue
++        origin_quote_hash = generated_image_origin_quote_hash(basename)
++        if origin_quote_hash and origin_quote_hash == str(quote_choice.get("quote_hash", "")).lower():
++            boost = float(GENERATED_IMAGE_ORIGIN_QUOTE_BOOST)
++            score += boost
++            components = dict(components)
++            components["generated_origin_quote"] = boost
+         path = image_by_name[basename]
+         scored.append(
+             {
+
+
+Test Diff Summary
+-----------------
+
+tests/test_unit_helpers.py adds:
+
+- write_image_analysis helper
+- test_generated_image_pool_disabled_keeps_original_image_scan
+- test_generated_image_pool_merges_separate_analysis_when_enabled
+- test_generated_image_pool_rejects_paths_outside_generated_directory
+- test_generated_image_origin_quote_boost_can_select_matching_generated_image
+- test_generated_image_pool_enabled_does_not_migrate_legacy_image_indices
+- test_local_config_can_enable_generated_image_pool
+
+
+Staged Artifact Diff Summary
+----------------------------
+
+git diff --cached --stat:
+
+    generated_image_analysis.json                      | 11599 +++++++++++++++++++
+    generated_review_approved_images/tg_<hash>.png     | 83 binary PNG files
+    84 files changed
+
+manifest.json is not staged.
+
+
+No Commit
+---------
+
+Nothing was committed by this review.

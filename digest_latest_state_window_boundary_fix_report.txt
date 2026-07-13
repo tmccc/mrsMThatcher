@@ -1,0 +1,596 @@
+# Digest latest-state window-boundary fix report
+
+Date: 2026-07-08
+Repository: /disks/disk1/etc/mrsMThatcher
+
+## Scope
+
+This was a digest-only fix.
+
+Changed files:
+
+- mrs_log_digest.py
+- tests/test_integration_harness.py
+
+No production bot code was changed. In particular, mrsMThatcher2.py was not modified.
+
+Nothing was committed.
+
+## Root cause
+
+The digest's event records were correctly filtered by the selected report window. `read_records()` applies both `--since` and `--until`, and the headline/tables/counts were therefore based only on in-window records.
+
+However, after analysing those filtered records, `main()` unconditionally loaded `bot_state.json` through `load_authoritative_state_for_logs()` and replaced `report["latest_state"]` with that state:
+
+    authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
+    if authoritative_state is not None:
+        report["latest_state"] = summarize_latest_state(...)
+
+That authoritative state timestamp is the filesystem mtime of `bot_state.json`. In the proven production case, the state file reflected a later mention reply at `2026-07-08 06:39:45`, while the digest report window ended at `2026-07-08 06:39:38`.
+
+So the digest was internally inconsistent:
+
+- headline/tables/counts excluded the 06:39:45 mention reply;
+- Latest state included the 06:39:45 state snapshot and showed `daily_reply_count = 2`.
+
+The production bot did not double-increment the counter. The digest imported a future state snapshot.
+
+## Why the production counter behaviour was misleading
+
+The raw logs showed the bot state was correct at each point:
+
+- after the in-window quote-tweet reply: `daily_reply_count = 1`, `daily_quote_reply_count = 1`;
+- after the later out-of-window mention reply: `daily_reply_count = 2`, `daily_quote_reply_count = 1`.
+
+The digest made that look suspicious only because it mixed two different time scopes: in-window event counts with out-of-window latest state.
+
+## Failing regression before the fix
+
+The regression test added first was:
+
+    test_digest_latest_state_ignores_authoritative_state_after_window_end
+
+It creates:
+
+- in-window quote-tweet reply/state at `2026-07-08 05:39:34` / `05:39:35` with `daily_reply_count = 1`;
+- report window ending at `2026-07-08 06:39:38`;
+- out-of-window mention reply/state at `2026-07-08 06:39:45` with `daily_reply_count = 2`;
+- `bot_state.json` mtime set to `2026-07-08 06:39:45`.
+
+Before the fix the test failed on the intended state boundary:
+
+    assert 'State timestamp: `2026-07-08 05:39:35`' in digest.stdout
+
+The digest instead used:
+
+    State timestamp: `2026-07-08 06:39:45` (authoritative current state ...)
+
+## Exact code change
+
+The fix defines a single state-window eligibility rule:
+
+    state_context_is_within_window(state, window_end)
+
+and computes the digest report-window end in `main()` as:
+
+    report_window_end = until or (records[-1].ts if records else None)
+
+Then:
+
+1. `bot_state.json` is used as authoritative latest state only if its timestamp is not later than `report_window_end`.
+2. Saved digest-state backfill only contributes previous latest-state fields if the saved state's own `time` is not later than `report_window_end`.
+
+This keeps the existing authoritative-state and backfill behaviour for current/open windows, but prevents a bounded historical digest from importing future state.
+
+## Why future/out-of-window state can no longer leak
+
+There are now two guards:
+
+- authoritative `bot_state.json` guard:
+
+      authoritative_state_ts <= report_window_end
+
+- saved resume-context guard:
+
+      previous_state["time"] <= report_window_end
+
+If either source is newer than the digest window, it is ignored for Latest state. The parser still uses in-window state snapshots from the selected records, and can still backfill missing fields from eligible older state.
+
+## Edge cases tested
+
+A. Exact proven case
+
+- in-window count: `daily_reply_count = 1`;
+- future authoritative state: `daily_reply_count = 2`;
+- result: Latest state remains `1` and timestamp is in-window.
+
+B. Snapshot exactly at window end
+
+- `bot_state.json` mtime equals `--until`;
+- result: authoritative state is eligible.
+
+C. No state snapshot inside current window
+
+- current window has no state line;
+- eligible previous digest-state backfill exists;
+- future `bot_state.json` also exists;
+- result: previous eligible state is carried forward and future state is ignored.
+
+D. Future saved digest state
+
+- saved `last_known_latest_state.time` is later than `--until`;
+- result: it is not merged into Latest state.
+
+E. Headline/tables/counts unchanged
+
+The exact proven-case test asserts the headline still reports:
+
+- `0 mention reply/replies`;
+- `1 quote-tweet reply/replies`;
+
+and the out-of-window mention reply text is absent.
+
+## Focused test results
+
+New and directly related tests:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+      tests/test_integration_harness.py::test_digest_can_use_bot_state_for_authoritative_current_state_metrics \
+      tests/test_integration_harness.py::test_digest_latest_state_ignores_authoritative_state_after_window_end \
+      tests/test_integration_harness.py::test_digest_authoritative_state_at_window_end_is_eligible \
+      tests/test_integration_harness.py::test_digest_saved_state_backfill_ignores_future_state_snapshot \
+      tests/test_integration_harness.py::test_digest_saved_state_backfill_rejects_future_saved_state_snapshot
+
+Result:
+
+    5 passed
+
+Digest-state/xAI/receipt/media subset:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py -k 'digest_latest_state or authoritative_current_state or saved_state_backfill or xai_usage or stale_context or reply_media_context or confirmed_reply'
+
+Result:
+
+    14 passed, 143 deselected
+
+Full integration harness:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py
+
+Result:
+
+    156 passed, 1 skipped
+
+## Full-suite result
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+
+Result:
+
+    418 passed, 1 skipped
+
+## py_compile result
+
+    python3 -m py_compile mrs_log_digest.py tests/test_integration_harness.py
+
+Result: clean.
+
+## git diff --check result
+
+    git diff --check
+
+Result: clean.
+
+## Commit status
+
+Nothing was committed.
+
+## git diff
+
+diff --git a/mrs_log_digest.py b/mrs_log_digest.py
+index 9335316..b1675e2 100755
+--- a/mrs_log_digest.py
++++ b/mrs_log_digest.py
+@@ -438,6 +438,16 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
+     return None, None, None
+
+
++def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
++    if window_end is None:
++        return True
++    try:
++        state_time = parse_dt(state.get("time"))
++    except Exception:
++        state_time = None
++    return state_time is None or state_time <= window_end
++
++
+ INTERNAL_CONTEXT_KEYS = {
+     "_carried_forward",
+     "_filled_from_previous",
+@@ -1919,7 +1929,12 @@ def refresh_derived(report: Dict[str, Any]) -> None:
+     }
+
+
+-def apply_saved_context(report: Dict[str, Any], state_file: Path) -> None:
++def apply_saved_context(
++    report: Dict[str, Any],
++    state_file: Path,
++    *,
++    window_end: Optional[datetime] = None,
++) -> None:
+     """Fill missing latest_state/latest_config from the previous digest run.
+
+     v4 merges field-by-field. That means a current state snapshot can be
+@@ -1927,10 +1942,13 @@ def apply_saved_context(report: Dict[str, Any], state_file: Path) -> None:
+     can still show e.g. "5 / 12" even in windows with no startup Config line.
+     """
+     old = read_resume_data(state_file)
++    previous_state = old.get("last_known_latest_state") or {}
++    if previous_state and not state_context_is_within_window(previous_state, window_end):
++        previous_state = {}
+
+     report["latest_state"] = merge_context(
+         report.get("latest_state") or {},
+-        old.get("last_known_latest_state") or {},
++        previous_state,
+     )
+     report["latest_config"] = merge_context(
+         report.get("latest_config") or {},
+@@ -2670,6 +2688,7 @@ def main(argv: Optional[List[str]] = None) -> int:
+         ]
+     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
+     report = analyse(records, max_text=args.max_text)
++    report_window_end = until or (records[-1].ts if records else None)
+
+     report["log_files"] = [str(p) for p in logs]
+     report["input_files"] = input_files
+@@ -2687,7 +2706,10 @@ def main(argv: Optional[List[str]] = None) -> int:
+     report["state_updated"] = False
+
+     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
+-    if authoritative_state is not None:
++    if (
++        authoritative_state is not None
++        and (report_window_end is None or authoritative_state_ts is None or authoritative_state_ts <= report_window_end)
++    ):
+         report["latest_state"] = summarize_latest_state(
+             authoritative_state,
+             authoritative_state_ts,
+@@ -2711,7 +2733,7 @@ def main(argv: Optional[List[str]] = None) -> int:
+             report["config_backscan_timestamp"] = dt_text(backscan_ts) if backscan_ts else None
+
+     if not args.no_state and not args.reset_state:
+-        apply_saved_context(report, args.state_file)
++        apply_saved_context(report, args.state_file, window_end=report_window_end)
+     else:
+         refresh_derived(report)
+
+diff --git a/tests/test_integration_harness.py b/tests/test_integration_harness.py
+index 6b03ed8..4d44657 100644
+--- a/tests/test_integration_harness.py
++++ b/tests/test_integration_harness.py
+@@ -223,12 +223,19 @@ def run_cycle(base_dir: Path, server: FakeApiServer) -> subprocess.CompletedProc
+     return run_bot_command(base_dir, server, "--test-cycle")
+
+
+-def run_digest(base_dir: Path, *, state_file: Path | None = None) -> subprocess.CompletedProcess[str]:
++def run_digest(
++    base_dir: Path,
++    *,
++    state_file: Path | None = None,
++    until: str | None = None,
++) -> subprocess.CompletedProcess[str]:
+     args = [sys.executable, str(DIGEST), "--glob", "test.log"]
+     if state_file is None:
+         args.append("--no-state")
+     else:
+         args.extend(["--state-file", str(state_file)])
++    if until is not None:
++        args.extend(["--until", until])
+     args.append(str(base_dir / "test.log"))
+     return subprocess.run(
+         args,
+@@ -5067,13 +5074,16 @@ def test_digest_latest_state_counts_do_not_default_missing_lists_to_zero(tmp_pat
+ def test_digest_can_use_bot_state_for_authoritative_current_state_metrics(tmp_path: Path) -> None:
+     base = tmp_path / "digest-authoritative-state"
+     meme_names = [f"{idx:03d}_meme.png" for idx in range(20)]
++    state_ts = datetime(2026, 7, 6, 15, 21, 25).timestamp()
+     write_digest_log(
+         base,
+         [
+             '2026-07-06 15:21:25 DEBUG    save_state:1632 - State being saved: {"daily_reply_count": 1}',
+         ],
+     )
+-    write_json(base / "bot_state.json", {"posted_meme_filenames": meme_names, "daily_reply_count": 2})
++    state_path = base / "bot_state.json"
++    write_json(state_path, {"posted_meme_filenames": meme_names, "daily_reply_count": 2})
++    os.utime(state_path, (state_ts, state_ts))
+     digest = run_digest(base)
+     assert digest.returncode == 0, digest.stderr
+     assert "authoritative current state" in digest.stdout
+@@ -5081,6 +5091,154 @@ def test_digest_can_use_bot_state_for_authoritative_current_state_metrics(tmp_pa
+     assert "posted_meme_count       = unknown" not in digest.stdout
+
+
++def test_digest_latest_state_ignores_authoritative_state_after_window_end(tmp_path: Path) -> None:
++    base = tmp_path / "digest-latest-state-window-boundary"
++    window_end = "2026-07-08 06:39:38"
++    future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
++    write_digest_log(
++        base,
++        [
++            "2026-07-08 05:39:31 INFO maybe_reply_to_quote_tweets:4000 - Considering quote tweet id=900 author_id=777 original_post_id=555 text='Quote text'",
++            "2026-07-08 05:39:32 INFO maybe_reply_to_quote_tweets:4020 - Generated reply to quote tweet 900: 'A quote reply.'",
++            "2026-07-08 05:39:33 INFO create_post:2500 - Created X post successfully response={'data': {'id': '901', 'text': 'A quote reply.'}}",
++            "2026-07-08 05:39:34 INFO maybe_reply_to_quote_tweets:4100 - Quote-tweet reply posted successfully",
++            '2026-07-08 05:39:35 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 1, "daily_quote_reply_count": 1, "last_seen_mention_id": "800", "next_reply_lane_priority": "normal"}',
++            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
++            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3000 - Considering mention id=1000 author_id=456 text='@MrsMThatcher hello'",
++            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3050 - Generated reply to mention 1000: 'A mention reply.'",
++            "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:3100 - Reply posted successfully",
++            '2026-07-08 06:39:45 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 2, "daily_quote_reply_count": 1, "last_seen_mention_id": "1000", "next_reply_lane_priority": "quote"}',
++        ],
++    )
++    state_path = base / "bot_state.json"
++    write_json(
++        state_path,
++        {
++            "daily_reply_count": 2,
++            "daily_quote_reply_count": 1,
++            "last_seen_mention_id": "1000",
++            "next_reply_lane_priority": "quote",
++        },
++    )
++    os.utime(state_path, (future_state_ts, future_state_ts))
++
++    digest = run_digest(base, until=window_end)
++    assert digest.returncode == 0, digest.stderr
++    assert "Window: `2026-07-08 05:39:31` → `2026-07-08 06:39:38`" in digest.stdout
++    assert "0 mention reply/replies" in digest.stdout
++    assert "1 quote-tweet reply/replies" in digest.stdout
++    assert "A mention reply." not in digest.stdout
++    assert "State timestamp: `2026-07-08 05:39:35`" in digest.stdout
++    assert "daily_reply_count       = 1" in digest.stdout
++    assert "daily_quote_reply_count = 1" in digest.stdout
++    assert "daily_reply_count       = 2" not in digest.stdout
++    assert "last_seen_mention_id    = 1000" not in digest.stdout
++
++
++def test_digest_authoritative_state_at_window_end_is_eligible(tmp_path: Path) -> None:
++    base = tmp_path / "digest-latest-state-window-end-eligible"
++    window_end = "2026-07-08 06:39:38"
++    state_ts = datetime(2026, 7, 8, 6, 39, 38).timestamp()
++    write_digest_log(
++        base,
++        [
++            '2026-07-08 06:39:35 DEBUG save_state:1632 - State being saved: {"daily_reply_count": 1, "daily_quote_reply_count": 1}',
++            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
++        ],
++    )
++    state_path = base / "bot_state.json"
++    write_json(
++        state_path,
++        {
++            "daily_reply_count": 2,
++            "daily_quote_reply_count": 1,
++            "last_seen_mention_id": "1000",
++        },
++    )
++    os.utime(state_path, (state_ts, state_ts))
++
++    digest = run_digest(base, until=window_end)
++    assert digest.returncode == 0, digest.stderr
++    assert "State timestamp: `2026-07-08 06:39:38` (authoritative current state" in digest.stdout
++    assert "daily_reply_count       = 2" in digest.stdout
++    assert "last_seen_mention_id    = 1000" in digest.stdout
++
++
++def test_digest_saved_state_backfill_ignores_future_state_snapshot(tmp_path: Path) -> None:
++    base = tmp_path / "digest-saved-state-window-boundary"
++    state_file = tmp_path / "digest-state.json"
++    window_end = "2026-07-08 06:39:38"
++    future_state_ts = datetime(2026, 7, 8, 6, 39, 45).timestamp()
++    write_digest_log(
++        base,
++        [
++            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
++        ],
++    )
++    write_json(
++        state_file,
++        {
++            "last_log_entry_time": "2026-07-08 06:00:00",
++            "last_known_latest_state": {
++                "time": "2026-07-08 05:39:35",
++                "daily_reply_count": 1,
++                "daily_quote_reply_count": 1,
++                "last_seen_mention_id": "800",
++            },
++            "last_known_latest_config": {},
++        },
++    )
++    state_path = base / "bot_state.json"
++    write_json(
++        state_path,
++        {
++            "daily_reply_count": 2,
++            "daily_quote_reply_count": 1,
++            "last_seen_mention_id": "1000",
++        },
++    )
++    os.utime(state_path, (future_state_ts, future_state_ts))
++
++    digest = run_digest(base, state_file=state_file, until=window_end)
++    assert digest.returncode == 0, digest.stderr
++    assert "State timestamp: `2026-07-08 05:39:35` (carried forward from previous digest state)" in digest.stdout
++    assert "daily_reply_count       = 1" in digest.stdout
++    assert "daily_quote_reply_count = 1" in digest.stdout
++    assert "last_seen_mention_id    = 800" in digest.stdout
++    assert "daily_reply_count       = 2" not in digest.stdout
++    assert "last_seen_mention_id    = 1000" not in digest.stdout
++
++
++def test_digest_saved_state_backfill_rejects_future_saved_state_snapshot(tmp_path: Path) -> None:
++    base = tmp_path / "digest-saved-future-state-window-boundary"
++    state_file = tmp_path / "future-digest-state.json"
++    window_end = "2026-07-08 06:39:38"
++    write_digest_log(
++        base,
++        [
++            "2026-07-08 06:39:38 INFO main:6000 - Main loop sleeping",
++        ],
++    )
++    write_json(
++        state_file,
++        {
++            "last_log_entry_time": "2026-07-08 06:00:00",
++            "last_known_latest_state": {
++                "time": "2026-07-08 06:39:45",
++                "daily_reply_count": 2,
++                "daily_quote_reply_count": 1,
++                "last_seen_mention_id": "1000",
++            },
++            "last_known_latest_config": {},
++        },
++    )
++
++    digest = run_digest(base, state_file=state_file, until=window_end)
++    assert digest.returncode == 0, digest.stderr
++    assert "daily_reply_count       = 2" not in digest.stdout
++    assert "last_seen_mention_id    = 1000" not in digest.stdout
++
++
+ def test_digest_groups_handled_media_v2_fallback_as_one_warning(tmp_path: Path) -> None:
+     base = tmp_path / "digest-media-fallback-handled"
+     media_file = "/tmp/016_impact18_share17_gradeA_post_as_is_Image150.png"
+
+---
+
+# Follow-up: implicit no---until boundary regression
+
+Date: 2026-07-08
+
+## Why the no---until branch matters
+
+The original production failure did not require an explicit `--until`. The digest had simply read log records only through `2026-07-08 06:39:38`, while `bot_state.json` had already advanced to `2026-07-08 06:39:45`.
+
+In that mode, the effective report-window end is not a user-supplied `--until`; it is inferred from:
+
+    records[-1].ts
+
+The implemented fix already computes:
+
+    report_window_end = until or (records[-1].ts if records else None)
+
+This follow-up adds a regression proving that implicit branch.
+
+## New regression test
+
+Added:
+
+    test_digest_without_until_uses_last_record_as_latest_state_boundary
+
+Fixture shape:
+
+- `test.log` contains an in-log state snapshot at `2026-07-08 05:39:35`:
+  - `daily_reply_count = 1`
+  - `daily_quote_reply_count = 1`
+  - `last_seen_mention_id = 800`
+- final log record is `2026-07-08 06:39:38`;
+- no `--until` argument is passed;
+- `bot_state.json` contains future state from `2026-07-08 06:39:45`:
+  - `daily_reply_count = 2`
+  - `daily_quote_reply_count = 1`
+  - `last_seen_mention_id = 1000`
+
+Expected and asserted behavior:
+
+- digest succeeds;
+- displayed window ends at `2026-07-08 06:39:38`;
+- Latest state timestamp remains `2026-07-08 05:39:35`;
+- `daily_reply_count = 1`;
+- `daily_quote_reply_count = 1`;
+- `last_seen_mention_id = 800`;
+- future `daily_reply_count = 2` is absent;
+- future `last_seen_mention_id = 1000` is absent;
+- authoritative-current-state wording is absent.
+
+## Did it pass before production-code changes?
+
+Yes. The new regression passed immediately against the current implementation:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_digest_without_until_uses_last_record_as_latest_state_boundary
+
+Result:
+
+    1 passed
+
+Because it passed, no further `mrs_log_digest.py` modification was made in this follow-up. Only the test file changed in this follow-up.
+
+## Focused latest-state tests
+
+Command:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q \
+      tests/test_integration_harness.py::test_digest_latest_state_ignores_authoritative_state_after_window_end \
+      tests/test_integration_harness.py::test_digest_without_until_uses_last_record_as_latest_state_boundary \
+      tests/test_integration_harness.py::test_digest_authoritative_state_at_window_end_is_eligible \
+      tests/test_integration_harness.py::test_digest_saved_state_backfill_ignores_future_state_snapshot \
+      tests/test_integration_harness.py::test_digest_saved_state_backfill_rejects_future_saved_state_snapshot
+
+Result:
+
+    5 passed
+
+## Full integration harness result
+
+Command:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py
+
+Result:
+
+    157 passed, 1 skipped
+
+## Full-suite result
+
+Command:
+
+    PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+
+Result:
+
+    419 passed, 1 skipped
+
+## py_compile result
+
+Command:
+
+    python3 -m py_compile mrs_log_digest.py tests/test_integration_harness.py
+
+Result: clean.
+
+## git diff --check result
+
+Command:
+
+    git diff --check
+
+Result: clean.
+
+## Final changed files
+
+Tracked files currently changed:
+
+- mrs_log_digest.py
+- tests/test_integration_harness.py
+
+This follow-up added only the no-`--until` regression test. It did not require further digest parser changes.
+
+## Confirmations
+
+- No production bot code was changed.
+- No production bot behavior was changed.
+- Nothing was committed.
+- The report remains untracked and must not be added to git unless explicitly requested.

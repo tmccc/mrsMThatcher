@@ -1,0 +1,1204 @@
+Generated Image Observability Report
+=====================================
+
+Scope
+-----
+Added observability only for generated-image use in regular quote/image posts. No live X posting was performed. The generated-image pool remains controlled by local configuration and was not enabled in local config by this task.
+
+Files changed
+-------------
+- README.md
+- mrsMThatcher2.py
+- mrs_log_digest.py
+- tests/test_unit_helpers.py
+- tests/test_integration_harness.py
+
+Pre-existing staged generated-image artifacts remain in the working tree and were not removed:
+- generated_image_analysis.json
+- generated_review_approved_images/tg_*.png
+
+Structured log format
+---------------------
+Final regular image selections now emit one INFO line:
+
+REGULAR_IMAGE_SELECTED source=<original|generated> basename=<image basename> score=<final score> origin_quote_hash=<64hex-or-empty> origin_quote_match=<true|false> origin_quote_boost=<number>
+
+Example log lines
+-----------------
+Original image:
+REGULAR_IMAGE_SELECTED source=original basename=t44.jpg score=12.5 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0
+
+Generated image for its originating quote:
+REGULAR_IMAGE_SELECTED source=generated basename=tg_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png score=18.0 origin_quote_hash=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa origin_quote_match=true origin_quote_boost=4.0
+
+Generated image for another quote:
+REGULAR_IMAGE_SELECTED source=generated basename=tg_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.png score=16.5 origin_quote_hash=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb origin_quote_match=false origin_quote_boost=0.0
+
+Selector metadata
+-----------------
+Selected image records now expose:
+- image_source: original or generated
+- origin_quote_hash: None for originals, 64-hex hash for valid tg_<hash>.png generated images
+- origin_quote_match: true only when selected quote hash equals the generated image origin hash
+- origin_quote_boost: configured boost only for origin matches; otherwise 0.0
+
+Digest output example
+---------------------
+Synthetic mixed period:
+
+## Regular image usage
+```text
+selections          = 12
+original_images     = 7
+generated_images    = 5
+originating_quote   = 3
+cross_quote         = 2
+generated_share     = 41.7%
+origin_match_share  = 60.0%
+```
+
+Digest semantics
+----------------
+- original + generated = total regular image selections
+- generated origin matches + generated cross-quote selections = generated selections
+- older logs without REGULAR_IMAGE_SELECTED continue to render normally; the new section is omitted
+- malformed new-style lines are ignored rather than crashing digest generation
+
+Tests added or extended
+-----------------------
+Unit tests cover:
+- original/generated source classification
+- malformed generated-name near matches are not classified as generated origins
+- original selection metadata and log line
+- generated origin-match metadata and origin boost
+- generated cross-quote metadata with no origin boost
+- score regression: base score unchanged, origin boost applied exactly once
+
+Digest tests cover:
+- mixed selection period: 7 original, 3 generated origin matches, 2 generated cross-quote
+- original-only period
+- generated-only period
+- old logs without new observability lines
+- malformed new-style observability line
+
+Validation results
+------------------
+py_compile:
+python3 -m py_compile mrsMThatcher2.py mrs_log_digest.py tests/test_unit_helpers.py tests/test_integration_harness.py
+Result: pass
+
+Focused selector tests:
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_unit_helpers.py -k 'generated_image_pool or generated_image_source_classification or original_image_selection_returns_observability or generated_image_origin_quote_boost or generated_image_cross_quote_selection or generated_origin_boost'
+Result: 10 passed, 262 deselected
+
+Focused digest test:
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q tests/test_integration_harness.py::test_digest_golden_sections_for_generated_logs
+Result: 1 passed
+
+Full suite:
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+Result: 453 passed, 1 skipped, 1 warning in 181.31s
+
+Whitespace check:
+git diff --check
+Result: pass
+
+No-post production-shaped probe
+-------------------------------
+Probe used the real staged corpus with generated pool enabled in-process only. It did not upload media, create X posts, or mutate live histories.
+
+Observed selector results:
+- original t01.jpg source=original origin_quote_match=false origin_quote_boost=0.0
+- generated origin tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png source=generated origin_quote_match=true origin_quote_boost=4.0
+- generated cross tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png source=generated origin_quote_match=false origin_quote_boost=0.0
+
+Representative digest parse from probe events:
+- selections = 3
+- original_images = 1
+- generated_images = 2
+- originating_quote = 1
+- cross_quote = 1
+
+Selection behaviour
+-------------------
+No image selection policy, scoring weight, frequency cap, quote selection, image history, receipt, scheduling, reply, meme, xAI, or API retry behaviour was intentionally changed. The observability code records the metadata the selector already has at scoring time. The score regression test verifies that non-origin generated selections retain the base score and origin matches receive exactly the configured boost once.
+
+Residual observability limitations
+----------------------------------
+- Generated/original counts are available only for logs emitted by this new version.
+- Old logs remain parseable but cannot reconstruct generated-source metadata that was never logged.
+- Digest counts depend on the structured REGULAR_IMAGE_SELECTED line being present and syntactically valid.
+- The metrics observe generated-image share; they do not warn or enforce policy.
+
+Current git status
+------------------
+```text
+ M README.md
+A  generated_image_analysis.json
+A  generated_review_approved_images/tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png
+A  generated_review_approved_images/tg_04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550.png
+A  generated_review_approved_images/tg_063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7.png
+A  generated_review_approved_images/tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png
+A  generated_review_approved_images/tg_0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png
+A  generated_review_approved_images/tg_115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png
+A  generated_review_approved_images/tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png
+A  generated_review_approved_images/tg_184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13.png
+A  generated_review_approved_images/tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png
+A  generated_review_approved_images/tg_1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png
+A  generated_review_approved_images/tg_204869c6d40d2610b92dbcbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png
+A  generated_review_approved_images/tg_2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9.png
+A  generated_review_approved_images/tg_230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png
+A  generated_review_approved_images/tg_25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9.png
+A  generated_review_approved_images/tg_2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png
+A  generated_review_approved_images/tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png
+A  generated_review_approved_images/tg_33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png
+A  generated_review_approved_images/tg_3e1a0b3d5d9dede45d7780b3032297c02d710093bb26876608d34d5ccc160586.png
+A  generated_review_approved_images/tg_3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f.png
+A  generated_review_approved_images/tg_41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f.png
+A  generated_review_approved_images/tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png
+A  generated_review_approved_images/tg_52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351.png
+A  generated_review_approved_images/tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png
+A  generated_review_approved_images/tg_56ad83fce3f67cb04eaa9bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png
+A  generated_review_approved_images/tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png
+A  generated_review_approved_images/tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png
+A  generated_review_approved_images/tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png
+A  generated_review_approved_images/tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png
+A  generated_review_approved_images/tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png
+A  generated_review_approved_images/tg_61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2.png
+A  generated_review_approved_images/tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png
+A  generated_review_approved_images/tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png
+A  generated_review_approved_images/tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png
+A  generated_review_approved_images/tg_696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320.png
+A  generated_review_approved_images/tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png
+A  generated_review_approved_images/tg_6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493.png
+A  generated_review_approved_images/tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png
+A  generated_review_approved_images/tg_6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649.png
+A  generated_review_approved_images/tg_7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png
+A  generated_review_approved_images/tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png
+A  generated_review_approved_images/tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png
+A  generated_review_approved_images/tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png
+A  generated_review_approved_images/tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png
+A  generated_review_approved_images/tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png
+A  generated_review_approved_images/tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png
+A  generated_review_approved_images/tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png
+A  generated_review_approved_images/tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png
+A  generated_review_approved_images/tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png
+A  generated_review_approved_images/tg_912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7.png
+A  generated_review_approved_images/tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png
+A  generated_review_approved_images/tg_9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png
+A  generated_review_approved_images/tg_a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png
+A  generated_review_approved_images/tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png
+A  generated_review_approved_images/tg_a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png
+A  generated_review_approved_images/tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png
+A  generated_review_approved_images/tg_a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54.png
+A  generated_review_approved_images/tg_a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png
+A  generated_review_approved_images/tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png
+A  generated_review_approved_images/tg_b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png
+A  generated_review_approved_images/tg_bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png
+A  generated_review_approved_images/tg_bed480dd508146bdeb65d9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png
+A  generated_review_approved_images/tg_bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662.png
+A  generated_review_approved_images/tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png
+A  generated_review_approved_images/tg_c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82.png
+A  generated_review_approved_images/tg_c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956.png
+A  generated_review_approved_images/tg_cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a.png
+A  generated_review_approved_images/tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png
+A  generated_review_approved_images/tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png
+A  generated_review_approved_images/tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png
+A  generated_review_approved_images/tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png
+A  generated_review_approved_images/tg_d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44.png
+A  generated_review_approved_images/tg_dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09.png
+A  generated_review_approved_images/tg_e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3.png
+A  generated_review_approved_images/tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png
+A  generated_review_approved_images/tg_ec8e29756049dec62822ae5f0c6469737edf410e130bab9153ae3e00e6b0b522.png
+A  generated_review_approved_images/tg_ed515fa28c753e1b4650464a11264668a794923c500410c74d6aa85b2f88b417.png
+A  generated_review_approved_images/tg_f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png
+A  generated_review_approved_images/tg_f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d.png
+A  generated_review_approved_images/tg_f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74.png
+A  generated_review_approved_images/tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png
+A  generated_review_approved_images/tg_faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5.png
+A  generated_review_approved_images/tg_fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544.png
+A  generated_review_approved_images/tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png
+ M mrsMThatcher2.py
+ M mrs_log_digest.py
+ M tests/test_integration_harness.py
+ M tests/test_unit_helpers.py
+?? .generated_image_analysis.lock
+?? .mrs_asset_analysis.lock
+?? analyse_mrs_assets_xai.py
+?? analyse_mrs_assets_xai_v2.py
+?? analyse_mrs_assets_xai_v3.py
+?? analyse_mrs_assets_xai_v4.py
+?? digest063_analysis.txt
+?? digest_latest_state_window_boundary_fix_report.txt
+?? generate_all_openai_quote_images.py
+?? generate_first10_from_quote_analysis.py
+?? generate_openai_low_first10.py
+?? generated_image_overrides.json
+?? generated_image_pool_review_report.txt
+?? generated_review_approved_images/manifest.json
+?? grok_image_test_first10/
+?? images_used.json.pre-basename-migration
+?? images_used.pickle.pre-deployment.
+?? lines_used.json.pre-hash-migration
+?? lines_used.pickle.pre-deployment.
+?? openai_generated_quote_images/
+?? openai_image_test_first10/
+?? package_openai_corpus_for_upload.py
+?? review/
+?? tools/
+```
+
+Current tracked diff stat
+-------------------------
+```text
+ README.md                         |  14 ++
+ mrsMThatcher2.py                  | 140 +++++++++++++++-
+ mrs_log_digest.py                 |  80 +++++++++
+ tests/test_integration_harness.py |  88 ++++++++++
+ tests/test_unit_helpers.py        | 335 ++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 651 insertions(+), 6 deletions(-)
+```
+
+Current staged diff stat
+------------------------
+```text
+ generated_image_analysis.json                      | 11599 +++++++++++++++++++
+ ...ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png |   Bin 0 -> 1863774 bytes
+ ...452699b6e9265298b84a61458f524e19db273a70550.png |   Bin 0 -> 1602828 bytes
+ ...bed8d11b523ee5634086c647e378aaf33e3784abcf7.png |   Bin 0 -> 1472089 bytes
+ ...38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png |   Bin 0 -> 1859310 bytes
+ ...0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc.png |   Bin 0 -> 1434282 bytes
+ ...ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png |   Bin 0 -> 1912445 bytes
+ ...c5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png |   Bin 0 -> 2081767 bytes
+ ...0164de9e8535a8f6a7e43b472c1528d8729c659ac13.png |   Bin 0 -> 1495749 bytes
+ ...a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png |   Bin 0 -> 1701568 bytes
+ ...d1691e91457efd50720116168b28a2371d6b8a8eec6.png |   Bin 0 -> 1586889 bytes
+ ...cbff883303e72a7d1ae972b74d8c25d94b0ec61994d.png |   Bin 0 -> 1386721 bytes
+ ...967f32f8f23bd71b4fb2cb0231659869045868b14c9.png |   Bin 0 -> 1581351 bytes
+ ...0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a.png |   Bin 0 -> 1755634 bytes
+ ...9c35a6c142b676e02bb6392c307060c9d8567c05cb9.png |   Bin 0 -> 1699410 bytes
+ ...c8a793f2aa39fbc653108387d1af27dca8f885a9f14.png |   Bin 0 -> 1517935 bytes
+ ...7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png |   Bin 0 -> 1935065 bytes
+ ...35f0378709b1c0324477b62d344e3b3ceec9e7f19a3.png |   Bin 0 -> 1652303 bytes
+ ...0b3032297c02d710093bb26876608d34d5ccc160586.png |   Bin 0 -> 1583679 bytes
+ ...b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f.png |   Bin 0 -> 1458888 bytes
+ ...6088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f.png |   Bin 0 -> 1415838 bytes
+ ...850646ca3e897d782d8d27634866f85e63cb06b8d98.png |   Bin 0 -> 1521491 bytes
+ ...83803f3a8d68277604471cd411027441989337c9351.png |   Bin 0 -> 1797458 bytes
+ ...91b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png |   Bin 0 -> 1699741 bytes
+ ...bf4baaf858d776971e7e52f29e9c97f58a1b964e2f7.png |   Bin 0 -> 1799069 bytes
+ ...3ecc792e9a87fad06354303a69663df183d7417a764.png |   Bin 0 -> 2048271 bytes
+ ...4f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png |   Bin 0 -> 1807408 bytes
+ ...5c1e2108e196fb1570290539ef580758be01671a614.png |   Bin 0 -> 1812585 bytes
+ ...bae89ebe44c7e8176e90d70096859d3588c364d4442.png |   Bin 0 -> 1995336 bytes
+ ...eeefe811890b3c8a03803f78b23685ad11309840679.png |   Bin 0 -> 1493181 bytes
+ ...dc98006bcb3eb7780f7468b67a87d8ab40a4db873e2.png |   Bin 0 -> 2064577 bytes
+ ...0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png |   Bin 0 -> 1821350 bytes
+ ...e75563eda331453fdd240176531871d0671c6473113.png |   Bin 0 -> 1446500 bytes
+ ...2211921567da1cf4bd04cee430a3b30bed03d3276f5.png |   Bin 0 -> 1759049 bytes
+ ...d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320.png |   Bin 0 -> 1454966 bytes
+ ...409421f059b2cf756001b9a6929a0183808a9b2e19e.png |   Bin 0 -> 2095647 bytes
+ ...1291c0bf176dceccaf7978a98885476d932ec0c4493.png |   Bin 0 -> 1765211 bytes
+ ...e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png |   Bin 0 -> 1699789 bytes
+ ...a3b9e336ca96c269ec3c01b4a613427da70b4b5e649.png |   Bin 0 -> 1355300 bytes
+ ...1b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4.png |   Bin 0 -> 2040808 bytes
+ ...811429970c51f605647aac25819e14104f836d93434.png |   Bin 0 -> 1827135 bytes
+ ...716dc751f209b4263f22f809114a0c801553ccdfc40.png |   Bin 0 -> 1452117 bytes
+ ...0c0a6e34ecf0e9e31db416700afc372265999e35370.png |   Bin 0 -> 1951626 bytes
+ ...680280edda94a7475b752b3c8e64c1670ba64986822.png |   Bin 0 -> 1819759 bytes
+ ...fdee8ce1845235937862c05610fc5636db8767546af.png |   Bin 0 -> 1596865 bytes
+ ...f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png |   Bin 0 -> 1656207 bytes
+ ...1a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png |   Bin 0 -> 1779855 bytes
+ ...0faa2999485caf0d3d00dc7963cde47ef3387eec003.png |   Bin 0 -> 1506908 bytes
+ ...6820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png |   Bin 0 -> 1836088 bytes
+ ...e61584c8a4954e955087ca86c4fad6b8977507ed5c7.png |   Bin 0 -> 1445489 bytes
+ ...875ff1897d00796c29279de667c0fa047fbdfb8a31f.png |   Bin 0 -> 1558887 bytes
+ ...58d3c41366a83c3bc4459e8efd8762d37b1ad67ce21.png |   Bin 0 -> 1905114 bytes
+ ...287e1b62f85d07c34a1a663d2eac974d995ace7f83c.png |   Bin 0 -> 1716792 bytes
+ ...e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png |   Bin 0 -> 1448255 bytes
+ ...5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf.png |   Bin 0 -> 1758913 bytes
+ ...b738ac653564d8542ed06143e14ca7d94f6e429757b.png |   Bin 0 -> 1689150 bytes
+ ...1cc086c1119649217548f8e662cb09d062ea0bb5d54.png |   Bin 0 -> 1614214 bytes
+ ...61ea3ca82d90d05667d085c5a3d217e3a08059eba5b.png |   Bin 0 -> 1619439 bytes
+ ...1cfcd5efc578ba06dea161ef2de4a2091205eba279e.png |   Bin 0 -> 1832347 bytes
+ ...29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785.png |   Bin 0 -> 1598900 bytes
+ ...6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1.png |   Bin 0 -> 1316466 bytes
+ ...9d58bfaa03fa35f7814e700a4b3bf6b8b99830822de.png |   Bin 0 -> 1757852 bytes
+ ...674108dc5b8943d24614cb41d2980e5767bc4378662.png |   Bin 0 -> 1437974 bytes
+ ...372df011d499bd337d76513f4f5de4a223f3ff99247.png |   Bin 0 -> 1552668 bytes
+ ...36195b7583b155432e548cceed49c7b9f514a8f9b82.png |   Bin 0 -> 1388579 bytes
+ ...caa9963cf742d3f2c67a49fe49259cb3afb17e41956.png |   Bin 0 -> 1655146 bytes
+ ...510f40e739f5e0a1dc444d56de29c80be3379462d9a.png |   Bin 0 -> 1632955 bytes
+ ...0cc8010544e2deab777a05cb0193d237814244f5c8e.png |   Bin 0 -> 1402065 bytes
+ ...a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png |   Bin 0 -> 1573658 bytes
+ ...a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png |   Bin 0 -> 1387505 bytes
+ ...1e426c705de78455e93d37fe3f4d2ae27727c70c88c.png |   Bin 0 -> 1708256 bytes
+ ...4fbcd2d8bbe4a06da942868023caae49a45957e3d44.png |   Bin 0 -> 1572266 bytes
+ ...7707ce7bf811989926bce9afdeab7b1030a29293d09.png |   Bin 0 -> 1533017 bytes
+ ...2301a29fbf15f0e8e2306bd568064e557a108f69ec3.png |   Bin 0 -> 1534721 bytes
+ ...5740045fb374b7c68eba06f857d7c79a73500dafe37.png |   Bin 0 -> 2166839 bytes
+ ...e5f0c6469737edf410e130bab9153ae3e00e6b0b522.png |   Bin 0 -> 1671791 bytes
+ ...64a11264668a794923c500410c74d6aa85b2f88b417.png |   Bin 0 -> 1569815 bytes
+ ...f9f6e14da4da22ecbca330d8dfe3175b93b47c28161.png |   Bin 0 -> 1460484 bytes
+ ...d83879823f2da5506152fcb7b1b1ce5c777ac036d4d.png |   Bin 0 -> 1424629 bytes
+ ...73e53a4eccc89a60eccb85bba232ba533b04f433a74.png |   Bin 0 -> 1592321 bytes
+ ...1bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png |   Bin 0 -> 1790511 bytes
+ ...16194551792f3c4ea51261d7310eca7fb4d33b667d5.png |   Bin 0 -> 1745894 bytes
+ ...417cd776e02c2a0e97cf35b9526628fbb19b9429544.png |   Bin 0 -> 1280255 bytes
+ ...0135c319348343a6c08189e71f22ccb74b1a1d89521.png |   Bin 0 -> 1580071 bytes
+ 84 files changed, 11599 insertions(+)
+```
+
+Current tracked diff
+--------------------
+```diff
+diff --git a/README.md b/README.md
+index 469d3fd..cbab280 100644
+--- a/README.md
++++ b/README.md
+@@ -133,6 +133,20 @@ The tracked image assets are the runtime assets used by `mrsMThatcher2.py`.
+ Larger source/research meme directories such as `memes/`, `meme_hunt_001/`,
+ and `meme_shortlist*/` are intentionally ignored.
+
++## Generated Regular-Image Observability
++
++The optional generated-image pool is separate from the original `images/t*.jpg`
++pool. Generated images can be selected for quotes other than the quote that was
++used to generate them. When the selected quote hash matches the generated
++image's origin hash, the selector applies `GENERATED_IMAGE_ORIGIN_QUOTE_BOOST`.
++
++Regular selected-image logs now include whether the image was original or
++generated, the final score, whether a generated image matched its origin quote,
++and the boost that was applied. `mrs_log_digest.py` reports these as
++observational metrics only: regular image selections, original versus generated
++counts, generated origin matches, and generated cross-quote selections. There is
++currently no generated-image frequency cap.
++
+ ## Local Runtime Files
+
+ `mrsMThatcher.local.example.json` is a sanitized example of the optional local
+diff --git a/mrsMThatcher2.py b/mrsMThatcher2.py
+index c177538..2e104bc 100755
+--- a/mrsMThatcher2.py
++++ b/mrsMThatcher2.py
+@@ -138,6 +138,7 @@ THREAD_CONTEXT_MAX_DEPTH = 3
+ THREAD_CONTEXT_MAX_CHARS_PER_POST = 500
+ THREAD_CONTEXT_MAX_TOTAL_CHARS = 1500
+ MAX_REPLY_CONTEXT_PHOTOS = 2
++GENERATED_IMAGE_ORIGIN_QUOTE_BOOST = 4
+
+ TWEET_CACHE_MAX_AGE_SECONDS = 7 * 24 * 3600
+ TWEET_CACHE_MAX_ITEMS = 500
+@@ -188,8 +189,12 @@ if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
+
+ LINES_FILE = BASE_DIR / "mrsMThatcher.txt"
+ IMAGE_GLOB = str(BASE_DIR / "images/t*")
++ENABLE_GENERATED_IMAGE_POOL = False
++GENERATED_IMAGE_DIR = str(BASE_DIR / "generated_review_approved_images")
++GENERATED_IMAGE_GLOB = "*.png"
+ QUOTE_ANALYSIS_FILE = BASE_DIR / "quote_analysis.json"
+ IMAGE_ANALYSIS_FILE = BASE_DIR / "image_analysis.json"
++GENERATED_IMAGE_ANALYSIS_FILE = str(BASE_DIR / "generated_image_analysis.json")
+ QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
+
+ LINES_USED_FILE = BASE_DIR / "lines_used.json"
+@@ -392,6 +397,13 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
+     "MAX_REPLY_CHARS",
+     "MAX_GROK_OUTPUT_TOKENS",
+
++    # Optional generated-image pool for regular quote/image posts
++    "ENABLE_GENERATED_IMAGE_POOL",
++    "GENERATED_IMAGE_DIR",
++    "GENERATED_IMAGE_GLOB",
++    "GENERATED_IMAGE_ANALYSIS_FILE",
++    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
++
+     # Operational hardening
+     "STATE_BACKUP_COUNT",
+ }
+@@ -436,6 +448,7 @@ LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
+     "COOLDOWN_AFTER_429_SECONDS",
+     "MAX_REPLY_CHARS",
+     "MAX_GROK_OUTPUT_TOKENS",
++    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST",
+     "STATE_BACKUP_COUNT",
+ }
+
+@@ -3431,22 +3444,63 @@ def load_quote_analysis() -> dict | None:
+     return apply_quote_analysis_overrides(raw, overrides)
+
+
+-def load_image_analysis() -> dict | None:
+-    raw = load_json_object(IMAGE_ANALYSIS_FILE, label="image analysis")
++def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
++    raw = load_json_object(path, label=label)
+     if raw is None:
+         return None
+     if raw.get("analysis_kind") != "images":
+-        log.error("Image analysis file has unsupported analysis_kind=%r", raw.get("analysis_kind"))
++        log.error("%s file has unsupported analysis_kind=%r", label, raw.get("analysis_kind"))
+         return None
+     if raw.get("schema_version") != 3:
+-        log.error("Image analysis file has unsupported schema_version=%r", raw.get("schema_version"))
++        log.error("%s file has unsupported schema_version=%r", label, raw.get("schema_version"))
+         return None
+     if not isinstance(raw.get("items"), dict) or not isinstance(raw.get("path_index"), dict):
+-        log.error("Image analysis file has invalid required structure: %s", IMAGE_ANALYSIS_FILE)
++        log.error("%s file has invalid required structure: %s", label, path)
+         return None
+     return raw
+
+
++def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
++    if not isinstance(generated, dict):
++        return primary
++
++    merged = dict(primary)
++    merged_path_index = dict(primary.get("path_index") or {})
++    merged_items = dict(primary.get("items") or {})
++    primary_paths = set(merged_path_index)
++
++    for basename, image_hash in sorted((generated.get("path_index") or {}).items()):
++        basename = str(basename)
++        image_hash = str(image_hash)
++        if basename in primary_paths:
++            log.warning("Skipping generated image metadata with basename collision: %s", basename)
++            continue
++        item = (generated.get("items") or {}).get(image_hash)
++        if not isinstance(item, dict):
++            log.warning("Skipping generated image metadata with missing item hash=%s basename=%s", image_hash, basename)
++            continue
++        merged_path_index[basename] = image_hash
++        merged_items.setdefault(image_hash, item)
++
++    merged["path_index"] = merged_path_index
++    merged["items"] = merged_items
++    return merged
++
++
++def load_image_analysis() -> dict | None:
++    primary = load_image_analysis_file(IMAGE_ANALYSIS_FILE, label="image analysis")
++    if primary is None or not ENABLE_GENERATED_IMAGE_POOL:
++        return primary
++
++    generated_path = Path(str(GENERATED_IMAGE_ANALYSIS_FILE)).expanduser()
++    generated = load_image_analysis_file(generated_path, label="generated image analysis")
++    if generated is None:
++        log.warning("Generated image pool enabled but generated image analysis is unavailable; using original image pool only")
++        return primary
++
++    return merge_image_analysis(primary, generated)
++
++
+ def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
+     if start_mm_dd <= end_mm_dd:
+         return start_mm_dd <= mm_dd <= end_mm_dd
+@@ -3643,7 +3697,34 @@ def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]
+ def current_image_paths() -> list[str]:
+     images = glob(IMAGE_GLOB)
+     images.sort()
+-    return [path for path in images if Path(path).is_file()]
++    result = [path for path in images if Path(path).is_file()]
++    if not ENABLE_GENERATED_IMAGE_POOL:
++        return result
++
++    generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
++    generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
++    generated_images = []
++    for path in sorted(glob(generated_glob)):
++        image_path = Path(path)
++        if not image_path.is_file():
++            continue
++        if not path_is_same_or_child(image_path, generated_dir):
++            log.warning("Skipping generated image outside configured generated image directory: %s", path)
++            continue
++        generated_images.append(path)
++    if not generated_images:
++        log.warning("Generated image pool enabled but no generated images found matching %s", generated_glob)
++        return result
++
++    seen_basenames = {Path(path).name for path in result}
++    for path in generated_images:
++        basename = Path(path).name
++        if basename in seen_basenames:
++            log.warning("Skipping generated image with basename collision: %s path=%s", basename, path)
++            continue
++        result.append(path)
++        seen_basenames.add(basename)
++    return result
+
+
+ def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
+@@ -4099,6 +4180,8 @@ def image_used_history_has_legacy_indices(images_used: set) -> bool:
+
+
+ def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
++    if ENABLE_GENERATED_IMAGE_POOL:
++        return False
+     if not isinstance(image_analysis, dict):
+         return False
+     expected = set(str(name) for name in (image_analysis.get("path_index") or {}).keys())
+@@ -4680,6 +4763,36 @@ def image_metadata_for_basename(image_analysis: dict | None, basename: str, path
+     return str(image_hash), analysis
+
+
++def generated_image_origin_quote_hash(basename: str) -> str | None:
++    match = re.fullmatch(r"tg_([0-9a-fA-F]{64})\.[A-Za-z0-9]+", str(basename))
++    if not match:
++        return None
++    return match.group(1).lower()
++
++
++def image_selection_observability(basename: str, quote_hash: object = None, origin_quote_boost: float = 0.0) -> dict:
++    origin_quote_hash = generated_image_origin_quote_hash(basename)
++    origin_quote_match = bool(origin_quote_hash and origin_quote_hash == str(quote_hash or "").lower())
++    return {
++        "image_source": "generated" if origin_quote_hash else "original",
++        "origin_quote_hash": origin_quote_hash,
++        "origin_quote_match": origin_quote_match,
++        "origin_quote_boost": float(origin_quote_boost if origin_quote_match else 0.0),
++    }
++
++
++def log_regular_image_selection(choice: dict) -> None:
++    log.info(
++        "REGULAR_IMAGE_SELECTED source=%s basename=%s score=%s origin_quote_hash=%s origin_quote_match=%s origin_quote_boost=%s",
++        choice.get("image_source", "original"),
++        choice.get("basename", ""),
++        choice.get("score"),
++        choice.get("origin_quote_hash") or "",
++        str(bool(choice.get("origin_quote_match"))).lower(),
++        choice.get("origin_quote_boost", 0),
++    )
++
++
+ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dict) -> dict:
+     images = current_image_paths()
+     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
+@@ -4747,7 +4860,20 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
+         if not eligible:
+             log.info("Skipping image %s: strong visual mismatch with selected quote", basename)
+             continue
++        origin_quote_hash = generated_image_origin_quote_hash(basename)
++        origin_quote_boost = 0.0
++        if origin_quote_hash and origin_quote_hash == str(quote_choice.get("quote_hash", "")).lower():
++            boost = float(GENERATED_IMAGE_ORIGIN_QUOTE_BOOST)
++            score += boost
++            components = dict(components)
++            components["generated_origin_quote"] = boost
++            origin_quote_boost = boost
+         path = image_by_name[basename]
++        observability = image_selection_observability(
++            basename,
++            quote_choice.get("quote_hash"),
++            origin_quote_boost,
++        )
+         scored.append(
+             {
+                 "image_no": images.index(path),
+@@ -4757,6 +4883,7 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
+                 "score": score,
+                 "components": components,
+                 "cycle_reset": cycle_reset,
++                **observability,
+             }
+         )
+
+@@ -4774,6 +4901,7 @@ def choose_matched_unused_image(images_used: set, quote_choice: dict, state: dic
+         chosen["score"],
+         concise_components(chosen["components"]),
+     )
++    log_regular_image_selection(chosen)
+     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
+         log.debug(
+             "Image match candidate basename=%s score=%.2f components=%s",
+diff --git a/mrs_log_digest.py b/mrs_log_digest.py
+index e8eb05a..78418fa 100755
+--- a/mrs_log_digest.py
++++ b/mrs_log_digest.py
+@@ -850,6 +850,25 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
+     }
+
+
++def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
++    total = len(events)
++    original = sum(1 for item in events if item.get("source") == "original")
++    generated = sum(1 for item in events if item.get("source") == "generated")
++    origin_matches = sum(1 for item in events if item.get("source") == "generated" and item.get("origin_quote_match") == "true")
++    cross_quote = generated - origin_matches
++    generated_share = (generated / total * 100.0) if total else 0.0
++    origin_match_share = (origin_matches / generated * 100.0) if generated else 0.0
++    return {
++        "selections": total,
++        "original": original,
++        "generated": generated,
++        "origin_matches": origin_matches,
++        "cross_quote": cross_quote,
++        "generated_share": generated_share,
++        "origin_match_share": origin_match_share,
++    }
++
++
+ def analyse(
+     records: List[Record],
+     max_text: int = 280,
+@@ -873,6 +892,7 @@ def analyse(
+     media_upload_incidents: List[Dict[str, Any]] = []
+     xai_usage_events: List[Dict[str, Any]] = []
+     xai_usage_parse_errors: List[Dict[str, Any]] = []
++    regular_image_usage_events: List[Dict[str, Any]] = []
+     cooldown_active: List[Dict[str, Any]] = []
+     lifecycle: List[Dict[str, Any]] = []
+     routine_skip_counts = Counter()
+@@ -1413,6 +1433,34 @@ def analyse(
+             )
+             continue
+
++        m = re.search(
++            r"REGULAR_IMAGE_SELECTED source=(original|generated) basename=([^\s]+) score=([^\s]+) "
++            r"origin_quote_hash=([0-9a-fA-F]{64}|) origin_quote_match=(true|false) origin_quote_boost=([^\s]+)",
++            msg,
++        )
++        if m:
++            item = {
++                "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
++                "source": m.group(1),
++                "basename": m.group(2),
++                "score": m.group(3),
++                "origin_quote_hash": m.group(4),
++                "origin_quote_match": m.group(5),
++                "origin_quote_boost": m.group(6),
++            }
++            regular_image_usage_events.append(item)
++            add_event(
++                "regular_image_selected",
++                r.ts,
++                source=item["source"],
++                basename=item["basename"],
++                score=item["score"],
++                origin_quote_hash=item["origin_quote_hash"],
++                origin_quote_match=item["origin_quote_match"],
++                origin_quote_boost=item["origin_quote_boost"],
++            )
++            continue
++
+         m = re.search(r"Quote cycle is seasonally exhausted: (\d+) unused quote\(s\) are hard-excluded today; resetting quote cycle", msg)
+         if m:
+             add_event("quote_cycle_reset", r.ts, reason="seasonal_exhaustion", affected=m.group(1))
+@@ -1845,6 +1893,10 @@ def analyse(
+             "handled_fallbacks": handled_media_fallbacks,
+             "unrecovered_failures": unrecovered_media,
+         },
++        "regular_image_usage": {
++            "events": regular_image_usage_events,
++            "summary": regular_image_usage_summary(regular_image_usage_events),
++        },
+         "xai_usage": {
+             "events": xai_usage_events,
+             "totals": xai_usage_totals(xai_usage_events),
+@@ -2356,6 +2408,33 @@ def render_markdown(report: Dict[str, Any]) -> str:
+                 ]))
+             out.append("")
+
++    regular_image_usage = report.get("regular_image_usage") or {}
++    regular_image_events = regular_image_usage.get("events") or []
++    if regular_image_events:
++        summary = regular_image_usage.get("summary") or {}
++        out.append("## Regular image usage")
++        out.append("```text")
++        out.append(f"selections          = {summary.get('selections', 0)}")
++        out.append(f"original_images     = {summary.get('original', 0)}")
++        out.append(f"generated_images    = {summary.get('generated', 0)}")
++        out.append(f"originating_quote   = {summary.get('origin_matches', 0)}")
++        out.append(f"cross_quote         = {summary.get('cross_quote', 0)}")
++        out.append(f"generated_share     = {float(summary.get('generated_share', 0.0)):.1f}%")
++        out.append(f"origin_match_share  = {float(summary.get('origin_match_share', 0.0)):.1f}%")
++        out.append("```")
++        out.append(md_table_row(["time", "source", "basename", "score", "origin_quote_match", "origin_quote_boost"]))
++        out.append(md_table_row(["---"] * 6))
++        for item in regular_image_events:
++            out.append(md_table_row([
++                item.get("time", ""),
++                item.get("source", ""),
++                item.get("basename", ""),
++                item.get("score", ""),
++                item.get("origin_quote_match", ""),
++                item.get("origin_quote_boost", ""),
++            ]))
++        out.append("")
++
+     stats = report["summary"].get("stats", {})
+     routine = report["summary"].get("routine_skip_counts", {})
+     out.append("## Counts")
+@@ -2384,6 +2463,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
+     section("daily_meme_posted", "Daily meme posts", ["time", "post_id", "file", "summary"])
+     section("quote_selected", "Regular quote selections", ["time", "line_no", "quote_hash", "weight", "seasonal_boost"])
+     section("matched_image_selected", "Matched image selections", ["time", "image", "image_no", "score", "components"])
++    section("regular_image_selected", "Regular image selection metadata", ["time", "source", "basename", "score", "origin_quote_hash", "origin_quote_match", "origin_quote_boost"])
+     section("image_cycle_status", "Image cycle status", ["time", "used_count", "currently_eligible", "remaining_count", "seasonally_excluded", "stale_excluded", "cycle_reset"])
+     section("quote_cycle_reset", "Quote cycle resets", ["time", "reason", "affected", "full_selectable", "full_hard_excluded"])
+     section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])
+diff --git a/tests/test_integration_harness.py b/tests/test_integration_harness.py
+index 9d4bbd9..32b9a51 100644
+--- a/tests/test_integration_harness.py
++++ b/tests/test_integration_harness.py
+@@ -4923,6 +4923,94 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
+     assert "IMAGE_STRONG_MISMATCH_PENALTY=-10000.0" in main_post_recovery_digest.stdout
+     assert "2 operational error(s)" not in main_post_recovery_digest.stdout
+
++    regular_image_usage_base = prepare_base_dir(tmp_path / "digest-regular-image-usage")
++    origin_hash = "a" * 64
++    cross_hash = "b" * 64
++    regular_image_usage_lines = [
++        f"2026-07-03 12:00:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t{idx:02d}.jpg score=7.{idx} origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0"
++        for idx in range(1, 8)
++    ]
++    regular_image_usage_lines.extend(
++        [
++            f"2026-07-03 12:01:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{origin_hash}.png score=18.{idx} origin_quote_hash={origin_hash} origin_quote_match=true origin_quote_boost=4.0"
++            for idx in range(1, 4)
++        ]
++    )
++    regular_image_usage_lines.extend(
++        [
++            f"2026-07-03 12:02:{idx:02d} INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{cross_hash}.png score=16.{idx} origin_quote_hash={cross_hash} origin_quote_match=false origin_quote_boost=0.0"
++            for idx in range(1, 3)
++        ]
++    )
++    write_digest_log(regular_image_usage_base, regular_image_usage_lines)
++    regular_image_usage_digest = run_digest(regular_image_usage_base)
++    assert regular_image_usage_digest.returncode == 0, regular_image_usage_digest.stderr
++    assert "## Regular image usage" in regular_image_usage_digest.stdout
++    assert "selections          = 12" in regular_image_usage_digest.stdout
++    assert "original_images     = 7" in regular_image_usage_digest.stdout
++    assert "generated_images    = 5" in regular_image_usage_digest.stdout
++    assert "originating_quote   = 3" in regular_image_usage_digest.stdout
++    assert "cross_quote         = 2" in regular_image_usage_digest.stdout
++    assert "generated_share     = 41.7%" in regular_image_usage_digest.stdout
++    assert "origin_match_share  = 60.0%" in regular_image_usage_digest.stdout
++    assert "Regular image selection metadata" in regular_image_usage_digest.stdout
++    assert f"| 2026-07-03 12:01:01 | generated | tg_{origin_hash}.png | 18.1 | true | 4.0 |" in regular_image_usage_digest.stdout
++
++    original_only_base = prepare_base_dir(tmp_path / "digest-regular-image-original-only")
++    write_digest_log(
++        original_only_base,
++        [
++            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t44.jpg score=12.5 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0",
++            "2026-07-03 12:00:01 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=original basename=t45.jpg score=11.0 origin_quote_hash= origin_quote_match=false origin_quote_boost=0.0",
++        ],
++    )
++    original_only_digest = run_digest(original_only_base)
++    assert original_only_digest.returncode == 0, original_only_digest.stderr
++    assert "selections          = 2" in original_only_digest.stdout
++    assert "original_images     = 2" in original_only_digest.stdout
++    assert "generated_images    = 0" in original_only_digest.stdout
++    assert "originating_quote   = 0" in original_only_digest.stdout
++    assert "cross_quote         = 0" in original_only_digest.stdout
++
++    generated_only_base = prepare_base_dir(tmp_path / "digest-regular-image-generated-only")
++    write_digest_log(
++        generated_only_base,
++        [
++            f"2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{origin_hash}.png score=19.0 origin_quote_hash={origin_hash} origin_quote_match=true origin_quote_boost=4.0",
++            f"2026-07-03 12:00:01 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_{cross_hash}.png score=14.0 origin_quote_hash={cross_hash} origin_quote_match=false origin_quote_boost=0.0",
++        ],
++    )
++    generated_only_digest = run_digest(generated_only_base)
++    assert generated_only_digest.returncode == 0, generated_only_digest.stderr
++    assert "selections          = 2" in generated_only_digest.stdout
++    assert "original_images     = 0" in generated_only_digest.stdout
++    assert "generated_images    = 2" in generated_only_digest.stdout
++    assert "originating_quote   = 1" in generated_only_digest.stdout
++    assert "cross_quote         = 1" in generated_only_digest.stdout
++
++    older_log_base = prepare_base_dir(tmp_path / "digest-regular-image-old-log")
++    write_digest_log(
++        older_log_base,
++        [
++            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4534 - Selected matched image basename=t09.jpg image_no=8 score=7.25 components={'topic': 3.0}",
++        ],
++    )
++    older_log_digest = run_digest(older_log_base)
++    assert older_log_digest.returncode == 0, older_log_digest.stderr
++    assert "Matched image selections" in older_log_digest.stdout
++    assert "Regular image usage" not in older_log_digest.stdout
++
++    malformed_log_base = prepare_base_dir(tmp_path / "digest-regular-image-malformed")
++    write_digest_log(
++        malformed_log_base,
++        [
++            "2026-07-03 12:00:00 INFO     choose_matched_unused_image:4904 - REGULAR_IMAGE_SELECTED source=generated basename=tg_bad.png score=nope",
++        ],
++    )
++    malformed_digest = run_digest(malformed_log_base)
++    assert malformed_digest.returncode == 0, malformed_digest.stderr
++    assert "Regular image usage" not in malformed_digest.stdout
++
+     same_second_base = prepare_base_dir(tmp_path / "digest-same-second")
+     same_second_state = same_second_base / ".digest_state.json"
+     log_path = same_second_base / "test.log"
+diff --git a/tests/test_unit_helpers.py b/tests/test_unit_helpers.py
+index e339fe4..56f7bce 100644
+--- a/tests/test_unit_helpers.py
++++ b/tests/test_unit_helpers.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+
+ import json
+ import hashlib
++import logging
+ import os
+ import tempfile
+ from datetime import datetime
+@@ -176,6 +177,10 @@ def image_analysis_for_paths(paths: list[Path], analyses: dict[str, dict] | None
+     return {"analysis_kind": "images", "schema_version": 3, "path_index": path_index, "items": items}
+
+
++def write_image_analysis(path: Path, analysis: dict) -> None:
++    path.write_text(json.dumps(analysis), encoding="utf-8")
++
++
+ def test_used_history_json_round_trip(tmp_path: Path) -> None:
+     path = tmp_path / "used.json"
+
+@@ -571,6 +576,307 @@ def test_seasonal_image_re_enters_when_current_date_matches(
+     assert chosen["basename"] == "t23.jpg"
+
+
++def test_generated_image_pool_disabled_keeps_original_image_scan(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    image_dir = tmp_path / "images"
++    generated_dir = tmp_path / "generated"
++    image_dir.mkdir()
++    generated_dir.mkdir()
++    original = image_dir / "t01.jpg"
++    generated = generated_dir / ("tg_" + "a" * 64 + ".png")
++    original.write_bytes(b"original")
++    generated.write_bytes(b"generated")
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++
++    assert bot.current_image_paths() == [str(original)]
++
++
++def test_generated_image_pool_merges_separate_analysis_when_enabled(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    image_dir = tmp_path / "images"
++    generated_dir = tmp_path / "generated"
++    image_dir.mkdir()
++    generated_dir.mkdir()
++    original = image_dir / "t01.jpg"
++    quote_hash = "b" * 64
++    generated = generated_dir / f"tg_{quote_hash}.png"
++    original.write_bytes(b"original")
++    generated.write_bytes(b"generated")
++    original_analysis_path = tmp_path / "image_analysis.json"
++    generated_analysis_path = tmp_path / "generated_image_analysis.json"
++    write_image_analysis(original_analysis_path, image_analysis_for_paths([original]))
++    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated]))
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
++    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
++
++    paths = bot.current_image_paths()
++    analysis = bot.load_image_analysis()
++
++    assert paths == [str(original), str(generated)]
++    assert set(analysis["path_index"]) == {"t01.jpg", f"tg_{quote_hash}.png"}
++
++
++def test_generated_image_pool_rejects_paths_outside_generated_directory(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    image_dir = tmp_path / "images"
++    generated_dir = tmp_path / "generated"
++    outside_dir = tmp_path / "outside"
++    image_dir.mkdir()
++    generated_dir.mkdir()
++    outside_dir.mkdir()
++    original = image_dir / "t01.jpg"
++    outside = outside_dir / ("tg_" + "e" * 64 + ".png")
++    original.write_bytes(b"original")
++    outside.write_bytes(b"outside")
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "../outside/*.png")
++
++    assert bot.current_image_paths() == [str(original)]
++
++
++def test_generated_image_source_classification() -> None:
++    quote_hash = "a" * 64
++
++    assert bot.image_selection_observability("t44.jpg") == {
++        "image_source": "original",
++        "origin_quote_hash": None,
++        "origin_quote_match": False,
++        "origin_quote_boost": 0.0,
++    }
++    assert bot.image_selection_observability(f"tg_{quote_hash}.png", quote_hash, 4) == {
++        "image_source": "generated",
++        "origin_quote_hash": quote_hash,
++        "origin_quote_match": True,
++        "origin_quote_boost": 4.0,
++    }
++    assert bot.image_selection_observability(f"tg_{quote_hash}.png", "b" * 64, 4) == {
++        "image_source": "generated",
++        "origin_quote_hash": quote_hash,
++        "origin_quote_match": False,
++        "origin_quote_boost": 0.0,
++    }
++    assert bot.generated_image_origin_quote_hash("tg_not-a-real-hash.png") is None
++    assert bot.generated_image_origin_quote_hash("tg_" + ("a" * 63) + ".png") is None
++
++
++def test_original_image_selection_returns_observability_and_logs(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    caplog: pytest.LogCaptureFixture,
++) -> None:
++    image_dir = tmp_path / "images"
++    image_dir.mkdir()
++    original = image_dir / "t44.jpg"
++    original.write_bytes(b"original")
++    analysis_path = tmp_path / "image_analysis.json"
++    analysis = image_analysis_for_paths([original])
++    write_image_analysis(analysis_path, analysis)
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
++    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", analysis_path)
++    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
++    caplog.set_level(logging.INFO, logger=bot.log.name)
++
++    chosen = bot.choose_matched_unused_image(
++        set(),
++        {"quote_hash": "f" * 64, "analysis": {"primary_topics": [], "secondary_topics": [], "tone": [], "visual_energy": "low"}},
++        {},
++    )
++
++    assert chosen["basename"] == "t44.jpg"
++    assert chosen["image_source"] == "original"
++    assert chosen["origin_quote_hash"] is None
++    assert chosen["origin_quote_match"] is False
++    assert chosen["origin_quote_boost"] == 0.0
++    assert "REGULAR_IMAGE_SELECTED source=original basename=t44.jpg" in caplog.text
++    assert "origin_quote_match=false origin_quote_boost=0.0" in caplog.text
++
++
++def test_generated_image_origin_quote_boost_can_select_matching_generated_image(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    image_dir = tmp_path / "images"
++    generated_dir = tmp_path / "generated"
++    image_dir.mkdir()
++    generated_dir.mkdir()
++    original = image_dir / "t01.jpg"
++    quote_hash = "c" * 64
++    generated = generated_dir / f"tg_{quote_hash}.png"
++    original.write_bytes(b"original")
++    generated.write_bytes(b"generated")
++    original_analysis_path = tmp_path / "image_analysis.json"
++    generated_analysis_path = tmp_path / "generated_image_analysis.json"
++    neutral = {
++        "pairing": {},
++        "themes": [],
++        "tone": [],
++        "visual_energy": "low",
++        "quality": {},
++        "seasonality": {"avoid_outside_season_or_occasion": False},
++    }
++    write_image_analysis(original_analysis_path, image_analysis_for_paths([original], {"t01.jpg": neutral}))
++    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: neutral}))
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
++    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 10)
++    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
++
++    chosen = bot.choose_matched_unused_image(
++        set(),
++        {
++            "quote_hash": quote_hash,
++            "analysis": {"primary_topics": [], "secondary_topics": [], "tone": [], "visual_energy": "low"},
++        },
++        {},
++    )
++
++    assert chosen["basename"] == generated.name
++    assert chosen["components"]["generated_origin_quote"] == 10.0
++    assert chosen["image_source"] == "generated"
++    assert chosen["origin_quote_hash"] == quote_hash
++    assert chosen["origin_quote_match"] is True
++    assert chosen["origin_quote_boost"] == 10.0
++
++
++def test_generated_image_cross_quote_selection_gets_no_origin_boost_and_logs(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++    caplog: pytest.LogCaptureFixture,
++) -> None:
++    generated_dir = tmp_path / "generated"
++    image_dir = tmp_path / "images"
++    generated_dir.mkdir()
++    image_dir.mkdir()
++    origin_quote_hash = "a" * 64
++    selected_quote_hash = "b" * 64
++    generated = generated_dir / f"tg_{origin_quote_hash}.png"
++    generated.write_bytes(b"generated")
++    original_analysis_path = tmp_path / "image_analysis.json"
++    generated_analysis_path = tmp_path / "generated_image_analysis.json"
++    write_image_analysis(original_analysis_path, image_analysis_for_paths([]))
++    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated]))
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
++    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 10)
++    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
++    caplog.set_level(logging.INFO, logger=bot.log.name)
++
++    chosen = bot.choose_matched_unused_image(
++        set(),
++        {
++            "quote_hash": selected_quote_hash,
++            "analysis": {"primary_topics": [], "secondary_topics": [], "tone": [], "visual_energy": "low"},
++        },
++        {},
++    )
++
++    assert chosen["basename"] == generated.name
++    assert chosen["image_source"] == "generated"
++    assert chosen["origin_quote_hash"] == origin_quote_hash
++    assert chosen["origin_quote_match"] is False
++    assert chosen["origin_quote_boost"] == 0.0
++    assert "generated_origin_quote" not in chosen["components"]
++    assert f"REGULAR_IMAGE_SELECTED source=generated basename={generated.name}" in caplog.text
++    assert f"origin_quote_hash={origin_quote_hash} origin_quote_match=false origin_quote_boost=0.0" in caplog.text
++
++
++def test_generated_origin_boost_preserves_expected_final_score(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    generated_dir = tmp_path / "generated"
++    image_dir = tmp_path / "images"
++    generated_dir.mkdir()
++    image_dir.mkdir()
++    quote_hash = "c" * 64
++    generated = generated_dir / f"tg_{quote_hash}.png"
++    generated.write_bytes(b"generated")
++    analysis_obj = {
++        "pairing": {"best_for_topics": ["trade"]},
++        "themes": [],
++        "tone": [],
++        "visual_energy": "low",
++        "quality": {},
++        "seasonality": {"avoid_outside_season_or_occasion": False},
++    }
++    quote_analysis = {"primary_topics": ["trade"], "secondary_topics": [], "tone": [], "visual_energy": "low"}
++    original_analysis_path = tmp_path / "image_analysis.json"
++    generated_analysis_path = tmp_path / "generated_image_analysis.json"
++    write_image_analysis(original_analysis_path, image_analysis_for_paths([]))
++    write_image_analysis(generated_analysis_path, image_analysis_for_paths([generated], {generated.name: analysis_obj}))
++
++    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(generated_dir))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
++    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", original_analysis_path)
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(generated_analysis_path))
++    monkeypatch.setattr(bot, "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST", 6)
++    monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 5))
++
++    base_score = bot.score_image_for_quote(quote_analysis, analysis_obj, bot.build_image_topic_idf(bot.load_image_analysis()))[0]
++    origin_choice = bot.choose_matched_unused_image(set(), {"quote_hash": quote_hash, "analysis": quote_analysis}, {})
++    cross_choice = bot.choose_matched_unused_image(set(), {"quote_hash": "d" * 64, "analysis": quote_analysis}, {})
++
++    assert origin_choice["score"] == pytest.approx(base_score + 6)
++    assert origin_choice["origin_quote_boost"] == 6.0
++    assert cross_choice["score"] == pytest.approx(base_score)
++    assert cross_choice["origin_quote_boost"] == 0.0
++
++
++def test_generated_image_pool_enabled_does_not_migrate_legacy_image_indices(
++    tmp_path: Path,
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    image_dir = tmp_path / "images"
++    generated_dir = tmp_path / "generated"
++    image_dir.mkdir()
++    generated_dir.mkdir()
++    original = image_dir / "t01.jpg"
++    generated = generated_dir / ("tg_" + "d" * 64 + ".png")
++    original.write_bytes(b"original")
++    generated.write_bytes(b"generated")
++    analysis = bot.merge_image_analysis(
++        image_analysis_for_paths([original]),
++        image_analysis_for_paths([generated]),
++    )
++    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
++
++    normalised, changed = bot.normalise_image_used_basenames({0}, [str(original), str(generated)], analysis)
++
++    assert normalised == {0}
++    assert not changed
++
++
+ def test_highest_scoring_unused_image_is_selected_even_if_global_best_is_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+     image_dir = tmp_path / "images"
+     image_dir.mkdir()
+@@ -4631,3 +4937,32 @@ def test_local_config_existing_production_style_overrides_still_work(tmp_path: P
+     assert bot.MAX_QUOTE_REPLIES_PER_DAY == 12
+     assert bot.POST_SLEEP_MIN == 7200
+     assert bot.POST_SLEEP_MAX == 9000
++
++
++def test_local_config_can_enable_generated_image_pool(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
++    generated_dir = tmp_path / "generated"
++    generated_analysis = tmp_path / "generated_image_analysis.json"
++    apply_local_config_for_test(
++        tmp_path,
++        monkeypatch,
++        {
++            "ENABLE_GENERATED_IMAGE_POOL": True,
++            "GENERATED_IMAGE_DIR": str(generated_dir),
++            "GENERATED_IMAGE_GLOB": "*.png",
++            "GENERATED_IMAGE_ANALYSIS_FILE": str(generated_analysis),
++            "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
++        },
++        initial={
++            "ENABLE_GENERATED_IMAGE_POOL": False,
++            "GENERATED_IMAGE_DIR": "",
++            "GENERATED_IMAGE_GLOB": "*.jpg",
++            "GENERATED_IMAGE_ANALYSIS_FILE": "",
++            "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 4,
++        },
++    )
++
++    assert bot.ENABLE_GENERATED_IMAGE_POOL is True
++    assert bot.GENERATED_IMAGE_DIR == str(generated_dir)
++    assert bot.GENERATED_IMAGE_GLOB == "*.png"
++    assert bot.GENERATED_IMAGE_ANALYSIS_FILE == str(generated_analysis)
++    assert bot.GENERATED_IMAGE_ORIGIN_QUOTE_BOOST == 6
+```
