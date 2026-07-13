@@ -1,0 +1,7 @@
+metric,original,improved
+credible_selector_derived_challengers,9 true rank-2 in draft audit,25
+lexical_only_challengers,41 of 50 primary source,0
+neither_rate,44.0%,24.0%
+current_winner_preferred,17/50 (34.0%),14/25 (56.0%)
+challenger_preferred,11/50 (22.0%),5/25 (20.0%)
+provider_schema_failures,OpenAI/Anthropic 15 each,0

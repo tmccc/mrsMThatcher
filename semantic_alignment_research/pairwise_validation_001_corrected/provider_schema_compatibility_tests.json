@@ -1,0 +1,19 @@
+{
+  "case_ids": [
+    "15b01ed0b7f0f7214a49",
+    "4fef774dd375646c24ab"
+  ],
+  "providers": {
+    "anthropic": {
+      "completed": 2,
+      "cost_usd": 0.025785,
+      "failures": 0
+    },
+    "openai": {
+      "completed": 2,
+      "cost_usd": 0.046465,
+      "failures": 0
+    }
+  },
+  "schema_version": 1
+}

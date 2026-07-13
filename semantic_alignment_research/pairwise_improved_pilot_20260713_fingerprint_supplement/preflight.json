@@ -1,0 +1,8 @@
+{
+  "conservative_ceiling_usd": 0.5,
+  "expected_cost_usd": 0.1,
+  "images": 2,
+  "model": "grok-4.5",
+  "prompt_version": "image-first-impression-v1",
+  "tools_enabled": false
+}

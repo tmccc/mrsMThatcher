@@ -1,0 +1,261 @@
+{
+  "analysis_kind": "improved_pairwise_pilot_readiness_manifest",
+  "case_count": 22,
+  "human_review_started": false,
+  "items": [
+    {
+      "candidate_a": "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png",
+      "candidate_b": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "case_id": "38dab10d66214a8f33ef",
+      "input_hash": "6e1f8703031ec75ce41c3cb639943838ac71cd47a079f528f3cdc47f5de13802",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "candidate_b": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "input_hash": "9269605ef1482b627e8eee77dca6b3d97a6950a527eb803be382159a3c776c37",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "candidate_b": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "case_id": "649b2360f0d35e006a3f",
+      "input_hash": "71013fe201afef726cfc2d71c221954804622c4f989b6653256f2fc2f21c213a",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "candidate_b": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "case_id": "871cef5a200df1b4c849",
+      "input_hash": "2ef211c9b25955e861bce4fc9654cadda10013aad68fd002852648a3143d1e7b",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "candidate_b": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "case_id": "42f7c7f901e65773d1d9",
+      "input_hash": "80b8bfe3ea13ef70a3ffcffdaaad983b1e406a8a9c1b65134ed7f01a92850cd3",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "candidate_b": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "case_id": "18d9c05171a3b7771300",
+      "input_hash": "aac1d812fea6e6adcb376a984f9dc2293916fbabbebe503ec26b930d09dcad4a",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "candidate_b": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "case_id": "c4b43d7652a5a705a041",
+      "input_hash": "592f8caa162690a418bb7844109bcc9f1d7bafa868b047ec232d9f1d7de2695f",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "candidate_b": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "input_hash": "f2a299ca2399a1561de0d2b7d10976641b8a1d01d03b410c38bd333408178ca3",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "candidate_b": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "case_id": "ad499c5e87c4b1061c82",
+      "input_hash": "c55edd581cc33e6ed3d01c7a756e2c9ba8097a0ac011c50959f462d6d057b484",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "candidate_b": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "case_id": "84c4fab4ab81767961f5",
+      "input_hash": "7bcd9adc63617dbf60ae6384ba6129c43de6f7ad64844ab1989f7caef6f8a6c4",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "candidate_b": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "case_id": "f0858d5ba37a30559e98",
+      "input_hash": "e687f85c09b849bcfcc027cb6bfecab653ad6f966dc6e79e7c57fc13bbc13bf5",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "candidate_b": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "case_id": "f7919a292b295182ddf6",
+      "input_hash": "0cedafb77847e185156c14c37534b2be09e2fc25c20e1c29c24b4d30867bef61",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "candidate_b": "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png",
+      "case_id": "51e6eaa31172e2c1f669",
+      "input_hash": "347deac251df87e8fcef22b396c814058c928e7dd4214c501f56dc48da599b11",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "candidate_b": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "input_hash": "96fb0101c28570eae6c4e4a99d964ec1104987b9c9db035afcabf5a5811c56e5",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "candidate_b": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "case_id": "8bf11163cff70da7f79f",
+      "input_hash": "a891a9cd94a18cdcdfea414d4bcfc6e6e920c69eef6fb7eb8201382c347a042b",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "candidate_b": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "case_id": "ae88d2ac1a32760b777a",
+      "input_hash": "edf875cc597780867d42e31ba04bad8c816be2dbc8eed811fc5bcf126bb048e7",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "candidate_b": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "case_id": "acff00ba44055ff3f449",
+      "input_hash": "b7b806630b6abb7f2a6730eaf7a4be176b1c8892ca2823702b9ddf5a60c05d57",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "candidate_b": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "case_id": "38f264251a7faff45128",
+      "input_hash": "943d12e37929206a428d66fae65d9467d68bfbe60d9263e1a43fe58c4aec4060",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "candidate_b": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "case_id": "530dd6715d596f34e6cb",
+      "input_hash": "e841f8836922cb49eb2e53f7e1b81fcf59addf3f89ab4693293a1982a9498f9a",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "candidate_b": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "case_id": "78aefa753cafa62472f9",
+      "input_hash": "854024f66dd073a068bf00a3d55df3cf63a2069452ac60f1d5ea32c9c572eae4",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "candidate_b": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "case_id": "3edeb287c07907e91e76",
+      "input_hash": "e85fc7b199917a9f0158729a7f60a4f31309e981f2620c3ba649683a270c43cb",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    },
+    {
+      "candidate_a": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "candidate_b": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "case_id": "a9815ad9cd0ff0fd88d8",
+      "input_hash": "80c072162b5b8c01602eedc0369e5e8199b0720acd4d0425a177d3d6a30189f5",
+      "provenance": "exact_simulator_runner_up",
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "selection_reason": "exact_selector_eligible_rank_2_with_documented_floors"
+    }
+  ],
+  "paid_calls_made": 0,
+  "readiness": {
+    "credible_cases": 22,
+    "issues": [
+      {
+        "case_id": null,
+        "details": {
+          "everest_present": false,
+          "free_trade_present": false
+        },
+        "issue": "required_regression_missing"
+      }
+    ],
+    "minimum_required": 20,
+    "ready": false,
+    "status": "challenger construction still inadequate"
+  },
+  "regression_blockers": [
+    {
+      "active": true,
+      "all_non_fingerprint_gates_pass": true,
+      "blocker": "missing_first_impression_fingerprint",
+      "current_winner": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "editorial_quality": 90,
+      "hash_matches": true,
+      "identity_policy": "unrestricted",
+      "image_exists": true,
+      "post_index": 55,
+      "production_score": 110.183628,
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "runner_up": "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "topic_score": 76.38362753961898,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0006/selections.jsonl"
+    },
+    {
+      "active": true,
+      "all_non_fingerprint_gates_pass": true,
+      "blocker": "missing_first_impression_fingerprint",
+      "current_winner": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "editorial_quality": 88,
+      "hash_matches": true,
+      "identity_policy": "unrestricted",
+      "image_exists": true,
+      "post_index": 22,
+      "production_score": 63.548989,
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "runner_up": "tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png",
+      "topic_score": 48.58898943540674,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0017/selections.jsonl"
+    }
+  ],
+  "regressions": {
+    "everest_present": false,
+    "free_trade_present": false
+  },
+  "schema_version": 1
+}

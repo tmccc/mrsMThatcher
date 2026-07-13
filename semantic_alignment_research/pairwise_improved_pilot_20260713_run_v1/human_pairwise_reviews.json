@@ -1,0 +1,284 @@
+{
+  "analysis_kind": "pairwise_human_reviews",
+  "items": {
+    "03ef27b13bd503905246": {
+      "case_id": "03ef27b13bd503905246",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:57:02.224877+00:00"
+    },
+    "044824e1b0a5d2fbdb1f": {
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:59:19.309004+00:00"
+    },
+    "18d9c05171a3b7771300": {
+      "case_id": "18d9c05171a3b7771300",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:58:12.103711+00:00"
+    },
+    "38dab10d66214a8f33ef": {
+      "case_id": "38dab10d66214a8f33ef",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:53:52.141080+00:00"
+    },
+    "3fb10ed9b7e50c851995": {
+      "case_id": "3fb10ed9b7e50c851995",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:55:51.780848+00:00"
+    },
+    "42f7c7f901e65773d1d9": {
+      "case_id": "42f7c7f901e65773d1d9",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:57:51.587590+00:00"
+    },
+    "483d70018034a5288942": {
+      "case_id": "483d70018034a5288942",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:58:57.464090+00:00"
+    },
+    "4e7cbd5baa5aafa9418f": {
+      "case_id": "4e7cbd5baa5aafa9418f",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:55:27.296614+00:00"
+    },
+    "51e6eaa31172e2c1f669": {
+      "case_id": "51e6eaa31172e2c1f669",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:02:02.927920+00:00"
+    },
+    "59c27f78aa7a327c3791": {
+      "case_id": "59c27f78aa7a327c3791",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_semantic_fit",
+        "better_tone"
+      ],
+      "updated_at": "2026-07-13T00:04:04.540312+00:00"
+    },
+    "5ed5302a6e333567d058": {
+      "case_id": "5ed5302a6e333567d058",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:55:04.274744+00:00"
+    },
+    "5fc09adb9e8c26fe6a4a": {
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_tone"
+      ],
+      "updated_at": "2026-07-13T00:02:43.613933+00:00"
+    },
+    "649b2360f0d35e006a3f": {
+      "case_id": "649b2360f0d35e006a3f",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:54:45.933523+00:00"
+    },
+    "84c4fab4ab81767961f5": {
+      "case_id": "84c4fab4ab81767961f5",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:00:54.344626+00:00"
+    },
+    "871cef5a200df1b4c849": {
+      "case_id": "871cef5a200df1b4c849",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:57:30.458497+00:00"
+    },
+    "8bf11163cff70da7f79f": {
+      "case_id": "8bf11163cff70da7f79f",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:03:13.069880+00:00"
+    },
+    "a449d3bd87a040ed34b1": {
+      "case_id": "a449d3bd87a040ed34b1",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:52:58.417531+00:00"
+    },
+    "ad499c5e87c4b1061c82": {
+      "case_id": "ad499c5e87c4b1061c82",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:00:23.614676+00:00"
+    },
+    "b0605e236e6885411c16": {
+      "case_id": "b0605e236e6885411c16",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:59:56.204972+00:00"
+    },
+    "ba18bbea3acd4594ecf9": {
+      "case_id": "ba18bbea3acd4594ecf9",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:52:32.811778+00:00"
+    },
+    "c4b43d7652a5a705a041": {
+      "case_id": "c4b43d7652a5a705a041",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T23:58:41.052927+00:00"
+    },
+    "dbbca3ff711dd4d9eba3": {
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:54:24.825423+00:00"
+    },
+    "de48e09553c333d2edb5": {
+      "case_id": "de48e09553c333d2edb5",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T23:56:40.292942+00:00"
+    },
+    "f0858d5ba37a30559e98": {
+      "case_id": "f0858d5ba37a30559e98",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:01:19.834725+00:00"
+    },
+    "f7919a292b295182ddf6": {
+      "case_id": "f7919a292b295182ddf6",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-13T00:01:44.462955+00:00"
+    }
+  },
+  "schema_version": 1
+}

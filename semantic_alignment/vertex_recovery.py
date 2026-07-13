@@ -26,14 +26,16 @@ def validate_vertex_environment(env=os.environ)->dict[str,str]:
     return {'project':project,'location':location,'vertexai':enabled}
 
 class GeminiVertexClient:
-    def __init__(self,*,project:str,location:str='global',model:str=VERTEX_MODEL,client=None):
+    def __init__(self,*,project:str,location:str='global',model:str=VERTEX_MODEL,client=None,
+                 response_schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA,max_output_tokens:int=MAX_OUTPUT_TOKENS):
         if model!=VERTEX_MODEL:raise RuntimeError(f'Vertex model must match original: {VERTEX_MODEL}')
         self.model=model;self.project=project;self.location=location
+        self.response_schema=response_schema;self.max_output_tokens=max_output_tokens
         self.client=client or genai.Client(vertexai=True,project=project,location=location)
     def config(self):
         return types.GenerateContentConfig(
-            max_output_tokens=MAX_OUTPUT_TOKENS,
-            response_mime_type='application/json',response_json_schema=BAKEOFF_OUTPUT_SCHEMA,
+            max_output_tokens=self.max_output_tokens,
+            response_mime_type='application/json',response_json_schema=self.response_schema,
             thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
             http_options=types.HttpOptions(timeout=180_000),
         )

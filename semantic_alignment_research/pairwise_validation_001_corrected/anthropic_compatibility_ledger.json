@@ -1,0 +1,23 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "case_id": "15b01ed0b7f0f7214a49",
+      "input_hash": "9b784038473f42f31689aeeb05857c0b8f7cc1f80dfa99d59a8445570d67cb1e",
+      "state": "completed",
+      "timestamp": 1783896896.1271493,
+      "transport": "anthropic"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "4fef774dd375646c24ab",
+      "input_hash": "cb99eae35fa4b249a562b773687ef6a601fb0989dc24d3bdadcdcd335fc5bbfd",
+      "state": "completed",
+      "timestamp": 1783896905.23523,
+      "transport": "anthropic"
+    }
+  ],
+  "known_cost_usd": 0.025785,
+  "provider": "anthropic",
+  "schema_version": 1
+}

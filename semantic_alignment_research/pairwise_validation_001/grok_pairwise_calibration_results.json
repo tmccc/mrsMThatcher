@@ -1,0 +1,493 @@
+{
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "15b01ed0b7f0f7214a49",
+      "cost_usd": 0.008798,
+      "input_tokens": 2512,
+      "latency_seconds": 7.039202807936817,
+      "output_tokens": 243,
+      "reasoning_tokens": 386,
+      "request_id": "d1993f1a-8c51-910a-a97a-33bc220af334",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "4fef774dd375646c24ab",
+      "cost_usd": 0.012474,
+      "input_tokens": 2907,
+      "latency_seconds": 12.646708538057283,
+      "output_tokens": 224,
+      "reasoning_tokens": 918,
+      "request_id": "51208e10-133d-9329-bec8-9f0f3b2951a4",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "648a780d62a5e292bfde",
+      "cost_usd": 0.010502,
+      "input_tokens": 2431,
+      "latency_seconds": 9.568176978966221,
+      "output_tokens": 180,
+      "reasoning_tokens": 792,
+      "request_id": "e4affc46-242a-9470-9ac8-38712481f899",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "c8610c7f719c8adaf0dc",
+      "cost_usd": 0.009638,
+      "input_tokens": 2677,
+      "latency_seconds": 6.817730836104602,
+      "output_tokens": 183,
+      "reasoning_tokens": 563,
+      "request_id": "393a019f-77f6-9053-a33b-a78ab8a1bba5",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "151fb29e96491875b9ea",
+      "cost_usd": 0.009012,
+      "input_tokens": 2700,
+      "latency_seconds": 6.762160276994109,
+      "output_tokens": 230,
+      "reasoning_tokens": 404,
+      "request_id": "9f0fd4fd-e29b-930b-a680-c3b89d33c82d",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "80b092b6130196244c59",
+      "cost_usd": 0.006576,
+      "input_tokens": 2700,
+      "latency_seconds": 3.216710525099188,
+      "output_tokens": 228,
+      "reasoning_tokens": 0,
+      "request_id": "753db9f5-12a2-91b3-ab64-52ef0311f79f",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "8817906db04f42dfb463",
+      "cost_usd": 0.012402,
+      "input_tokens": 2673,
+      "latency_seconds": 10.643999533029273,
+      "output_tokens": 236,
+      "reasoning_tokens": 972,
+      "request_id": "d4535e33-dcd1-9fb8-9293-86d3b953d903",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "8b8e8ba6c20422ff0eb6",
+      "cost_usd": 0.010702,
+      "input_tokens": 2471,
+      "latency_seconds": 8.806617611087859,
+      "output_tokens": 199,
+      "reasoning_tokens": 793,
+      "request_id": "152249a7-de09-9a4e-b3e4-0ee6a636c266",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "52bd349ce17a14c07ded",
+      "cost_usd": 0.008726,
+      "input_tokens": 2410,
+      "latency_seconds": 7.452003777958453,
+      "output_tokens": 190,
+      "reasoning_tokens": 493,
+      "request_id": "c7162f3d-2e19-9787-9df5-945af4323e28",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "27e72b8b5d64cd044f3b",
+      "cost_usd": 0.01453,
+      "input_tokens": 2579,
+      "latency_seconds": 15.680165558122098,
+      "output_tokens": 221,
+      "reasoning_tokens": 1373,
+      "request_id": "f737e46e-f4a2-9fcd-9bbb-5238c379eab1",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "55c4b1ec39c29fc6c0dd",
+      "cost_usd": 0.015152,
+      "input_tokens": 2932,
+      "latency_seconds": 15.075588304782286,
+      "output_tokens": 294,
+      "reasoning_tokens": 1286,
+      "request_id": "8e0df660-7a18-9ec4-8d7f-cbd7b6c117c1",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "1aa029132dceac146642",
+      "cost_usd": 0.010474,
+      "input_tokens": 2558,
+      "latency_seconds": 8.875838140025735,
+      "output_tokens": 224,
+      "reasoning_tokens": 701,
+      "request_id": "afbece0c-c343-9aad-a2d5-b9538249dac4",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "757fc0e1fa642cfaec4b",
+      "cost_usd": 0.006328,
+      "input_tokens": 2666,
+      "latency_seconds": 2.165599748957902,
+      "output_tokens": 198,
+      "reasoning_tokens": 0,
+      "request_id": "ddd58999-4501-94d6-9f09-9cc6bd26fc61",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "7eaee3f2b011ae18bf8c",
+      "cost_usd": 0.011398,
+      "input_tokens": 2570,
+      "latency_seconds": 11.087172074941918,
+      "output_tokens": 241,
+      "reasoning_tokens": 834,
+      "request_id": "2e1ef8f7-36cc-92d6-a260-2032be9ae88f",
+      "transport": "grok"
+    },
+    {
+      "cached_tokens": 128,
+      "case_id": "1419ae3f9a07198d29d6",
+      "cost_usd": 0.005866,
+      "input_tokens": 2462,
+      "latency_seconds": 1.838379313936457,
+      "output_tokens": 189,
+      "reasoning_tokens": 0,
+      "request_id": "20a6be2f-2d5c-933a-a131-f26da010ba50",
+      "transport": "grok"
+    }
+  ],
+  "failures": {},
+  "items": {
+    "1419ae3f9a07198d29d6": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "1419ae3f9a07198d29d6",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "A shows Thatcher mid-speech in a male-dominated chamber, providing direct experiential context for her politics-derived lesson on men's unreasonableness via confrontation. B's Soviet collapse is a strong but unrelated ideological ruin image that fails the quote's politics-and-gender focus entirely. A's confrontational energy better supports the reflective claim than B's mournful desolation.",
+      "risk_flags": [
+        "tone_mismatch",
+        "wrong_dominant_message"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "151fb29e96491875b9ea": {
+      "better_first_impression": "equal",
+      "better_semantic_fit": "equal",
+      "better_tone_match": "A",
+      "better_visual_impact": "equal",
+      "case_id": "151fb29e96491875b9ea",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Neither image addresses monopoly trade unions' destructive power over fellow workers. Both push anti-communist/Cold War victory themes (A: market prosperity vs hammer-sickle oppression; B: Thatcher amid exploding Soviet symbols and blind bureaucrats), creating wrong dominant messages and zero semantic fit to the quote's labor-monopoly warning. Desired subjects (idle plants, layoffs, power imbalances among workers) are absent; A is closer in warning tone but still unusable.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "no_good_candidate",
+        "ideological_substitution",
+        "tone_mismatch"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "15b01ed0b7f0f7214a49": {
+      "better_first_impression": "equal",
+      "better_semantic_fit": "equal",
+      "better_tone_match": "equal",
+      "better_visual_impact": "equal",
+      "case_id": "15b01ed0b7f0f7214a49",
+      "less_distracting": "equal",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Neither candidate illustrates the quote's core metaphor of individual achievement (Everest climb) culminating in national symbol (flag at summit). A shows a generic formal political speech with flags and flame; B shows Thatcher rejecting communism via UK map and hammer-sickle. Both impose wrong dominant messages (oratory/anti-communism) with no useful symbolism for personal-to-national ownership, creating tone mismatch and zero fit to desired subjects or reflective patriotism.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "tone_mismatch",
+        "too_literal",
+        "ideological_substitution",
+        "weak_visual_impact"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "1aa029132dceac146642": {
+      "better_first_impression": "equal",
+      "better_semantic_fit": "equal",
+      "better_tone_match": "equal",
+      "better_visual_impact": "B",
+      "case_id": "1aa029132dceac146642",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Quote demands imagery of moral/spiritual defence against state dependency and duty-neglect under socialism (queues, self-reliant duties, civic/spiritual symbols, State looming). Both A and B instead centre Thatcher at a podium rejecting communism/Europe crisis via maps and storm/hammer-sickle graphics: wrong dominant message of partisan historical leadership speech, undesired specific regimes/countries, and ideological substitution of Cold-War communism for the quote’s broader moral claim. Neither is publishable.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "tone_mismatch",
+        "ideological_substitution",
+        "no_good_candidate"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "27e72b8b5d64cd044f3b": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "equal",
+      "case_id": "27e72b8b5d64cd044f3b",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "B better matches the quote's core of determined opposition to banishing Marxist socialism's dark threat from the land, via resolute stop gesture against hammer-sickle overlaid UK map (useful anti-communist symbolism and indirect national struggle illustration). A's factory-clones red-star scene validly implies oppressive conformity but its dominant manufacturing message and ominous tone misfit the prize-of-fighting emphasis; B's named-leader specificity is a drawback yet secondary to stronger thematic and tonal alignment overall.",
+      "risk_flags": [
+        "distracting_symbol",
+        "wrong_dominant_message"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "4fef774dd375646c24ab": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "4fef774dd375646c24ab",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "B's shopping-bags abundance vs. scarcity queue better evokes freer-trade consumer gains and universal benefits than A's leader-centric podium bridging decay-to-prosperity, which injects unrequested political agency. Both risk ideological overtones (hammer-sickle; red flags) and miss ports/markets, yet B's contrast is less off-message overall; satirical tone and high competition still render it unpublishable without edits.",
+      "risk_flags": [
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "tone_mismatch",
+        "distracting_symbol"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "52bd349ce17a14c07ded": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "52bd349ce17a14c07ded",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "A shows a resolute female UK leader (Thatcher-like) with raised fist at podium and Union Jack, fitting emphatic dismissal of inflexibility charge as poppycock. B's older male medal-wearing pointer in chamber mismatches speaker gender, identity, and dismissive (vs accusatory) tone, creating wrong dominant message.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "wrong_dominant_message"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "55c4b1ec39c29fc6c0dd": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "equal",
+      "better_visual_impact": "equal",
+      "case_id": "55c4b1ec39c29fc6c0dd",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Neither image matches the quote's general claim on government limits (cannot guarantee security/balance or free people from material worries, yet can impoverish via waste or enable private prosperity). A substitutes a UK-specific taxes/regulations burden with national symbols (Union Jack, top-hatted rider), producing a wrong dominant message about Britain and fiscal overload rather than the quote's broader points; this also hits undesired named-country territory. B substitutes a free-market vs communism diptych (hammer-and-sickle, pollution queues vs sunny markets), which is ideological substitution and an undesired systems clash not present in the quote. Both retain warning tone and strong visuals but fail semantic fit, introduce distractions/competition, and lack desired subjects (workshops, waste, bureaucracy enabling private effort). No publishable candidate.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "distracting_symbol"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "648a780d62a5e292bfde": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "648a780d62a5e292bfde",
+      "less_distracting": "equal",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Quote centers on the duty of public instruction to obey the law. A’s prison wall, barbed wire and isolation convey confinement/oppression (wrong dominant message, undesired enforcement imagery). B’s authoritative podium speaker better matches telling/instructing the public with civic authority, despite confrontational edge.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "tone_mismatch"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "757fc0e1fa642cfaec4b": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "757fc0e1fa642cfaec4b",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "B's diptych directly illustrates the quote's binary choice: bright free-market prosperity/individual freedom versus grim communist oppression with hammer-and-sickle flags, queues, and pollution matching 'dark divisive Marxist socialism' vs uniting belief in freedom. A is a strong but generic Thatcher speech photo that only weakly implies British leadership without the core ideological contrast or warning tone.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "distracting_symbol"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "7eaee3f2b011ae18bf8c": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "7eaee3f2b011ae18bf8c",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "B’s broken hammer-and-sickle monument in rubble with tattered flag and ruined statues directly and powerfully illustrates comprehensive defeat and collapse of a dictatorial regime’s symbols, matching the quote’s core claim that dictators must be well and truly defeated rather than surrender. A’s dominant Thatcher-pointing-at-viewer amid corpses and Soviet flag instead conveys personal accusation and war-atrocity warning against communism, introducing an undesired democratic-leader biography, high visual competition from corpses/soldiers, and wrong dominant message of ongoing threat rather than decisive defeat. B has clearer focus, lower distraction, and fitting somber-warning tone with strong symbolic impact.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "80b092b6130196244c59": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "equal",
+      "better_visual_impact": "A",
+      "case_id": "80b092b6130196244c59",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Neither image supports the quote’s core claim of Western refusal to stop massacres inside Europe. A shows Thatcher addressing a stormy Europe map—authoritative crisis rhetoric but no victims, inaction, or “won’t vs can’t.” B piles on irrelevant threats (jihadists, communism, unions, burning dome), creating a wrong dominant message of multi-front domestic siege. Both are off-theme and unpublishable with this quotation.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "no_good_candidate",
+        "distracting_symbol",
+        "ideological_substitution"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "8817906db04f42dfb463": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "equal",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "8817906db04f42dfb463",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Neither candidate illustrates the quote's core on individual freedom to choose/err/act compassionately versus total state responsibility. A imposes a wrong dominant message of Soviet collapse and broken communist symbols (ideological substitution, mournful/ominous tone mismatch). B is a generic contemplative authority portrait that matches reflective tone and clarity but conveys none of the desired themes or subjects (too generic, no semantic link). Both unpublishable as they distract from or substitute the message.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "too_generic",
+        "tone_mismatch"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": false
+    },
+    "8b8e8ba6c20422ff0eb6": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "B",
+      "case_id": "8b8e8ba6c20422ff0eb6",
+      "less_distracting": "A",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "Quote contrasts male talk with female action/results. A shows woman actively writing/reviewing documents (execution under authority), fitting 'ask a woman' for doing; B shows woman mid-speech pointing (talk/confrontation) with political flags, inverting the message and adding undesired politics. A better matches themes without wrong dominant claim or tone clash.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "tone_mismatch",
+        "distracting_symbol"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    },
+    "c8610c7f719c8adaf0dc": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "B",
+      "case_id": "c8610c7f719c8adaf0dc",
+      "less_distracting": "B",
+      "model": "grok-4.5",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "grok",
+      "reason": "A’s prosperity-vs-scarcity split directly illustrates free enterprise empowering people against state/communist control, matching the quote’s core claim via valid contrast symbolism. B’s podium speech conveys authority but not privatisation or people’s power; its leader focus risks wrong dominant message.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "ideological_substitution",
+        "distracting_symbol"
+      ],
+      "transport": "grok",
+      "would_publish_preferred": true
+    }
+  },
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "grok",
+  "schema_version": 1
+}

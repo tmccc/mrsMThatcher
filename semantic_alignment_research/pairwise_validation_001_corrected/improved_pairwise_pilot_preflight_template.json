@@ -1,0 +1,12 @@
+{
+  "case_count": 25,
+  "not_executed": true,
+  "required_before_execution": [
+    "provider model and pricing verification",
+    "rendered prompt token estimate",
+    "provider-specific and combined ceilings",
+    "no-tools verification"
+  ],
+  "review_command": "python3 tools/first_impression_pairwise_review.py --run-dir semantic_alignment_research/pairwise_validation_001_corrected/improved_pilot_review --host 127.0.0.1 --port 8772",
+  "schema_version": 1
+}

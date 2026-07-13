@@ -1,0 +1,76 @@
+{
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "15b01ed0b7f0f7214a49",
+      "cost_usd": 0.011765999999999999,
+      "input_tokens": 2792,
+      "latency_seconds": 9.102594075957313,
+      "output_tokens": 226,
+      "reasoning_tokens": 0,
+      "request_id": "req_011CcxzD7Ps5dosxEKD9uAKn",
+      "transport": "anthropic"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "4fef774dd375646c24ab",
+      "cost_usd": 0.014019,
+      "input_tokens": 3193,
+      "latency_seconds": 8.776804614113644,
+      "output_tokens": 296,
+      "reasoning_tokens": 0,
+      "request_id": "req_011CcxzDnKB7kZBbA69FX9GC",
+      "transport": "anthropic"
+    }
+  ],
+  "failures": {},
+  "items": {
+    "15b01ed0b7f0f7214a49": {
+      "better_first_impression": "equal",
+      "better_semantic_fit": "equal",
+      "better_tone_match": "equal",
+      "better_visual_impact": "equal",
+      "case_id": "15b01ed0b7f0f7214a49",
+      "less_distracting": "A",
+      "model": "claude-sonnet-4-6",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "anthropic",
+      "reason": "The quote is a metaphor about individual achievement culminating in national representation, using Everest summit flag-planting as its central image. Neither candidate delivers this. Candidate A shows a generic podium speech with ceremonial flame and flags — no connection to personal achievement or summit symbolism. Candidate B imposes an anti-communist ideological framing (Thatcher stopping communism over Britain) that actively contradicts the quote's meaning, substituting political confrontation for the inspirational personal-to-national arc. Both images carry wrong dominant messages relative to the quote's themes of individual triumph and patriotic culmination.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "tone_mismatch",
+        "no_good_candidate"
+      ],
+      "transport": "anthropic",
+      "would_publish_preferred": false
+    },
+    "4fef774dd375646c24ab": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "4fef774dd375646c24ab",
+      "less_distracting": "A",
+      "model": "claude-sonnet-4-6",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "anthropic",
+      "reason": "Neither image is a strong match for a quote about freer post-war trade driving consumer benefits, competition, and growth. Candidate A's before/after contrast of industrial decay vs prosperous modern city at least evokes the broad arc of post-war economic transformation and prosperity, with the modern side suggesting consumer abundance and growth. The speaker-as-bridge framing is somewhat aligned with the optimistic trade-as-engine narrative. Candidate B's hammer-and-sickle imagery, bread lines, and explicit communist-vs-capitalist framing pulls the dominant message toward Cold War ideological contrast rather than the benefits of freer trade, risking a wrong dominant message of anti-communism propaganda rather than universal gains from open markets. B's satirical, propagandistic tone also mismatches the measured optimism of the quote. A is marginally more publishable but still weak on semantic fit given no trade, commerce, or consumer specifics are present.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "tone_mismatch",
+        "too_generic",
+        "ideological_substitution"
+      ],
+      "transport": "anthropic",
+      "would_publish_preferred": false
+    }
+  },
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "anthropic",
+  "schema_version": 1
+}

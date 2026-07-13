@@ -1,0 +1,155 @@
+{
+  "items": {
+    "02036deb428823bbd515": {
+      "challenger": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "current_position": "B",
+      "current_winner": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "source": "exact_selector_trace"
+    },
+    "0b28d80d6fb9c844f2c1": {
+      "challenger": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "current_position": "B",
+      "current_winner": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "source": "exact_selector_trace"
+    },
+    "11a9189c937c36f8253b": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "source": "exact_selector_trace"
+    },
+    "16b21222e4562471d07e": {
+      "challenger": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "current_position": "A",
+      "current_winner": "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png",
+      "source": "exact_selector_trace"
+    },
+    "1c7e03f05c9055fd06a1": {
+      "challenger": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "current_position": "B",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "source": "exact_selector_trace"
+    },
+    "237fd02899d0df8034f2": {
+      "challenger": "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png",
+      "current_position": "A",
+      "current_winner": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "source": "exact_selector_trace"
+    },
+    "2efb96d93c15fdb65149": {
+      "challenger": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "current_position": "B",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "source": "exact_selector_trace"
+    },
+    "3573e6ef2c68f7dcf14d": {
+      "challenger": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "current_position": "B",
+      "current_winner": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "source": "exact_selector_trace"
+    },
+    "620be30c7a926dd31466": {
+      "challenger": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "current_position": "A",
+      "current_winner": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "source": "exact_selector_trace"
+    },
+    "6235b6b9addd17a38b74": {
+      "challenger": "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png",
+      "current_position": "B",
+      "current_winner": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "source": "exact_selector_trace"
+    },
+    "6dc678f8f0fcc16967d2": {
+      "challenger": "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png",
+      "current_position": "A",
+      "current_winner": "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png",
+      "source": "exact_selector_trace"
+    },
+    "731e3769a94b5a991302": {
+      "challenger": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "current_position": "A",
+      "current_winner": "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png",
+      "source": "exact_selector_trace"
+    },
+    "76c056b99a07faabe8fc": {
+      "challenger": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "current_position": "A",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "source": "exact_selector_trace"
+    },
+    "7939d791b7400b6a0e6e": {
+      "challenger": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "current_position": "B",
+      "current_winner": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "source": "exact_selector_trace"
+    },
+    "8b94965dab18215b82f3": {
+      "challenger": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "current_position": "A",
+      "current_winner": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "source": "fixed_regression_control"
+    },
+    "9746455102c79593bf1c": {
+      "challenger": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "current_position": "A",
+      "current_winner": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "source": "exact_selector_trace"
+    },
+    "ab48b90ed653486e603b": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "B",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "source": "exact_selector_trace"
+    },
+    "b5075f0c29ea2013de57": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "source": "exact_selector_trace"
+    },
+    "cb3ccd40e2b2342d97a1": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "source": "exact_selector_trace"
+    },
+    "d82334c86e9ef79b3b82": {
+      "challenger": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "current_position": "B",
+      "current_winner": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "source": "exact_selector_trace"
+    },
+    "e5459b9577e7580cd93b": {
+      "challenger": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "current_position": "A",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "source": "exact_selector_trace"
+    },
+    "ea012f0adaddd32cdcad": {
+      "challenger": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "current_position": "B",
+      "current_winner": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "source": "exact_selector_trace"
+    },
+    "ee8990bb9670de54aaf3": {
+      "challenger": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "current_position": "A",
+      "current_winner": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "source": "exact_selector_trace"
+    },
+    "f02785e004ea8db8795b": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "source": "exact_selector_trace"
+    },
+    "f909d237ce754354c6f3": {
+      "challenger": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "current_position": "B",
+      "current_winner": "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png",
+      "source": "exact_selector_trace"
+    }
+  },
+  "schema_version": 1
+}

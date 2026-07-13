@@ -1,0 +1,7 @@
+method,cases,human_agreement,corrections,harmful_displacements,deferrals,neither_cases,status
+A_current_winner,50,0.34,0,0,0,22,evaluated
+B_soft_light,0,,,,50,,not reconstructable: challenger is not always the soft-light winner
+C_pairwise_cached_fingerprint_challenger,50,0.66,18,4,0,18,evaluated with Grok selected by calibration
+D_pairwise_soft_light,0,,,,50,,not reconstructable: challenger is not always the soft-light winner
+E_pairwise_high_risk,0,,,,50,,not separately evaluated
+F_pairwise_close_scores,0,,,,50,,not separately evaluated

@@ -1,0 +1,48 @@
+{
+  "cases": 25,
+  "combined_conservative_maximum_cost_usd": 2.845884,
+  "combined_expected_cost_usd": 2.058384,
+  "combined_limit_usd": 16.0,
+  "human_labels_in_prompts": false,
+  "prompt_parity": true,
+  "providers": {
+    "anthropic": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 0.688971,
+      "estimated_input_tokens": 79657,
+      "estimated_output_tokens": 17500,
+      "expected_cost_usd": 0.501471,
+      "limit_usd": 3.0,
+      "tools_enabled": false
+    },
+    "gemini": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 0.519314,
+      "estimated_input_tokens": 79657,
+      "estimated_output_tokens": 17500,
+      "expected_cost_usd": 0.36931400000000003,
+      "limit_usd": 3.0,
+      "tools_enabled": false
+    },
+    "grok": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 0.339314,
+      "estimated_input_tokens": 79657,
+      "estimated_output_tokens": 17500,
+      "expected_cost_usd": 0.264314,
+      "limit_usd": 3.0,
+      "tools_enabled": false
+    },
+    "openai": {
+      "calls": 25,
+      "conservative_maximum_cost_usd": 1.298285,
+      "estimated_input_tokens": 79657,
+      "estimated_output_tokens": 17500,
+      "expected_cost_usd": 0.923285,
+      "limit_usd": 5.0,
+      "tools_enabled": false
+    }
+  },
+  "schema_version": 1,
+  "winner_identity_in_prompts": false
+}

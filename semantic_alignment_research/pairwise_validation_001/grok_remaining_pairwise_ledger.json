@@ -1,0 +1,287 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "case_id": "ac34e029f9dcaa4e2bfc",
+      "input_hash": "d13568eb27fe02103a60c3ffc3e62d7a2e431a299590274867f0e7c9aaf07bd4",
+      "state": "completed",
+      "timestamp": 1783895361.5726767,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "9789acbbd822a146f8bb",
+      "input_hash": "f2c857f1a3c748ce4e9874703dea2c6e90393da7da76b22ac5d666e5a1cec766",
+      "state": "completed",
+      "timestamp": 1783895364.443216,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "bfcd7d2fc8969282b056",
+      "input_hash": "a618756d9d0651af90b42d5c5e70c9c0c4cf83b5717a26085c754e13f1c9e46a",
+      "state": "completed",
+      "timestamp": 1783895366.9268155,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "8d57f08802ca1fe01ce6",
+      "input_hash": "5b76edba885d5e305fe2721d5de7c821eb55b8b76d1af2b9b56e25dc0b873ea3",
+      "state": "completed",
+      "timestamp": 1783895368.8764875,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "1b0656695ecc7800e981",
+      "input_hash": "db7b89f9f147358d12fd544ada1a21726f11dd6939780fc17a2d2f649e35d9c6",
+      "state": "completed",
+      "timestamp": 1783895378.582,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "20b57039064bdbd2005a",
+      "input_hash": "16546f8f256192dbeea4df52fd5e1d92e1aeda9fd923d6d876fe26ad1fa8362f",
+      "state": "completed",
+      "timestamp": 1783895386.2280655,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "2336596f95a50df63cc6",
+      "input_hash": "ab4251cebdb6a68b3c440047336d4f4e8428298f37b3a4dd9795575daff8b231",
+      "state": "completed",
+      "timestamp": 1783895388.7546892,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "f0f2237cf6a6d484f8d8",
+      "input_hash": "e6c71c9658f4bb9e0f2f119301a5c1ac02abf0dbbe65975cdc646c0186b9b71b",
+      "state": "completed",
+      "timestamp": 1783895394.3671565,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "90d64a6bd43ad4d9e57b",
+      "input_hash": "f4e646e2c7f2ab15baee3a2781e4f0e177c11c6234a7613260bff3d8b4853c48",
+      "state": "completed",
+      "timestamp": 1783895396.654905,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "7f0ec70641cd09505552",
+      "input_hash": "5d5acb78802811963746cc57f0730a14df4cd9fa8bda03be7c85c2e44bd7d7d0",
+      "state": "completed",
+      "timestamp": 1783895405.4062364,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "2a50862636359688dea8",
+      "input_hash": "e9e971f2f7eb363f6569930c80e860721ed5f3147c748f61d785737aaa7740b9",
+      "state": "completed",
+      "timestamp": 1783895411.943707,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "c902cc6da69dc980c97b",
+      "input_hash": "23915a54d9a6512b024847e4d3eb1aab89a5f9b6692a6fcb7b2461220084adbf",
+      "state": "completed",
+      "timestamp": 1783895418.3706539,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "82eb14b13a5d189128c0",
+      "input_hash": "e5a02ac5233a4894f02dfed5b1fadfea9dde2e595b176735d46e81f73c51c72d",
+      "state": "completed",
+      "timestamp": 1783895430.3967142,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "782075e381c7c57d0cc3",
+      "input_hash": "e5ec1e2e4b6d0fc4042fe4c3663509b370ab9f173a5ee82f62ad67175bc4c640",
+      "state": "completed",
+      "timestamp": 1783895437.1845562,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "d96ef632314d8c8cf3dd",
+      "input_hash": "53f4e03a0df81605997014a28d473711506e1bf97c1becbd4a9ba891ff9d40b7",
+      "state": "completed",
+      "timestamp": 1783895452.7648475,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "f9a3da8376ef5596e75c",
+      "input_hash": "1cc67e0b07d13b050248cb4203f9061d9eb6fa295ae05c6c0f1d9b29199c1557",
+      "state": "completed",
+      "timestamp": 1783895459.5038857,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "5be2b7f67f9cc87a4b3e",
+      "input_hash": "427e30e40eee38186e20d0ae7b0642b4706f9a179b18acc0de490fdfc13b4025",
+      "state": "completed",
+      "timestamp": 1783895461.729373,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "5bbc4c1a138c13320423",
+      "input_hash": "f069ba8302927d609da06809395ddcb6754c46cf9825aa42b6b4edf9d17229a1",
+      "state": "completed",
+      "timestamp": 1783895472.0866547,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "2f50293c8c1d41bef517",
+      "input_hash": "bd71f819f701bc2cbcbab75b979482f59150807a37950abb1a854d879eca70fc",
+      "state": "completed",
+      "timestamp": 1783895477.5163727,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "41cbeaaf8b997fb3d179",
+      "input_hash": "f210731b57d568e6154fdd73c2a181467461e47d078c4bf77c547cff2ebfd2b1",
+      "state": "completed",
+      "timestamp": 1783895480.0772765,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "3158d93d331fa380a534",
+      "input_hash": "3148e2df12c31d1b6abf3fe72811e33549384e86994b51b9f55066086f1bf84d",
+      "state": "completed",
+      "timestamp": 1783895482.898648,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "73ae344f3c08e6aaee5a",
+      "input_hash": "3bc6268e3841c14f6791cec5cb5a3e1383297960ba824c78f775a23cd9cbb11c",
+      "state": "completed",
+      "timestamp": 1783895493.0818124,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "389acbefc6932be859b8",
+      "input_hash": "a9b0e2090b6ae6cea1d8d69e89f2c4ace2a8cfae1bd5624602e4e7c02d064f24",
+      "state": "completed",
+      "timestamp": 1783895500.5638723,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "eda5498a17f086e4e9c6",
+      "input_hash": "19a472afac9215d986f9173666a2658c166c9e6b8469a21babec566d2a925786",
+      "state": "completed",
+      "timestamp": 1783895511.1170456,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "62442137fcc95a065cc0",
+      "input_hash": "d784a45b137ac2fcc6e71d0ab6549c277e311a186d537cf8f76ff54307d42f80",
+      "state": "completed",
+      "timestamp": 1783895513.5033436,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "33095713be47c13f9918",
+      "input_hash": "43ea7d0a5b4042ca93a17dc16c51b815df7045a31180e3524bda9dd801dbbb95",
+      "state": "completed",
+      "timestamp": 1783895522.983378,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "8ff68b93a3fd45bfd590",
+      "input_hash": "726148081c6783c9889fa6d5436f0f5f0e52c2650894adc5f26fb4de72cc31b3",
+      "state": "completed",
+      "timestamp": 1783895524.9573555,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "1e1cecc729e206a1963a",
+      "input_hash": "ad12f6e1879aa726c0f5856306bf86f4d48f29c9ffc1f727ffbff4667b9ec876",
+      "state": "completed",
+      "timestamp": 1783895527.4536576,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "6cf8fca6ea08b029bc90",
+      "input_hash": "e1c0351d070127ddc60dcab10fed4c51b6d06cff520f5be62ad3eaff38027b0c",
+      "state": "completed",
+      "timestamp": 1783895537.676922,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "d351f4215f1925462f3d",
+      "input_hash": "649d40c0dc022ca92d2b352578e8b13a5c108c37a870a8fde2111944d81c2548",
+      "state": "completed",
+      "timestamp": 1783895540.0421004,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "eba8c1e8797aa556bd91",
+      "input_hash": "6a8320197cc8eff9dc5e614285baeafa7c788b35fb1d7f877fe387883be2d74e",
+      "state": "completed",
+      "timestamp": 1783895542.4874353,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "7876504cf530753a8257",
+      "input_hash": "f086fb51560ed9c789601a9cb8c2c7c89b0a7b3b306d81d883f6667ce90c4813",
+      "state": "completed",
+      "timestamp": 1783895544.9448216,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "857374c0d630420deb9c",
+      "input_hash": "0e1d98aa17db7a7210ea98ea4bb51727ed12480bf2d6304690ff52656c693775",
+      "state": "completed",
+      "timestamp": 1783895554.2276733,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "6a18c21f8288759fb0eb",
+      "input_hash": "27d3c802537688b54f680412df3e6b40b3ae87cc94c6d4ee4443fc4983644426",
+      "state": "completed",
+      "timestamp": 1783895562.8734558,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "57cf51141cf9079e4d8b",
+      "input_hash": "57ba070ef494e2a429cab8620be6e4144ac3ce0b70e85362b0b26d855770a612",
+      "state": "completed",
+      "timestamp": 1783895572.6945455,
+      "transport": "grok"
+    }
+  ],
+  "known_cost_usd": 0.29190200000000005,
+  "provider": "grok",
+  "schema_version": 1
+}

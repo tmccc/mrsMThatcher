@@ -1,0 +1,254 @@
+{
+  "anthropic": {
+    "case_id": "15b01ed0b7f0f7214a49",
+    "input_hash": "9b784038473f42f31689aeeb05857c0b8f7cc1f80dfa99d59a8445570d67cb1e",
+    "model": "claude-sonnet-4-6",
+    "request_payload": {
+      "max_tokens": 1200,
+      "messages": [
+        {
+          "content": "Prompt version: pairwise-editorial-validation-v1\nAct as an experienced newspaper picture editor. Choose which anonymous image would\nmake the stronger published post when displayed alongside the quotation represented\nby the independent fingerprints below. Credit useful symbolism and valid indirect\nillustration; do not require literal depiction. Penalise a wrong dominant message,\ntone mismatch, distraction, generic substitution, or weak visual impact. Select\nneither when neither candidate is publishable, and unsure only when evidence is\ngenuinely insufficient. A and B are arbitrary positions. You are not given and must\nnot infer production status, selector rank, generation history, prior model results,\nhuman labels, or an expected answer. No tools, search, grounding, URLs, raw images or\nexternal context are available. Return only the requested JSON.\nINPUT:{\"candidate_A\":{\"editorial_power\":90,\"first_impression\":{\"distracting_symbol_score\":55,\"dominant_subject_strength\":80,\"dominant_symbols\":[\"burning flame bowl\",\"national flags\",\"podium microphones\",\"pearl necklace\",\"gold brooch\"],\"dominant_visual_subject\":\"An older woman in a navy suit speaking at a podium\",\"first_impression_message\":\"A formal leader speaks with resolve at a podium while a flame burns nearby.\",\"first_object_noticed\":\"The speaker\\u2019s face and raised fist\",\"focal_clarity_score\":72,\"primary_tone\":\"resolute\",\"secondary_tones\":[\"inspirational\",\"patriotic\",\"confrontational\"],\"visual_competition\":[{\"competes_with\":\"Speaker\\u2019s face\",\"element\":\"Flame bowl\",\"severity\":\"high\"},{\"competes_with\":\"Speaker\\u2019s dark suit\",\"element\":\"Colourful flags\",\"severity\":\"medium\"},{\"competes_with\":\"Raised fist\",\"element\":\"Microphones\",\"severity\":\"low\"}],\"visual_competition_score\":58},\"semantic\":{\"core_implied_claim\":\"The speaker is asserting authority and resolve while addressing an audience amid national symbols and a ceremonial flame.\",\"dominant_message\":\"A formal political leader is delivering a forceful public address at an international or commemorative event.\",\"emotional_tone\":[\"Determined\",\"Serious\",\"Authoritative\",\"Formal\"],\"implied_claims\":[{\"claim\":\"A senior female political figure is giving a speech from a podium.\",\"confidence\":0.96,\"salience\":\"dominant\",\"visual_support\":[\"Woman standing behind a dark podium\",\"Two microphones positioned in front of her\",\"Mouth open mid-speech and raised fist gesture\"]},{\"claim\":\"The setting is a formal international or diplomatic occasion.\",\"confidence\":0.9,\"salience\":\"secondary\",\"visual_support\":[\"Multiple national flags in the background\",\"Dark formal backdrop and stage lighting\",\"Ceremonial brass bowl with open flame\"]},{\"claim\":\"The speaker is conveying determination or emphasis.\",\"confidence\":0.88,\"salience\":\"secondary\",\"visual_support\":[\"Clenched fist raised near chest\",\"Forward gaze and open mouth\",\"Upright posture in tailored dark suit\"]},{\"claim\":\"The event may involve commemoration or solemn symbolism.\",\"confidence\":0.55,\"salience\":\"speculative\",\"visual_support\":[\"Lit flame in ornate metal bowl on stage left\",\"Serious facial expression and formal attire\"]}],\"primary_themes\":[\"Political oratory\",\"National symbolism\",\"Authority and resolve\",\"Formal ceremony\"],\"secondary_messages\":[\"International presence suggested by multiple flags\",\"Ceremonial gravity from the burning bowl\",\"Personal authority conveyed by formal dress and jewelry\"],\"specific_concepts\":[\"Podium speech\",\"National flags\",\"Ceremonial flame\",\"Leadership gesture\",\"Formal attire\"],\"visual_evidence\":[\"Woman in navy suit with pearl necklace and gold brooch\",\"Dark podium with two microphones\",\"Raised clenched right fist\",\"Brass bowl with bright flame on left\",\"Background flags including red-white, red-blue-white, red-white-green, and blue-white\"]}},\"candidate_B\":{\"editorial_power\":88,\"first_impression\":{\"distracting_symbol_score\":65,\"dominant_subject_strength\":80,\"dominant_symbols\":[\"Hammer and sickle\",\"Map of the United Kingdom\",\"Union Jack flag\",\"Pearl necklace\",\"Microphones and podium\"],\"dominant_visual_subject\":\"Margaret Thatcher at a podium with a raised stopping hand\",\"first_impression_message\":\"A stern leader firmly rejects a glowing red communist threat over Britain.\",\"first_object_noticed\":\"Raised open palm of Margaret Thatcher\",\"focal_clarity_score\":75,\"primary_tone\":\"resolute\",\"secondary_tones\":[\"confrontational\",\"warning\",\"defensive\",\"patriotic\"],\"visual_competition\":[{\"competes_with\":\"Thatcher's face and gesture\",\"element\":\"Red glowing map\",\"severity\":\"high\"},{\"competes_with\":\"Podium and flag details\",\"element\":\"Multiple hammer-and-sickle symbols\",\"severity\":\"medium\"}],\"visual_competition_score\":70},\"semantic\":{\"core_implied_claim\":\"Thatcher is stopping or opposing a communist takeover of the United Kingdom.\",\"dominant_message\":\"Margaret Thatcher is portrayed as firmly rejecting communism\\u2019s threat to Britain.\",\"emotional_tone\":[\"Stern\",\"Defiant\",\"Authoritative\",\"Alarming (via red map)\"],\"implied_claims\":[{\"claim\":\"Margaret Thatcher is rejecting communism as a threat to Britain.\",\"confidence\":0.93,\"salience\":\"dominant\",\"visual_support\":[\"Woman resembling Thatcher with raised open palm in a stop gesture\",\"Glowing red map of the UK overlaid with hammer-and-sickle symbols\",\"Union Jack flag partially visible behind her\"]},{\"claim\":\"The United Kingdom is depicted as under a communist menace.\",\"confidence\":0.9,\"salience\":\"secondary\",\"visual_support\":[\"Red-tinted UK map with multiple hammer-and-sickle icons\",\"Cracked, glowing red texture on the map against a dark background\"]},{\"claim\":\"She is delivering a formal public stance from a podium.\",\"confidence\":0.88,\"salience\":\"secondary\",\"visual_support\":[\"Wooden lectern with multiple microphones\",\"Blue suit, pearl necklace, and formal posture\"]},{\"claim\":\"Her opposition is framed as patriotic British leadership.\",\"confidence\":0.62,\"salience\":\"speculative\",\"visual_support\":[\"Union Jack behind the speaker\",\"UK map as the primary graphic on the left\"]}],\"primary_themes\":[\"Anti-communism\",\"British national politics\",\"Authoritative leadership\",\"Ideological conflict\"],\"secondary_messages\":[\"Communism is a dangerous or invasive force\",\"A strong leader can halt ideological expansion\",\"Public speech as a moment of decisive rejection\"],\"specific_concepts\":[\"Margaret Thatcher\",\"United Kingdom map\",\"Hammer and sickle\",\"Stop/reject gesture\",\"Union Jack\",\"Political podium speech\"],\"visual_evidence\":[\"Raised right hand with palm facing forward\",\"Red glowing map of Great Britain and Ireland\",\"Multiple white hammer-and-sickle symbols on the map\",\"Dark blue suit and pearl necklace\",\"Cluster of black microphones on a wooden lectern\",\"Partial Union Jack flag in the background\",\"Blurred crowd or chamber seating behind\"]}},\"quote_semantics\":{\"claims\":[{\"claim\":\"A man may climb Everest for himself.\",\"confidence\":0.95,\"importance\":\"primary\"},{\"claim\":\"At the summit he plants his country's flag.\",\"confidence\":0.95,\"importance\":\"primary\"},{\"claim\":\"Individual achievement is publicly converted into national representation.\",\"confidence\":0.85,\"importance\":\"secondary\"}],\"core_claim\":\"A man may climb Everest for himself, but at the summit he plants his country's flag.\",\"dominant_message\":\"Personal feats may be pursued for individual reasons yet are ultimately claimed as national symbols through public acts of allegiance.\",\"not_about\":[\"actual mountaineering techniques or gear\",\"climate change or environmental impact on Everest\",\"specific historical expeditions or named climbers\",\"political critique of nationalism in general\",\"gender roles or the word 'man' as exclusion\"],\"primary_themes\":[\"individual achievement\",\"national identity\",\"symbolic appropriation of success\"],\"secondary_themes\":[\"patriotism\",\"public display of allegiance\",\"mountaineering as metaphor\"],\"specific_concepts\":[\"climbing Everest\",\"planting a flag\",\"country's flag\",\"summit\",\"personal vs. national ownership\"]},\"quote_visual_intent\":{\"desired_first_impression\":\"Individual achievement reaches its highest point when it culminates in service to or representation of one's country.\",\"desired_primary_visual_subjects\":[\"climber reaching a snowy mountain summit alone\",\"figure planting a national flag at a peak\",\"close-up of a flag unfurling against mountain backdrop\",\"base camp with national emblems and expedition gear\",\"editorial image of a lone figure silhouetted against a flag and mountain\",\"museum display of historic summit flags\"],\"desired_tone\":[\"patriotic\",\"inspirational\",\"reflective\"],\"undesired_dominant_messages\":[\"actual mountaineering techniques or gear\",\"climate change or environmental impact on Everest\",\"specific historical expeditions or named climbers\",\"political critique of nationalism in general\",\"gender roles or the word 'man' as exclusion\",\"overseas diplomatic event without british symbols\"]}}",
+          "role": "user"
+        }
+      ],
+      "model": "claude-sonnet-4-6",
+      "output_config": {
+        "effort": "low",
+        "format": {
+          "schema": {
+            "additionalProperties": false,
+            "properties": {
+              "better_first_impression": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_semantic_fit": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_tone_match": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_visual_impact": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "less_distracting": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "preference_strength": {
+                "enum": [
+                  "moderate",
+                  "slight",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              "preferred_candidate": {
+                "enum": [
+                  "A",
+                  "B",
+                  "neither",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "risk_flags": {
+                "items": {
+                  "enum": [
+                    "acceptable_symbolism",
+                    "distracting_symbol",
+                    "ideological_substitution",
+                    "no_good_candidate",
+                    "tone_mismatch",
+                    "too_generic",
+                    "too_literal",
+                    "weak_visual_impact",
+                    "wrong_dominant_message"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "would_publish_preferred": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "preferred_candidate",
+              "preference_strength",
+              "better_semantic_fit",
+              "better_first_impression",
+              "better_tone_match",
+              "better_visual_impact",
+              "less_distracting",
+              "would_publish_preferred",
+              "reason",
+              "risk_flags"
+            ],
+            "type": "object"
+          },
+          "type": "json_schema"
+        }
+      }
+    }
+  },
+  "openai": {
+    "case_id": "15b01ed0b7f0f7214a49",
+    "input_hash": "9b784038473f42f31689aeeb05857c0b8f7cc1f80dfa99d59a8445570d67cb1e",
+    "model": "gpt-5.6-sol",
+    "request_payload": {
+      "input": "Prompt version: pairwise-editorial-validation-v1\nAct as an experienced newspaper picture editor. Choose which anonymous image would\nmake the stronger published post when displayed alongside the quotation represented\nby the independent fingerprints below. Credit useful symbolism and valid indirect\nillustration; do not require literal depiction. Penalise a wrong dominant message,\ntone mismatch, distraction, generic substitution, or weak visual impact. Select\nneither when neither candidate is publishable, and unsure only when evidence is\ngenuinely insufficient. A and B are arbitrary positions. You are not given and must\nnot infer production status, selector rank, generation history, prior model results,\nhuman labels, or an expected answer. No tools, search, grounding, URLs, raw images or\nexternal context are available. Return only the requested JSON.\nINPUT:{\"candidate_A\":{\"editorial_power\":90,\"first_impression\":{\"distracting_symbol_score\":55,\"dominant_subject_strength\":80,\"dominant_symbols\":[\"burning flame bowl\",\"national flags\",\"podium microphones\",\"pearl necklace\",\"gold brooch\"],\"dominant_visual_subject\":\"An older woman in a navy suit speaking at a podium\",\"first_impression_message\":\"A formal leader speaks with resolve at a podium while a flame burns nearby.\",\"first_object_noticed\":\"The speaker\\u2019s face and raised fist\",\"focal_clarity_score\":72,\"primary_tone\":\"resolute\",\"secondary_tones\":[\"inspirational\",\"patriotic\",\"confrontational\"],\"visual_competition\":[{\"competes_with\":\"Speaker\\u2019s face\",\"element\":\"Flame bowl\",\"severity\":\"high\"},{\"competes_with\":\"Speaker\\u2019s dark suit\",\"element\":\"Colourful flags\",\"severity\":\"medium\"},{\"competes_with\":\"Raised fist\",\"element\":\"Microphones\",\"severity\":\"low\"}],\"visual_competition_score\":58},\"semantic\":{\"core_implied_claim\":\"The speaker is asserting authority and resolve while addressing an audience amid national symbols and a ceremonial flame.\",\"dominant_message\":\"A formal political leader is delivering a forceful public address at an international or commemorative event.\",\"emotional_tone\":[\"Determined\",\"Serious\",\"Authoritative\",\"Formal\"],\"implied_claims\":[{\"claim\":\"A senior female political figure is giving a speech from a podium.\",\"confidence\":0.96,\"salience\":\"dominant\",\"visual_support\":[\"Woman standing behind a dark podium\",\"Two microphones positioned in front of her\",\"Mouth open mid-speech and raised fist gesture\"]},{\"claim\":\"The setting is a formal international or diplomatic occasion.\",\"confidence\":0.9,\"salience\":\"secondary\",\"visual_support\":[\"Multiple national flags in the background\",\"Dark formal backdrop and stage lighting\",\"Ceremonial brass bowl with open flame\"]},{\"claim\":\"The speaker is conveying determination or emphasis.\",\"confidence\":0.88,\"salience\":\"secondary\",\"visual_support\":[\"Clenched fist raised near chest\",\"Forward gaze and open mouth\",\"Upright posture in tailored dark suit\"]},{\"claim\":\"The event may involve commemoration or solemn symbolism.\",\"confidence\":0.55,\"salience\":\"speculative\",\"visual_support\":[\"Lit flame in ornate metal bowl on stage left\",\"Serious facial expression and formal attire\"]}],\"primary_themes\":[\"Political oratory\",\"National symbolism\",\"Authority and resolve\",\"Formal ceremony\"],\"secondary_messages\":[\"International presence suggested by multiple flags\",\"Ceremonial gravity from the burning bowl\",\"Personal authority conveyed by formal dress and jewelry\"],\"specific_concepts\":[\"Podium speech\",\"National flags\",\"Ceremonial flame\",\"Leadership gesture\",\"Formal attire\"],\"visual_evidence\":[\"Woman in navy suit with pearl necklace and gold brooch\",\"Dark podium with two microphones\",\"Raised clenched right fist\",\"Brass bowl with bright flame on left\",\"Background flags including red-white, red-blue-white, red-white-green, and blue-white\"]}},\"candidate_B\":{\"editorial_power\":88,\"first_impression\":{\"distracting_symbol_score\":65,\"dominant_subject_strength\":80,\"dominant_symbols\":[\"Hammer and sickle\",\"Map of the United Kingdom\",\"Union Jack flag\",\"Pearl necklace\",\"Microphones and podium\"],\"dominant_visual_subject\":\"Margaret Thatcher at a podium with a raised stopping hand\",\"first_impression_message\":\"A stern leader firmly rejects a glowing red communist threat over Britain.\",\"first_object_noticed\":\"Raised open palm of Margaret Thatcher\",\"focal_clarity_score\":75,\"primary_tone\":\"resolute\",\"secondary_tones\":[\"confrontational\",\"warning\",\"defensive\",\"patriotic\"],\"visual_competition\":[{\"competes_with\":\"Thatcher's face and gesture\",\"element\":\"Red glowing map\",\"severity\":\"high\"},{\"competes_with\":\"Podium and flag details\",\"element\":\"Multiple hammer-and-sickle symbols\",\"severity\":\"medium\"}],\"visual_competition_score\":70},\"semantic\":{\"core_implied_claim\":\"Thatcher is stopping or opposing a communist takeover of the United Kingdom.\",\"dominant_message\":\"Margaret Thatcher is portrayed as firmly rejecting communism\\u2019s threat to Britain.\",\"emotional_tone\":[\"Stern\",\"Defiant\",\"Authoritative\",\"Alarming (via red map)\"],\"implied_claims\":[{\"claim\":\"Margaret Thatcher is rejecting communism as a threat to Britain.\",\"confidence\":0.93,\"salience\":\"dominant\",\"visual_support\":[\"Woman resembling Thatcher with raised open palm in a stop gesture\",\"Glowing red map of the UK overlaid with hammer-and-sickle symbols\",\"Union Jack flag partially visible behind her\"]},{\"claim\":\"The United Kingdom is depicted as under a communist menace.\",\"confidence\":0.9,\"salience\":\"secondary\",\"visual_support\":[\"Red-tinted UK map with multiple hammer-and-sickle icons\",\"Cracked, glowing red texture on the map against a dark background\"]},{\"claim\":\"She is delivering a formal public stance from a podium.\",\"confidence\":0.88,\"salience\":\"secondary\",\"visual_support\":[\"Wooden lectern with multiple microphones\",\"Blue suit, pearl necklace, and formal posture\"]},{\"claim\":\"Her opposition is framed as patriotic British leadership.\",\"confidence\":0.62,\"salience\":\"speculative\",\"visual_support\":[\"Union Jack behind the speaker\",\"UK map as the primary graphic on the left\"]}],\"primary_themes\":[\"Anti-communism\",\"British national politics\",\"Authoritative leadership\",\"Ideological conflict\"],\"secondary_messages\":[\"Communism is a dangerous or invasive force\",\"A strong leader can halt ideological expansion\",\"Public speech as a moment of decisive rejection\"],\"specific_concepts\":[\"Margaret Thatcher\",\"United Kingdom map\",\"Hammer and sickle\",\"Stop/reject gesture\",\"Union Jack\",\"Political podium speech\"],\"visual_evidence\":[\"Raised right hand with palm facing forward\",\"Red glowing map of Great Britain and Ireland\",\"Multiple white hammer-and-sickle symbols on the map\",\"Dark blue suit and pearl necklace\",\"Cluster of black microphones on a wooden lectern\",\"Partial Union Jack flag in the background\",\"Blurred crowd or chamber seating behind\"]}},\"quote_semantics\":{\"claims\":[{\"claim\":\"A man may climb Everest for himself.\",\"confidence\":0.95,\"importance\":\"primary\"},{\"claim\":\"At the summit he plants his country's flag.\",\"confidence\":0.95,\"importance\":\"primary\"},{\"claim\":\"Individual achievement is publicly converted into national representation.\",\"confidence\":0.85,\"importance\":\"secondary\"}],\"core_claim\":\"A man may climb Everest for himself, but at the summit he plants his country's flag.\",\"dominant_message\":\"Personal feats may be pursued for individual reasons yet are ultimately claimed as national symbols through public acts of allegiance.\",\"not_about\":[\"actual mountaineering techniques or gear\",\"climate change or environmental impact on Everest\",\"specific historical expeditions or named climbers\",\"political critique of nationalism in general\",\"gender roles or the word 'man' as exclusion\"],\"primary_themes\":[\"individual achievement\",\"national identity\",\"symbolic appropriation of success\"],\"secondary_themes\":[\"patriotism\",\"public display of allegiance\",\"mountaineering as metaphor\"],\"specific_concepts\":[\"climbing Everest\",\"planting a flag\",\"country's flag\",\"summit\",\"personal vs. national ownership\"]},\"quote_visual_intent\":{\"desired_first_impression\":\"Individual achievement reaches its highest point when it culminates in service to or representation of one's country.\",\"desired_primary_visual_subjects\":[\"climber reaching a snowy mountain summit alone\",\"figure planting a national flag at a peak\",\"close-up of a flag unfurling against mountain backdrop\",\"base camp with national emblems and expedition gear\",\"editorial image of a lone figure silhouetted against a flag and mountain\",\"museum display of historic summit flags\"],\"desired_tone\":[\"patriotic\",\"inspirational\",\"reflective\"],\"undesired_dominant_messages\":[\"actual mountaineering techniques or gear\",\"climate change or environmental impact on Everest\",\"specific historical expeditions or named climbers\",\"political critique of nationalism in general\",\"gender roles or the word 'man' as exclusion\",\"overseas diplomatic event without british symbols\"]}}",
+      "max_output_tokens": 1200,
+      "model": "gpt-5.6-sol",
+      "reasoning": {
+        "effort": "low"
+      },
+      "store": false,
+      "text": {
+        "format": {
+          "name": "pairwise_editorial_validation",
+          "schema": {
+            "additionalProperties": false,
+            "properties": {
+              "better_first_impression": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_semantic_fit": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_tone_match": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "better_visual_impact": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "less_distracting": {
+                "enum": [
+                  "A",
+                  "B",
+                  "equal",
+                  "unclear"
+                ],
+                "type": "string"
+              },
+              "preference_strength": {
+                "enum": [
+                  "moderate",
+                  "slight",
+                  "strong"
+                ],
+                "type": "string"
+              },
+              "preferred_candidate": {
+                "enum": [
+                  "A",
+                  "B",
+                  "neither",
+                  "unsure"
+                ],
+                "type": "string"
+              },
+              "reason": {
+                "maxLength": 1200,
+                "minLength": 1,
+                "type": "string"
+              },
+              "risk_flags": {
+                "items": {
+                  "enum": [
+                    "acceptable_symbolism",
+                    "distracting_symbol",
+                    "ideological_substitution",
+                    "no_good_candidate",
+                    "tone_mismatch",
+                    "too_generic",
+                    "too_literal",
+                    "weak_visual_impact",
+                    "wrong_dominant_message"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 9,
+                "type": "array"
+              },
+              "would_publish_preferred": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "preferred_candidate",
+              "preference_strength",
+              "better_semantic_fit",
+              "better_first_impression",
+              "better_tone_match",
+              "better_visual_impact",
+              "less_distracting",
+              "would_publish_preferred",
+              "reason",
+              "risk_flags"
+            ],
+            "type": "object"
+          },
+          "strict": true,
+          "type": "json_schema"
+        }
+      }
+    }
+  }
+}

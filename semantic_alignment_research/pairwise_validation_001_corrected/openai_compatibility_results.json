@@ -1,0 +1,77 @@
+{
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "15b01ed0b7f0f7214a49",
+      "cost_usd": 0.019835,
+      "input_tokens": 2059,
+      "latency_seconds": 7.198910567909479,
+      "output_tokens": 318,
+      "reasoning_tokens": 147,
+      "request_id": "req_817e798f2ff244af927615ea343d3961",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "4fef774dd375646c24ab",
+      "cost_usd": 0.02663,
+      "input_tokens": 2422,
+      "latency_seconds": 10.83819082682021,
+      "output_tokens": 484,
+      "reasoning_tokens": 301,
+      "request_id": "req_d89e36bb87904d5b9cde8379fb0b656f",
+      "transport": "openai"
+    }
+  ],
+  "failures": {},
+  "items": {
+    "15b01ed0b7f0f7214a49": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "15b01ed0b7f0f7214a49",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A is the closer indirect illustration because its flags, ceremonial atmosphere, and resolute tone can suggest public national representation, but its dominant message remains a generic political address rather than an individual achievement becoming a national symbol. B is more specific and forceful, but its dominant anti-communist-threat narrative substantially misrepresents the quotation. Neither is sufficiently aligned for publication.",
+      "risk_flags": [
+        "no_good_candidate",
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "too_generic",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "4fef774dd375646c24ab": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "4fef774dd375646c24ab",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B comes closer through its emphasis on consumer abundance, but its dominant message is an overt capitalism-versus-communism contrast rather than freer international trade producing lower prices, competition, and growth. A is visually forceful and more tonally statesmanlike, yet it attributes societal transformation to a political leader and likewise provides no clear trade or payments imagery. Both substitute ideological or leadership narratives for the quotation’s economic argument, so neither is publishable alongside it.",
+      "risk_flags": [
+        "no_good_candidate",
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "too_generic"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    }
+  },
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "openai",
+  "schema_version": 1
+}

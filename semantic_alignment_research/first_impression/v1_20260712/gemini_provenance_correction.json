@@ -1,0 +1,9 @@
+{
+  "actual_prompt_version": "first-impression-alignment-v1",
+  "actual_schema_version": 1,
+  "affected_results": 38,
+  "basis": "input hashes were generated from first_impression.critic_prompt and the first-impression schema; generic fallback provenance defaults were corrected in code after execution",
+  "raw_records_immutable": true,
+  "record_kind": "first_impression_gemini_provenance_correction",
+  "recorded_prompt_version": "provider-neutral-picture-editor-v1"
+}

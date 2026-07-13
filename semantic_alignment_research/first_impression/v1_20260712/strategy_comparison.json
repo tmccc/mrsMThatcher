@@ -1,0 +1,44 @@
+{
+  "limitations": [
+    "Validation-set counterfactual only; generated share, exhaustion and diversity require candidate traces not available here."
+  ],
+  "observational_only": true,
+  "schema_version": 1,
+  "strategies": {
+    "A": {
+      "false_keeps": 26,
+      "false_replaces": 0,
+      "human_agreement": 23,
+      "resolved": 50,
+      "winner_changes": 0
+    },
+    "B": {
+      "false_keeps": 7,
+      "false_replaces": 11,
+      "human_agreement": 31,
+      "resolved": 50,
+      "winner_changes": 31
+    },
+    "C": {
+      "false_keeps": 7,
+      "false_replaces": 12,
+      "human_agreement": 30,
+      "resolved": 50,
+      "winner_changes": 32
+    },
+    "D": {
+      "false_keeps": 21,
+      "false_replaces": 4,
+      "human_agreement": 24,
+      "resolved": 50,
+      "winner_changes": 10
+    },
+    "E": {
+      "false_keeps": 0,
+      "false_replaces": 0,
+      "human_agreement": 0,
+      "resolved": 0,
+      "winner_changes": 0
+    }
+  }
+}

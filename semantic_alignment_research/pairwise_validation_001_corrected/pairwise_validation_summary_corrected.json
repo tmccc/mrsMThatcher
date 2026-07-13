@@ -1,0 +1,129 @@
+{
+  "analysis_kind": "pairwise_validation_summary",
+  "bad_winner_corrections": 8,
+  "bad_winner_neither": 20,
+  "compatibility": {
+    "case_ids": [
+      "15b01ed0b7f0f7214a49",
+      "4fef774dd375646c24ab"
+    ],
+    "providers": {
+      "anthropic": {
+        "completed": 2,
+        "cost_usd": 0.025785,
+        "failures": 0
+      },
+      "openai": {
+        "completed": 2,
+        "cost_usd": 0.046465,
+        "failures": 0
+      }
+    },
+    "schema_version": 1
+  },
+  "correction_version": 1,
+  "cost_usd": {
+    "anthropic": 0,
+    "gemini": 0.10729999999999999,
+    "grok": 0.152578,
+    "grok_remaining": 0.29190200000000005,
+    "openai": 0
+  },
+  "full_grok_validation": {
+    "bad_challenger_choices_matched": 6,
+    "bad_neither_choices_matched": 12,
+    "evaluated": 50,
+    "exact_agreement": 0.66,
+    "strong_controls_damaged": 4,
+    "strong_controls_retained": 9,
+    "strong_current_controls": 13
+  },
+  "human_outcomes": {
+    "challenger": 11,
+    "current_winner": 17,
+    "neither": 22
+  },
+  "human_reviews": 50,
+  "original_report_defect": "ordinary triple-quoted append left expressions uninterpolated",
+  "original_report_preserved": true,
+  "pilot_manifest_cases": 25,
+  "preference_strength": {
+    "moderate": 28,
+    "slight": 9,
+    "strong": 13
+  },
+  "prior_labels": {
+    "keep": 16,
+    "replace": 28,
+    "unsure": 6
+  },
+  "provider_calibration": {
+    "analysis_kind": "pairwise_provider_calibration",
+    "providers": {
+      "anthropic": {
+        "agreement_excluding_unsure": null,
+        "corrections": 0,
+        "cost_usd": 0,
+        "evaluated": 0,
+        "exact_agreement": null,
+        "harmful_displacements": 0,
+        "mean_latency_seconds": 0.0,
+        "neither_agreement": 0,
+        "schema_failures": 15
+      },
+      "gemini": {
+        "agreement_excluding_unsure": 0.5384615384615384,
+        "corrections": 2,
+        "cost_usd": 0.10729999999999999,
+        "evaluated": 13,
+        "exact_agreement": 0.5384615384615384,
+        "harmful_displacements": 1,
+        "mean_latency_seconds": 14.88959899234872,
+        "neither_agreement": 2,
+        "schema_failures": 2
+      },
+      "grok": {
+        "agreement_excluding_unsure": 0.6,
+        "corrections": 4,
+        "cost_usd": 0.152578,
+        "evaluated": 15,
+        "exact_agreement": 0.6,
+        "harmful_displacements": 2,
+        "mean_latency_seconds": 8.511736935066681,
+        "neither_agreement": 4,
+        "schema_failures": 0
+      },
+      "openai": {
+        "agreement_excluding_unsure": null,
+        "corrections": 0,
+        "cost_usd": 0,
+        "evaluated": 0,
+        "exact_agreement": null,
+        "harmful_displacements": 0,
+        "mean_latency_seconds": 0.0,
+        "neither_agreement": 0,
+        "schema_failures": 15
+      }
+    },
+    "schema_version": 1
+  },
+  "provider_selection": {
+    "decision": "use_one_provider",
+    "providers": [
+      "grok"
+    ],
+    "reason": "highest adequate exact agreement with harmful displacement as tie-breaker",
+    "schema_version": 1
+  },
+  "recommendation": "pairwise ranking not supported: promising correction signal, but candidate construction produced too many neither choices and ordinary-control damage was too high",
+  "reconstructed_pairs": {
+    "changed": 11,
+    "credible": 13,
+    "no_credible_challenger": 37,
+    "real_selector_trace": 13
+  },
+  "schema_version": 1,
+  "strong_control_harmful_displacement_candidates": 2,
+  "strong_control_neither": 1,
+  "strong_control_retention": 13
+}

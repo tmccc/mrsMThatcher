@@ -1,0 +1,4 @@
+strategy,cases,human_agreement,corrections,safe_retentions,harmful_displacements,useful_neither,status
+current_selector,25,0.56,0,14,0,0,evaluated
+soft_light_selector,0,,,,,,not_evaluable: absolute quote-image first-impression scores are not cached for all pilot candidates
+pairwise_majority_rerank,25,0.48,3,7,6,2,evaluated

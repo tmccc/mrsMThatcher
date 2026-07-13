@@ -1,0 +1,33 @@
+{
+  "case_count": 25,
+  "combined_estimated_cost_usd": 2.0625,
+  "not_executed": true,
+  "providers": {
+    "anthropic": {
+      "calls": 25,
+      "estimated_cost_usd": 0.5025,
+      "estimated_input_tokens": 80000,
+      "estimated_output_tokens": 17500
+    },
+    "gemini": {
+      "calls": 25,
+      "estimated_cost_usd": 0.37,
+      "estimated_input_tokens": 80000,
+      "estimated_output_tokens": 17500
+    },
+    "grok": {
+      "calls": 25,
+      "estimated_cost_usd": 0.265,
+      "estimated_input_tokens": 80000,
+      "estimated_output_tokens": 17500
+    },
+    "openai": {
+      "calls": 25,
+      "estimated_cost_usd": 0.925,
+      "estimated_input_tokens": 80000,
+      "estimated_output_tokens": 17500
+    }
+  },
+  "schema_version": 1,
+  "tools_enabled": false
+}

@@ -1,0 +1,728 @@
+{
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "ba18bbea3acd4594ecf9",
+      "cost_usd": 0.007552,
+      "input_tokens": 2696,
+      "latency_seconds": 4.381078395061195,
+      "output_tokens": 180,
+      "reasoning_tokens": 0,
+      "request_id": "TSVUarTOM8HcvNkP0b7I6Qs",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "a449d3bd87a040ed34b1",
+      "cost_usd": 0.006326,
+      "input_tokens": 1813,
+      "latency_seconds": 3.273097252007574,
+      "output_tokens": 225,
+      "reasoning_tokens": 0,
+      "request_id": null,
+      "transport": "developer_api"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "38dab10d66214a8f33ef",
+      "cost_usd": 0.00809,
+      "input_tokens": 2839,
+      "latency_seconds": 3.8030124730430543,
+      "output_tokens": 201,
+      "reasoning_tokens": 0,
+      "request_id": "ViVUapTFN6OpmPUPn_b30A8",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "cost_usd": 0.00788,
+      "input_tokens": 2734,
+      "latency_seconds": 49.15997158596292,
+      "output_tokens": 201,
+      "reasoning_tokens": 0,
+      "request_id": "XCVUatfMPLegmPUPxtiJwAI",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "649b2360f0d35e006a3f",
+      "cost_usd": 0.0067480000000000005,
+      "input_tokens": 2462,
+      "latency_seconds": 41.184093656018376,
+      "output_tokens": 152,
+      "reasoning_tokens": 0,
+      "request_id": "kCVUao6sKe2Ez_IPmJ3HuAw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "5ed5302a6e333567d058",
+      "cost_usd": 0.010456,
+      "input_tokens": 2294,
+      "latency_seconds": 6.50497273192741,
+      "output_tokens": 489,
+      "reasoning_tokens": 303,
+      "request_id": "vCVUatLUHqK0mPUP8Z6_kQQ",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "4e7cbd5baa5aafa9418f",
+      "cost_usd": 0.013354,
+      "input_tokens": 2333,
+      "latency_seconds": 7.617715600878,
+      "output_tokens": 724,
+      "reasoning_tokens": 521,
+      "request_id": "xSVUauCxF4vjz_IPwZyr-Qw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "3fb10ed9b7e50c851995",
+      "cost_usd": 0.008426,
+      "input_tokens": 2449,
+      "latency_seconds": 4.378581898054108,
+      "output_tokens": 294,
+      "reasoning_tokens": 0,
+      "request_id": "zyVUauqmGe2qmPUPuI3T-A4",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "de48e09553c333d2edb5",
+      "cost_usd": 0.007866,
+      "input_tokens": 2685,
+      "latency_seconds": 50.70455966703594,
+      "output_tokens": 208,
+      "reasoning_tokens": 0,
+      "request_id": "1iVUaoj5BdThz_IP3dHgwQw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "03ef27b13bd503905246",
+      "cost_usd": 0.006854,
+      "input_tokens": 2485,
+      "latency_seconds": 44.14349178504199,
+      "output_tokens": 157,
+      "reasoning_tokens": 0,
+      "request_id": "CyZUaqO1FvrEmPUPp72X6Qk",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "871cef5a200df1b4c849",
+      "cost_usd": 0.00788,
+      "input_tokens": 2746,
+      "latency_seconds": 3.823245685081929,
+      "output_tokens": 199,
+      "reasoning_tokens": 0,
+      "request_id": "OiZUavH2AqOpmPUPn_b30A8",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "42f7c7f901e65773d1d9",
+      "cost_usd": 0.012612,
+      "input_tokens": 2652,
+      "latency_seconds": 12.953703104052693,
+      "output_tokens": 609,
+      "reasoning_tokens": 391,
+      "request_id": "QCZUaqOxF7egmPUPxtiJwAI",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "18d9c05171a3b7771300",
+      "cost_usd": 0.017232,
+      "input_tokens": 2640,
+      "latency_seconds": 42.472945095039904,
+      "output_tokens": 996,
+      "reasoning_tokens": 809,
+      "request_id": "TyZUaqnAKe2Ez_IPmJ3HuAw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "c4b43d7652a5a705a041",
+      "cost_usd": 0.007731999999999999,
+      "input_tokens": 2750,
+      "latency_seconds": 126.51476252893917,
+      "output_tokens": 186,
+      "reasoning_tokens": 0,
+      "request_id": "fCZUaue4LaK0mPUP8Z6_kQQ",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "483d70018034a5288942",
+      "cost_usd": 0.008908,
+      "input_tokens": 2666,
+      "latency_seconds": 11.643754314864054,
+      "output_tokens": 298,
+      "reasoning_tokens": 0,
+      "request_id": "_SZUaqH5MIvjz_IPwZyr-Qw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "cost_usd": 0.00715,
+      "input_tokens": 2489,
+      "latency_seconds": 10.988645624835044,
+      "output_tokens": 181,
+      "reasoning_tokens": 0,
+      "request_id": "CydUaqmdLu2qmPUPuI3T-A4",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "ad499c5e87c4b1061c82",
+      "cost_usd": 0.00681,
+      "input_tokens": 2433,
+      "latency_seconds": 21.07038027001545,
+      "output_tokens": 162,
+      "reasoning_tokens": 0,
+      "request_id": "KydUauD-L_rEmPUPp72X6Qk",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "84c4fab4ab81767961f5",
+      "cost_usd": 0.007138,
+      "input_tokens": 2519,
+      "latency_seconds": 10.63688944093883,
+      "output_tokens": 175,
+      "reasoning_tokens": 0,
+      "request_id": "QydUav-SE6OpmPUPn_b30A8",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "f0858d5ba37a30559e98",
+      "cost_usd": 0.006944,
+      "input_tokens": 2410,
+      "latency_seconds": 90.9716367109213,
+      "output_tokens": 177,
+      "reasoning_tokens": 0,
+      "request_id": "UCdUaqLJEregmPUPxtiJwAI",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "51e6eaa31172e2c1f669",
+      "cost_usd": 0.01174,
+      "input_tokens": 2300,
+      "latency_seconds": 6.676003308035433,
+      "output_tokens": 595,
+      "reasoning_tokens": 428,
+      "request_id": "sCdUavKuO6K0mPUP8Z6_kQQ",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "cost_usd": 0.006804,
+      "input_tokens": 2382,
+      "latency_seconds": 3.2348126978613436,
+      "output_tokens": 170,
+      "reasoning_tokens": 0,
+      "request_id": "uidUaq3-D4vjz_IPwZyr-Qw",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "8bf11163cff70da7f79f",
+      "cost_usd": 0.007235999999999999,
+      "input_tokens": 2382,
+      "latency_seconds": 2.949730347841978,
+      "output_tokens": 206,
+      "reasoning_tokens": 0,
+      "request_id": "vydUapjFMO2qmPUPuI3T-A4",
+      "transport": "vertex_ai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "59c27f78aa7a327c3791",
+      "cost_usd": 0.006789999999999999,
+      "input_tokens": 2351,
+      "latency_seconds": 3.1025477219372988,
+      "output_tokens": 174,
+      "reasoning_tokens": 0,
+      "request_id": "xSdUasqUBNThz_IP3dHgwQw",
+      "transport": "vertex_ai"
+    }
+  ],
+  "failures": {
+    "b0605e236e6885411c16": {
+      "error": "Vertex fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.', 'status': 'RESOURCE_EXHAUSTED'}}"
+    },
+    "f7919a292b295182ddf6": {
+      "error": "Vertex fallback: 429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'Resource exhausted. Please try again later. Please refer to https://cloud.google.com/vertex-ai/generative-ai/docs/error-code-429 for more details.', 'status': 'RESOURCE_EXHAUSTED'}}"
+    }
+  },
+  "items": {
+    "03ef27b13bd503905246": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "03ef27b13bd503905246",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A provides a strong, albeit somewhat literal, visual metaphor for the quote's contrast between flourishing and suppression, showing a society flourishing on one side and being crushed/ruined on the other.",
+      "risk_flags": [
+        "too_literal",
+        "distracting_symbol"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "044824e1b0a5d2fbdb1f": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B portrays a resolute British political leader making a forceful speech, which aligns well with the tone and context of defending free speech and addressing national traditions. Candidate A includes highly distracting, literal, and somewhat surreal symbolism (sinking in mud, torn communist flag) that detracts from the core message of the quote.",
+      "risk_flags": [
+        "distracting_symbol"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "18d9c05171a3b7771300": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "18d9c05171a3b7771300",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A provides a strong historical and ideological illustration that aligns well with the context of the quotation, likely referencing the political era of Margaret Thatcher and the hardship associated with industrial strikes (depicted on the left with queues, bread shortages, and red flags). Candidate B is entirely off-topic, explicitly focusing on taxes and regulations rather than trade unions.",
+      "risk_flags": [
+        "ideological_substitution"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "38dab10d66214a8f33ef": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "equal",
+      "better_visual_impact": "A",
+      "case_id": "38dab10d66214a8f33ef",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates provide strong visual metaphors for the destructive legacy and collapse of communism (hammer and sickle, fallen Lenin bust, ruins), which aligns with the quote's focus on the scars left by totalitarian ideologies. Candidate A is slightly preferred because its composition, with the prominent fallen bronze bust and observing figures, provides a slightly more cohesive and grounded scene, enhancing the editorial impact and giving a stronger impression of historical weight.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "3fb10ed9b7e50c851995": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "unclear",
+      "better_visual_impact": "unclear",
+      "case_id": "3fb10ed9b7e50c851995",
+      "less_distracting": "unclear",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates strongly violate the quote's intent by depicting a specific political figure (Margaret Thatcher likeness), which the quote's semantic analysis explicitly flags as an undesired dominant message ('specific political parties or candidates'). Candidate A focuses heavily on EU and national flags, which fails to capture the core claim contrasting free enterprise with big government. Candidate B is highly distracting, using literal and heavy-handed symbolism (a broken hammer and sickle, a golden upward arrow, ruined cities vs. shiny skyscrapers) that feels propagandistic and overly literal, while still featuring the specific political figure. Neither candidate provides the desired abstract or general illustration of free enterprise vs. big government without introducing overwhelming extraneous or specifically undesired elements.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "distracting_symbol",
+        "too_literal",
+        "ideological_substitution"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": false
+    },
+    "42f7c7f901e65773d1d9": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "unclear",
+      "better_visual_impact": "unclear",
+      "case_id": "42f7c7f901e65773d1d9",
+      "less_distracting": "unclear",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Neither candidate is suitable for the quote. Candidate A focuses entirely on taxes and regulations burdening Britain, completely missing the quote's focus on trade unions causing hardship to workers. Candidate B includes a 'UNION POWER' sign but completely overwhelms it with wildly chaotic and unrelated concepts, such as armed terrorists, Islamic flags, and communist symbols, making it highly distracting and off-topic.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "distracting_symbol"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": false
+    },
+    "483d70018034a5288942": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "unclear",
+      "better_visual_impact": "unclear",
+      "case_id": "483d70018034a5288942",
+      "less_distracting": "unclear",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates strongly miss the mark on the quote's intended message and visual intent. The quote emphasizes individual freedom to act within limits and spend one's own money, without reference to political party platforms, historical events, figures, or extreme ideologies. Candidate A introduces heavy-handed Cold War-era 'capitalism vs. communism' propagandistic contrast (hammer and sickle, bleak queues vs joyful shopping), violating the instruction against ideological substitution and introducing distracting symbols. Candidate B relies on a Thatcher likeness and explicit political, historical, and ideological symbols (broken hammer and sickle, economic growth arrows, urban ruin vs modern skyline). Both introduce the undesired dominant messages of historical figures and extreme historical/political contrasts.",
+      "risk_flags": [
+        "no_good_candidate",
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "distracting_symbol",
+        "tone_mismatch"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": false
+    },
+    "4e7cbd5baa5aafa9418f": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "4e7cbd5baa5aafa9418f",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A provides a strong, resolute portrayal of the speaker with appropriate patriotic symbolism (the Union Jack) that aligns well with the quote's focus on national sovereignty and heritage. Candidate B introduces overwhelming and distracting symbols (hammer and sickle, glowing red map) that relate to anti-communism, creating a severe semantic mismatch with the quote's reference to Brussels and European institutions.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "distracting_symbol"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "51e6eaa31172e2c1f669": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "equal",
+      "case_id": "51e6eaa31172e2c1f669",
+      "less_distracting": "equal",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A provides a very strong semantic and visual fit for the quote, as the subject closely resembles Margaret Thatcher in her iconic blue suit and pearls. This directly aligns with the visual intent of the famous quote, whereas Candidate B depicts a male figure.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "59c27f78aa7a327c3791": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "59c27f78aa7a327c3791",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B shows a speaker pointing assertively to a large crowd, matching the quote's tone of a national choice, rallying people, and warning against 'Marxist socialism.' Candidate A features a globe, which implies international affairs, a distraction from the quote's domestic focus.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "5ed5302a6e333567d058": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "5ed5302a6e333567d058",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B is a stronger editorial choice because its inclusion of the Union Jack and a patriotic tone directly supports the quote's focus on national sovereignty and heritage. Candidate A's stormy map of Europe with lightning is overly dramatic and slightly distracting, introducing an ominous tone that is less aligned with the principled assertion of inherent rights in the quotation.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "5fc09adb9e8c26fe6a4a": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B fits the semantic profile of the quote slightly better because it includes a large blurred crowd filling the background, which aligns with the theme of uniting 'men and women from all walks of life.' Candidate A has smoky dramatic lighting and flags which is slightly distracting.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "649b2360f0d35e006a3f": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "649b2360f0d35e006a3f",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates illustrate a commanding, authoritative female British politician delivering a powerful speech. Candidate A's pointing finger better captures the 'counter-attack' theme of the quote.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "84c4fab4ab81767961f5": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "84c4fab4ab81767961f5",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A focuses on a forceful political address with patriotic themes, aligning well with the tone and content of the quote. Candidate B includes military soldiers, which directly conflicts with the quote's non-military focus and the 'not_about' constraint regarding military conflict or foreign wars.",
+      "risk_flags": [
+        "distracting_symbol",
+        "wrong_dominant_message"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "871cef5a200df1b4c849": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "equal",
+      "case_id": "871cef5a200df1b4c849",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A aligns better with the concept of union hardship and economic damage on the left side (depicting poverty, pollution, waiting in line), whereas Candidate B goes completely overboard with terrorism, black flags, and armed militants, which are highly distracting and unrelated to trade unions causing hardship.",
+      "risk_flags": [
+        "distracting_symbol",
+        "tone_mismatch",
+        "too_literal",
+        "wrong_dominant_message"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "8bf11163cff70da7f79f": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "8bf11163cff70da7f79f",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates depict a figure resembling Margaret Thatcher, which aligns with the historical and political context of the quote about banishing 'Marxist socialism'. Candidate B's confrontational pointing gesture and intense expression better match the forceful, warning tone of the quote ('dark, divisive clouds', 'banish Marxist socialism'). Candidate A's raised fist is slightly out of character for Thatcher and the specific ideology she represents, making B a better semantic fit.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "a449d3bd87a040ed34b1": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "unclear",
+      "better_visual_impact": "unclear",
+      "case_id": "a449d3bd87a040ed34b1",
+      "less_distracting": "unclear",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both images feature Margaret Thatcher at a podium giving a political speech, while Candidate B also includes heavy-handed anti-communist imagery (hammer and sickle over the UK). Neither image connects visually or metaphorically with the quotation, which is about an individual climbing Everest but claiming the summit for their country. The quote requires imagery related to climbing, summits, or national flags planted on mountains, not a politician delivering a speech.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "tone_mismatch"
+      ],
+      "transport": "developer_api",
+      "would_publish_preferred": false
+    },
+    "ad499c5e87c4b1061c82": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "ad499c5e87c4b1061c82",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A's pointing gesture matches the confrontational and forceful nature of Thatcher's rhetoric about 'rolling back the frontiers of socialism' better than Candidate B's raised fist, which can sometimes carry contradictory ideological connotations.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "ba18bbea3acd4594ecf9": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "ba18bbea3acd4594ecf9",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B illustrates the contrast between free market consumer benefits and scarcity, which loosely but effectively addresses the quote's focus on consumer gains. Candidate A is too heavily focused on anti-communism and features a Margaret Thatcher-like figure, which is a distracting ideological substitution.",
+      "risk_flags": [
+        "ideological_substitution",
+        "distracting_symbol"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "c4b43d7652a5a705a041": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "B",
+      "case_id": "c4b43d7652a5a705a041",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate A directly illustrates the core themes of the quote (the freedom to spend one's own money, personal choice) by contrasting a vibrant consumer scene with the bleak reality of restricted choice. Candidate B is too literal with a political figure giving a speech, which makes it less impactful in conveying the everyday aspect of economic freedom highlighted in the text.",
+      "risk_flags": [
+        "too_literal"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "dbbca3ff711dd4d9eba3": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Candidate B focuses on the ruin, collapse, and desolate legacy of the Soviet system, depicting fallen symbols of communism and a scarred landscape, which aligns well with the quote's focus on the scars and devastation left by totalitarian ideologies like communism. Candidate A's right panel showing a joyful, modern Russian café scene heavily contrasts with the quote's entirely negative focus on the death tolls and scars of these ideologies.",
+      "risk_flags": [
+        "wrong_dominant_message"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    },
+    "de48e09553c333d2edb5": {
+      "better_first_impression": "unclear",
+      "better_semantic_fit": "unclear",
+      "better_tone_match": "unclear",
+      "better_visual_impact": "unclear",
+      "case_id": "de48e09553c333d2edb5",
+      "less_distracting": "unclear",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates strongly violate the quote's undesired dominant messages by featuring a specific named leader (Margaret Thatcher-like figure) and focusing on specific historical/economic case studies (collapse of communism vs capitalism/industrial decay vs modern prosperity). The quote is a general statement about individual talent and societal flourishing, not about Thatcher or the Cold War.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "no_good_candidate"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": false
+    },
+    "f0858d5ba37a30559e98": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "f0858d5ba37a30559e98",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "slight",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "gemini",
+      "reason": "Both candidates depict a Thatcher-like figure giving a speech, fitting the quote's ideological and historical context. Candidate B is preferred slightly as it includes a large crowd, emphasizing the 'character of the people' and national movement aspects of the quote, while Candidate A is a tighter crop.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai",
+      "would_publish_preferred": true
+    }
+  },
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "gemini",
+  "schema_version": 1
+}

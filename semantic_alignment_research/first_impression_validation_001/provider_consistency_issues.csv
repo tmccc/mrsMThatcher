@@ -1,0 +1,4 @@
+case_id,provider,issue_type,severity,reason
+8d71754ba7bcb246b3a1,grok,salience_scale_inversion,material,explanation describes strong interference but score is <=30
+20d35a30b82bf94b96b7,anthropic,salience_scale_inversion,material,explanation describes strong interference but score is <=30
+9588c850bb3b06ab3214,anthropic,salience_scale_inversion,material,explanation describes strong interference but score is <=30

@@ -1,0 +1,3 @@
+challenger_source,cases,challenger_chosen,current_chosen,neither,neither_rate,mean_semantic_score_gap,mean_first_impression_gap,mean_tone_gap,mean_editorial_power_gap,mean_lexical_overlap_gap,ever_real_selector_eligible
+historical_candidate,9,2,4,3,0.3333333333333333,unavailable,unavailable,0,0.5555555555555556,0.02508111111111175,5
+lexical_overlap,41,9,13,19,0.4634146341463415,unavailable,unavailable,0.24390243902439024,0.9024390243902439,4.25450943902439,14

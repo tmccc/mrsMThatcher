@@ -1,0 +1,44 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "case_id": "b0605e236e6885411c16",
+      "state": "completed",
+      "timestamp": 1783900186.6483297,
+      "transport": "vertex_ai_recovery"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "f7919a292b295182ddf6",
+      "state": "completed",
+      "timestamp": 1783900190.4429367,
+      "transport": "vertex_ai_recovery"
+    }
+  ],
+  "calls": [
+    {
+      "attempt_number": 1,
+      "cached_tokens": 0,
+      "case_id": "b0605e236e6885411c16",
+      "cost_usd": 0.0068059999999999996,
+      "input_tokens": 2425,
+      "latency_seconds": 3.7905989810824394,
+      "output_tokens": 163,
+      "reasoning_tokens": 0,
+      "request_id": "GyhUaqbaHuL0mLAP9sXT6AY"
+    },
+    {
+      "attempt_number": 1,
+      "cached_tokens": 0,
+      "case_id": "f7919a292b295182ddf6",
+      "cost_usd": 0.007308,
+      "input_tokens": 2538,
+      "latency_seconds": 3.075433772057295,
+      "output_tokens": 186,
+      "reasoning_tokens": 0,
+      "request_id": "HihUaoviHo6PmLAPtPL0yAM"
+    }
+  ],
+  "known_cost_usd": 0.014114,
+  "schema_version": 1
+}

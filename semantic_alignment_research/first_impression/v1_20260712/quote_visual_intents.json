@@ -1,0 +1,1367 @@
+{
+  "analysis_kind": "quote_visual_intents",
+  "items": {
+    "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358483+00:00",
+      "desired_first_impression": "Critique of communism, socialism, nazism and fascism citing their death tolls, enslavement and impoverishment, and lasting scars on societies.",
+      "desired_primary_visual_subjects": [
+        "historical photographs of Soviet gulag prisoners and barbed-wire camps",
+        "mass graves or memorials to Holodomor and Cultural Revolution victims",
+        "empty shelves and queues in Eastern Bloc stores",
+        "Nazi concentration camp gates, barracks and crematoria ruins",
+        "Fascist-era Italian or Spanish political rallies and prisons",
+        "public memorials or scarred urban landscapes in former communist and Nazi states",
+        "symbolic editorial images of chains, scars and broken sickles or swastikas",
+        "archives or museums documenting totalitarian death records"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560",
+      "quote_text": "Communism accounted for approaching a hundred million deaths. It enslaved the East, while its first cousin socialism impoverished much of the West. Nazism - that other brand of socialism - & its tamer forbear Fascism killed about 25 million. All have left scars on our societies.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "benefits or achievements of capitalism or democracy",
+        "contemporary party politics or welfare-state debates",
+        "detailed military histories of World War II battles",
+        "individual leaders’ biographies without regime outcomes",
+        "quantitative economic growth charts unless tied to impoverishment claims"
+      ]
+    },
+    "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358503+00:00",
+      "desired_first_impression": "Thatcher urges the Conservative Party to end a long defensive posture and launch a determined intellectual and political counter-attack, stressing that winning the battle of ideas is as vital as parliamentary and constituency work.",
+      "desired_primary_visual_subjects": [
+        "political party conference hall with speakers urging action",
+        "parliamentary chamber debate scene",
+        "street-level constituency canvassers knocking doors",
+        "library or think-tank seminar with books and discussion",
+        "symbolic chess or fencing match representing ideas versus politics",
+        "editorial montage of pens and microphones crossing swords with ballot boxes",
+        "crowded public meeting contrasting defensive posters with bold new slogans"
+      ],
+      "desired_tone": [
+        "inspirational"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "quote_text": "This Party of ours has been on the defensive for too long. The time has come to counter-attack. The intellectual counter-attack is as important as the counter-attack in Parliament and in the constituencies. If we can win the battle of ideas, then the war will already be half-won.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific policy proposals",
+        "named political opponents or parties",
+        "election results or vote counts",
+        "military warfare",
+        "personal biographies of leaders",
+        "economic statistics"
+      ]
+    },
+    "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358511+00:00",
+      "desired_first_impression": "Assertion that sovereignty belongs to the British people by right and heritage, not granted by Brussels.",
+      "desired_primary_visual_subjects": [
+        "national parliament or historic assembly chamber",
+        "people waving a national flag at a public square",
+        "historic charter or constitution document under glass",
+        "EU headquarters building in Brussels exterior",
+        "side-by-side national coat of arms and EU emblem",
+        "family examining old national maps or genealogical records",
+        "border checkpoint with national insignia",
+        "editorial scale weighing national symbols against EU symbols"
+      ],
+      "desired_tone": [
+        "patriotic"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "quote_text": "Our sovereignty does not come from Brussels - it is ours by right and by heritage.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific EU policies or legislation",
+        "economic costs or benefits of membership",
+        "immigration statistics",
+        "military alliances",
+        "party politics or election campaigns",
+        "Brexit procedural details"
+      ]
+    },
+    "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358517+00:00",
+      "desired_first_impression": "Thatcher attributes her determination and persistence to a woman's capacity to complete tasks that others abandon.",
+      "desired_primary_visual_subjects": [
+        "woman continuing methodical work at a desk or workstation after colleagues leave",
+        "office or factory floor emptying while one person remains focused",
+        "hands steadily completing paperwork or a physical task others have abandoned",
+        "symbolic image of a solitary figure finishing a half-done job",
+        "workplace scene contrasting an empty room with one remaining worker"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "modern feminist theory or policy debates",
+        "specific occupations or industries",
+        "criticism of men or other groups",
+        "emotional labour or unpaid domestic work",
+        "claims of superiority beyond the stated ability",
+        "quantitative productivity statistics"
+      ]
+    },
+    "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358523+00:00",
+      "desired_first_impression": "Free enterprise succeeds over big government both locally and more generally.",
+      "desired_primary_visual_subjects": [
+        "bustling private markets and small businesses with customers and entrepreneurs",
+        "factory floors or commercial districts showing private industry activity",
+        "government office buildings with long queues or empty bureaucratic corridors",
+        "side-by-side scenes of vibrant private commerce versus stalled public projects",
+        "symbolic scales tipping toward open markets and away from oversized state institutions",
+        "charts of economic growth metrics only if comparing free-market versus high-intervention regions"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "quote_text": "What works here, as elsewhere, is free enterprise and not big government.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific political parties or candidates",
+        "detailed policy prescriptions",
+        "historical events or named countries",
+        "social issues beyond economics",
+        "personal anecdotes or individual stories"
+      ]
+    },
+    "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358528+00:00",
+      "desired_first_impression": "Privatisation reduces state power while free enterprise increases individual power.",
+      "desired_primary_visual_subjects": [
+        "privately owned factories or shops with workers and customers",
+        "citizens engaging in commerce at markets or small businesses",
+        "government office buildings appearing reduced or less dominant",
+        "stock exchanges or private investment activity",
+        "symbolic editorial image of a scale tipping from state to individuals",
+        "contrast of public monopoly infrastructure versus competitive private services"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "quote_text": "Privatisation shrinks the power of the state and free enterprise enlarges the power of the people.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific national policies or case studies",
+        "detailed economic data or performance metrics",
+        "critiques of particular political parties",
+        "environmental or social welfare side-effects",
+        "historical timelines of privatisation programmes"
+      ]
+    },
+    "13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358534+00:00",
+      "desired_first_impression": "Prediction that the European single currency will inevitably fail economically, politically and socially, though timing and consequences remain unclear.",
+      "desired_primary_visual_subjects": [
+        "Euro banknotes and coins discarded or devalued in street scenes",
+        "European Central Bank building exterior with empty plazas",
+        "protest crowds outside national parliaments holding anti-Euro placards",
+        "closed shops and unemployed workers in a Eurozone city centre",
+        "fragmented Eurozone map with national currencies reappearing",
+        "diplomatic meeting rooms of EU institutions looking deserted",
+        "symbolic cracked or melting Euro symbol sculpture",
+        "mixed national flags over empty currency-exchange counters"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f",
+      "quote_text": "The European single currency is bound to fail, economically, politically and indeed socially, though the timing, occasion and full consequences are all necessarily still unclear.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific national exits from the Euro",
+        "historical introduction of the Euro",
+        "detailed reform proposals for the Eurozone",
+        "comparisons with other currencies or unions",
+        "benefits or successes of the single currency",
+        "quantitative forecasts or dates of collapse"
+      ]
+    },
+    "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358540+00:00",
+      "desired_first_impression": "Quote argues that societies and economies thrive when they enable individual talents to flourish, but stagnate when they suppress or ignore them.",
+      "desired_primary_visual_subjects": [
+        "diverse people inventing, teaching or creating in open workplaces and schools",
+        "public institutions and marketplaces supporting entrepreneurship and arts",
+        "crowded classrooms or labs where individuals experiment freely",
+        "contrasting images of rigid factories or bureaucracies enforcing uniformity",
+        "symbolic scales or growth charts of thriving versus stagnant communities",
+        "editorial symbols of a seedling growing freely versus one being crushed"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "quote_text": "States, societies and economies, which allow the distinctive talents of individuals to flourish, themselves also flourish. Those which dwarf, crush, distort, manipulate or ignore them cannot progress.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific named countries or leaders",
+        "detailed economic doctrines or policy blueprints",
+        "genetic determinism or IQ debates",
+        "purely personal self-help without societal link",
+        "quantitative growth statistics or historical case studies"
+      ]
+    },
+    "1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358546+00:00",
+      "desired_first_impression": "Strong critique of socialism's results ranging from shabby to catastrophic, citing poverty, strife, oppression and around 100 million deaths under communism in the 20th century.",
+      "desired_primary_visual_subjects": [
+        "Historical photographs of famine and poverty under socialist regimes",
+        "Memorials or mass graves associated with communist killing fields",
+        "Archival images of political oppression such as gulags or labor camps",
+        "Everyday scenes of shabby infrastructure and queues in socialist economies",
+        "Symbolic editorial depictions of collapsed economies versus human suffering",
+        "Institutional records or monuments documenting 20th-century death tolls"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500",
+      "quote_text": "Socialism's results have ranged between the merely shabby and the truly catastrophic - poverty, strife, oppression and, on the killing fields of communism, the deaths this century of perhaps 100 million people.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "Benefits or successes of socialism",
+        "Critiques of capitalism",
+        "Contemporary political parties or policies",
+        "Theoretical definitions of socialism without results",
+        "Non-communist forms of social democracy"
+      ]
+    },
+    "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358551+00:00",
+      "desired_first_impression": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "desired_primary_visual_subjects": [
+        "busy commercial ports with cargo ships and cranes",
+        "shipping containers being loaded or unloaded",
+        "crowded retail markets or supermarkets with diverse imported goods",
+        "shoppers examining price tags and products",
+        "factories and assembly lines producing export goods",
+        "currency exchange or banking counters handling international payments",
+        "editorial symbols of open borders or broken trade barriers",
+        "simple line charts of rising post-war trade volumes or GDP growth"
+      ],
+      "desired_tone": [
+        "optimistic"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific modern trade wars or tariffs",
+        "named countries or trade agreements",
+        "environmental or labour critiques of trade",
+        "pre-war economic history",
+        "monetary policy details beyond payments freedom",
+        "inequality or distributional losers from trade"
+      ]
+    },
+    "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358557+00:00",
+      "desired_first_impression": "Real progress stems from accountable democratic government by consent rather than expanded bureaucracy.",
+      "desired_primary_visual_subjects": [
+        "parliament chamber with ministers addressing elected representatives",
+        "voters at polling stations casting ballots",
+        "minister facing public questions or media scrutiny",
+        "contrast of crowded bureaucratic office desks versus open legislative debate",
+        "historic democratic assembly or constitution signing scene",
+        "symbolic scales of consent versus stacks of regulations",
+        "electorate town-hall meeting holding officials to account"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific policy proposals or legislation",
+        "economic growth metrics or markets",
+        "party politics or individual politicians",
+        "international relations or foreign policy",
+        "technological innovation or private-sector reform"
+      ]
+    },
+    "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358563+00:00",
+      "desired_first_impression": "Freedom and socialism are fundamentally incompatible.",
+      "desired_primary_visual_subjects": [
+        "open marketplace with independent vendors and free exchange of goods",
+        "crowded public square with people exercising speech and assembly rights",
+        "contrasting institutional buildings representing free societies versus state-controlled economies",
+        "symbolic editorial imagery of broken chains next to centralized planning symbols",
+        "everyday scenes of private enterprise and voluntary associations"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific historical regimes or leaders",
+        "detailed economic policy prescriptions",
+        "capitalism as an explicit alternative",
+        "democratic voting procedures",
+        "religious or cultural freedom debates"
+      ]
+    },
+    "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358570+00:00",
+      "desired_first_impression": "Individual achievement reaches its highest point when it culminates in service to or representation of one's country.",
+      "desired_primary_visual_subjects": [
+        "climber reaching a snowy mountain summit alone",
+        "figure planting a national flag at a peak",
+        "close-up of a flag unfurling against mountain backdrop",
+        "base camp with national emblems and expedition gear",
+        "editorial image of a lone figure silhouetted against a flag and mountain",
+        "museum display of historic summit flags"
+      ],
+      "desired_tone": [
+        "patriotic",
+        "inspirational",
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "actual mountaineering techniques or gear",
+        "climate change or environmental impact on Everest",
+        "specific historical expeditions or named climbers",
+        "political critique of nationalism in general",
+        "gender roles or the word 'man' as exclusion",
+        "overseas diplomatic event without british symbols"
+      ]
+    },
+    "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358576+00:00",
+      "desired_first_impression": "Criticism of monopoly trade unions' power to cause severe damage and hardship to workers, including fellow union members.",
+      "desired_primary_visual_subjects": [
+        "closed factory gates and idle industrial sites",
+        "workers facing layoffs or reduced hours",
+        "families experiencing economic strain at home",
+        "union meeting halls or picket lines",
+        "contrasting groups of employed and affected workers",
+        "symbolic scales of power imbalance between large unions and individual laborers"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_text": "In today's world, monopoly trade unions have immense potential for destruction and can inflict severe damage and hardship on their fellow workers - indeed on their fellow trade unionists.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "benefits or achievements of trade unions",
+        "non-monopoly or competitive unions",
+        "employer or corporate monopoly power",
+        "government labor policy details",
+        "historical origins of unions",
+        "specific named unions or countries"
+      ]
+    },
+    "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358582+00:00",
+      "desired_first_impression": "Witty observation contrasting men's talk with women's practical effectiveness in getting things done.",
+      "desired_primary_visual_subjects": [
+        "man speaking at a podium or meeting table while others listen",
+        "woman actively completing a practical task or project",
+        "side-by-side workplace scenes of discussion versus hands-on work",
+        "tools, checklists, or finished products associated with women",
+        "microphones or speech bubbles associated with men",
+        "symbolic editorial scale balancing words against actions"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "quote_text": "If you want something said, ask a man; if you want something done, ask a woman.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific political parties or policies",
+        "biological determinism claims",
+        "statistical gender performance data",
+        "romantic relationships",
+        "historical attribution of the quote",
+        "modern feminism debates beyond the given contrast"
+      ]
+    },
+    "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358587+00:00",
+      "desired_first_impression": "Argues that socialism and freedom are incompatible and cannot coexist long in the same society.",
+      "desired_primary_visual_subjects": [
+        "crowds in public squares under opposing banners or posters",
+        "government buildings with state emblems versus open civic spaces",
+        "factory or collective workplaces contrasted with individual market stalls",
+        "symbolic editorial imagery of intertwined chains and open doors",
+        "historical monuments or archives representing different regimes"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific historical countries or leaders",
+        "capitalism or free markets as alternatives",
+        "democracy or voting systems",
+        "economic efficiency or growth statistics",
+        "personal liberty in everyday private life alone"
+      ]
+    },
+    "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358592+00:00",
+      "desired_first_impression": "Statement that promoting obedience to the law is a core duty of government or public office.",
+      "desired_primary_visual_subjects": [
+        "police officers addressing a community gathering",
+        "public service announcement posters urging law compliance",
+        "courtroom or government building exterior",
+        "officials speaking at a town hall",
+        "traffic signs and legal code books on a desk",
+        "symbolic scales of justice next to a megaphone"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific statutes or crimes",
+        "punishment or enforcement actions",
+        "personal views on whether laws are just",
+        "civil disobedience",
+        "legislative process"
+      ]
+    },
+    "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358598+00:00",
+      "desired_first_impression": "Thatcher states her core belief is freedom, specifically the liberty to act within sensible limits and to spend one's own money as one chooses.",
+      "desired_primary_visual_subjects": [
+        "person freely choosing activities or hobbies within everyday settings",
+        "individual shopping or making a purchase with their own cash or card",
+        "marketplace or high street scenes of voluntary exchange",
+        "wallet, purse or personal budget documents",
+        "symbolic image of an open road or open door representing choice",
+        "balanced editorial symbol of liberty with a measured boundary or fence"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "absolute unrestricted freedom without limits",
+        "detailed political party platforms",
+        "specific government policies or taxes",
+        "collective or group rights",
+        "economic data or statistics",
+        "historical events or figures"
+      ]
+    },
+    "633b7deaa976e68566612cd4ad3a1aceb4f9583591017620f4ec032d0ff6199d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358603+00:00",
+      "desired_first_impression": "Thatcher denounces socialism as a power-seeking ideology for elites rather than a genuine creed for the people.",
+      "desired_primary_visual_subjects": [
+        "politicians or party leaders addressing crowds from platforms",
+        "ordinary citizens in everyday public spaces or workplaces",
+        "government buildings and legislative chambers",
+        "political rallies with banners and microphones",
+        "symbolic contrast of a crowd versus a small group in a closed room of authority",
+        "editorial image of a raised fist or gavel representing power",
+        "archives or portraits associated with socialist movements and leaders"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "633b7deaa976e68566612cd4ad3a1aceb4f9583591017620f4ec032d0ff6199d",
+      "quote_text": "Again I repeat: socialism is not a creed for the people - it is a creed for those who wish to take power for themselves for the sake of exercising power.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "economic policy details or planning methods",
+        "historical success or failure of specific socialist states",
+        "comparisons with capitalism or other ideologies beyond the stated contrast",
+        "policy recommendations or reforms",
+        "quantitative measures of equality or wealth",
+        "biographical claims about particular individuals"
+      ]
+    },
+    "6ce062f766de2e605a62853639dcef2be3e92d097b7d69533e3711975447114b": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358609+00:00",
+      "desired_first_impression": "Argues the fight against socialism is fundamentally a defence of moral and spiritual values, as socialism fosters state dependency and neglect of primary duties.",
+      "desired_primary_visual_subjects": [
+        "citizens queueing for state welfare offices or benefits offices",
+        "families or individuals performing everyday duties of work, care, and mutual aid without state mediation",
+        "contrasting scenes of independent small businesses versus centralized state bureaucracies",
+        "places of worship or civic institutions symbolizing moral and spiritual life",
+        "editorial symbols of chains or crutches labeled dependency versus upright self-reliant figures",
+        "public buildings representing the State looming over private homes or workshops"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "6ce062f766de2e605a62853639dcef2be3e92d097b7d69533e3711975447114b",
+      "quote_text": "The battle against socialism is more than the attempt to replace economic error by economic truth. It is a battle for moral and spiritual values. It is precisely socialism which promotes universal dependency on the State and the neglect of all primary duties.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "detailed economic policy proposals",
+        "specific historical regimes or countries",
+        "praise or critique of capitalism as a system",
+        "quantitative economic data or growth rates",
+        "partisan electoral politics"
+      ]
+    },
+    "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358614+00:00",
+      "desired_first_impression": "Personal reflection asserting courage as the speaker's key quality.",
+      "desired_primary_visual_subjects": [
+        "person standing firm amid pressure or opposition",
+        "individual speaking up in a difficult meeting or public setting",
+        "firefighter or rescuer in a hazardous situation",
+        "symbolic lion or open road into uncertainty",
+        "quiet reflective portrait of someone looking determined",
+        "historical monument to moral courage or civil rights stand"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+      "quote_text": "I hope the one quality I am not lacking is courage.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific historical events or wars",
+        "physical bravery in sports",
+        "political endorsements",
+        "quantifiable personality tests",
+        "advice on how to gain courage"
+      ]
+    },
+    "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358619+00:00",
+      "desired_first_impression": "Inflation results when politicians encourage people to believe they can consume much more than they produce.",
+      "desired_primary_visual_subjects": [
+        "politician at a podium addressing a crowd with promises of abundance",
+        "shoppers filling carts in a crowded supermarket",
+        "factory production line or farm harvest representing output",
+        "unbalanced scale with consumption goods outweighing produced goods",
+        "people spending freely while empty warehouses or slowed factories appear in the background",
+        "editorial symbol of money or goods flowing out faster than they are made"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "technical monetary policy mechanisms",
+        "specific inflation rates or historical data series",
+        "non-political causes of inflation",
+        "particular countries or named politicians",
+        "solutions or remedies for inflation"
+      ]
+    },
+    "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358625+00:00",
+      "desired_first_impression": "Defends freedom of speech for all citizens, especially those like Enoch Powell who rendered distinguished military service in wartime.",
+      "desired_primary_visual_subjects": [
+        "public speakers at outdoor rallies or Speakers' Corner",
+        "war veterans in uniform or with medals at memorials",
+        "parliamentary debate chambers",
+        "soldiers serving in historical wartime settings",
+        "scales of justice balancing two speakers",
+        "military service records or medals beside a microphone"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific content of any speech by Mr Powell",
+        "immigration policy debates",
+        "modern free-speech controversies",
+        "censorship laws or legal cases",
+        "criticism of military institutions"
+      ]
+    },
+    "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358630+00:00",
+      "desired_first_impression": "Thatcher describes her deliberate effort to dismantle socialism as incompatible with British character, positioning her government as pioneers in advancing freedom and renewing national heritage.",
+      "desired_primary_visual_subjects": [
+        "crowds of ordinary citizens in public squares or streets",
+        "national parliament or government buildings",
+        "historical monuments and cultural landmarks",
+        "ballot boxes or election scenes",
+        "factories or workplaces transitioning from state control",
+        "flags and national symbols in civic settings",
+        "editorial contrast of barriers being dismantled versus open pathways",
+        "libraries or archives representing heritage renewal"
+      ],
+      "desired_tone": [
+        "patriotic"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "quote_text": "I set out to destroy socialism because it was at odds with the character of the people. We were the first country in the world to roll back the frontiers of socialism, then roll forward the frontiers of freedom. We reclaimed our heritage; we are renewing and carrying it forward.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "detailed economic policies or statistics",
+        "specific political parties or elections",
+        "military conflict or foreign wars",
+        "individual biographies beyond the speaker's stated intent",
+        "contemporary partisan debates",
+        "global comparisons beyond the claimed first-mover status"
+      ]
+    },
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358635+00:00",
+      "desired_first_impression": "Criticism of Western countries' failure to act against massacres occurring in Europe, attributing the inaction to unwillingness rather than inability.",
+      "desired_primary_visual_subjects": [
+        "destroyed civilian areas and mass-grave sites in a European conflict zone",
+        "Western government buildings and empty diplomatic conference rooms",
+        "military equipment or bases idle while conflict continues nearby",
+        "maps highlighting Europe with markers of violence",
+        "symbolic editorial image of a hand refusing to reach toward victims",
+        "crowds of displaced European civilians seeking aid"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific named wars or historical attributions beyond the quotation",
+        "non-European massacres",
+        "detailed military strategy or logistics",
+        "praise for Western interventions",
+        "economic sanctions alone as the sole topic"
+      ]
+    },
+    "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358641+00:00",
+      "desired_first_impression": "Thatcher dismisses accusations of inflexibility as nonsense using the word poppycock.",
+      "desired_primary_visual_subjects": [
+        "person shaking head or waving hand in firm dismissal",
+        "speaker at podium or interview setting rejecting a charge",
+        "flexible versus rigid objects (e.g., bending rod vs rigid bar) as symbolic contrast",
+        "dictionary or vintage print illustrating the word poppycock",
+        "everyday scene of someone adapting plans or compromising"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific political parties or policies",
+        "quantitative data or statistics",
+        "legal proceedings",
+        "physical inflexibility or medical conditions",
+        "unrelated personality traits beyond flexibility"
+      ]
+    },
+    "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358646+00:00",
+      "desired_first_impression": "A stark national choice between Marxist socialism and a unifying belief in freedom, framed as banishing divisive ideological clouds.",
+      "desired_primary_visual_subjects": [
+        "diverse crowds of workers professionals and families gathering under open sky",
+        "symbolic dark storm clouds labeled or stylized as ideology rolling away",
+        "national landmarks with people joining hands or flags of liberty",
+        "editorial split-screen of chained figures versus free assembly",
+        "public squares filled with mixed-occupation citizens"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb",
+      "quote_text": "The choice facing the nation is between two totally different ways of life: no less than the chance to banish from our land the dark, divisive clouds of Marxist socialism and bring together men and women from all walks of life who share a belief in freedom.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "detailed economic policy mechanisms",
+        "specific election results or candidates",
+        "historical events outside the quoted framing",
+        "international relations",
+        "class warfare tactics"
+      ]
+    },
+    "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358653+00:00",
+      "desired_first_impression": "Dictators must be decisively defeated as they never surrender voluntarily.",
+      "desired_primary_visual_subjects": [
+        "abandoned dictator's palace after regime collapse",
+        "military forces occupying a capital city",
+        "captured or deposed strongman in custody",
+        "empty surrender table or unsigned armistice documents",
+        "war-damaged government buildings and monuments",
+        "crowds after a decisive military victory",
+        "editorial symbol of a broken iron fist or toppled statue"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "quote_text": "In my view dictators do not surrender. They have to be well and truly defeated.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "democratic leaders stepping down",
+        "peaceful negotiated transitions",
+        "economic sanctions alone",
+        "internal party politics in open societies",
+        "personal biographies of specific historical figures",
+        "surrender ceremony",
+        "negotiation scene"
+      ]
+    },
+    "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358658+00:00",
+      "desired_first_impression": "Urges individuals to lead rather than conform to the majority.",
+      "desired_primary_visual_subjects": [
+        "a single person walking ahead while others trail behind on a path",
+        "a speaker addressing a crowd from a stage or platform",
+        "a lone figure choosing a different fork in a road from a group",
+        "editorial symbol of a compass pointing against a stream of arrows",
+        "a pioneer or trailblazer scene with followers in the distance"
+      ],
+      "desired_tone": [
+        "inspirational"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "quote_text": "Don't follow the crowd, let the crowd follow you.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "political parties or elections",
+        "specific historical leaders",
+        "fashion trends or consumer brands",
+        "quantitative social-media metrics",
+        "criminal or antisocial behavior"
+      ]
+    },
+    "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358666+00:00",
+      "desired_first_impression": "Advocates a moral society grounded in individual freedom to choose, err, and show compassion, rather than one where the state assumes all responsibility.",
+      "desired_primary_visual_subjects": [
+        "people making everyday personal decisions in shops, clinics, or workplaces",
+        "volunteers or neighbors helping others in concrete acts of charity",
+        "individuals recovering from visible personal mistakes without state intervention",
+        "citizens at town halls or voting stations showing responsibility for the state",
+        "contrasting government office buildings with community mutual-aid scenes",
+        "symbolic editorial image of free hands choosing versus a heavy state hand covering everything"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_text": "We want a society where people are free to make choices, to make mistakes, to be generous and compassionate. This is what we mean by a moral society; not a society where the state is responsible for everything, and no one is responsible for the state.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific welfare or tax policies",
+        "partisan political parties or elections",
+        "economic systems such as capitalism versus socialism in detail",
+        "crime or punishment",
+        "international relations or foreign policy",
+        "quantitative statistics or data charts"
+      ]
+    },
+    "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358672+00:00",
+      "desired_first_impression": "No perfectly balanced economy or total security exists; government cannot eliminate material worries or guarantee jobs, but it can impoverish people through waste or create conditions enabling private effort and prosperity.",
+      "desired_primary_visual_subjects": [
+        "busy small-business workshop or shop floor with owners and employees working",
+        "closed or boarded-up storefront next to an active market street",
+        "government office or ministry building with queues or bureaucracy",
+        "factory production line or construction site representing private creation",
+        "household kitchen table with bills and family discussing finances",
+        "symbolic editorial image of broken scales or overflowing waste bins of public money",
+        "street market or trading floor showing voluntary exchange",
+        "public-works project contrasted with private enterprise activity"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3",
+      "quote_text": "There'll never be a perfectly balanced economy. There's no such thing as total security. No job, no business can be guaranteed for ever. No government can free the people from material worries. But government can make people poor. It can waste what people create. Or it can provide the conditions which favour those private efforts and endeavours that bring prosperity.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific fiscal or monetary policy proposals",
+        "named political parties or countries",
+        "detailed welfare-state design",
+        "personal financial planning advice",
+        "quantitative economic modelling or forecasts",
+        "labour-union versus management disputes"
+      ]
+    },
+    "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358677+00:00",
+      "desired_first_impression": "A nation cannot retain freedom without sustained respect for the law and a law-abiding spirit.",
+      "desired_primary_visual_subjects": [
+        "citizens queuing orderly at a courthouse or polling place",
+        "police and civilians cooperating at a traffic stop or public event",
+        "historic legislature or supreme-court building exterior",
+        "public statue of justice or liberty still standing amid orderly streets",
+        "contrasting archival photos of orderly vs. lawless city squares",
+        "symbolic broken scales of justice next to a fallen flag or empty pedestal"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_text": "No nation ever retained its freedom for any length of time after losing its respect for the law, after losing the law-abiding spirit.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific statutes or legal codes",
+        "crime-rate statistics",
+        "particular political parties or ideologies",
+        "individual civil liberties debates",
+        "economic policy",
+        "military strength"
+      ]
+    },
+    "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358683+00:00",
+      "desired_first_impression": "Critique of the tendency to regard reflexive distrust of one's own country as sophisticated while assuming the worst of its defenders.",
+      "desired_primary_visual_subjects": [
+        "soldiers or service members on duty or returning home",
+        "protesters or speakers denouncing the nation",
+        "salon or campus discussion among well-dressed intellectuals",
+        "border, flag, or civic ceremony scenes",
+        "editorial contrast of open-armed welcome to critics versus cold suspicion of defenders",
+        "media studio or newsroom framing foreign adversaries sympathetically"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "quote_text": "There are too many people who imagine that there is something sophisticated about always believing the best of those who hate your country, and the worst of those who defend it.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific named countries or wars",
+        "detailed foreign-policy programs",
+        "economic statistics or quantitative rankings",
+        "personal biographies of particular politicians",
+        "religious doctrine or theology"
+      ]
+    },
+    "bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358688+00:00",
+      "desired_first_impression": "Frames the struggle against Marxist socialism as a vital prize worth fighting for, to banish its dark divisive influence from the land.",
+      "desired_primary_visual_subjects": [
+        "political rally or campaign gathering with speakers and banners",
+        "symbolic dark storm clouds over a national landscape or capital",
+        "citizens or leaders in determined public demonstration",
+        "historic parliament or government building representing the land",
+        "editorial contrast of light clearing after storm versus shadowed ideology symbols",
+        "industrial or civic scenes of everyday national life free of conflict"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662",
+      "quote_text": "And what a prize we have to fight for: no less than the chance to banish from our land the dark divisive clouds of Marxist socialism.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "detailed economic policies or statistics",
+        "specific historical events or named individuals",
+        "military warfare or literal combat tactics",
+        "praise or defense of socialism",
+        "non-political weather or meteorology"
+      ]
+    },
+    "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358693+00:00",
+      "desired_first_impression": "Stresses balancing imagination with realism in defence policy to preserve public awareness of NATO's necessity and avoid complacency from excessive optimism.",
+      "desired_primary_visual_subjects": [
+        "NATO summit meeting of leaders around a conference table",
+        "joint military exercises of allied forces",
+        "flags of NATO member states flying together",
+        "civilians watching news or celebrating a peace milestone",
+        "realistic briefing room with maps and threat assessments",
+        "symbolic scales balancing a light-bulb idea and a concrete foundation",
+        "editorial image of a person waking from a dream into a guarded border"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific military campaigns or wars",
+        "internal politics of individual member states",
+        "economic or trade policy",
+        "other international organizations such as the UN or EU",
+        "detailed force-structure numbers or budgets"
+      ]
+    },
+    "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358698+00:00",
+      "desired_first_impression": "Margaret Thatcher states a personal dislike for strident women.",
+      "desired_primary_visual_subjects": [
+        "woman speaking emphatically at a meeting or protest",
+        "contrasting calm versus raised-voice conversation scenes",
+        "editorial symbol of megaphone or sharp sound waves associated with a female figure",
+        "everyday public spaces where people debate or argue",
+        "objects like microphones or podia used in public address"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa",
+      "quote_text": "I don't like strident women.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific named individuals",
+        "political parties or policies",
+        "quantitative data or statistics",
+        "men's behavior",
+        "romantic relationships",
+        "workplace discrimination laws"
+      ]
+    },
+    "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358704+00:00",
+      "desired_first_impression": "Critique of socialism in Britain: it diminishes the individual, elevates the state, worsens economic problems and depletes wealth.",
+      "desired_primary_visual_subjects": [
+        "ordinary British citizens appearing diminished beside large government buildings",
+        "crowded state bureaucracy offices and official paperwork",
+        "closed factories, empty shops, or queues illustrating economic strain",
+        "national treasury or currency symbols with visual depletion",
+        "contrasting portraits of private enterprise activity versus state-controlled industry",
+        "symbolic editorial image of scales tipping from person toward state emblem"
+      ],
+      "desired_tone": [
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_text": "We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and drains away our wealth.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "praise of capitalism or free markets as such",
+        "specific named British politicians or parties",
+        "detailed policy prescriptions or reforms",
+        "international comparisons beyond Britain",
+        "theoretical definitions of Socialism unrelated to observed effects"
+      ]
+    },
+    "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358709+00:00",
+      "desired_first_impression": "Conservatives understand the British thrive when individuals, not the state, drive decisions, with rewards tied to effort and skill so innovators and creators can flourish.",
+      "desired_primary_visual_subjects": [
+        "entrepreneurs and small-business owners making daily operational decisions",
+        "skilled workers receiving recognition or pay linked to performance",
+        "inventors and designers at work in studios or workshops",
+        "citizens in everyday settings choosing and acting without heavy bureaucratic presence",
+        "physical places of private enterprise such as shops, workshops or start-up offices",
+        "symbolic editorial contrast of open space for individuals versus dense government offices",
+        "institutions of commerce and industry rather than central planning bodies"
+      ],
+      "desired_tone": [
+        "optimistic"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "quote_text": "Conservatives know that the British are at their best in a society where individual people - not the state - make the running and take most of the decisions. Where rewards are related to effort and skill, and where the innovators and creators can breathe deeply and feel at home.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific tax rates or spending programmes",
+        "detailed welfare policy",
+        "electoral strategy or party history",
+        "criticism of particular politicians",
+        "quantitative economic data or charts",
+        "non-British national contexts",
+        "left-wing or progressive counter-arguments"
+      ]
+    },
+    "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358714+00:00",
+      "desired_first_impression": "Call to treat Labour's left-wing 'Orwellian nightmare' as motivation to dedicate urgent energy and moral strength to rebuilding the free nation.",
+      "desired_primary_visual_subjects": [
+        "citizens at work reconstructing infrastructure or factories",
+        "political rally or campaign scenes showing determined crowds",
+        "Union Flag or free-nation symbols alongside labouring people",
+        "editorial contrast of open streets versus shadowed bureaucratic offices",
+        "hands joining in collective effort or lifting tools",
+        "institutions of commerce and industry being restored"
+      ],
+      "desired_tone": [
+        "inspirational",
+        "warning"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "quote_text": "Let Labour's Orwellian nightmare of the Left be the spur for us to dedicate with a new urgency our every ounce of energy and moral strength to rebuild the fortunes of this free nation.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "detailed policy proposals",
+        "George Orwell's literary biography",
+        "specific election results or statistics",
+        "international comparisons beyond the free nation",
+        "personal attacks on named individuals"
+      ]
+    },
+    "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358720+00:00",
+      "desired_first_impression": "Thatcher wryly observes that her critics would spin even a miraculous achievement as evidence of failure or incompetence.",
+      "desired_primary_visual_subjects": [
+        "person walking across the surface of the River Thames",
+        "group of onlookers or journalists pointing and gesturing critically from the bank",
+        "Thames waterfront landmarks such as bridges or the Houses of Parliament",
+        "editorial cartoon of a figure on water labeled with achievement while critics shout 'can't swim'",
+        "symbolic scales tipping from miracle to flaw"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "quote_text": "If my critics saw me walking over the Thames they would say it was because I couldn't swim.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "actual swimming ability or lessons",
+        "literal religious miracles or theology",
+        "Thames navigation or engineering",
+        "sports or athletic competition",
+        "environmental issues of the river"
+      ]
+    },
+    "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358725+00:00",
+      "desired_first_impression": "Thatcher reflects on her experience in politics, observing that men are not a reasoned or reasonable sex.",
+      "desired_primary_visual_subjects": [
+        "political assembly or parliamentary chamber with predominantly male participants",
+        "politicians in debate or negotiation scenes",
+        "historic political figures or campaigns",
+        "symbolic scales of reason unbalanced or broken",
+        "institutional buildings of government",
+        "crowds at political rallies"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "quote_text": "One of the things being in politics has taught me is that men are not a reasoned or reasonable sex.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "women's reasonableness",
+        "specific policies or parties",
+        "modern gender equality debates",
+        "scientific studies of cognition",
+        "individual male exceptions"
+      ]
+    },
+    "ecdc08b676d1b1ed7ee2272d9959f809684c41d4cb3b5463727b247713320be7": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358732+00:00",
+      "desired_first_impression": "Emphasises learning from history to avoid repeating past errors, citing Thucydides, Dionysius, and especially Edmund Burke on the continuity between generations.",
+      "desired_primary_visual_subjects": [
+        "Students or scholars reading history books in a library",
+        "Classroom lesson with a historical timeline on the wall",
+        "Visitors at a war memorial or ancient ruins",
+        "Multi-generational family looking at old photographs and documents",
+        "Symbolic editorial image of a chain linking past present and future figures",
+        "Archive or museum with preserved artifacts and manuscripts",
+        "Person pausing at a fork in a path marked by historical warning signs"
+      ],
+      "desired_tone": [
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "ecdc08b676d1b1ed7ee2272d9959f809684c41d4cb3b5463727b247713320be7",
+      "quote_text": "Those who don't understand the past are destined to repeat its errors. In words of Thucydides \"History repeats itself\" or Dionysius \"History is philosophy teaching by example\" or my favourite from Edmund Burke, \"History is a pact between the dead, the living, & the yet unborn.\"",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "Specific modern political parties or elections",
+        "Detailed recounting of particular wars or events",
+        "Economic policy prescriptions",
+        "Scientific method or technical progress",
+        "Religious doctrine or theology",
+        "Personal biography of the quoted thinkers"
+      ]
+    },
+    "edbdfcd279a304940c6e1001ee013da4e45de9f75bfd9fbd26c863e7cfae1a02": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358737+00:00",
+      "desired_first_impression": "Thatcher states a desire for Britain to protect law-abiding people from fear over their jobs or personal safety.",
+      "desired_primary_visual_subjects": [
+        "workers entering factories or offices without intimidation",
+        "families walking safely in public streets",
+        "courthouse or scales-of-justice symbols",
+        "police officers protecting ordinary citizens",
+        "secure workplace interiors and employment documents",
+        "community gatherings free of visible threat"
+      ],
+      "desired_tone": [
+        "inspirational"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "edbdfcd279a304940c6e1001ee013da4e45de9f75bfd9fbd26c863e7cfae1a02",
+      "quote_text": "I want this country of ours to be a place where those who obey just laws need not go in fear of their jobs or their safety.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "unjust or contested laws",
+        "rights of lawbreakers",
+        "specific economic policies or unemployment rates",
+        "foreign policy or immigration",
+        "partisan electoral politics"
+      ]
+    },
+    "f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358742+00:00",
+      "desired_first_impression": "Thatcher asserts personal strength and warns that anyone seeking a weak leader should choose someone else.",
+      "desired_primary_visual_subjects": [
+        "speaker addressing a crowd assertively",
+        "contrasting images of resolute and hesitant figures",
+        "political rally or debate stage",
+        "line of alternative candidates or applicants",
+        "symbolic strong figure standing apart from a group"
+      ],
+      "desired_tone": [],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62",
+      "quote_text": "Let me say this, if you want someone weak you don't want me, there are plenty of others to choose from.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "specific policy details",
+        "quantitative rankings or polls",
+        "personal biography or achievements",
+        "endorsements of particular others",
+        "gender or identity issues"
+      ]
+    },
+    "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5": {
+      "analysis_kind": "quote_visual_intent",
+      "derived_at": "2026-07-12T19:23:08.358748+00:00",
+      "desired_first_impression": "Solzhenitsyn's experience shows that greater state power reduces individual freedoms of decision, choice and ideas.",
+      "desired_primary_visual_subjects": [
+        "crowded government buildings or bureaucratic offices symbolizing concentrated power",
+        "ordinary citizens making everyday personal choices in markets or homes",
+        "historical prison or labor-camp scenes associated with totalitarian control",
+        "public squares with free assembly versus heavily policed spaces",
+        "symbolic scales or balance tipping from individual figures toward a large state apparatus",
+        "libraries or open discussion groups representing freedom of ideas",
+        "portraits or archival images of Solzhenitsyn writing or speaking"
+      ],
+      "desired_tone": [
+        "warning",
+        "reflective"
+      ],
+      "prompt_version": "quote-visual-intent-v1-derived",
+      "provenance": "deterministic_projection_of_existing_ai_fields",
+      "quote_hash": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "schema_version": 1,
+      "source_legacy_analysis_prompt_version": "quote-analysis-2026-07-05-v4",
+      "source_quote_fingerprint_prompt_version": "quote-semantic-v2-claims",
+      "undesired_dominant_messages": [
+        "economic policy details or free markets specifically",
+        "praise of any particular government form",
+        "biography of Solzhenitsyn beyond the stated realization",
+        "quantitative measures of freedom or power",
+        "contemporary party politics or named modern regimes"
+      ]
+    }
+  },
+  "schema_version": 1
+}

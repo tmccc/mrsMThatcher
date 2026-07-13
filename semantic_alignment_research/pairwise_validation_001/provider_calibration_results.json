@@ -1,0 +1,50 @@
+{
+  "analysis_kind": "pairwise_provider_calibration",
+  "providers": {
+    "anthropic": {
+      "agreement_excluding_unsure": null,
+      "corrections": 0,
+      "cost_usd": 0,
+      "evaluated": 0,
+      "exact_agreement": null,
+      "harmful_displacements": 0,
+      "mean_latency_seconds": 0.0,
+      "neither_agreement": 0,
+      "schema_failures": 15
+    },
+    "gemini": {
+      "agreement_excluding_unsure": 0.5384615384615384,
+      "corrections": 2,
+      "cost_usd": 0.10729999999999999,
+      "evaluated": 13,
+      "exact_agreement": 0.5384615384615384,
+      "harmful_displacements": 1,
+      "mean_latency_seconds": 14.88959899234872,
+      "neither_agreement": 2,
+      "schema_failures": 2
+    },
+    "grok": {
+      "agreement_excluding_unsure": 0.6,
+      "corrections": 4,
+      "cost_usd": 0.152578,
+      "evaluated": 15,
+      "exact_agreement": 0.6,
+      "harmful_displacements": 2,
+      "mean_latency_seconds": 8.511736935066681,
+      "neither_agreement": 4,
+      "schema_failures": 0
+    },
+    "openai": {
+      "agreement_excluding_unsure": null,
+      "corrections": 0,
+      "cost_usd": 0,
+      "evaluated": 0,
+      "exact_agreement": null,
+      "harmful_displacements": 0,
+      "mean_latency_seconds": 0.0,
+      "neither_agreement": 0,
+      "schema_failures": 15
+    }
+  },
+  "schema_version": 1
+}

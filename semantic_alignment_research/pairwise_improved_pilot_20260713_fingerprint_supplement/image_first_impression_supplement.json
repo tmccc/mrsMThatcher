@@ -1,0 +1,210 @@
+{
+  "analysis_kind": "image_first_impression_supplement",
+  "failures": {},
+  "items": {
+    "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T23:29:43.600031+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Thatcher's face and expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Union Jack flag backdrop",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Navy suit and pearl necklace",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Dual microphones and wooden podium",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.35,
+          "element": "Partial Earth globe lower right",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 70,
+      "concrete_visual_evidence": [
+        "Central older woman with voluminous blonde bouffant hairstyle",
+        "Serious upward gaze and closed red lips",
+        "Dark navy blazer with lapel brooch",
+        "Double-strand pearl necklace and pearl earrings",
+        "Two black gooseneck microphones on wooden podium",
+        "Full Union Jack flag draped behind subject",
+        "Partial blue-and-tan Earth globe at lower right"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 28,
+      "dominant_subject_strength": 85,
+      "dominant_symbols": [
+        "Union Jack",
+        "podium microphones",
+        "pearl necklace and earrings",
+        "globe partial view",
+        "silver brooch"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Margaret Thatcher at a podium in a dark blue suit with pearl jewelry",
+      "emotional_energy": "medium",
+      "face_prominence": 82,
+      "first_impression_message": "A stern British political leader delivering a formal speech under the Union Jack.",
+      "first_object_noticed": "Margaret Thatcher's face and coiffed blonde hair",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Pale face and light hair against dark navy suit and red-blue flag",
+      "image_basename": "tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "inspirational_tone": 45,
+      "largest_visual_element": "Union Jack flag filling the background",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Union Jack flag",
+      "optimistic_tone": 35,
+      "patriotic_tone": 88,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true,
+        "supplement_reason": "exact_selector_runner_up_readiness"
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "patriotic",
+        "confrontational",
+        "calm"
+      ],
+      "sha256": "a15174318506daa9333521d84032620c0266d1220afd6f95d6a60d131ddf190e",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker's face and upper body",
+          "element": "Large Union Jack",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Flag and podium area",
+          "element": "Globe fragment",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 25
+    },
+    "tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T23:29:50.613135+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Central woman’s face and blue suit at podium",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.82,
+          "element": "Hammer and sickle on smoking rubble left",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.78,
+          "element": "Golden rising arrow and bright modern skyline right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Cheering crowd lower right",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.5,
+          "element": "Red smoke and ruined city left background",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 62,
+      "concrete_visual_evidence": [
+        "Woman in navy suit and pearls at wooden podium",
+        "Two microphones in front of her",
+        "Large hammer-and-sickle emblem on rubble left",
+        "Smoking red sky and ruined towers left",
+        "Glass skyscrapers under blue sky right",
+        "Thick yellow arrow curving upward right",
+        "Crowd of people cheering with raised arms lower right",
+        "Split red-versus-blue background lighting"
+      ],
+      "defensive_tone": 25,
+      "distracting_symbol_score": 68,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "golden upward arrow",
+        "podium with microphones",
+        "pearl necklace",
+        "skyscraper skyline",
+        "cheering crowd"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Margaret Thatcher-like figure in a blue suit at a wooden podium with microphones",
+      "emotional_energy": "high",
+      "face_prominence": 78,
+      "first_impression_message": "A resolute woman leader speaks as ruined red communism gives way to bright rising prosperity and cheering crowds.",
+      "first_object_noticed": "The speaker’s face and upper body centered at the podium",
+      "focal_clarity_score": 72,
+      "highest_contrast_element": "The bright golden upward arrow against the split red/blue sky and cityscapes",
+      "image_basename": "tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png",
+      "inspirational_tone": 72,
+      "largest_visual_element": "The central woman in the dark blue suit behind the podium",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Large hammer and sickle on the ruined left side",
+      "optimistic_tone": 70,
+      "patriotic_tone": 35,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true,
+        "supplement_reason": "exact_selector_runner_up_readiness"
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "triumphant",
+        "inspirational",
+        "warning",
+        "optimistic"
+      ],
+      "sha256": "2ddc97831ec62a35c4de326dc154d8e1b9f31aef27bca3b106fc432da27c843d",
+      "text_like_element_prominence": 8,
+      "visual_clutter_score": 58,
+      "visual_competition": [
+        {
+          "competes_with": "Central speaker figure",
+          "element": "Hammer and sickle with red destruction",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Hammer and sickle and red side",
+          "element": "Golden arrow and bright skyline",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Podium and speaker",
+          "element": "Cheering crowd",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 74,
+      "warning_tone": 55
+    }
+  },
+  "prompt_version": "image-first-impression-v1",
+  "schema_version": 1
+}

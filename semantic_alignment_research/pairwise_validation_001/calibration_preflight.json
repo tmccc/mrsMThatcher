@@ -1,0 +1,45 @@
+{
+  "case_count": 15,
+  "combined_ceiling_usd": 9.0,
+  "combined_expected_cost_usd": 1.232208,
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "providers": {
+    "anthropic": {
+      "calls": 15,
+      "ceiling_usd": 2.0,
+      "conservative_maximum_cost_usd": 0.412677,
+      "estimated_input_tokens": 47559,
+      "estimated_output_tokens": 10500,
+      "expected_cost_usd": 0.300177,
+      "tools_enabled": false
+    },
+    "gemini": {
+      "calls": 15,
+      "ceiling_usd": 2.0,
+      "conservative_maximum_cost_usd": 0.311118,
+      "estimated_input_tokens": 47559,
+      "estimated_output_tokens": 10500,
+      "expected_cost_usd": 0.22111799999999998,
+      "tools_enabled": false
+    },
+    "grok": {
+      "calls": 15,
+      "ceiling_usd": 2.0,
+      "conservative_maximum_cost_usd": 0.203118,
+      "estimated_input_tokens": 47559,
+      "estimated_output_tokens": 10500,
+      "expected_cost_usd": 0.15811799999999998,
+      "tools_enabled": false
+    },
+    "openai": {
+      "calls": 15,
+      "ceiling_usd": 3.0,
+      "conservative_maximum_cost_usd": 0.777795,
+      "estimated_input_tokens": 47559,
+      "estimated_output_tokens": 10500,
+      "expected_cost_usd": 0.552795,
+      "tools_enabled": false
+    }
+  },
+  "schema_version": 1
+}

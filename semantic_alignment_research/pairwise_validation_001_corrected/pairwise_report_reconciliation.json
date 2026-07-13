@@ -1,0 +1,77 @@
+{
+  "items": [
+    {
+      "computed_value": "60.0%",
+      "match": true,
+      "rendered_value": "60.0%",
+      "report_metric": "grok_calibration_agreement",
+      "source_field": "provider_calibration.providers.grok.exact_agreement",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "53.8%",
+      "match": true,
+      "rendered_value": "53.8%",
+      "report_metric": "gemini_calibration_agreement",
+      "source_field": "provider_calibration.providers.gemini.exact_agreement",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "$0.4445",
+      "match": true,
+      "rendered_value": "$0.4445",
+      "report_metric": "combined_grok_cost",
+      "source_field": "cost_usd.grok + cost_usd.grok_remaining",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "33/50",
+      "match": true,
+      "rendered_value": "33/50",
+      "report_metric": "full_exact_count",
+      "source_field": "full_grok_validation.exact_agreement * 50",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "6",
+      "match": true,
+      "rendered_value": "6",
+      "report_metric": "model_bad_challenger",
+      "source_field": "full_grok_validation.bad_challenger_choices_matched",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "12",
+      "match": true,
+      "rendered_value": "12",
+      "report_metric": "model_bad_neither",
+      "source_field": "full_grok_validation.bad_neither_choices_matched",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "13",
+      "match": true,
+      "rendered_value": "13",
+      "report_metric": "strong_controls",
+      "source_field": "full_grok_validation.strong_current_controls",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "9",
+      "match": true,
+      "rendered_value": "9",
+      "report_metric": "strong_retained",
+      "source_field": "full_grok_validation.strong_controls_retained",
+      "source_file": "pairwise_validation_summary.json"
+    },
+    {
+      "computed_value": "4",
+      "match": true,
+      "rendered_value": "4",
+      "report_metric": "strong_damaged",
+      "source_field": "full_grok_validation.strong_controls_damaged",
+      "source_file": "pairwise_validation_summary.json"
+    }
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,6 @@
+threshold,rejected,human_approved_wrongly_rejected,human_rejected_correctly_rejected,precision_rejection,recall_bad_images,false_replace_rate,false_keep_rate,no_alternative_remaining
+30,14,0,14,1.0,0.5,0.0,0.5,unavailable: candidate sets not captured
+35,18,1,16,0.9411764705882353,0.5714285714285714,0.0625,0.42857142857142855,unavailable: candidate sets not captured
+40,21,4,16,0.8,0.5714285714285714,0.25,0.42857142857142855,unavailable: candidate sets not captured
+45,26,5,19,0.7916666666666666,0.6785714285714286,0.3125,0.32142857142857145,unavailable: candidate sets not captured
+50,35,8,24,0.75,0.8571428571428571,0.5,0.14285714285714285,unavailable: candidate sets not captured

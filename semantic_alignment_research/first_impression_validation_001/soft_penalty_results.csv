@@ -1,0 +1,4 @@
+strategy,evaluated,decision_proxy_changes,human_preferred_changes,good_images_damaged,bad_images_corrected,net_correct_minus_errors,cases_made_worse,candidate_exhaustion,winner_changes
+soft_light,43,18,17,1,17,21,11,unavailable,unavailable: no selector score margins
+soft_moderate,43,21,18,3,18,19,12,unavailable,unavailable: no selector score margins
+soft_strong,43,27,21,5,21,21,11,unavailable,unavailable: no selector score margins

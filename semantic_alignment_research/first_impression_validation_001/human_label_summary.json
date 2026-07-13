@@ -1,0 +1,12 @@
+{
+  "completed": 50,
+  "keep": 16,
+  "matches": {
+    "no": 27,
+    "partly": 18,
+    "yes": 5
+  },
+  "pairwise_completed": 0,
+  "replace": 28,
+  "unsure": 6
+}

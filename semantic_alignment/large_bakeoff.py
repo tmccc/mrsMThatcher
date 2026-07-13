@@ -83,12 +83,12 @@ def verify_manifest(manifest,quotes,images,original_cases):
 def maximum_attempt_cost(provider,prompt):return estimate_tokens(prompt)*PRICES[provider]['input']/1e6+MAX_OUTPUT_TOKENS*PRICES[provider]['output']/1e6
 
 class SharedBudget:
-    def __init__(self,run_dir):self.run_dir=run_dir;self.lock=threading.Lock()
+    def __init__(self,run_dir,combined_limit=COMBINED_CEILING):self.run_dir=run_dir;self.combined_limit=combined_limit;self.lock=threading.Lock()
     def known(self):return sum(sum(float(x['cost_usd']) for x in (read_json(self.run_dir/f'{p}_ledger.json',{}) or {}).get('calls',[])) for p in PROVIDERS)
     def guard(self,provider,provider_spend,next_max):
         with self.lock:
             if provider_spend+next_max>CEILINGS[provider]:raise RuntimeError(f'{provider} ceiling reached')
-            if self.known()+next_max>COMBINED_CEILING:raise RuntimeError('combined ceiling reached')
+            if self.known()+next_max>self.combined_limit:raise RuntimeError('combined ceiling reached')
 
 class Worker:
     def __init__(self,provider,cases,quotes,images,run_dir,client,budget,sleep:Callable[[float],None]=time.sleep):

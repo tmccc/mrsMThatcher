@@ -1,0 +1,83 @@
+{
+  "active_pid": 3287249,
+  "case_count": 50,
+  "combined_cost_limit_usd": 14.0,
+  "consecutive_daily_quota_cases": 3,
+  "developer_cost_limit_usd": 3.0,
+  "developer_quota_exhausted": true,
+  "expected_reset_at": null,
+  "expected_reset_timezone": "Europe/London",
+  "fallback_available": true,
+  "fallback_enabled": true,
+  "fallback_preflight_status": "passed",
+  "pause_audit": [],
+  "pause_reason": "daily_quota_exhausted",
+  "pause_timestamp": 1783882773.759342,
+  "paused_at": "2026-07-12T18:59:33.759342Z",
+  "probe_after_pause": false,
+  "reset_basis": "unknown",
+  "reset_time_confidence": "unknown",
+  "run_active": true,
+  "run_finished_at": "2026-07-12T18:47:51.666624Z",
+  "run_started_at": "2026-07-12T18:59:02.130695Z",
+  "schema_version": 1,
+  "trigger_evidence": [
+    {
+      "case_id": "55f5cd6d633c143f5170",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 1
+    },
+    {
+      "case_id": "9588c850bb3b06ab3214",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 1
+    },
+    {
+      "case_id": "9588c850bb3b06ab3214",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 2
+    },
+    {
+      "case_id": "346244c56053090ce29f",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 1
+    },
+    {
+      "case_id": "346244c56053090ce29f",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 2
+    },
+    {
+      "case_id": "9e47cc0548ceab1b07c8",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 1
+    },
+    {
+      "case_id": "9e47cc0548ceab1b07c8",
+      "classification": "daily_quota_exhausted",
+      "http_status": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "reset_headers": {},
+      "transport_attempt_number": 2
+    }
+  ],
+  "vertex_cost_limit_usd": 3.0
+}

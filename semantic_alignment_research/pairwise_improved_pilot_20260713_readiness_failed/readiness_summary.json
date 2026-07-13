@@ -1,0 +1,21 @@
+{
+  "credible_cases": 22,
+  "external_calls": 0,
+  "minimum_required": 20,
+  "original_prepared_manifest_audit": {
+    "actual_exact_or_simulator_runner_ups": 9,
+    "declared_cases": 25,
+    "lexical_regression_padding": 1,
+    "lower_rank_substitutions": 10,
+    "unmatched_trace_pairs": 5
+  },
+  "prepared_manifest_cases": 25,
+  "reason": "Everest and free-trade lack exact runner-ups with all cached inputs and documented floors; prepared pilot provenance was overstated",
+  "regressions": {
+    "everest_present": false,
+    "free_trade_present": false
+  },
+  "schema_version": 1,
+  "status": "challenger construction still inadequate",
+  "surviving_exact_runner_up_cases": 22
+}

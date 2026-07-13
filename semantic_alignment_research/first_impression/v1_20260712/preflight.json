@@ -1,0 +1,56 @@
+{
+  "active_pool": 79,
+  "combined_expected_cost_usd": 4.2825999999999995,
+  "combined_hard_ceiling_usd": 14.0,
+  "everest_present": true,
+  "free_trade_present": true,
+  "pairwise_cases": 5,
+  "pending_images": 38,
+  "providers": {
+    "anthropic": {
+      "calls": 50,
+      "conservative_maximum_cost_usd": 1.275,
+      "estimated_input_tokens": 125000,
+      "estimated_output_tokens": 35000,
+      "expected_cost_usd": 0.9,
+      "hard_ceiling_usd": 3.0,
+      "model": "claude-sonnet-4-6",
+      "tools_enabled": false
+    },
+    "gemini": {
+      "calls": 50,
+      "conservative_maximum_cost_usd": 0.97,
+      "estimated_input_tokens": 125000,
+      "estimated_output_tokens": 35000,
+      "expected_cost_usd": 0.6699999999999999,
+      "hard_ceiling_usd": 3.0,
+      "model": "gemini-3.1-pro-preview",
+      "tools_enabled": false
+    },
+    "grok": {
+      "calls": 50,
+      "conservative_maximum_cost_usd": 0.61,
+      "estimated_input_tokens": 125000,
+      "estimated_output_tokens": 35000,
+      "expected_cost_usd": 0.45999999999999996,
+      "hard_ceiling_usd": 3.0,
+      "model": "grok-4.5",
+      "tools_enabled": false
+    },
+    "openai": {
+      "calls": 50,
+      "conservative_maximum_cost_usd": 2.425,
+      "estimated_input_tokens": 125000,
+      "estimated_output_tokens": 35000,
+      "expected_cost_usd": 1.675,
+      "hard_ceiling_usd": 5.0,
+      "model": "gpt-5.6-sol",
+      "tools_enabled": false
+    }
+  },
+  "quarantined_included": 0,
+  "schema_version": 1,
+  "validation_cases": 50,
+  "vision_calls": 38,
+  "vision_expected_cost_usd": 0.5776
+}

@@ -1,0 +1,22 @@
+{
+  "credible_cases": 25,
+  "external_calls_during_rebuild": 0,
+  "fingerprint_supplement": "semantic_alignment_research/pairwise_improved_pilot_20260713_fingerprint_supplement/image_first_impression_supplement.json",
+  "minimum_required": 20,
+  "original_prepared_manifest_audit": {
+    "actual_exact_or_simulator_runner_ups": 9,
+    "declared_cases": 25,
+    "lexical_regression_padding": 1,
+    "lower_rank_substitutions": 10,
+    "unmatched_trace_pairs": 5
+  },
+  "prepared_manifest_cases": 25,
+  "reason": "all strict provenance and regression gates pass",
+  "regressions": {
+    "everest_present": true,
+    "free_trade_present": true
+  },
+  "schema_version": 1,
+  "status": "ready",
+  "surviving_exact_runner_up_cases": 25
+}

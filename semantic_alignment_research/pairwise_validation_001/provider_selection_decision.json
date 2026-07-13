@@ -1,0 +1,8 @@
+{
+  "decision": "use_one_provider",
+  "providers": [
+    "grok"
+  ],
+  "reason": "highest adequate exact agreement with harmful displacement as tie-breaker",
+  "schema_version": 1
+}

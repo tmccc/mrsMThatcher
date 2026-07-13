@@ -1,0 +1,181 @@
+{
+  "items": {
+    "044824e1b0a5d2fbdb1f": {
+      "challenger": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "current_position": "B",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "eligibility_verified": true,
+      "post_index": 186,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0012/selections.jsonl"
+    },
+    "18d9c05171a3b7771300": {
+      "challenger": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "current_position": "A",
+      "current_winner": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "eligibility_verified": true,
+      "post_index": 28,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0005/selections.jsonl"
+    },
+    "38dab10d66214a8f33ef": {
+      "challenger": "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png",
+      "current_position": "B",
+      "current_winner": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "eligibility_verified": true,
+      "post_index": 186,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0000/selections.jsonl"
+    },
+    "38f264251a7faff45128": {
+      "challenger": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "current_position": "A",
+      "current_winner": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "eligibility_verified": true,
+      "post_index": 19,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0018/selections.jsonl"
+    },
+    "3edeb287c07907e91e76": {
+      "challenger": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "current_position": "A",
+      "current_winner": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "eligibility_verified": true,
+      "post_index": 4,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0006/selections.jsonl"
+    },
+    "42f7c7f901e65773d1d9": {
+      "challenger": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "current_position": "B",
+      "current_winner": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "eligibility_verified": true,
+      "post_index": 31,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0004/selections.jsonl"
+    },
+    "51e6eaa31172e2c1f669": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "B",
+      "current_winner": "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png",
+      "eligibility_verified": true,
+      "post_index": 128,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0001/selections.jsonl"
+    },
+    "530dd6715d596f34e6cb": {
+      "challenger": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "current_position": "B",
+      "current_winner": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "eligibility_verified": true,
+      "post_index": 115,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0019/selections.jsonl"
+    },
+    "5fc09adb9e8c26fe6a4a": {
+      "challenger": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "current_position": "A",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "eligibility_verified": true,
+      "post_index": 146,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0013/selections.jsonl"
+    },
+    "649b2360f0d35e006a3f": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "eligibility_verified": true,
+      "post_index": 117,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0002/selections.jsonl"
+    },
+    "78aefa753cafa62472f9": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "B",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "eligibility_verified": true,
+      "post_index": 108,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0005/selections.jsonl"
+    },
+    "84c4fab4ab81767961f5": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "B",
+      "current_winner": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "eligibility_verified": true,
+      "post_index": 55,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0004/selections.jsonl"
+    },
+    "871cef5a200df1b4c849": {
+      "challenger": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "current_position": "B",
+      "current_winner": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "eligibility_verified": true,
+      "post_index": 16,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0008/selections.jsonl"
+    },
+    "8bf11163cff70da7f79f": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "B",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "eligibility_verified": true,
+      "post_index": 151,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0012/selections.jsonl"
+    },
+    "a9815ad9cd0ff0fd88d8": {
+      "challenger": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "current_position": "A",
+      "current_winner": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "eligibility_verified": true,
+      "post_index": 46,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0011/selections.jsonl"
+    },
+    "acff00ba44055ff3f449": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "B",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "eligibility_verified": true,
+      "post_index": 151,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0014/selections.jsonl"
+    },
+    "ad499c5e87c4b1061c82": {
+      "challenger": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "current_position": "A",
+      "current_winner": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "eligibility_verified": true,
+      "post_index": 134,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0000/selections.jsonl"
+    },
+    "ae88d2ac1a32760b777a": {
+      "challenger": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "current_position": "A",
+      "current_winner": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "eligibility_verified": true,
+      "post_index": 16,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0018/selections.jsonl"
+    },
+    "c4b43d7652a5a705a041": {
+      "challenger": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "current_position": "B",
+      "current_winner": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "eligibility_verified": true,
+      "post_index": 7,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0018/selections.jsonl"
+    },
+    "dbbca3ff711dd4d9eba3": {
+      "challenger": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "current_position": "B",
+      "current_winner": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "eligibility_verified": true,
+      "post_index": 165,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0007/selections.jsonl"
+    },
+    "f0858d5ba37a30559e98": {
+      "challenger": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "current_position": "A",
+      "current_winner": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "eligibility_verified": true,
+      "post_index": 198,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0010/selections.jsonl"
+    },
+    "f7919a292b295182ddf6": {
+      "challenger": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "current_position": "A",
+      "current_winner": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "eligibility_verified": true,
+      "post_index": 31,
+      "trace_file": "/disks/disk1/etc/mrsMThatcher/simulation_runs/audit_evidence_20x250_20260710/runs/run_0017/selections.jsonl"
+    }
+  },
+  "schema_version": 1
+}

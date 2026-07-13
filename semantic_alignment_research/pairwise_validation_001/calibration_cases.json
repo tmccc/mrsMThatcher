@@ -1,0 +1,22 @@
+{
+  "analysis_kind": "pairwise_calibration_cases",
+  "case_count": 15,
+  "case_ids": [
+    "15b01ed0b7f0f7214a49",
+    "4fef774dd375646c24ab",
+    "648a780d62a5e292bfde",
+    "c8610c7f719c8adaf0dc",
+    "151fb29e96491875b9ea",
+    "80b092b6130196244c59",
+    "8817906db04f42dfb463",
+    "8b8e8ba6c20422ff0eb6",
+    "52bd349ce17a14c07ded",
+    "27e72b8b5d64cd044f3b",
+    "55c4b1ec39c29fc6c0dd",
+    "1aa029132dceac146642",
+    "757fc0e1fa642cfaec4b",
+    "7eaee3f2b011ae18bf8c",
+    "1419ae3f9a07198d29d6"
+  ],
+  "schema_version": 1
+}

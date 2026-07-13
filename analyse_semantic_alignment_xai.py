@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from semantic_alignment.io import atomic_write_json, atomic_write_text
+from semantic_alignment.gemini_fallback import clear_expired_quota_pause, fallback_status, format_fallback_status
 from semantic_alignment.reporting import write_execution_report
 from semantic_alignment.pipeline import (
     CRITIC_PROMPT_VERSION, IMAGE_PROMPT_VERSION, QUOTE_PROMPT_VERSION,
@@ -48,6 +49,11 @@ def parser() -> argparse.ArgumentParser:
     replay.add_argument("--candidate-cache", type=Path)
     report = sub.add_parser("report"); report.add_argument("--run-id", required=True)
     status = sub.add_parser("run-status"); status.add_argument("--run-id", required=True)
+    fallback_status_command = sub.add_parser("gemini-fallback-status")
+    fallback_status_command.add_argument("--run-id")
+    fallback_status_command.add_argument("--run-dir", type=Path)
+    fallback_status_command.add_argument("--json", action="store_true")
+    fallback_status_command.add_argument("--clear-expired-gemini-quota-pause", action="store_true")
     sub.add_parser("dry-run")
     return ap
 
@@ -98,6 +104,18 @@ def run_status(run: Path) -> dict:
     state = "blocked_ambiguous_cost" if ledger.get("blocked") else manifest.get("status", "resumable")
     return {"run_id": manifest["run_id"], "status": state, "resumable": state == "resumable",
             "known_cost_usd": ledger.get("total_cost_usd", 0), "blocked_reason": ledger.get("blocked_reason")}
+
+
+def fallback_run_path(research: Path, args: argparse.Namespace) -> Path:
+    if args.run_dir is not None:
+        return args.run_dir.expanduser().resolve()
+    if not args.run_id:
+        raise RuntimeError("--run-id or --run-dir is required")
+    candidates = (research / args.run_id, research / "runs" / args.run_id)
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate.resolve()
+    raise RuntimeError(f"Unknown fallback run: {args.run_id}")
 
 
 def verify_pricing(research: Path, model: str) -> dict:
@@ -165,6 +183,13 @@ def main(argv=None) -> int:
         elif archived.exists(): result = json.loads(archived.read_text())
         else: raise RuntimeError(f"Unknown run id: {args.run_id}")
         print(json.dumps(result, indent=2)); return 0
+    if args.command == "gemini-fallback-status":
+        run = fallback_run_path(research, args)
+        if args.clear_expired_gemini_quota_pause:
+            clear_expired_quota_pause(run)
+        result = fallback_status(run)
+        print(json.dumps(result, indent=2) if args.json else format_fallback_status(result))
+        return 0
     if args.command == "dry-run":
         quote_db, image_db, critic_db, validation = load_all(research)
         summary = dry_summary(project, research)

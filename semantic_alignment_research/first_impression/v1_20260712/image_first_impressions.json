@@ -1,0 +1,3855 @@
+{
+  "analysis_kind": "image_first_impression_database",
+  "failures": {},
+  "items": {
+    "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:25.933185+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Face with intense expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Pointing hand",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Navy suit and pearl necklace",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Microphones and wooden podium",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Background Union Jack flags",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 35,
+      "concrete_visual_evidence": [
+        "Woman pointing index finger toward viewer",
+        "Open mouth mid-speech",
+        "Two black microphones on wooden podium",
+        "Blonde bouffant hairstyle",
+        "Navy blue jacket with gold brooch",
+        "Pearl necklace and earrings",
+        "Multiple Union Jack flags behind",
+        "Smoky illuminated background"
+      ],
+      "defensive_tone": 35,
+      "distracting_symbol_score": 30,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "Union Jack flags",
+        "podium microphones",
+        "pearl necklace",
+        "gold brooch"
+      ],
+      "dominant_visual_message_confidence": 0.92,
+      "dominant_visual_subject": "Margaret Thatcher in a navy suit pointing forward while speaking",
+      "emotional_energy": "high",
+      "face_prominence": 88,
+      "first_impression_message": "A powerful British woman at a podium is angrily pointing and speaking with authority.",
+      "first_object_noticed": "Pointing right hand and stern face",
+      "focal_clarity_score": 85,
+      "highest_contrast_element": "Illuminated face and pointing hand against darker suit and smoky background",
+      "image_basename": "tg_0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "Wooden podium and upper body of the speaker",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Union Jack flags",
+      "optimistic_tone": 20,
+      "patriotic_tone": 75,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "patriotic",
+        "angry"
+      ],
+      "sha256": "2beeca3ab674727584033790bd233b3302349040437bd90284165b2fc691b8d9",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 28,
+      "visual_competition": [
+        {
+          "competes_with": "Central figure",
+          "element": "Background flags",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Face and hand",
+          "element": "Smoky bokeh lights",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 35,
+      "warning_tone": 55
+    },
+    "tg_115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:31.331267+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Broken central hammer-and-sickle sculpture",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Tattered red flag with yellow hammer and sickle",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Surrounding rubble and broken architecture",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.35,
+          "element": "Standing statue on pedestal left",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.3,
+          "element": "Dark cloudy sky",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "massive cracked red stone hammer and sickle",
+        "tattered red flag flying with yellow emblem",
+        "piles of stone debris and broken columns",
+        "statue of standing figure on left pedestal",
+        "overcast dramatic gray clouds",
+        "wet-looking pavement in foreground"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 25,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "red communist flag with hammer and sickle",
+        "ruined classical statues",
+        "rubble and debris",
+        "overcast stormy sky"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Enormous cracked reddish stone hammer-and-sickle sculpture lying broken in rubble",
+      "emotional_energy": "medium",
+      "face_prominence": 5,
+      "first_impression_message": "A massive broken hammer-and-sickle has collapsed amid ruins under a tattered red communist flag, signaling the fall of Soviet power.",
+      "first_object_noticed": "Broken red stone hammer-and-sickle monument",
+      "focal_clarity_score": 85,
+      "highest_contrast_element": "Reddish hammer-and-sickle against gray ruins and sky",
+      "image_basename": "tg_115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png",
+      "inspirational_tone": 10,
+      "largest_visual_element": "The oversized shattered hammer-and-sickle form filling the center",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 5,
+      "patriotic_tone": 20,
+      "primary_tone": "mournful",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "reflective",
+        "warning"
+      ],
+      "sha256": "267fae7b19b47219ea9b77d06536d6e25ff3a6298029c169ba032d964b2f08bf",
+      "text_like_element_prominence": 0,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Central broken emblem",
+          "element": "Red flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Main sculpture",
+          "element": "Rubble and ruins",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 30,
+      "warning_tone": 55
+    },
+    "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:38.158804+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Thatcher's face and stern expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Navy blazer, brooch and pearls",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Wooden podium and microphones",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Soldiers with batons and red armbands in background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Kneeling, bowed figures in smoke",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "Sharp-focused older woman in navy suit at podium",
+        "Two black microphones on stands",
+        "Pearl necklace, earrings and floral brooch",
+        "Blurred helmeted figures holding batons",
+        "Red armbands on dark uniforms",
+        "Several people kneeling with heads bowed",
+        "Hazy smoke filling the mid-ground"
+      ],
+      "defensive_tone": 40,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 82,
+      "dominant_symbols": [
+        "podium with dual microphones",
+        "pearl necklace and earrings",
+        "red armbands on soldiers",
+        "helmeted soldiers with batons",
+        "bowed heads of kneeling people"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Margaret Thatcher standing at a wooden podium with microphones",
+      "emotional_energy": "medium",
+      "face_prominence": 85,
+      "first_impression_message": "A stern leader addresses the public while armed force and submissive crowds loom behind her.",
+      "first_object_noticed": "Margaret Thatcher's face and coiffed hair",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Her illuminated face and pearl necklace against the dark blue suit and smoky background",
+      "image_basename": "tg_15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "Thatcher's navy suit and upper body filling the right foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Margaret Thatcher's face",
+      "optimistic_tone": 15,
+      "patriotic_tone": 25,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "confrontational",
+        "warning"
+      ],
+      "sha256": "41b2b9dd98b5959cf2fb33c08d5c8df3002340f1b9cf1b71921be48eec1de658",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 35,
+      "visual_competition": [
+        {
+          "competes_with": "Foreground speaker",
+          "element": "Background soldiers",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Thatcher's face",
+          "element": "Smoky atmosphere and crowd",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 45,
+      "warning_tone": 55
+    },
+    "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:46.165454+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Thatcher's face and direct gaze",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Pointing right hand and arm",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Red Soviet flag with hammer and sickle",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Field of bodies and mud in midground",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Soldiers with rifles on the left",
+          "rank": 5
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Microphones and wooden podium",
+          "rank": 6
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Close-up older woman with bouffant blonde hair and pearl earrings",
+        "Navy blue suit jacket and pearl necklace",
+        "Right index finger extended toward viewer",
+        "Two black microphones on wooden lectern",
+        "Large red flag with yellow hammer and sickle top-left",
+        "Silhouetted soldiers holding rifles on left midground",
+        "Ground covered in pale body-like forms and rubble",
+        "Smoke, fire glow and ruined structures in distant background"
+      ],
+      "defensive_tone": 40,
+      "distracting_symbol_score": 60,
+      "dominant_subject_strength": 82,
+      "dominant_symbols": [
+        "hammer and sickle flag",
+        "pointing finger",
+        "microphone and podium",
+        "battlefield soldiers with rifles",
+        "mass of corpses or bodies in mud",
+        "pearl necklace and earrings",
+        "ruined buildings and smoke"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Margaret Thatcher in a navy suit at a podium, pointing her finger forward",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A stern Margaret Thatcher points accusingly at the viewer from a podium amid a Soviet war-ravaged landscape of bodies, soldiers and a hammer-and-sickle flag.",
+      "first_object_noticed": "Thatcher's face and pointing hand",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Thatcher's pale face, blonde hair and pearl jewellery against the dark suit and smoky background",
+      "image_basename": "tg_1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "Thatcher's upper body and dark blue suit filling the right foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Yellow hammer and sickle on the red Soviet flag",
+      "optimistic_tone": 10,
+      "patriotic_tone": 25,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "warning",
+        "resolute",
+        "angry"
+      ],
+      "sha256": "73b29ffbb557ca3ce4eff8c3bb1588313dc80f23084f70817b30c3ab13772afb",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 52,
+      "visual_competition": [
+        {
+          "competes_with": "Thatcher's face and pointing gesture",
+          "element": "Soviet flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "foreground speaker",
+          "element": "Corpse-strewn battlefield",
+          "severity": "high"
+        },
+        {
+          "competes_with": "podium figure",
+          "element": "Armed soldiers",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 58,
+      "warning_tone": 75
+    },
+    "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:52.460399+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Margaret Thatcher's face and upper body",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Exploding hammer and sickle monument",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Blindfolded men with papers",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Red flags with yellow symbols",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.3,
+          "element": "Cloudy dramatic sky and debris",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Close-up of older woman with styled blonde hair, pearls, blue suit",
+        "Giant crumbling hammer-and-sickle sculpture exploding into rubble",
+        "Multiple red flags with yellow hammer-and-sickle emblems",
+        "Group of suited men wearing red blindfolds handling papers",
+        "Stacks of documents on a table in lower right",
+        "Dusty debris and dramatic cloudy sky"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 45,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "Hammer and sickle",
+        "Red Soviet-style flags",
+        "Pearl necklace",
+        "Red blindfolds",
+        "Stacks of documents"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Margaret Thatcher's portrait on the left foreground",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A resolute Margaret Thatcher stands firm while communism collapses behind her.",
+      "first_object_noticed": "Margaret Thatcher's face",
+      "focal_clarity_score": 80,
+      "highest_contrast_element": "Thatcher's pale face and pearls against dark blue suit",
+      "image_basename": "tg_2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2.png",
+      "inspirational_tone": 55,
+      "largest_visual_element": "Exploding stone hammer and sickle",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 45,
+      "patriotic_tone": 40,
+      "primary_tone": "triumphant",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "ominous",
+        "warning"
+      ],
+      "sha256": "269ffffb48b7c7970677b00e99444c6486330fbbd519ca976490b2dfe0ad162f",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 50,
+      "visual_competition": [
+        {
+          "competes_with": "Thatcher's portrait",
+          "element": "Exploding hammer and sickle",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Thatcher's face",
+          "element": "Blindfolded bureaucrats",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Debris cloud",
+          "element": "Red flags",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 50
+    },
+    "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:43:58.536496+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Woman’s face and open mouth",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Bright flame in the golden bowl",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.78,
+          "element": "Raised clenched fist",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Navy podium and dual microphones",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Background flags",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "Woman in navy blazer at dark podium",
+        "Mouth open as if speaking",
+        "Right hand clenched in a fist",
+        "Bright orange flame in gold bowl left",
+        "Two black gooseneck microphones",
+        "Pearl necklace and gold brooch",
+        "Multiple vertical flags behind her",
+        "Dark curtain backdrop"
+      ],
+      "defensive_tone": 35,
+      "distracting_symbol_score": 55,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "burning flame bowl",
+        "national flags",
+        "podium microphones",
+        "pearl necklace",
+        "gold brooch"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "An older woman in a navy suit speaking at a podium",
+      "emotional_energy": "high",
+      "face_prominence": 78,
+      "first_impression_message": "A formal leader speaks with resolve at a podium while a flame burns nearby.",
+      "first_object_noticed": "The speaker’s face and raised fist",
+      "focal_clarity_score": 72,
+      "highest_contrast_element": "The bright flame of the golden bowl",
+      "image_basename": "tg_4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98.png",
+      "inspirational_tone": 65,
+      "largest_visual_element": "The dark podium and the woman’s torso and head",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "The burning ceremonial bowl / torch",
+      "optimistic_tone": 40,
+      "patriotic_tone": 70,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "inspirational",
+        "patriotic",
+        "confrontational"
+      ],
+      "sha256": "88eef3c2807a3cc04dc313320a8c65ffaeb8ff682d0a331141e898da2bae26cd",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 42,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker’s face",
+          "element": "Flame bowl",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Speaker’s dark suit",
+          "element": "Colourful flags",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Raised fist",
+          "element": "Microphones",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 58,
+      "warning_tone": 25
+    },
+    "tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:05.048148+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Margaret Thatcher's face and pointing hand",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Glowing-eyed tentacled monster in the building",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Red hammer-and-sickle flags",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Fiery sky and ruined dome",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.5,
+          "element": "Cluster of microphones and podium",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 72,
+      "concrete_visual_evidence": [
+        "recognisable Margaret Thatcher portrait",
+        "right hand pointing directly at viewer",
+        "dark navy suit and pearl necklace",
+        "wooden podium with four microphones",
+        "huge fanged tentacle creature with red eyes",
+        "classical colonnade and cracked dome",
+        "multiple red flags with yellow hammer and sickle",
+        "orange fire, smoke and embers filling the sky",
+        "crowd with more red flags in lower left"
+      ],
+      "defensive_tone": 45,
+      "distracting_symbol_score": 70,
+      "dominant_subject_strength": 74,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "red communist flags",
+        "pointing finger",
+        "demonic tentacled monster",
+        "classical dome architecture",
+        "microphones at podium"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "Margaret Thatcher at a wooden podium pointing forward",
+      "emotional_energy": "high",
+      "face_prominence": 78,
+      "first_impression_message": "A stern Margaret Thatcher points accusingly from a podium while a giant demonic monster and communist symbols dominate a burning classical building.",
+      "first_object_noticed": "Thatcher's face and pointing hand",
+      "focal_clarity_score": 68,
+      "highest_contrast_element": "Thatcher's pale face and blonde hair against dark suit and fiery background",
+      "image_basename": "tg_5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "Damaged classical dome building with the emerging monster",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle on red flags",
+      "optimistic_tone": 10,
+      "patriotic_tone": 25,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "warning",
+        "resolute",
+        "angry"
+      ],
+      "sha256": "ee013496ec3aedda644b7b8bcac2754c70acbcc446e0cf9b55cbf38cbfb7169f",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 65,
+      "visual_competition": [
+        {
+          "competes_with": "giant monster face",
+          "element": "Thatcher pointing",
+          "severity": "high"
+        },
+        {
+          "competes_with": "central monster and dome",
+          "element": "red hammer-and-sickle banners",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "foreground speaker",
+          "element": "crowd and distant flags",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 76,
+      "warning_tone": 80
+    },
+    "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:10.141034+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and pointing arm",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Blue suit and body stride",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Torn red hammer-and-sickle flag",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Men struggling in mud",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Stormy cloudy sky",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 35,
+      "concrete_visual_evidence": [
+        "Woman in royal blue skirt suit pointing rightward",
+        "Pearl necklace and earrings",
+        "Torn red flag with yellow hammer and sickle",
+        "Multiple suited men half-submerged in brown mud",
+        "Splashing water and mud around legs",
+        "Overcast dramatic cloudy sky",
+        "Hills in distant background"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 45,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "red communist flag",
+        "hammer and sickle",
+        "pointing hand",
+        "pearl necklace",
+        "mud/quicksand",
+        "blue power suit"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Margaret Thatcher-like woman in blue suit striding and pointing forward",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A powerful woman in a blue suit charges forward pointing decisively while men struggle in mud behind a torn red hammer-and-sickle flag.",
+      "first_object_noticed": "Woman's face and extended pointing arm",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "Bright blue suit against muddy brown ground and grey sky",
+      "image_basename": "tg_596607c93f9aca406d8543ecc792e9a87fad06354303a69663df183d7417a764.png",
+      "inspirational_tone": 70,
+      "largest_visual_element": "Woman in blue suit dominating the foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Red flag with yellow hammer and sickle",
+      "optimistic_tone": 50,
+      "patriotic_tone": 25,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "triumphant",
+        "confrontational",
+        "warning",
+        "ominous"
+      ],
+      "sha256": "2067d9e256f9b6aff6c616cf5b7a9e6c9c301475b9cdde0ff4db81426466d62b",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 48,
+      "visual_competition": [
+        {
+          "competes_with": "Woman's blue figure",
+          "element": "Red communist flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Foreground woman",
+          "element": "Men sinking in mud",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Central action",
+          "element": "Dramatic sky and hills",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 55
+    },
+    "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:16.362594+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Central woman's face and upper body",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Red communist flags with hammer and sickle",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Masked gunmen with rifles on left",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Burning building and smoke in background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "UNION POWER protest sign",
+          "rank": 5
+        },
+        {
+          "attention_strength": 0.5,
+          "element": "Wooden podium and microphones",
+          "rank": 6
+        }
+      ],
+      "background_dominance": 70,
+      "concrete_visual_evidence": [
+        "woman in navy blue suit with pearls at wooden podium",
+        "two black microphones",
+        "masked men holding assault rifles",
+        "black flag with white Arabic-style script",
+        "multiple red flags with yellow hammer and sickle",
+        "white sign reading UNION POWER",
+        "domed classical building on fire",
+        "smoke and flames filling sky",
+        "police in helmets at bottom",
+        "angry crowd faces"
+      ],
+      "defensive_tone": 50,
+      "distracting_symbol_score": 70,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "black flag with white script",
+        "armed balaclava figures",
+        "UNION POWER sign",
+        "burning domed building",
+        "police officers",
+        "microphones"
+      ],
+      "dominant_visual_message_confidence": 0.85,
+      "dominant_visual_subject": "Central woman in blue suit speaking at wooden podium with microphones",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A stern woman at a podium stands resolute amid chaos of armed militants, burning buildings, and protest flags.",
+      "first_object_noticed": "Woman's face and blue jacket at the podium",
+      "focal_clarity_score": 75,
+      "highest_contrast_element": "Woman's face and blue suit against smoky chaotic background",
+      "image_basename": "tg_59b18840cbf67ac4a14a64f3858e7fcee40dfb483db36ec5b911fc22592dffaa.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "Woman and podium filling the lower center foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle on red flags",
+      "optimistic_tone": 15,
+      "patriotic_tone": 20,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "confrontational",
+        "warning"
+      ],
+      "sha256": "8599c7b013acc84d14abbd9809ec3154c9d00ac46a5fc6340088ab17faf0f2ee",
+      "text_like_element_prominence": 40,
+      "visual_clutter_score": 80,
+      "visual_competition": [
+        {
+          "competes_with": "Central woman",
+          "element": "Masked armed figures",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Central woman",
+          "element": "Red flags and crowd",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Central woman",
+          "element": "Burning building flames",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "flags and woman",
+          "element": "UNION POWER sign",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 75,
+      "warning_tone": 70
+    },
+    "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:22.486503+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Massive concrete wall with barbed wire",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.78,
+          "element": "Man in long coat standing on the path",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Guard tower with figure on top",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Foggy industrial buildings in background",
+          "rank": 4
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Diagonal concrete wall with weathered stains",
+        "Coils of barbed wire along the wall top",
+        "Man in long dark coat seen from behind on wet path",
+        "Tall watchtower with person silhouette on platform",
+        "Foggy sky and distant blocky buildings",
+        "Wet reflective pavement and dry grass verge"
+      ],
+      "defensive_tone": 40,
+      "distracting_symbol_score": 25,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "barbed wire",
+        "concrete perimeter wall",
+        "guard tower with silhouetted figure",
+        "solitary man in overcoat",
+        "overcast foggy sky",
+        "wet paved path"
+      ],
+      "dominant_visual_message_confidence": 0.85,
+      "dominant_visual_subject": "Long concrete prison-style wall topped with coils of barbed wire stretching into the fog",
+      "emotional_energy": "low",
+      "face_prominence": 5,
+      "first_impression_message": "A solitary man faces a massive barbed-wire wall and guard tower under a bleak sky—confinement and surveillance.",
+      "first_object_noticed": "The imposing concrete wall with barbed wire running diagonally across the frame",
+      "focal_clarity_score": 72,
+      "highest_contrast_element": "The dark silhouetted man in a long coat against the lighter wet path and fog",
+      "image_basename": "tg_5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614.png",
+      "inspirational_tone": 10,
+      "largest_visual_element": "The continuous concrete wall filling the left and center of the image",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Barbed wire coiled atop a high concrete wall",
+      "optimistic_tone": 5,
+      "patriotic_tone": 5,
+      "primary_tone": "ominous",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "reflective",
+        "mournful",
+        "warning"
+      ],
+      "sha256": "a4e21b7e82f5cbfd5fe4846aa652edc193a4d04aa5904e62d9dbb81ce3877e73",
+      "text_like_element_prominence": 0,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "Concrete wall with barbed wire",
+          "element": "Man in overcoat",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Wall leading lines and barbed wire",
+          "element": "Guard tower silhouette",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 35,
+      "warning_tone": 70
+    },
+    "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:28.791725+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Central man's face and glowing silhouette",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Red star on overhead machine",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Rows of identical men flanking him",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Conveyor rails leading to the viewer",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Sparks and industrial pipes",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "Man centered on metal roller conveyor",
+        "Bright halo/sparks behind his head",
+        "Large metal device with red star overhead",
+        "Many near-identical bald men in gray shirts and black ties",
+        "Small red pins on shirt pockets",
+        "Muted industrial background and pipes",
+        "Symmetric flanking composition"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "red star",
+        "conveyor belt",
+        "identical uniformed men",
+        "red lapel pins",
+        "industrial machinery"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Central man standing on a conveyor belt beneath an industrial apparatus with a red star",
+      "emotional_energy": "medium",
+      "face_prominence": 78,
+      "first_impression_message": "A sole man stands out under a red-star machine as identical clones line up like products on a factory line.",
+      "first_object_noticed": "Central man's face and upper body with glowing light behind his head",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "Red star and red panels on the metal machine plus facial glow against gray tones",
+      "image_basename": "tg_5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442.png",
+      "inspirational_tone": 25,
+      "largest_visual_element": "Overhead industrial machine and conveyor structure framing the scene",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Red five-pointed star",
+      "optimistic_tone": 15,
+      "patriotic_tone": 40,
+      "primary_tone": "ominous",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "warning",
+        "confrontational",
+        "resolute"
+      ],
+      "sha256": "79a2424b9f63d8974ab5ca7dc23905f740de1729a6853262b4b43bf613d109d0",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 38,
+      "visual_competition": [
+        {
+          "competes_with": "Central face",
+          "element": "Red star and machine",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Central figure",
+          "element": "Clone rows",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Upper machinery",
+          "element": "Conveyor perspective lines",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 42,
+      "warning_tone": 70
+    },
+    "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:35.513679+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and open mouth",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Pointing right hand and arm",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.72,
+          "element": "Large blue EU flag on right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.6,
+          "element": "Navy podium and dual microphones",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Row of national flags behind left",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "Voluminous blonde bouffant hair",
+        "Navy textured blazer with floral brooch",
+        "Pearl necklace and earrings",
+        "Right index finger extended toward viewer",
+        "Two black gooseneck microphones",
+        "Dark blue podium front",
+        "Large blue flag with yellow stars",
+        "Flags of France, Spain, Belgium visible",
+        "Blurred chamber seating and people"
+      ],
+      "defensive_tone": 50,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "EU flag",
+        "national flags",
+        "podium",
+        "microphones",
+        "pearl necklace",
+        "pointing finger"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Margaret Thatcher-like woman speaking and pointing from a podium",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A stern older woman in a navy suit delivers an emphatic, finger-pointing speech at a podium before EU and national flags.",
+      "first_object_noticed": "Woman's face and forward-pointing right hand",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "Woman's light hair and face against dark blue suit and blue EU flag",
+      "image_basename": "tg_5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "Woman's upper body and navy jacket",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "European Union flag with circle of yellow stars",
+      "optimistic_tone": 20,
+      "patriotic_tone": 45,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "warning",
+        "defensive"
+      ],
+      "sha256": "592dcafc64179abae86f6b8c63e19e6f91c3e4625e6c5b821dd38dcf3d3db691",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 32,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker's face and gesture",
+          "element": "EU flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Central speaker",
+          "element": "National flags cluster",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Podium figure",
+          "element": "Blurred audience seating",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 38,
+      "warning_tone": 55
+    },
+    "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:42.343633+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Central woman's face and formal suit",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Podium and microphones",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Bright modern city and cafe scene on the right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Dark industrial buildings, smoke, and crowd on the left",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Split sky and sun flare behind her head",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 68,
+      "concrete_visual_evidence": [
+        "Woman centered at dark podium with multiple mics",
+        "Navy blazer, pearls, and composed expression",
+        "Left side: smoky factories, peeling buildings, red flags",
+        "Left street crowd and overflowing trash barrel",
+        "Right side: glass towers, blue sky, trees",
+        "Right sidewalk cafe umbrellas and suited pedestrians",
+        "Vertical split lighting from gray-brown to bright blue"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 55,
+      "dominant_subject_strength": 84,
+      "dominant_symbols": [
+        "podium with microphones",
+        "pearl necklace",
+        "red flags",
+        "smoky industrial skyline",
+        "modern glass skyscrapers",
+        "trash barrel and rubble",
+        "outdoor cafe seating"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Woman in a navy suit speaking at a podium with microphones",
+      "emotional_energy": "medium",
+      "face_prominence": 82,
+      "first_impression_message": "A stern leader at a podium stands between a grim industrial past and a bright modern future.",
+      "first_object_noticed": "Woman's face and upper body at the podium",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Dark navy suit and black microphones against the bright right-side sky",
+      "image_basename": "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831.png",
+      "inspirational_tone": 70,
+      "largest_visual_element": "Central woman and dark podium filling the foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Cluster of black microphones on a podium",
+      "optimistic_tone": 65,
+      "patriotic_tone": 25,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "inspirational",
+        "optimistic",
+        "reflective",
+        "warning"
+      ],
+      "sha256": "4a06f5d44cd41461d9ba97056b3bf9a9552cc6e062a2567a38e46688c0056857",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 48,
+      "visual_competition": [
+        {
+          "competes_with": "Right prosperous city and cafe life",
+          "element": "Left industrial scene with flags and rubble",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Central speaker",
+          "element": "Background dual cityscapes",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Woman's face",
+          "element": "Cluster of microphones",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 62,
+      "warning_tone": 45
+    },
+    "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:47.982984+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Navy suit and upper body pose",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Open documents and glasses on desk",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Pearl necklace and brooch",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.3,
+          "element": "Background office furniture and lamp",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 28,
+      "concrete_visual_evidence": [
+        "centered seated woman facing camera slightly off-angle",
+        "hand raised to chin in thoughtful pose",
+        "navy blue tailored jacket with gold brooch",
+        "double-strand pearl necklace and earrings",
+        "open ledger with handwriting and resting eyeglasses",
+        "white cup and saucer on polished wood desk",
+        "tufted leather chair back visible",
+        "soft-focus classical office interior"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 18,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "pearl necklace",
+        "gold brooch",
+        "open book/ledger",
+        "eyeglasses on desk",
+        "white teacup",
+        "desk lamp"
+      ],
+      "dominant_visual_message_confidence": 0.84,
+      "dominant_visual_subject": "Older woman with styled blonde hair in a navy suit, hand to chin at an office desk",
+      "emotional_energy": "medium",
+      "face_prominence": 88,
+      "first_impression_message": "A serious, contemplative older woman of authority sits at a desk, projecting thoughtful leadership.",
+      "first_object_noticed": "Her face and steady gaze",
+      "focal_clarity_score": 86,
+      "highest_contrast_element": "Navy blue suit against the lighter face, desk papers and soft background",
+      "image_basename": "tg_674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "The woman in the navy blue jacket filling the center frame",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Pearl necklace and gold brooch",
+      "optimistic_tone": 25,
+      "patriotic_tone": 15,
+      "primary_tone": "reflective",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "calm"
+      ],
+      "sha256": "f34b02cdf4bbf3484e7bb1eee4ff73fc5d3b53b9f2c0e8a29590dcd947412d2d",
+      "text_like_element_prominence": 25,
+      "visual_clutter_score": 25,
+      "visual_competition": [
+        {
+          "competes_with": "Face as primary focus",
+          "element": "Open book and papers",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Desk documents",
+          "element": "White teacup",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Subject silhouette",
+          "element": "Background lamp and shelves",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 22,
+      "warning_tone": 10
+    },
+    "tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:44:54.846270+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.9,
+          "element": "Bearded man writing at the desk",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Uniformed Stalin-like figure above",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Hammer and sickle symbol",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Barbed wire and watchtowers",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Stack of books and glasses",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Older man with grey beard writing with pen in open book",
+        "Large stern man in dark military tunic with mustache behind",
+        "Large faded hammer-and-sickle on red sky",
+        "Silhouetted watchtowers and barbed-wire fences",
+        "Stack of thick books and round glasses on desk",
+        "Scattered papers and red smoky atmospheric background"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 55,
+      "dominant_subject_strength": 75,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "barbed wire",
+        "watchtowers",
+        "military uniform with medals",
+        "open ledger and books",
+        "round eyeglasses"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "Bearded man in a drab shirt writing intently in an open book at a desk in the foreground.",
+      "emotional_energy": "medium",
+      "face_prominence": 80,
+      "first_impression_message": "A grim historical scene of an older bearded man writing under the watch of a stern Stalin-like figure amid Soviet symbols and prison towers.",
+      "first_object_noticed": "The bearded writer's face and pen hand at the desk.",
+      "focal_clarity_score": 70,
+      "highest_contrast_element": "The bright hammer-and-sickle emblem against the deep red smoky sky.",
+      "image_basename": "tg_684fb4425801aebe8e8c52211921567da1cf4bd04cee430a3b30bed03d3276f5.png",
+      "inspirational_tone": 20,
+      "largest_visual_element": "The large half-length portrait of the uniformed man looming in the upper background.",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 10,
+      "patriotic_tone": 25,
+      "primary_tone": "ominous",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "mournful",
+        "reflective",
+        "warning",
+        "resolute"
+      ],
+      "sha256": "10c8a40741348326adc0f770c109c881f8a3f21590048b18785729443cdc6f8f",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 50,
+      "visual_competition": [
+        {
+          "competes_with": "Background uniformed portrait",
+          "element": "Foreground writer",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Two human faces",
+          "element": "Hammer and sickle",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Desk still-life details",
+          "element": "Watchtowers and wire",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 65,
+      "warning_tone": 70
+    },
+    "tg_696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:01.133939+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Woman's face and hair",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Navy blazer and writing posture",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.72,
+          "element": "Illuminated papers and pen in hand",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.6,
+          "element": "Desk lamp on the left",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Stacks of papers and teacup",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 28,
+      "concrete_visual_evidence": [
+        "blonde upswept hair",
+        "pearl necklace and earring",
+        "navy double-breasted blazer",
+        "hand holding silver pen over notebook",
+        "warm desk lamp casting light",
+        "open typed pages on wooden desk",
+        "eyeglasses resting near papers",
+        "teacup and stacked folders",
+        "wristwatch on left wrist"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 25,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "pearl necklace",
+        "desk lamp",
+        "fountain pen",
+        "open documents",
+        "wristwatch",
+        "eyeglasses on desk"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Older woman with styled blonde hair in a navy blazer, seated and writing with a pen.",
+      "emotional_energy": "medium",
+      "face_prominence": 78,
+      "first_impression_message": "A serious older woman in a navy suit is concentrated on writing at a desk under a warm lamp.",
+      "first_object_noticed": "The woman's face and focused downward gaze.",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "Bright lamp glow against the darker desk and clothing.",
+      "image_basename": "tg_696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320.png",
+      "inspirational_tone": 45,
+      "largest_visual_element": "The woman's upper body and navy blazer filling the right-center of the frame.",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Pearl necklace and matching earring.",
+      "optimistic_tone": 30,
+      "patriotic_tone": 15,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "reflective",
+        "calm"
+      ],
+      "sha256": "3067e3cc40fea5ab93752b81e065daa57e268644a7306b3afb5b808e5b313e52",
+      "text_like_element_prominence": 35,
+      "visual_clutter_score": 38,
+      "visual_competition": [
+        {
+          "competes_with": "Woman's face",
+          "element": "Bright lamp shade",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Face and upper body",
+          "element": "Open documents and pen",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Main subject",
+          "element": "Background curtain and furniture",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 32,
+      "warning_tone": 10
+    },
+    "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:08.673893+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Union Jack draped over the horse",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "TAXES and REGULATIONS labeled sacks",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Man in top hat atop the load",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Straining grey horse in motion",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Industrial warehouse background with dust and light",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 30,
+      "concrete_visual_evidence": [
+        "Large Union Jack blanket covering the horse's midsection",
+        "Burlap sacks clearly printed TAXES and REGULATIONS",
+        "Man in dark suit and Union Jack top hat perched on the load",
+        "Towering stack of crates, trunks and sacks lashed together",
+        "Grey horse mid-stride with dust kicked up",
+        "Industrial hall with high windows and smoky atmosphere",
+        "Reins held by the rider"
+      ],
+      "defensive_tone": 55,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 85,
+      "dominant_symbols": [
+        "Union Jack flag",
+        "TAXES sacks",
+        "REGULATIONS sack",
+        "Union Jack top hat",
+        "Overloaded pack animal"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "A grey horse draped in a Union Jack blanket, carrying a huge pile of sacks and crates labeled TAXES and REGULATIONS with a man in a Union Jack top hat riding on top.",
+      "emotional_energy": "high",
+      "face_prominence": 25,
+      "first_impression_message": "Britain is overburdened by taxes and regulations, like a struggling horse forced to carry a crushing load.",
+      "first_object_noticed": "The large Union Jack flag draped over the horse's back.",
+      "focal_clarity_score": 75,
+      "highest_contrast_element": "The bright red, white and blue Union Jack against the muted grey-brown industrial scene.",
+      "image_basename": "tg_6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "inspirational_tone": 15,
+      "largest_visual_element": "The overloaded horse with its massive cargo stack filling the center of the frame.",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Union Jack flag",
+      "optimistic_tone": 10,
+      "patriotic_tone": 70,
+      "primary_tone": "warning",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "patriotic",
+        "satirical",
+        "defensive",
+        "ominous"
+      ],
+      "sha256": "59e930da6593f1858876467f1c2426399d003b4b5733836f17da9baf594877ea",
+      "text_like_element_prominence": 70,
+      "visual_clutter_score": 55,
+      "visual_competition": [
+        {
+          "competes_with": "TAXES/REGULATIONS text sacks",
+          "element": "Union Jack flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Massive cargo pile",
+          "element": "Man in top hat",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Bright flag and labels",
+          "element": "Horse's head and motion",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 85
+    },
+    "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:13.040202+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "face of the woman",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "raised keys in her right hand",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "navy blazer and pearl jewellery",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "brick house facade behind her",
+          "rank": 4
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "woman holding two silver keys at shoulder height",
+        "styled blonde bouffant hair",
+        "navy blue tailored jacket",
+        "multi-strand pearl necklace",
+        "pearl drop earrings",
+        "two-storey brick house with white sash windows",
+        "black front door with white pediment",
+        "pink flowering bushes and green hedges",
+        "paved path and garden setting"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 25,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "house keys",
+        "pearl necklace and earrings",
+        "formal navy blazer",
+        "suburban brick house",
+        "pearl bracelet"
+      ],
+      "dominant_visual_message_confidence": 0.84,
+      "dominant_visual_subject": "Margaret Thatcher-like woman in a navy blazer holding silver keys aloft",
+      "emotional_energy": "medium",
+      "face_prominence": 85,
+      "first_impression_message": "A recognisable older woman in formal attire holds house keys before a suburban home, projecting ownership or authority.",
+      "first_object_noticed": "raised hand holding two silver keys",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "shiny silver keys against dark navy sleeve and soft background",
+      "image_basename": "tg_6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "two-storey brick house with white windows filling the background",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "set of house keys",
+      "optimistic_tone": 55,
+      "patriotic_tone": 20,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "calm",
+        "triumphant",
+        "optimistic"
+      ],
+      "sha256": "50c916e59dce543590ec22417469973f7de3003c9841e67f113b4da497bd4732",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "woman's face and keys",
+          "element": "house background",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "keys",
+          "element": "pearl necklace",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 35,
+      "warning_tone": 10
+    },
+    "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:19.084511+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Fallen bronze bust of the leader",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Red flag with hammer and sickle on the ground",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Red flag hanging on ruined building",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.6,
+          "element": "Crowd of men in coats standing amid ruins",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Smoke and distant ornate buildings",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Large metallic bust lying on its side on rocks",
+        "Bearded male face with closed eyes on the statue",
+        "Red cloth with gold hammer-and-sickle symbol on rubble",
+        "Second red flag with yellow hammer-and-sickle on building",
+        "Heavily damaged multi-story building with empty windows",
+        "Scattered concrete rubble and broken stones",
+        "Several men in dark coats standing and looking toward the scene",
+        "Thick dark smoke rising in the sky",
+        "Distant towers with spires in the background"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 85,
+      "dominant_symbols": [
+        "Hammer and sickle",
+        "Fallen statue",
+        "Red Soviet flag",
+        "Rubble and ruins",
+        "Smoke"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Toppled bronze bust of a bearded man (Lenin-like) lying on rubble",
+      "emotional_energy": "medium",
+      "face_prominence": 70,
+      "first_impression_message": "A fallen Soviet leader statue amid rubble and red flags signals the collapse of communist power.",
+      "first_object_noticed": "Fallen statue head and shoulders in the foreground",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Gold hammer-and-sickle on the dark red flag near the statue",
+      "image_basename": "tg_7d6ced255a74d563b6ba9811429970c51f605647aac25819e14104f836d93434.png",
+      "inspirational_tone": 10,
+      "largest_visual_element": "The ruined building facade and hanging red flag",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 5,
+      "patriotic_tone": 20,
+      "primary_tone": "mournful",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "reflective",
+        "warning"
+      ],
+      "sha256": "8b769b6c89fc2d45d214cdc39fef3f27a9149052bc64e022466323ab6dd06f63",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 55,
+      "visual_competition": [
+        {
+          "competes_with": "Ground flag with hammer and sickle",
+          "element": "Fallen statue",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Foreground statue and flag",
+          "element": "Hanging red flag on building",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Ruined architecture and smoke",
+          "element": "Group of standing men",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 45,
+      "warning_tone": 55
+    },
+    "tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:27.394960+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Candle flames and red flowers near the woman’s hands",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Young woman’s face and bowed posture in profile",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.78,
+          "element": "Engraved portraits on the memorial wall",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Red hammer-and-sickle flag in the upper background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Elderly man holding flowers in the mid-ground",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "Cluster of lit white pillar candles on a dark ledge",
+        "Bouquet of deep-red carnations held by a woman’s hand",
+        "Grid of engraved male portrait plaques on a dark stone wall",
+        "Red flag with yellow hammer and sickle in the misty background",
+        "Young woman in dark coat and scarf looking down",
+        "Older man in flat cap and coat holding red flowers",
+        "Foggy outdoor setting with trees faintly visible",
+        "Warm candlelight glow on the wall and flowers"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 45,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "red carnations",
+        "memorial candles",
+        "hammer and sickle flag",
+        "engraved portrait plaques",
+        "elderly man in flat cap"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Young woman in profile placing a bouquet of red carnations at a candle-lit memorial wall of engraved portraits",
+      "emotional_energy": "low",
+      "face_prominence": 55,
+      "first_impression_message": "A solemn memorial tribute: a young woman places red flowers at a wall of portraits lit by candles, under a Soviet flag.",
+      "first_object_noticed": "Lit white candles and red carnations in the lower left foreground",
+      "focal_clarity_score": 75,
+      "highest_contrast_element": "Bright candle flames and glowing red flowers against the dark wall and muted foggy background",
+      "image_basename": "tg_7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "The dark engraved memorial wall with multiple male portraits filling the left side",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle on the red flag",
+      "optimistic_tone": 15,
+      "patriotic_tone": 65,
+      "primary_tone": "mournful",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "reflective",
+        "patriotic",
+        "resolute"
+      ],
+      "sha256": "b0417c37ede24c59a9995aa531cf1385e1f3270d8652cb4d9c004b115b7230f9",
+      "text_like_element_prominence": 25,
+      "visual_clutter_score": 35,
+      "visual_competition": [
+        {
+          "competes_with": "Young woman and flowers at the wall",
+          "element": "Hammer and sickle flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Foreground woman and candles",
+          "element": "Elderly man with flowers",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Single living faces and bright candles",
+          "element": "Multiple wall portraits",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 10
+    },
+    "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:35.013830+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Suited man with phone on sunlit left side",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Large red hammer-and-sickle flags",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Line of drab-clothed men walking away on right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.72,
+          "element": "Smoking factory chimneys and dark sky",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Colorful fruit and vegetable market stalls",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "vertical split down the middle",
+        "man in navy suit and white shirt walking toward viewer",
+        "smartphone in his right hand",
+        "golden sunlight through green trees",
+        "skyscrapers and open market stalls with produce",
+        "multiple large red flags with yellow hammer and sickle",
+        "tall smokestacks belching black smoke",
+        "queue of men in muted jackets carrying bags and backpacks",
+        "cobblestone street continuing across both sides",
+        "person with laptop at left market table"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 82,
+      "dominant_symbols": [
+        "hammer and sickle flags",
+        "smartphone",
+        "business suit",
+        "market produce stalls",
+        "industrial smokestacks",
+        "queue of workers",
+        "paper bags",
+        "back packs"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Side-by-side diptych contrasting a sunny modern city market with a smoky factory under red flags",
+      "emotional_energy": "high",
+      "face_prominence": 35,
+      "first_impression_message": "Stark split: bright free market prosperity vs grim communist industrial oppression",
+      "first_object_noticed": "Young man in blue suit walking forward holding a phone on the bright left half",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Bright golden sunlight and greenery against dark smoke, grey buildings and red flags",
+      "image_basename": "tg_7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "The vertical split composition filling the frame with left sunny street and right industrial avenue",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Yellow hammer and sickle on large red flags",
+      "optimistic_tone": 55,
+      "patriotic_tone": 25,
+      "primary_tone": "warning",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "optimistic",
+        "ominous",
+        "confrontational",
+        "reflective"
+      ],
+      "sha256": "acdead7aeb311cea7283f0d29b80d6e1d308a8a42d342fc477ccdac10a7d489e",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Dark right half with flags and queue",
+          "element": "Bright left half with central figure",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Prosperous city skyline and trees",
+          "element": "Red communist flags",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Anonymous group of workers",
+          "element": "Individual confident walker",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 70,
+      "warning_tone": 75
+    },
+    "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:41.553458+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.9,
+          "element": "Laughing couple with shopping bags on left",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Red hammer-and-sickle flag on right",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Elderly woman with plastic bag in foreground right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Long queue of men in coats",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Warm cafe awnings and flowers on left",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "split vertical composition left warm right cool",
+        "woman white dress laughing holding bags",
+        "man blue shirt khaki pants smiling with bags",
+        "red flag with yellow hammer and sickle",
+        "line of men in dark coats facing away",
+        "elderly woman headscarf coat plastic bag",
+        "factory chimney and smoke",
+        "cobblestones and wet street right",
+        "cafe awnings flowers trees left"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 75,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "shopping bags",
+        "queue of people",
+        "smiling couple",
+        "industrial smoke",
+        "cobblestone street"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Split-screen comparison of joyful couple with shopping bags and bleak street with hammer-and-sickle flag and waiting line",
+      "emotional_energy": "medium",
+      "face_prominence": 55,
+      "first_impression_message": "Bright happy Western shopping couple vs grim Soviet-style queue and flag — prosperity vs scarcity contrast",
+      "first_object_noticed": "Laughing woman in white dress carrying shopping bags on the sunlit left side",
+      "focal_clarity_score": 70,
+      "highest_contrast_element": "Red hammer-and-sickle flag against the muted gray buildings and smoke",
+      "image_basename": "tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "The two full-height side-by-side street scenes filling the frame",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Yellow hammer and sickle on red flag",
+      "optimistic_tone": 60,
+      "patriotic_tone": 25,
+      "primary_tone": "satirical",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "optimistic",
+        "ominous",
+        "warning",
+        "reflective"
+      ],
+      "sha256": "c23f6a374a45a548fbcec9d004ba45c454b4e84980a73ea21fefccce2ef2bef8",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Right grim industrial street",
+          "element": "Left sunny couple scene",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Elderly woman face and bag",
+          "element": "Red flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Queue of coats",
+          "element": "Shopping bags",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 80,
+      "warning_tone": 55
+    },
+    "tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:47.233753+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and stern expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Held spine model",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "RENT-A-SPINE storefront sign",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Spines displayed in shop window",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Blue blazer and pearls",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "Large blue RENT-A-SPINE lettering on white sign",
+        "Woman holding vertical beige spine model",
+        "Three spines standing in shop window",
+        "Bright royal-blue blazer",
+        "Pearl necklace and earrings",
+        "Turquoise shop window frames"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 82,
+      "dominant_symbols": [
+        "spine model",
+        "shop sign",
+        "power suit",
+        "pearl necklace"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Older blonde woman in blue blazer holding a spine model",
+      "emotional_energy": "medium",
+      "face_prominence": 85,
+      "first_impression_message": "A stern older woman in a power suit stands outside a shop advertising spines for rent, holding a large backbone.",
+      "first_object_noticed": "Woman's face and the spine she is holding",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Blue 'RENT-A-SPINE' sign against white background",
+      "image_basename": "tg_824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af.png",
+      "inspirational_tone": 15,
+      "largest_visual_element": "Woman's upper body and the large spine model",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Human spine / backbone model",
+      "optimistic_tone": 15,
+      "patriotic_tone": 10,
+      "primary_tone": "satirical",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "confrontational",
+        "resolute"
+      ],
+      "sha256": "fba8ed09a9d26ed202f59e524f9efb4a8e8919f7a94b10cb5be1e4f51f77df25",
+      "text_like_element_prominence": 80,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "Woman's face and held spine",
+          "element": "Storefront sign",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Held spine",
+          "element": "Window spines",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 25
+    },
+    "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:52.110481+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Speaker's face and mustache",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Pointing right hand gesture",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Row of medals on chest",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Union Jack flag in background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Microphone and wooden podium",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 35,
+      "concrete_visual_evidence": [
+        "Man pointing index finger forward",
+        "Dark navy double-breasted suit",
+        "Colorful medal ribbons on left lapel",
+        "Mustache and grey hair",
+        "Union Jack hanging behind",
+        "Green leather benches",
+        "Wooden podium and black microphone",
+        "White shirt and dark tie"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 30,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "Union Jack flag",
+        "military medals on lapel",
+        "microphone on podium",
+        "formal parliamentary chamber seating"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Older man in dark double-breasted suit with medals, speaking and pointing from a wooden podium",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A senior statesman in formal attire delivers an emphatic parliamentary speech while pointing decisively.",
+      "first_object_noticed": "The man's face and raised pointing hand",
+      "focal_clarity_score": 82,
+      "highest_contrast_element": "White shirt collar and medal ribbons against the navy suit",
+      "image_basename": "tg_8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d.png",
+      "inspirational_tone": 55,
+      "largest_visual_element": "The speaker's dark suit and upper body filling the right-center frame",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Union Jack flag",
+      "optimistic_tone": 40,
+      "patriotic_tone": 75,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "patriotic",
+        "confrontational",
+        "inspirational"
+      ],
+      "sha256": "61a8bc7842fe4b83170e52b8c10a3a454d613ef6dcc8d8bca0828f269ac0e000",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 40,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker's face",
+          "element": "Background Union Jack",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Pointing hand",
+          "element": "Chest medals",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Main subject",
+          "element": "Blurred seated figures",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 35,
+      "warning_tone": 25
+    },
+    "tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:45:59.325986+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Thatcher’s face and open mouth",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Outstretched pointing right hand",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.82,
+          "element": "Bright blue jacket",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Blurred male MPs reacting in background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.35,
+          "element": "Microphone and wooden despatch box",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "Woman’s mouth open mid-shout",
+        "Right index finger extended toward viewer/camera left",
+        "Bright saturated blue tailored jacket",
+        "Blonde bouffant hair with volume",
+        "Silver brooch on left lapel",
+        "Black gooseneck microphone in foreground",
+        "Wooden carved despatch box with papers",
+        "Rows of men in dark suits on green benches"
+      ],
+      "defensive_tone": 55,
+      "distracting_symbol_score": 30,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "pointing finger",
+        "blue power suit",
+        "parliamentary green benches",
+        "microphone stand",
+        "despatch-box papers"
+      ],
+      "dominant_visual_message_confidence": 0.92,
+      "dominant_visual_subject": "Margaret Thatcher in a bright blue suit, mid-speech and pointing forward",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A forceful political leader is angrily confronting opponents while speaking in a packed assembly.",
+      "first_object_noticed": "Thatcher’s face and open mouth with raised pointing finger",
+      "focal_clarity_score": 88,
+      "highest_contrast_element": "Vivid blue suit against muted green benches and dark suits",
+      "image_basename": "tg_8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906.png",
+      "inspirational_tone": 30,
+      "largest_visual_element": "Thatcher’s royal-blue jacket and upper body filling the foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Margaret Thatcher’s face and iconic blonde bouffant hairstyle",
+      "optimistic_tone": 15,
+      "patriotic_tone": 25,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "angry",
+        "defensive"
+      ],
+      "sha256": "6485415df1f74c8b5626f83294e48713ad96e78fd816dbef04b9a2e4b7e16ee9",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 40,
+      "visual_competition": [
+        {
+          "competes_with": "central speaker",
+          "element": "Background MPs with raised hands and open mouths",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "blue suit",
+          "element": "Green patterned benches",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 35,
+      "warning_tone": 45
+    },
+    "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:05.504960+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Thatcher's face and upper body",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Large Union Jack flag",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Cluster of microphones",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Wooden podium",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Blurred soldiers on either side",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 70,
+      "concrete_visual_evidence": [
+        "Centered older woman with distinctive blonde hair and stern expression",
+        "Navy blue suit jacket with pearl necklace and brooch",
+        "Three black microphones on flexible stands",
+        "Polished wooden podium with hand resting on edge",
+        "Massive waving Union Jack behind her",
+        "Two out-of-focus soldiers in helmets and camouflage flanking the scene",
+        "Cloudy sky visible around the flag"
+      ],
+      "defensive_tone": 40,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "Union Jack",
+        "microphones",
+        "podium",
+        "military helmets and camouflage",
+        "pearl necklace and brooch"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Margaret Thatcher standing at a wooden podium in a navy suit with pearls, speaking into microphones.",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A stern British leader at a podium projecting wartime resolve under a huge Union Jack, flanked by soldiers.",
+      "first_object_noticed": "Thatcher's face and blonde bouffant hairstyle centered in the frame.",
+      "focal_clarity_score": 80,
+      "highest_contrast_element": "Dark navy suit and black microphones against the bright red-white-blue flag and lighter sky.",
+      "image_basename": "tg_8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003.png",
+      "inspirational_tone": 55,
+      "largest_visual_element": "The oversized Union Jack flag filling the background.",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Union Jack flag",
+      "optimistic_tone": 25,
+      "patriotic_tone": 90,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "patriotic",
+        "confrontational",
+        "warning"
+      ],
+      "sha256": "b38dc848b990c202e5b6cafe379a1857ce2874d10ed70f7fddd5f9ff6d521d9c",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "Thatcher's face and figure",
+          "element": "Union Jack flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "lower face and chest",
+          "element": "Microphones",
+          "severity": "low"
+        },
+        {
+          "competes_with": "central subject",
+          "element": "Background soldiers",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 45
+    },
+    "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:13.359769+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Red Soviet flag with hammer and sickle",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Uniformed guard and dirty prisoners behind barbed wire",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Smiling couple at sunlit café table",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Russian flag held in bright street background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.6,
+          "element": "Watchtower and barbed wire fence",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "red flag with yellow hammer and sickle",
+        "barbed-wire fence in foreground",
+        "concrete watchtower",
+        "uniformed man in peaked cap",
+        "group in dirty dark clothing and hoods",
+        "smiling man and woman with coffee cups",
+        "Russian white-blue-red flag",
+        "sunlit trees and café umbrellas",
+        "split vertical composition"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 55,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "barbed wire",
+        "watchtower",
+        "Russian tricolour flag",
+        "military uniform",
+        "coffee cups"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Split diptych of left-side camp prisoners with guard and hammer-sickle flag versus right-side smiling couple at outdoor café with Russian flag.",
+      "emotional_energy": "high",
+      "face_prominence": 70,
+      "first_impression_message": "Stark contrast: grim Soviet oppression and suffering versus modern free joyful café life under a Russian flag.",
+      "first_object_noticed": "Red Soviet flag with yellow hammer and sickle on the left.",
+      "focal_clarity_score": 75,
+      "highest_contrast_element": "Bright red Soviet flag against dark grey sky and camp.",
+      "image_basename": "tg_90af9e1629ef38b0590076820045b36c3540189f849fc38d7cdbbbea4ae2c1b2.png",
+      "inspirational_tone": 65,
+      "largest_visual_element": "Soviet guard and prisoners behind barbed wire on the left half.",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle on the red flag.",
+      "optimistic_tone": 80,
+      "patriotic_tone": 70,
+      "primary_tone": "triumphant",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "optimistic",
+        "mournful",
+        "patriotic",
+        "reflective"
+      ],
+      "sha256": "02004b2cca2df1c5199bd50b0b8ababffb464bdccb6d4eb7c82647a3dc52f18e",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 40,
+      "visual_competition": [
+        {
+          "competes_with": "Right bright café scene",
+          "element": "Left dark camp scene",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Russian flag",
+          "element": "Soviet flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Smiling couple faces",
+          "element": "Barbed wire and prisoners",
+          "severity": "high"
+        }
+      ],
+      "visual_competition_score": 85,
+      "warning_tone": 40
+    },
+    "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png": {
+      "ambiguity": "medium",
+      "analysed_at": "2026-07-12T18:46:19.934199+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "golden hammer and sickle",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Margaret Thatcher face and upper body",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "silhouetted leader with red beams",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "sunburst behind Thatcher",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "wooden podium",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "vertical split into two equal panels",
+        "large gold hammer and sickle on red field",
+        "back-view man in long coat arms wide",
+        "red light beams from his hands and base",
+        "crowd silhouettes below left figure",
+        "recognisable Margaret Thatcher in blue suit",
+        "pearl necklace and earrings",
+        "wooden podium with dual microphones",
+        "bright radial light behind her head",
+        "audience heads in foreground right"
+      ],
+      "defensive_tone": 25,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 75,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "Margaret Thatcher face",
+        "radiant sunburst light",
+        "podium and microphones",
+        "red spotlight beams",
+        "pearl necklace"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "Two-panel political diptych: silhouetted man under hammer and sickle versus Margaret Thatcher at podium",
+      "emotional_energy": "high",
+      "face_prominence": 55,
+      "first_impression_message": "Split-screen contrast of a red communist leader versus Margaret Thatcher as a radiant democratic speaker",
+      "first_object_noticed": "Golden hammer and sickle on deep red background",
+      "focal_clarity_score": 70,
+      "highest_contrast_element": "Bright golden hammer-and-sickle emblem against solid red",
+      "image_basename": "tg_91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f.png",
+      "inspirational_tone": 60,
+      "largest_visual_element": "Silhouetted figure with arms outstretched on the left panel",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 50,
+      "patriotic_tone": 55,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "triumphant",
+        "ominous",
+        "patriotic",
+        "inspirational"
+      ],
+      "sha256": "522fbe4a788828b71329dc9336fa5796048936d21680dcf4393a0a31eb94246f",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 35,
+      "visual_competition": [
+        {
+          "competes_with": "right golden panel with Thatcher",
+          "element": "left red panel with hammer-sickle silhouette",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Thatcher's face",
+          "element": "hammer and sickle emblem",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "sunburst rays",
+          "element": "red spotlight rays",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 75,
+      "warning_tone": 45
+    },
+    "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:26.169544+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Speaker's face and open mouth",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Raised pointing right hand",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "Navy blue suit and pearl necklace",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Microphones on podium",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Blurred dense crowd background",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "Woman in navy suit at blue podium",
+        "Right arm raised with index finger extended",
+        "Mouth open mid-speech",
+        "Two black microphones in front",
+        "Pearl necklace, bracelet and earrings",
+        "Union Jack lapel pin",
+        "Dense out-of-focus audience filling background",
+        "Daylight outdoor setting"
+      ],
+      "defensive_tone": 25,
+      "distracting_symbol_score": 15,
+      "dominant_subject_strength": 92,
+      "dominant_symbols": [
+        "Union Jack pin",
+        "Pearl necklace and earrings",
+        "Dual microphones",
+        "Blue podium",
+        "Raised pointing hand"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Margaret Thatcher speaking at a podium with raised hand",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A determined female leader is passionately addressing a huge outdoor crowd from a podium.",
+      "first_object_noticed": "Raised right hand with pointing finger",
+      "focal_clarity_score": 88,
+      "highest_contrast_element": "Dark navy jacket against bright, out-of-focus crowd",
+      "image_basename": "tg_a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac.png",
+      "inspirational_tone": 75,
+      "largest_visual_element": "Blue podium and speaker's torso in navy suit",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Small Union Jack pin on lapel",
+      "optimistic_tone": 45,
+      "patriotic_tone": 70,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "inspirational",
+        "patriotic",
+        "confrontational"
+      ],
+      "sha256": "cf5edae4489663f050d0de1c94dc27409acfe65164a0b8093091979c93980011",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 30,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker's face",
+          "element": "Raised hand gesture",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Central figure",
+          "element": "Large blurred crowd",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Suit jacket",
+          "element": "Blue podium surface",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 25,
+      "warning_tone": 20
+    },
+    "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:33.316776+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and determined expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Red flag with yellow hammer and sickle",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Navy suit, pearls and podium microphones",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Blurred soldiers and smoky battlefield background",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.3,
+          "element": "Barbed wire in lower left",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 48,
+      "concrete_visual_evidence": [
+        "Sharp close-up of older woman with styled blonde hair",
+        "Navy blue tailored jacket and pearl necklace",
+        "Two black microphones on wooden podium",
+        "Torn red flag with yellow hammer and sickle",
+        "Blurred helmeted soldiers in smoke",
+        "Barbed wire in lower left foreground",
+        "Gold brooch on jacket lapel"
+      ],
+      "defensive_tone": 45,
+      "distracting_symbol_score": 55,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "red Soviet-style flag",
+        "pearl necklace",
+        "microphones at podium",
+        "barbed wire",
+        "soldiers in helmets"
+      ],
+      "dominant_visual_message_confidence": 0.84,
+      "dominant_visual_subject": "Margaret Thatcher-like woman in a dark blue suit and pearl necklace at a wooden podium with microphones",
+      "emotional_energy": "high",
+      "face_prominence": 82,
+      "first_impression_message": "A stern female leader speaks firmly at a podium against a warlike Soviet backdrop.",
+      "first_object_noticed": "Woman's face and blonde bouffant hairstyle",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Gold hammer-and-sickle emblem on the bright red flag",
+      "image_basename": "tg_a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "Woman's upper body and navy jacket filling the right foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle on the red flag",
+      "optimistic_tone": 20,
+      "patriotic_tone": 35,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "confrontational",
+        "ominous",
+        "warning"
+      ],
+      "sha256": "4b4005fa215e4925beaca039ad601116b8db15195e33ddc58df73d1489b184bd",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Woman's face and upper body",
+          "element": "Red hammer-and-sickle flag",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Podium speaker",
+          "element": "Battlefield soldiers and smoke",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Podium base",
+          "element": "Barbed wire",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 62,
+      "warning_tone": 65
+    },
+    "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:40.818231+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Karl Marx portrait",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Red hammer-and-sickle book",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.75,
+          "element": "World map with red highlights",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Men in military and traditional dress around the table",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Pointing suited man with glasses",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 35,
+      "concrete_visual_evidence": [
+        "Massive painted Marx face dominating upper composition",
+        "Red hardcover book bearing yellow hammer and sickle",
+        "World map on table with several continents tinted red",
+        "Men in olive military uniforms with insignia",
+        "Man wearing red-and-white checkered keffiyeh",
+        "Man in black fez-style cap",
+        "Suited figures gesturing and holding the book",
+        "Sepia-toned cloudy background"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "Hammer and sickle",
+        "World map with red regions",
+        "Military uniforms and caps",
+        "Arab keffiyeh headscarf",
+        "Formal Western suits"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "Oversized portrait of Karl Marx above a group of men studying a world map",
+      "emotional_energy": "medium",
+      "face_prominence": 85,
+      "first_impression_message": "A stern Marx looms over leaders around a red-marked world map, suggesting communist global planning.",
+      "first_object_noticed": "Large white-bearded face of Karl Marx at the top center",
+      "focal_clarity_score": 70,
+      "highest_contrast_element": "Bright red book with yellow hammer-and-sickle against dark suits",
+      "image_basename": "tg_ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e.png",
+      "inspirational_tone": 25,
+      "largest_visual_element": "Karl Marx’s head and upper torso filling the upper half",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle emblem on the red book",
+      "optimistic_tone": 15,
+      "patriotic_tone": 20,
+      "primary_tone": "ominous",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "resolute",
+        "confrontational",
+        "warning"
+      ],
+      "sha256": "98dd99ef232478bd65ef5719484cebbb37f91ccc8f5fab652eb7e443dc4bcfe0",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 50,
+      "visual_competition": [
+        {
+          "competes_with": "Cluster of diverse leaders",
+          "element": "Marx portrait",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Red map regions",
+          "element": "Red book symbol",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Map surface",
+          "element": "Foreground back-of-head figure",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 45,
+      "warning_tone": 65
+    },
+    "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:46.123020+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Woman's face",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.78,
+          "element": "Bright lightning over Europe map",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Navy suit and pearl necklace",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Black microphones",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Wooden podium",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 72,
+      "concrete_visual_evidence": [
+        "Close-up of older woman with voluminous blonde hair",
+        "Navy blue blazer with gold brooch",
+        "Multi-strand pearl necklace",
+        "Two black gooseneck microphones",
+        "Wooden podium edge",
+        "Background map showing British Isles, Iberia, Italy, Scandinavia",
+        "Dark storm clouds with bright light rays and lightning",
+        "Serious upward gaze and open mouth as if speaking"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 45,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "Map of Europe",
+        "Lightning and storm clouds",
+        "Podium microphones",
+        "Pearl necklace",
+        "Navy formal jacket",
+        "Gold brooch"
+      ],
+      "dominant_visual_message_confidence": 0.82,
+      "dominant_visual_subject": "Older woman with styled blonde hair in a navy suit speaking at a wooden podium",
+      "emotional_energy": "medium",
+      "face_prominence": 78,
+      "first_impression_message": "A stern female political leader addresses the public from a podium against a stormy map of Europe.",
+      "first_object_noticed": "Woman's face and expression",
+      "focal_clarity_score": 74,
+      "highest_contrast_element": "Bright lightning-like light burst against dark storm clouds",
+      "image_basename": "tg_c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "Stormy Europe map backdrop filling most of the frame",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Map of Europe",
+      "optimistic_tone": 20,
+      "patriotic_tone": 35,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "confrontational",
+        "warning"
+      ],
+      "sha256": "9ac59889250238b87d0b180f9a664161526151645a5c4116b1ad29cecaf9d817",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 35,
+      "visual_competition": [
+        {
+          "competes_with": "Speaker's face and upper body",
+          "element": "Stormy Europe map with lightning",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Speaker's torso",
+          "element": "Dark microphones",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 48,
+      "warning_tone": 55
+    },
+    "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png": {
+      "ambiguity": "medium",
+      "analysed_at": "2026-07-12T18:46:53.009686+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Older woman's serious face and gaze",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Young smiling woman taking selfie",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Ring light and bright modern setting",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.62,
+          "element": "Golden trophy and gift boxes",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Papers, pen and dark wooden desk on left",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 40,
+      "concrete_visual_evidence": [
+        "Split-screen composition left dark right bright",
+        "Older woman in navy blazer with pearls writing",
+        "Young blonde woman in white blazer holding phone up",
+        "Circular ring light behind right figure",
+        "Gold trophy and pink-ribboned boxes on right desk",
+        "Stacks of documents and open notebook on left desk",
+        "Laptop open on white desk right",
+        "Bookshelf and lamp visible left background"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 45,
+      "dominant_subject_strength": 82,
+      "dominant_symbols": [
+        "golden trophy",
+        "pink gift boxes",
+        "ring light",
+        "smartphone held for selfie",
+        "stack of papers and pen",
+        "pearl necklace",
+        "laptop"
+      ],
+      "dominant_visual_message_confidence": 0.84,
+      "dominant_visual_subject": "Side-by-side comparison of two women at desks: serious older executive writing versus smiling young influencer taking a selfie",
+      "emotional_energy": "medium",
+      "face_prominence": 85,
+      "first_impression_message": "A stern older professional woman working seriously contrasts with a glamorous young woman smiling for a selfie amid trophies and gifts.",
+      "first_object_noticed": "Face of the older blonde woman in navy suit on the left",
+      "focal_clarity_score": 78,
+      "highest_contrast_element": "Bright ring light and pale clothing/background on the right versus dark bookshelves and navy suit on the left",
+      "image_basename": "tg_cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e.png",
+      "inspirational_tone": 25,
+      "largest_visual_element": "The two half-frame portraits of the women filling most of the composition",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Golden trophy cup on the right desk",
+      "optimistic_tone": 40,
+      "patriotic_tone": 5,
+      "primary_tone": "confrontational",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "satirical",
+        "reflective",
+        "optimistic"
+      ],
+      "sha256": "1c9d5f0854195b3bd26298b0365a4390e1cefcdadbb675111a2457095eac4a17",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 48,
+      "visual_competition": [
+        {
+          "competes_with": "Right glamorous selfie portrait",
+          "element": "Left serious portrait",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Bright modern office with ring light",
+          "element": "Dark traditional office background",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Trophy and pink gifts",
+          "element": "Work papers and pen",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 75,
+      "warning_tone": 20
+    },
+    "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:46:59.363943+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Face and determined expression",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.9,
+          "element": "Raised right fist",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Navy blue suit and pearl jewelry",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Cluster of black microphones",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Wooden podium",
+          "rank": 5
+        },
+        {
+          "attention_strength": 0.3,
+          "element": "Blurred Union Jack flag",
+          "rank": 6
+        }
+      ],
+      "background_dominance": 25,
+      "concrete_visual_evidence": [
+        "Woman with styled blonde hair and pearl earrings",
+        "Clenched right fist raised near shoulder",
+        "Open mouth mid-speech",
+        "Navy blue blazer over blue top",
+        "Pearl necklace and jeweled brooch",
+        "Multiple black microphones on stands",
+        "Brown wooden podium",
+        "Partial Union Jack flag in soft focus"
+      ],
+      "defensive_tone": 20,
+      "distracting_symbol_score": 20,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "raised fist",
+        "microphones",
+        "pearl necklace",
+        "Union Jack flag",
+        "podium"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Woman in blue suit at wooden podium with raised right fist",
+      "emotional_energy": "high",
+      "face_prominence": 88,
+      "first_impression_message": "A powerful female leader speaking firmly with a raised fist at a podium.",
+      "first_object_noticed": "Raised clenched fist and face of the speaker",
+      "focal_clarity_score": 85,
+      "highest_contrast_element": "Light skin and blonde hair against dark blue background",
+      "image_basename": "tg_d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f.png",
+      "inspirational_tone": 75,
+      "largest_visual_element": "Woman's upper body and navy blue suit",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Raised fist gesture",
+      "optimistic_tone": 40,
+      "patriotic_tone": 70,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "inspirational",
+        "patriotic",
+        "confrontational"
+      ],
+      "sha256": "f904a13136da43e43ca5b3aa646a006354698eb3df68910759a4e0fedfbf627b",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 25,
+      "visual_competition": [
+        {
+          "competes_with": "Face",
+          "element": "Raised fist",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Fist and torso",
+          "element": "Microphones",
+          "severity": "low"
+        },
+        {
+          "competes_with": "Speaker",
+          "element": "Background flag",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 30,
+      "warning_tone": 15
+    },
+    "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:47:05.626163+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Central woman's face and steady gaze",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Navy suit, pearls and podium with mics",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Shouting men with raised fists on left and right",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Blurred angry crowd and haze in the background",
+          "rank": 4
+        }
+      ],
+      "background_dominance": 35,
+      "concrete_visual_evidence": [
+        "Sharp-focused woman centered behind dual microphones",
+        "Navy tailored jacket with brooch and pearl necklace",
+        "Men on both sides shouting with raised fists and papers",
+        "Dark smoky out-of-focus chamber background",
+        "Wooden podium edge across the bottom"
+      ],
+      "defensive_tone": 55,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 90,
+      "dominant_symbols": [
+        "pearl necklace",
+        "microphones",
+        "wooden podium",
+        "raised fists",
+        "shouting mouths",
+        "crumpled papers",
+        "brooch"
+      ],
+      "dominant_visual_message_confidence": 0.86,
+      "dominant_visual_subject": "Margaret Thatcher-like woman in a navy suit at a wooden podium with microphones",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A stern female leader stands calm at a podium while a hostile crowd rages behind her.",
+      "first_object_noticed": "Central woman's face and styled blonde hair",
+      "focal_clarity_score": 88,
+      "highest_contrast_element": "Pale face and blonde hair against the dark navy suit and smoky dark background",
+      "image_basename": "tg_d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd.png",
+      "inspirational_tone": 40,
+      "largest_visual_element": "The woman's upper body, navy jacket and podium in the foreground",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Pearl necklace and earrings with formal power-suit attire",
+      "optimistic_tone": 15,
+      "patriotic_tone": 25,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "confrontational",
+        "defensive",
+        "ominous"
+      ],
+      "sha256": "b62fa7c4089cabc6a1fbce0981f3c237406cab9ac7651f6e6104f03769244753",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 38,
+      "visual_competition": [
+        {
+          "competes_with": "Calm central portrait",
+          "element": "Angry open-mouthed faces and fists",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Foreground subject clarity",
+          "element": "Background smoke and crowd density",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 45,
+      "warning_tone": 35
+    },
+    "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:47:11.906304+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.95,
+          "element": "Woman's face and pointing hand",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Blue suit and pearl jewelry",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Podium and microphones",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Left-side crowd with numbered headbands",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.45,
+          "element": "Right-side civilian figures",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 45,
+      "concrete_visual_evidence": [
+        "Woman with styled blonde hair and pearls pointing forward",
+        "Navy blue suit jacket with lapel pin",
+        "Wooden podium and two black microphones",
+        "Crowd wearing white headbands with numbers like 6789 and 1207",
+        "Warm golden-beige atmospheric background",
+        "Mix of workers and suited civilians behind her"
+      ],
+      "defensive_tone": 30,
+      "distracting_symbol_score": 35,
+      "dominant_subject_strength": 88,
+      "dominant_symbols": [
+        "podium",
+        "microphones",
+        "pearl necklace",
+        "numbered headbands on workers",
+        "pointing gesture",
+        "blue suit"
+      ],
+      "dominant_visual_message_confidence": 0.9,
+      "dominant_visual_subject": "Margaret Thatcher-like woman in blue suit pointing forward at wooden podium with microphones",
+      "emotional_energy": "high",
+      "face_prominence": 85,
+      "first_impression_message": "A resolute woman leader points emphatically from a podium, backed by a large crowd of workers and civilians.",
+      "first_object_noticed": "Woman's face and forward-pointing hand",
+      "focal_clarity_score": 80,
+      "highest_contrast_element": "Dark blue suit against warm beige background",
+      "image_basename": "tg_e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37.png",
+      "inspirational_tone": 70,
+      "largest_visual_element": "Central woman in blue suit and podium",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Wooden podium with twin microphones",
+      "optimistic_tone": 50,
+      "patriotic_tone": 55,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "confrontational",
+        "inspirational",
+        "patriotic"
+      ],
+      "sha256": "f2963ba481f08bb270c9b9a5d3b180a15a7463a36bfff33a3bbdf869107283c0",
+      "text_like_element_prominence": 25,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Central pointing woman",
+          "element": "Background crowd of numbered workers",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Main speaker",
+          "element": "Right-side men and woman in civilian clothes",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 40,
+      "warning_tone": 25
+    },
+    "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:47:18.748303+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.9,
+          "element": "Broken hammer-and-sickle monument",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.85,
+          "element": "Red flag flying on pole",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.8,
+          "element": "Fallen stone bust head in foreground",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.7,
+          "element": "Fallen red flag on ground left",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.65,
+          "element": "Clock tower with star in background",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "massive cracked hammer-and-sickle sculpture on debris pile",
+        "tattered red flag with yellow hammer and sickle waving right",
+        "detached stone head of mustached man lying in rubble",
+        "second red flag draped over wreckage left foreground",
+        "red brick tower with clocks and star in misty distance",
+        "scattered bricks, beams, and ruined classical columns",
+        "heavy dark clouds and smoke over the city"
+      ],
+      "defensive_tone": 15,
+      "distracting_symbol_score": 40,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "hammer and sickle",
+        "red Soviet flag",
+        "fallen Lenin-like bust",
+        "Kremlin Spasskaya tower",
+        "ruins and rubble"
+      ],
+      "dominant_visual_message_confidence": 0.88,
+      "dominant_visual_subject": "Fallen communist symbols amid rubble and a ruined Moscow-like cityscape",
+      "emotional_energy": "medium",
+      "face_prominence": 45,
+      "first_impression_message": "Soviet power has collapsed into ruins under a dark sky.",
+      "first_object_noticed": "Broken stone hammer and sickle statue on a rubble mound",
+      "focal_clarity_score": 70,
+      "highest_contrast_element": "Red flag with gold hammer and sickle against the grey sky",
+      "image_basename": "tg_f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d.png",
+      "inspirational_tone": 10,
+      "largest_visual_element": "Overcast stormy sky filling the upper frame",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 5,
+      "patriotic_tone": 25,
+      "primary_tone": "mournful",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "ominous",
+        "reflective",
+        "warning"
+      ],
+      "sha256": "6dec2b9cd288e863cea541bec391aa69f1a8190a8ab0844c7fefc0d5136f2c11",
+      "text_like_element_prominence": 5,
+      "visual_clutter_score": 60,
+      "visual_competition": [
+        {
+          "competes_with": "Broken hammer-and-sickle statue",
+          "element": "Flying red flag",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Central hammer-and-sickle monument",
+          "element": "Fallen bust head",
+          "severity": "medium"
+        },
+        {
+          "competes_with": "Foreground rubble and symbols",
+          "element": "Background Kremlin tower",
+          "severity": "low"
+        }
+      ],
+      "visual_competition_score": 45,
+      "warning_tone": 55
+    },
+    "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png": {
+      "ambiguity": "low",
+      "analysed_at": "2026-07-12T18:47:24.891363+00:00",
+      "analysis_kind": "image_first_impression",
+      "attention_hierarchy": [
+        {
+          "attention_strength": 0.92,
+          "element": "Thatcher's raised stopping hand and face",
+          "rank": 1
+        },
+        {
+          "attention_strength": 0.88,
+          "element": "Glowing red UK map with hammer-and-sickle icons",
+          "rank": 2
+        },
+        {
+          "attention_strength": 0.55,
+          "element": "Navy suit, pearls and podium microphones",
+          "rank": 3
+        },
+        {
+          "attention_strength": 0.4,
+          "element": "Union Jack flag",
+          "rank": 4
+        },
+        {
+          "attention_strength": 0.25,
+          "element": "Blurred crowd background",
+          "rank": 5
+        }
+      ],
+      "background_dominance": 55,
+      "concrete_visual_evidence": [
+        "Raised open palm in stop gesture",
+        "Recognisable Margaret Thatcher portrait",
+        "Large red illuminated UK map on left",
+        "Three white hammer-and-sickle symbols on map",
+        "Navy blue suit and pearl necklace",
+        "Wooden podium with black microphones",
+        "Union Jack flag partially visible",
+        "Dark blurred audience area"
+      ],
+      "defensive_tone": 75,
+      "distracting_symbol_score": 65,
+      "dominant_subject_strength": 80,
+      "dominant_symbols": [
+        "Hammer and sickle",
+        "Map of the United Kingdom",
+        "Union Jack flag",
+        "Pearl necklace",
+        "Microphones and podium"
+      ],
+      "dominant_visual_message_confidence": 0.85,
+      "dominant_visual_subject": "Margaret Thatcher at a podium with a raised stopping hand",
+      "emotional_energy": "high",
+      "face_prominence": 70,
+      "first_impression_message": "A stern leader firmly rejects a glowing red communist threat over Britain.",
+      "first_object_noticed": "Raised open palm of Margaret Thatcher",
+      "focal_clarity_score": 75,
+      "highest_contrast_element": "Bright red UK map with hammer-and-sickle symbols against dark background",
+      "image_basename": "tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png",
+      "inspirational_tone": 45,
+      "largest_visual_element": "Glowing red map of the United Kingdom",
+      "model": "grok-4.5",
+      "most_recognisable_symbol": "Hammer and sickle",
+      "optimistic_tone": 25,
+      "patriotic_tone": 70,
+      "primary_tone": "resolute",
+      "prompt_version": "image-first-impression-v1",
+      "provenance": {
+        "independent_input": "raw_image_pixels_only",
+        "scores_are_model_judgements": true
+      },
+      "schema_version": 1,
+      "secondary_tones": [
+        "confrontational",
+        "warning",
+        "defensive",
+        "patriotic"
+      ],
+      "sha256": "e571ed517f83231a9a798627bad251811bf0c5e0a63d0a9d7b4098ffae7278bf",
+      "text_like_element_prominence": 15,
+      "visual_clutter_score": 45,
+      "visual_competition": [
+        {
+          "competes_with": "Thatcher's face and gesture",
+          "element": "Red glowing map",
+          "severity": "high"
+        },
+        {
+          "competes_with": "Podium and flag details",
+          "element": "Multiple hammer-and-sickle symbols",
+          "severity": "medium"
+        }
+      ],
+      "visual_competition_score": 70,
+      "warning_tone": 80
+    }
+  },
+  "prompt_version": "image-first-impression-v1",
+  "schema_version": 1
+}

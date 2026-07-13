@@ -1,0 +1,45 @@
+{
+  "ambiguous_requests": [],
+  "blocked": false,
+  "calls": [
+    {
+      "attempt": 1,
+      "cached_tokens": 128,
+      "call_id": "image:pairwise-readiness-first-impression:tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "completion_tokens": 754,
+      "cost_in_usd_ticks": 91940000,
+      "cost_usd": 0.009194,
+      "input_tokens": 2431,
+      "item_key": "pairwise-readiness-first-impression:tg_093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429.png",
+      "model": "grok-4.5",
+      "reasoning_tokens": 0,
+      "stage": "image",
+      "timestamp": "2026-07-12T23:29:43.580032+00:00",
+      "total_tokens": 3185
+    },
+    {
+      "attempt": 1,
+      "cached_tokens": 128,
+      "call_id": "image:pairwise-readiness-first-impression:tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png",
+      "completion_tokens": 847,
+      "cost_in_usd_ticks": 97520000,
+      "cost_usd": 0.009752,
+      "input_tokens": 2431,
+      "item_key": "pairwise-readiness-first-impression:tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png",
+      "model": "grok-4.5",
+      "reasoning_tokens": 0,
+      "stage": "image",
+      "timestamp": "2026-07-12T23:29:50.599270+00:00",
+      "total_tokens": 3278
+    }
+  ],
+  "created_at": "2026-07-12T23:29:37.333793+00:00",
+  "model": "grok-4.5",
+  "run_id": "pairwise_improved_pilot_20260713_fingerprint_supplement",
+  "schema_version": 2,
+  "status": "resumable",
+  "total_cost_in_usd_ticks": 189460000,
+  "total_cost_usd": 0.018946,
+  "updated_at": "2026-07-12T23:29:50.599311+00:00",
+  "usd_ticks_per_dollar": 10000000000
+}

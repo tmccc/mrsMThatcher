@@ -1,0 +1,24 @@
+{
+  "anthropic": {
+    "completed": 50,
+    "cost_usd": 0.5837520000000003,
+    "failed": 0,
+    "provider": "anthropic"
+  },
+  "gemini": {
+    "provider": "gemini",
+    "worker_error": "KeyError: 'normalised_input_hash'"
+  },
+  "grok": {
+    "completed": 50,
+    "cost_usd": 0.47149600000000014,
+    "failed": 0,
+    "provider": "grok"
+  },
+  "openai": {
+    "completed": 50,
+    "cost_usd": 0.9007850000000002,
+    "failed": 0,
+    "provider": "openai"
+  }
+}

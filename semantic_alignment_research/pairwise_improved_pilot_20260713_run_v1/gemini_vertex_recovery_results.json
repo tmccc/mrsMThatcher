@@ -1,0 +1,42 @@
+{
+  "failures": {},
+  "items": {
+    "b0605e236e6885411c16": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "b0605e236e6885411c16",
+      "less_distracting": "A",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "provider": "gemini",
+      "reason": "Candidate A's confrontational and forceful portrayal better matches the aggressive rhetoric of 'destroying' socialism and rolling back its frontiers. Both images use Margaret Thatcher as a proxy, which fits the quotation's tone and context.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai_recovery",
+      "would_publish_preferred": true
+    },
+    "f7919a292b295182ddf6": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "f7919a292b295182ddf6",
+      "less_distracting": "B",
+      "model": "gemini-3.1-pro-preview",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "provider": "gemini",
+      "reason": "Candidate A specifically includes visual symbols (hammer and sickle on a map of the UK) that represent the 'socialism' or 'communist threat' the quote refers to rolling back, directly illustrating the ideological conflict described. Candidate B strongly suggests wartime or military themes, which the quote specifically identifies as 'not about' in the instructions.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "vertex_ai_recovery",
+      "would_publish_preferred": true
+    }
+  },
+  "schema_version": 1
+}

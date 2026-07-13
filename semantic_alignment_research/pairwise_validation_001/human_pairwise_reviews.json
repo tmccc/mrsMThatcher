@@ -1,0 +1,539 @@
+{
+  "analysis_kind": "pairwise_human_reviews",
+  "items": {
+    "1419ae3f9a07198d29d6": {
+      "case_id": "1419ae3f9a07198d29d6",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:01:50.554434+00:00"
+    },
+    "151fb29e96491875b9ea": {
+      "case_id": "151fb29e96491875b9ea",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:01:16.999982+00:00"
+    },
+    "15b01ed0b7f0f7214a49": {
+      "case_id": "15b01ed0b7f0f7214a49",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:01:00.466850+00:00"
+    },
+    "1aa029132dceac146642": {
+      "case_id": "1aa029132dceac146642",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism"
+      ],
+      "updated_at": "2026-07-12T22:05:29.319493+00:00"
+    },
+    "1b0656695ecc7800e981": {
+      "case_id": "1b0656695ecc7800e981",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:04:25.359440+00:00"
+    },
+    "1e1cecc729e206a1963a": {
+      "case_id": "1e1cecc729e206a1963a",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:16:05.791001+00:00"
+    },
+    "20b57039064bdbd2005a": {
+      "case_id": "20b57039064bdbd2005a",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:04:40.443292+00:00"
+    },
+    "2336596f95a50df63cc6": {
+      "case_id": "2336596f95a50df63cc6",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism"
+      ],
+      "updated_at": "2026-07-12T22:05:12.555329+00:00"
+    },
+    "27e72b8b5d64cd044f3b": {
+      "case_id": "27e72b8b5d64cd044f3b",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:00:08.086492+00:00"
+    },
+    "2a50862636359688dea8": {
+      "case_id": "2a50862636359688dea8",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:07:18.410445+00:00"
+    },
+    "2f50293c8c1d41bef517": {
+      "case_id": "2f50293c8c1d41bef517",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_tone"
+      ],
+      "updated_at": "2026-07-12T22:11:59.948867+00:00"
+    },
+    "3158d93d331fa380a534": {
+      "case_id": "3158d93d331fa380a534",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:12:52.379761+00:00"
+    },
+    "33095713be47c13f9918": {
+      "case_id": "33095713be47c13f9918",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:15:04.418053+00:00"
+    },
+    "389acbefc6932be859b8": {
+      "case_id": "389acbefc6932be859b8",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:13:55.865744+00:00"
+    },
+    "41cbeaaf8b997fb3d179": {
+      "case_id": "41cbeaaf8b997fb3d179",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:12:30.284042+00:00"
+    },
+    "4fef774dd375646c24ab": {
+      "case_id": "4fef774dd375646c24ab",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:05:58.240114+00:00"
+    },
+    "52bd349ce17a14c07ded": {
+      "case_id": "52bd349ce17a14c07ded",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T21:59:50.405769+00:00"
+    },
+    "55c4b1ec39c29fc6c0dd": {
+      "case_id": "55c4b1ec39c29fc6c0dd",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:02:55.860917+00:00"
+    },
+    "57cf51141cf9079e4d8b": {
+      "case_id": "57cf51141cf9079e4d8b",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:18:52.778052+00:00"
+    },
+    "5bbc4c1a138c13320423": {
+      "case_id": "5bbc4c1a138c13320423",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:11:36.225038+00:00"
+    },
+    "5be2b7f67f9cc87a4b3e": {
+      "case_id": "5be2b7f67f9cc87a4b3e",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:10:47.928233+00:00"
+    },
+    "62442137fcc95a065cc0": {
+      "case_id": "62442137fcc95a065cc0",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:14:34.936437+00:00"
+    },
+    "648a780d62a5e292bfde": {
+      "case_id": "648a780d62a5e292bfde",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:21:00.023653+00:00"
+    },
+    "6a18c21f8288759fb0eb": {
+      "case_id": "6a18c21f8288759fb0eb",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:18:20.309789+00:00"
+    },
+    "6cf8fca6ea08b029bc90": {
+      "case_id": "6cf8fca6ea08b029bc90",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:16:27.739319+00:00"
+    },
+    "73ae344f3c08e6aaee5a": {
+      "case_id": "73ae344f3c08e6aaee5a",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:13:17.205306+00:00"
+    },
+    "757fc0e1fa642cfaec4b": {
+      "case_id": "757fc0e1fa642cfaec4b",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_tone",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:21:22.097611+00:00"
+    },
+    "782075e381c7c57d0cc3": {
+      "case_id": "782075e381c7c57d0cc3",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:08:31.799715+00:00"
+    },
+    "7876504cf530753a8257": {
+      "case_id": "7876504cf530753a8257",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:17:45.828405+00:00"
+    },
+    "7eaee3f2b011ae18bf8c": {
+      "case_id": "7eaee3f2b011ae18bf8c",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:00:43.640310+00:00"
+    },
+    "7f0ec70641cd09505552": {
+      "case_id": "7f0ec70641cd09505552",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:07:01.076486+00:00"
+    },
+    "80b092b6130196244c59": {
+      "case_id": "80b092b6130196244c59",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:01:34.955301+00:00"
+    },
+    "82eb14b13a5d189128c0": {
+      "case_id": "82eb14b13a5d189128c0",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:08:07.625339+00:00"
+    },
+    "857374c0d630420deb9c": {
+      "case_id": "857374c0d630420deb9c",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:18:07.420819+00:00"
+    },
+    "8817906db04f42dfb463": {
+      "case_id": "8817906db04f42dfb463",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:03:14.874874+00:00"
+    },
+    "8b8e8ba6c20422ff0eb6": {
+      "case_id": "8b8e8ba6c20422ff0eb6",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T21:59:09.632030+00:00"
+    },
+    "8d57f08802ca1fe01ce6": {
+      "case_id": "8d57f08802ca1fe01ce6",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:04:06.432264+00:00"
+    },
+    "8ff68b93a3fd45bfd590": {
+      "case_id": "8ff68b93a3fd45bfd590",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:15:49.199038+00:00"
+    },
+    "90d64a6bd43ad4d9e57b": {
+      "case_id": "90d64a6bd43ad4d9e57b",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_semantic_fit",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:06:43.670543+00:00"
+    },
+    "9789acbbd822a146f8bb": {
+      "case_id": "9789acbbd822a146f8bb",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:03:32.659560+00:00"
+    },
+    "ac34e029f9dcaa4e2bfc": {
+      "case_id": "ac34e029f9dcaa4e2bfc",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:02:16.391935+00:00"
+    },
+    "bfcd7d2fc8969282b056": {
+      "case_id": "bfcd7d2fc8969282b056",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:03:49.548776+00:00"
+    },
+    "c8610c7f719c8adaf0dc": {
+      "case_id": "c8610c7f719c8adaf0dc",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T21:59:33.107612+00:00"
+    },
+    "c902cc6da69dc980c97b": {
+      "case_id": "c902cc6da69dc980c97b",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:07:39.893145+00:00"
+    },
+    "d351f4215f1925462f3d": {
+      "case_id": "d351f4215f1925462f3d",
+      "notes": "",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:16:39.409931+00:00"
+    },
+    "d96ef632314d8c8cf3dd": {
+      "case_id": "d96ef632314d8c8cf3dd",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression"
+      ],
+      "updated_at": "2026-07-12T22:09:33.719471+00:00"
+    },
+    "eba8c1e8797aa556bd91": {
+      "case_id": "eba8c1e8797aa556bd91",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "B",
+      "reasons": [
+        "better_first_impression",
+        "better_visual_impact"
+      ],
+      "updated_at": "2026-07-12T22:17:09.632515+00:00"
+    },
+    "eda5498a17f086e4e9c6": {
+      "case_id": "eda5498a17f086e4e9c6",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:14:15.844616+00:00"
+    },
+    "f0f2237cf6a6d484f8d8": {
+      "case_id": "f0f2237cf6a6d484f8d8",
+      "notes": "",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "reasons": [
+        "neither_is_good_enough"
+      ],
+      "updated_at": "2026-07-12T22:06:19.572048+00:00"
+    },
+    "f9a3da8376ef5596e75c": {
+      "case_id": "f9a3da8376ef5596e75c",
+      "notes": "",
+      "preference_strength": "slight",
+      "preferred_candidate": "A",
+      "reasons": [
+        "acceptable_symbolism",
+        "better_first_impression",
+        "better_semantic_fit"
+      ],
+      "updated_at": "2026-07-12T22:10:21.480232+00:00"
+    }
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,47 @@
+{
+  "analysis_kind": "first_impression_validation_manifest",
+  "schema_version": 1,
+  "source_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/first_impression/v1_20260712",
+  "sources": {
+    "anthropic_first_impression_results.json": {
+      "bytes": 136191,
+      "sha256": "da0e4939839fc3a1cc4a0015336bdec0ce8497f9f3d990622031e2580fd6df56"
+    },
+    "first_impression_alignment_results.json": {
+      "bytes": 450375,
+      "sha256": "0d9c8dfab8f910bf5abaca9b33721c840dab8a6391f01e87d13731c1bd164031"
+    },
+    "gemini_results.json": {
+      "bytes": 85291,
+      "sha256": "8457ae46c8914dbd5981e154f3ea2defd22e77a32b7013a8f858027d88a3c3a2"
+    },
+    "grok_first_impression_results.json": {
+      "bytes": 104780,
+      "sha256": "1a6b600dc6afb64a7077c728775d878dd4648c83546350e8fdea846c22d71afb"
+    },
+    "human_reviews.json": {
+      "bytes": 14466,
+      "sha256": "3ac6f57227a015d5194b1a21ead8abc71baf80cc03cd2b46b242673326f16a09"
+    },
+    "image_first_impressions.json": {
+      "bytes": 140712,
+      "sha256": "2920ab3d42228343ce144ccfc2abd473b7b103d2c968816a325a793df9e448fc"
+    },
+    "openai_first_impression_results.json": {
+      "bytes": 104864,
+      "sha256": "011bbd725fdba601252d5d807963e9fd46147959929a13299f5c207c7e90449b"
+    },
+    "pairwise_rankings.json": {
+      "bytes": 6091,
+      "sha256": "abc4d50407fdf2d6b378e8898b30463c42fbf36404a012d2e1b2bdca20e1e3e1"
+    },
+    "quote_visual_intents.json": {
+      "bytes": 80787,
+      "sha256": "0c0accbbc714725864adf45ed7727f793945266b5da547a33f7339cc87713afa"
+    },
+    "validation_cases.json": {
+      "bytes": 16348,
+      "sha256": "b7859c5e3e3d9140abc9b732e6f8b16b9c46d6fd625f331f873147831b91590c"
+    }
+  }
+}

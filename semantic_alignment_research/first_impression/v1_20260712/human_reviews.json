@@ -1,0 +1,406 @@
+{
+  "analysis_kind": "first_impression_human_reviews",
+  "items": {
+    "0117c8919c5fdb98d8ff": {
+      "case_id": "0117c8919c5fdb98d8ff",
+      "first_thing": "Someone looking at the berlin wall",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:56:41.415682+00:00"
+    },
+    "05dc22c98079f9e7ea31": {
+      "case_id": "05dc22c98079f9e7ea31",
+      "first_thing": "Forthright speech",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:42:32.722794+00:00"
+    },
+    "0f364e26bf1d700d22fa": {
+      "case_id": "0f364e26bf1d700d22fa",
+      "first_thing": "Somebody working hard, a woman.",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:41:14.915064+00:00"
+    },
+    "14689937470227952198": {
+      "case_id": "14689937470227952198",
+      "first_thing": "The freedom of a capitalist democracy vs the oppression of socialism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:47:47.167299+00:00"
+    },
+    "1621aa82258eea0e59ac": {
+      "case_id": "1621aa82258eea0e59ac",
+      "first_thing": "Firm, forthright opinion being expressed.",
+      "image_decision": "keep",
+      "matches_quote": "yes",
+      "notes": "",
+      "updated_at": "2026-07-12T20:38:27.073336+00:00"
+    },
+    "1d75a976eec6e983f955": {
+      "case_id": "1d75a976eec6e983f955",
+      "first_thing": "Against communism/socialism  in the uk",
+      "image_decision": "keep",
+      "matches_quote": "yes",
+      "notes": "",
+      "updated_at": "2026-07-12T21:13:34.940880+00:00"
+    },
+    "1f8332c76e766982ac03": {
+      "case_id": "1f8332c76e766982ac03",
+      "first_thing": "The collapse of communism. It being defeated.",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:40:24.236477+00:00"
+    },
+    "20d35a30b82bf94b96b7": {
+      "case_id": "20d35a30b82bf94b96b7",
+      "first_thing": "Preventing socialism in the uk",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:29:41.446883+00:00"
+    },
+    "2a86f5db13e31e3e99ff": {
+      "case_id": "2a86f5db13e31e3e99ff",
+      "first_thing": "The oppression, bureaucracy of communism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:57:38.078128+00:00"
+    },
+    "31b112d3255f4fd68671": {
+      "case_id": "31b112d3255f4fd68671",
+      "first_thing": "Equating over powerful unions to terrorism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:03:57.171040+00:00"
+    },
+    "346244c56053090ce29f": {
+      "case_id": "346244c56053090ce29f",
+      "first_thing": "An argument; combative",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:34:11.696025+00:00"
+    },
+    "34804ca152e0e279c7ff": {
+      "case_id": "34804ca152e0e279c7ff",
+      "first_thing": "It’s Solhenitzen writing about oppression under communism",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:08:34.533418+00:00"
+    },
+    "35b60acc6360b7892c75": {
+      "case_id": "35b60acc6360b7892c75",
+      "first_thing": "The crushing of the uk under onerous taxes.",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:48:33.877046+00:00"
+    },
+    "378fbf96d18c2e10f5a3": {
+      "case_id": "378fbf96d18c2e10f5a3",
+      "first_thing": "The coolapse of communism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:04:43.579140+00:00"
+    },
+    "3e942b190693e89dfea0": {
+      "case_id": "3e942b190693e89dfea0",
+      "first_thing": "Oppression of communism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:01:37.476020+00:00"
+    },
+    "48a0f807b1cfb42f4dcb": {
+      "case_id": "48a0f807b1cfb42f4dcb",
+      "first_thing": "The collapse of communism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:58:06.760360+00:00"
+    },
+    "4c08d077ca1bf77ef187": {
+      "case_id": "4c08d077ca1bf77ef187",
+      "first_thing": "A storm ober europe.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:49:45.359530+00:00"
+    },
+    "4fd79eec70b8e0950502": {
+      "case_id": "4fd79eec70b8e0950502",
+      "first_thing": "A european storm.",
+      "image_decision": "replace",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:35:58.665006+00:00"
+    },
+    "51cb83e595bad3ca57a9": {
+      "case_id": "51cb83e595bad3ca57a9",
+      "first_thing": "Appears to be karl marx hovering over people who disastrously tried to implement his theories",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:59:21.432645+00:00"
+    },
+    "53c95c771a597737b044": {
+      "case_id": "53c95c771a597737b044",
+      "first_thing": "Someone working seriously and diligently vs someone shallow and obsessed with image",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:05:49.383376+00:00"
+    },
+    "540946c3ba9d5d455d10": {
+      "case_id": "540946c3ba9d5d455d10",
+      "first_thing": "Preventing socialism in the uk",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:09:16.856692+00:00"
+    },
+    "55f5cd6d633c143f5170": {
+      "case_id": "55f5cd6d633c143f5170",
+      "first_thing": "The difference between socialism and capitalism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:31:55.942139+00:00"
+    },
+    "5adcb6f1fbaad21d5ae0": {
+      "case_id": "5adcb6f1fbaad21d5ae0",
+      "first_thing": "The freedom of a capitalist democracy vs the oppression of communism",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:10:17.779220+00:00"
+    },
+    "672f243282e1acf186ce": {
+      "case_id": "672f243282e1acf186ce",
+      "first_thing": "That’s definitely Enoch Powell in the image.",
+      "image_decision": "keep",
+      "matches_quote": "yes",
+      "notes": "",
+      "updated_at": "2026-07-12T20:36:30.917174+00:00"
+    },
+    "69bb9273becb6dc8925f": {
+      "case_id": "69bb9273becb6dc8925f",
+      "first_thing": "That’s Enoch Powell, presumably delivering his infamous Rivers of Blood speech.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:53:36.689286+00:00"
+    },
+    "6c2bb912cc3291bf0f9b": {
+      "case_id": "6c2bb912cc3291bf0f9b",
+      "first_thing": "A property owning democracy",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:06:23.313507+00:00"
+    },
+    "74cad9db726d5805268a": {
+      "case_id": "74cad9db726d5805268a",
+      "first_thing": "Holding the keys to a home, symbolising stability.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:46:33.509298+00:00"
+    },
+    "74e6681e1b6e7594dc49": {
+      "case_id": "74e6681e1b6e7594dc49",
+      "first_thing": "Forthright support of the uk",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:10:49.538511+00:00"
+    },
+    "7b53d3236d42ad4424f3": {
+      "case_id": "7b53d3236d42ad4424f3",
+      "first_thing": "Oppression of communism and success of a capitalism democracy",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:02:15.550088+00:00"
+    },
+    "7e0a02ab43e8da3e751d": {
+      "case_id": "7e0a02ab43e8da3e751d",
+      "first_thing": "A storm over europe",
+      "image_decision": "keep",
+      "matches_quote": "yes",
+      "notes": "",
+      "updated_at": "2026-07-12T20:41:41.713711+00:00"
+    },
+    "852728140c262ae6545f": {
+      "case_id": "852728140c262ae6545f",
+      "first_thing": "Looks to be about leading people away from communism/socialism",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:54:46.921385+00:00"
+    },
+    "86e1f9e0b2235c4b0de4": {
+      "case_id": "86e1f9e0b2235c4b0de4",
+      "first_thing": "Forthright support of the uk",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:06:50.096366+00:00"
+    },
+    "8d71754ba7bcb246b3a1": {
+      "case_id": "8d71754ba7bcb246b3a1",
+      "first_thing": "Contemplating something",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:11:16.359757+00:00"
+    },
+    "8f86232444f717956fd7": {
+      "case_id": "8f86232444f717956fd7",
+      "first_thing": "Forthright support of the uk",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T21:11:53.091442+00:00"
+    },
+    "9588c850bb3b06ab3214": {
+      "case_id": "9588c850bb3b06ab3214",
+      "first_thing": "Socialism is control and darkness. Capitalism is freedom and light.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:33:34.308289+00:00"
+    },
+    "9a19c714bcf33f9be13d": {
+      "case_id": "9a19c714bcf33f9be13d",
+      "first_thing": "Forthright speech in favour of the uk",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:55:30.308686+00:00"
+    },
+    "9e47cc0548ceab1b07c8": {
+      "case_id": "9e47cc0548ceab1b07c8",
+      "first_thing": "Communism as a parasitic monster.",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:35:05.037244+00:00"
+    },
+    "a51bbe9bf05aa741c640": {
+      "case_id": "a51bbe9bf05aa741c640",
+      "first_thing": "The collapse and disaster of communism/socialism",
+      "image_decision": "keep",
+      "matches_quote": "yes",
+      "notes": "",
+      "updated_at": "2026-07-12T21:12:33.738011+00:00"
+    },
+    "ad4d6bef1aa22714ea65": {
+      "case_id": "ad4d6bef1aa22714ea65",
+      "first_thing": "A woman in charge of some unruly men.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:03:05.072426+00:00"
+    },
+    "b82fb937482962a7d4ed": {
+      "case_id": "b82fb937482962a7d4ed",
+      "first_thing": "Something about the EU",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:54:04.634222+00:00"
+    },
+    "b98adf9e78161b670ad5": {
+      "case_id": "b98adf9e78161b670ad5",
+      "first_thing": "The oppression of communism vs the freedom of democracy",
+      "image_decision": "unsure",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:43:56.780269+00:00"
+    },
+    "bb9f364836998e185eec": {
+      "case_id": "bb9f364836998e185eec",
+      "first_thing": "On the left, people who are just numbers; on the right individuals. Seems to be about the oppression of socialism vs the freedom of a capitalist democracy.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:52:47.611860+00:00"
+    },
+    "bcc9feeec05545589a43": {
+      "case_id": "bcc9feeec05545589a43",
+      "first_thing": "Something about support of the armed forces in the uk",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:56:13.311803+00:00"
+    },
+    "c943ec8c941faaccae91": {
+      "case_id": "c943ec8c941faaccae91",
+      "first_thing": "Communist oppression; making everything the same.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:44:36.948851+00:00"
+    },
+    "db9adeebf2c41956d290": {
+      "case_id": "db9adeebf2c41956d290",
+      "first_thing": "Margaret Thatcher literally stood outside a shop selling spines, holding a spine. Meaning there’s a shortage of people with spines in the uk.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T21:01:07.650453+00:00"
+    },
+    "dd64d1125f528f7bcac8": {
+      "case_id": "dd64d1125f528f7bcac8",
+      "first_thing": "A population being violently oppressed.",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:45:41.648119+00:00"
+    },
+    "de1d394a1a79c2c1463f": {
+      "case_id": "de1d394a1a79c2c1463f",
+      "first_thing": "A memorial to those who have died",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:37:31.437994+00:00"
+    },
+    "f19fb66a60551a371beb": {
+      "case_id": "f19fb66a60551a371beb",
+      "first_thing": "The death and disster caused by communism.",
+      "image_decision": "keep",
+      "matches_quote": "partly",
+      "notes": "",
+      "updated_at": "2026-07-12T20:49:20.803222+00:00"
+    },
+    "f1ec68a1b6c72e9d83e9": {
+      "case_id": "f1ec68a1b6c72e9d83e9",
+      "first_thing": "Something about freedom and europe.",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:47:06.706686+00:00"
+    },
+    "f218070e705f156116ff": {
+      "case_id": "f218070e705f156116ff",
+      "first_thing": "Different between communismn and a capitalist democracy",
+      "image_decision": "replace",
+      "matches_quote": "no",
+      "notes": "",
+      "updated_at": "2026-07-12T20:50:34.508619+00:00"
+    }
+  },
+  "schema_version": 1
+}

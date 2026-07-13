@@ -1,0 +1,69 @@
+{
+  "calls": [],
+  "failures": {
+    "1419ae3f9a07198d29d6": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "151fb29e96491875b9ea": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "15b01ed0b7f0f7214a49": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "1aa029132dceac146642": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "27e72b8b5d64cd044f3b": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "4fef774dd375646c24ab": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "52bd349ce17a14c07ded": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "55c4b1ec39c29fc6c0dd": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "648a780d62a5e292bfde": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "757fc0e1fa642cfaec4b": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "7eaee3f2b011ae18bf8c": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "80b092b6130196244c59": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "8817906db04f42dfb463": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "8b8e8ba6c20422ff0eb6": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    },
+    "c8610c7f719c8adaf0dc": {
+      "error": "400 Client Error: Bad Request for url: https://api.openai.com/v1/responses",
+      "http_status": 400
+    }
+  },
+  "items": {},
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "openai",
+  "schema_version": 1
+}

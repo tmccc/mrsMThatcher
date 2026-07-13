@@ -1,0 +1,793 @@
+{
+  "calls": [
+    {
+      "cached_tokens": 0,
+      "case_id": "ba18bbea3acd4594ecf9",
+      "cost_usd": 0.024305,
+      "input_tokens": 2335,
+      "latency_seconds": 9.542082953033969,
+      "output_tokens": 421,
+      "reasoning_tokens": 240,
+      "request_id": "req_76806e61e2024b8f93fb04d1aab6dc05",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "a449d3bd87a040ed34b1",
+      "cost_usd": 0.01882,
+      "input_tokens": 2036,
+      "latency_seconds": 5.548536955844611,
+      "output_tokens": 288,
+      "reasoning_tokens": 109,
+      "request_id": "req_00a907cac7cc41239dcff1cac7fa43a1",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "38dab10d66214a8f33ef",
+      "cost_usd": 0.021405,
+      "input_tokens": 2487,
+      "latency_seconds": 5.989883496891707,
+      "output_tokens": 299,
+      "reasoning_tokens": 133,
+      "request_id": "req_b47724bb6fb147da838eb8a8299b42df",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "cost_usd": 0.01972,
+      "input_tokens": 2384,
+      "latency_seconds": 5.34152492089197,
+      "output_tokens": 260,
+      "reasoning_tokens": 89,
+      "request_id": "req_044366c415cb41a99ccc764a04bc424c",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "649b2360f0d35e006a3f",
+      "cost_usd": 0.01966,
+      "input_tokens": 2138,
+      "latency_seconds": 5.777161711128429,
+      "output_tokens": 299,
+      "reasoning_tokens": 124,
+      "request_id": "req_b570bfe2a554456b821dd7bd9c5fc99c",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "5ed5302a6e333567d058",
+      "cost_usd": 0.015585000000000002,
+      "input_tokens": 1965,
+      "latency_seconds": 3.3824496648740023,
+      "output_tokens": 192,
+      "reasoning_tokens": 51,
+      "request_id": "req_21100e59bab54ee9adeac53ea35e7524",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "4e7cbd5baa5aafa9418f",
+      "cost_usd": 0.01755,
+      "input_tokens": 1986,
+      "latency_seconds": 4.7022690190933645,
+      "output_tokens": 254,
+      "reasoning_tokens": 92,
+      "request_id": "req_02580f27e07044b9b5863280e10d16d7",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "3fb10ed9b7e50c851995",
+      "cost_usd": 0.023344999999999998,
+      "input_tokens": 2095,
+      "latency_seconds": 8.798244090052322,
+      "output_tokens": 429,
+      "reasoning_tokens": 234,
+      "request_id": "req_4f8c93487d304c42a7b82adc6df1f703",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "de48e09553c333d2edb5",
+      "cost_usd": 0.020155,
+      "input_tokens": 2333,
+      "latency_seconds": 5.816632101079449,
+      "output_tokens": 283,
+      "reasoning_tokens": 105,
+      "request_id": "req_e8dbb7daa52344c2b8ec1672dc0278eb",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "03ef27b13bd503905246",
+      "cost_usd": 0.022359999999999998,
+      "input_tokens": 2138,
+      "latency_seconds": 7.785981988999993,
+      "output_tokens": 389,
+      "reasoning_tokens": 207,
+      "request_id": "req_651b9d15b3954b3f9b295e05023419e6",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "871cef5a200df1b4c849",
+      "cost_usd": 0.021475,
+      "input_tokens": 2405,
+      "latency_seconds": 6.259750860976055,
+      "output_tokens": 315,
+      "reasoning_tokens": 127,
+      "request_id": "req_0db973185b754aada199c3a21f6ee511",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "42f7c7f901e65773d1d9",
+      "cost_usd": 0.020635,
+      "input_tokens": 2321,
+      "latency_seconds": 5.375757092842832,
+      "output_tokens": 301,
+      "reasoning_tokens": 116,
+      "request_id": "req_5e8bb93a07fe45edad361c063f6e8187",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "18d9c05171a3b7771300",
+      "cost_usd": 0.023645,
+      "input_tokens": 2299,
+      "latency_seconds": 9.83395615988411,
+      "output_tokens": 405,
+      "reasoning_tokens": 235,
+      "request_id": "req_3eb081fa73b64df3a72a10f391f520f4",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "c4b43d7652a5a705a041",
+      "cost_usd": 0.026549999999999997,
+      "input_tokens": 2394,
+      "latency_seconds": 9.89735245401971,
+      "output_tokens": 486,
+      "reasoning_tokens": 294,
+      "request_id": "req_36a607c4ce3f496586e3e746d0c8cba4",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "483d70018034a5288942",
+      "cost_usd": 0.025335,
+      "input_tokens": 2307,
+      "latency_seconds": 8.146512069972232,
+      "output_tokens": 460,
+      "reasoning_tokens": 265,
+      "request_id": "req_5cdf61de7aa44a6d9ce46d9d4dfef3ec",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "cost_usd": 0.017615,
+      "input_tokens": 2161,
+      "latency_seconds": 5.517094315029681,
+      "output_tokens": 227,
+      "reasoning_tokens": 56,
+      "request_id": "req_47c269d382fd4d9abcbaa4ea8132ba63",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "b0605e236e6885411c16",
+      "cost_usd": 0.01977,
+      "input_tokens": 2106,
+      "latency_seconds": 7.665580712025985,
+      "output_tokens": 308,
+      "reasoning_tokens": 126,
+      "request_id": "req_a96115df96e946d1a7ccaf605fd4bcf9",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "ad499c5e87c4b1061c82",
+      "cost_usd": 0.021400000000000002,
+      "input_tokens": 2120,
+      "latency_seconds": 8.359592207940295,
+      "output_tokens": 360,
+      "reasoning_tokens": 192,
+      "request_id": "req_a667390c6da3438ca4957d2e3b869be4",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "84c4fab4ab81767961f5",
+      "cost_usd": 0.01729,
+      "input_tokens": 2192,
+      "latency_seconds": 5.208774160826579,
+      "output_tokens": 211,
+      "reasoning_tokens": 56,
+      "request_id": "req_a17abe73d5a34ee082edf896746b19d8",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "f0858d5ba37a30559e98",
+      "cost_usd": 0.01764,
+      "input_tokens": 2076,
+      "latency_seconds": 5.1062668960075825,
+      "output_tokens": 242,
+      "reasoning_tokens": 84,
+      "request_id": "req_be7534be001945e9a6e15f6d8e45ed27",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "f7919a292b295182ddf6",
+      "cost_usd": 0.019674999999999998,
+      "input_tokens": 2189,
+      "latency_seconds": 6.466400159988552,
+      "output_tokens": 291,
+      "reasoning_tokens": 101,
+      "request_id": "req_64133581b37244daa24780d9dcb8104c",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "51e6eaa31172e2c1f669",
+      "cost_usd": 0.01577,
+      "input_tokens": 1978,
+      "latency_seconds": 4.686042946996167,
+      "output_tokens": 196,
+      "reasoning_tokens": 52,
+      "request_id": "req_a617a345e9f142528ca18c4c4a6981c4",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "cost_usd": 0.01977,
+      "input_tokens": 2052,
+      "latency_seconds": 10.57622778089717,
+      "output_tokens": 317,
+      "reasoning_tokens": 159,
+      "request_id": "req_fa3b08ef76a44bbeb27a0339f26d7e1b",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "8bf11163cff70da7f79f",
+      "cost_usd": 0.01932,
+      "input_tokens": 2070,
+      "latency_seconds": 6.2056324779987335,
+      "output_tokens": 299,
+      "reasoning_tokens": 151,
+      "request_id": "req_b298d1761fbb439fb5e2659866346e18",
+      "transport": "openai"
+    },
+    {
+      "cached_tokens": 0,
+      "case_id": "59c27f78aa7a327c3791",
+      "cost_usd": 0.01771,
+      "input_tokens": 2012,
+      "latency_seconds": 5.518287532962859,
+      "output_tokens": 255,
+      "reasoning_tokens": 96,
+      "request_id": "req_632c1bdde2b34f8485071a76746cbffa",
+      "transport": "openai"
+    }
+  ],
+  "failures": {},
+  "items": {
+    "03ef27b13bd503905246": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "03ef27b13bd503905246",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A has stronger contrast and visual impact, loosely echoing flourishing versus stagnation, but its dominant message is a specific Thatcher-like triumph of capitalism over communism rather than the quote’s broader argument about enabling individual talents. Its ideological symbols and competing elements also distract. B is cleaner, but reduces the idea to homeownership and authority, with almost no visual expression of talent, suppression, or societal progress. Neither is sufficiently faithful for publication.",
+      "risk_flags": [
+        "no_good_candidate",
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "044824e1b0a5d2fbdb1f": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "equal",
+      "case_id": "044824e1b0a5d2fbdb1f",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B provides a clear, forceful image of British political speech, using the podium, microphones and Union Jack as relevant indirect symbolism for the national tradition of free expression. It does not convey the quotation's important military-service dimension or the principle of equal speech rights, but it remains broadly compatible. A is visually dramatic but substitutes an anti-communist triumph narrative and muddy ideological struggle for the quotation's defense of free speech, creating a substantially wrong dominant message.",
+      "risk_flags": [
+        "too_generic",
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "18d9c05171a3b7771300": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "18d9c05171a3b7771300",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "Neither image communicates monopoly trade unions harming workers. A centers a political leader as the agent of a transition from industrial decay to prosperity, introducing an unrelated leadership narrative. B more effectively conveys warning, burden, and economic strain, but explicitly attributes that burden to British taxes and regulations, substituting a different ideological argument for the quotation’s criticism of union monopoly power. That wrong causal message makes both unsuitable for publication.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "ideological_substitution"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "38dab10d66214a8f33ef": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "38dab10d66214a8f33ef",
+      "less_distracting": "equal",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A’s toppled Lenin-like bust, discarded Soviet symbols, witnesses, smoke and urban devastation more effectively connect communist ideology to human and societal consequences. B is visually forceful but reads more narrowly as the symbolic collapse of the Soviet state. Neither captures the quotation’s broader comparison with socialism, Nazism and Fascism or its explicit death tolls, but A better conveys lasting scars and warning rather than merely ideological defeat.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "ideological_substitution"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "3fb10ed9b7e50c851995": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "3fb10ed9b7e50c851995",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B at least communicates free-market growth prevailing over a failed state-controlled system, making it substantially closer to the quotation’s economic contrast. Its resolute, optimistic framing also fits the claim of practical success. However, the broken hammer and sickle narrows “big government” into communism and introduces an unnecessarily specific ideological narrative, while the arrow, ruins, skyline, and crowd create clutter. A is cleaner and forceful but mainly depicts a politician speaking in an EU institution, offering almost no visual expression of free enterprise or government failure.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "ideological_substitution",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "42f7c7f901e65773d1d9": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "42f7c7f901e65773d1d9",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B has the closer thematic link through the UNION POWER sign and imagery of destruction, but its dominant message is a sensational conflation of trade unions with armed extremism, communism, terrorism, and a burning state. It does not clearly show monopoly union power harming fellow workers or union members, and the competing ideological symbols overwhelm the quotation. A is visually coherent but substitutes an unrelated argument about British taxes and regulation. Neither is suitable for publication alongside the quote.",
+      "risk_flags": [
+        "no_good_candidate",
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "483d70018034a5288942": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "483d70018034a5288942",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A at least visualizes discretionary spending and personal consumer choice, but its dominant message is a blunt capitalism-versus-communism prosperity contrast rather than freedom within sensible limits. B clearly presents a political speaker, yet overwhelmingly reframes the quotation as a leader’s triumph over communism and a promise of economic growth. Both substitute ideological propaganda for the quote’s reflective emphasis on individual autonomy; B’s ruined hammer-and-sickle, growth arrow, skyline, and cheering crowd are especially distracting.",
+      "risk_flags": [
+        "wrong_dominant_message",
+        "ideological_substitution",
+        "tone_mismatch",
+        "distracting_symbol",
+        "no_good_candidate"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "4e7cbd5baa5aafa9418f": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "4e7cbd5baa5aafa9418f",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A provides a clear, authoritative and patriotic image of British political leadership under the Union Jack, supporting the quotation’s assertion of national sovereignty without forcing an unrelated policy narrative. Although it does not explicitly depict Brussels or heritage, its symbolism is valid and the globe subtly suggests international stakes. B’s communist imagery substitutes a different ideological conflict for the quotation’s argument about sovereignty and EU institutions, creating a misleading dominant message and substantial visual distraction.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "51e6eaa31172e2c1f669": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "51e6eaa31172e2c1f669",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "Candidate A most directly supports the intended reading: a Thatcher-like British female leader emphatically rejecting criticism from a podium. Her raised fist, speaking expression, formal presentation and Union Jack convey categorical dismissal and personal resolve. Candidate B has comparable authority but substitutes an older male statesman and makes accusation or parliamentary attack—not self-defense—the dominant message.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "59c27f78aa7a327c3791": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "59c27f78aa7a327c3791",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B’s emphatic gesture, forceful delivery and visible mass audience better convey the quotation’s ideological confrontation and appeal to national unity. The crowd provides useful indirect support for the idea of bringing people together, while the British pin establishes national context without overwhelming the scene. A is authoritative but more static and generic; its prominent Union Jack and globe shift attention toward nationalism and international affairs rather than the stark domestic choice described.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "5ed5302a6e333567d058": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "5ed5302a6e333567d058",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B’s dominant Union Jack and authoritative British stateswoman directly reinforce national sovereignty, inherited identity, and patriotic resolve. The globe adds international context without displacing that message. A is visually dramatic, but its storm and lightning over Europe shift the dominant meaning toward continental crisis or conflict rather than sovereignty derived from national right and heritage.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "5fc09adb9e8c26fe6a4a": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "5fc09adb9e8c26fe6a4a",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B more effectively connects the forceful British political speech to a mass public audience, supporting the quotation’s emphasis on uniting people around freedom. Its resolute tone and cleaner national symbolism are less distracting than A’s heavy flags and smoky drama. A better conveys warning and metaphorical ‘dark clouds,’ but its dominant message is confrontation and patriotic authority rather than ideological choice and broad social unity.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "too_literal"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "649b2360f0d35e006a3f": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "649b2360f0d35e006a3f",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B’s raised fist communicates resolve, mobilisation and counter-attack more effectively than A’s accusatory pointing gesture. Its determined, somewhat inspirational tone better supports the call to move from defence to an intellectual and political offensive, while the podium and Union Jack establish the party-political setting. A is visually dramatic but reads more as anger directed at an audience than as a rallying strategic appeal. Neither image specifically conveys the battle of ideas, but B is a strong, publishable indirect illustration.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "84c4fab4ab81767961f5": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "84c4fab4ab81767961f5",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A provides a forceful, patriotic image of Thatcher asserting political authority, which works as valid indirect illustration of her stated campaign against socialism. The pointing gesture reinforces deliberate ideological confrontation, while the Union Jacks support the quotation’s themes of national character and heritage. B introduces soldiers and a wartime frame, creating a misleading dominant message of military conflict or state force that the quotation does not concern.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "871cef5a200df1b4c849": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "871cef5a200df1b4c849",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B contains the relevant union-power and destruction symbolism, but its dominant message equates trade unions with armed extremism, communism, national conflagration, and terrorism. Those sensational elements overwhelm the narrower claim about monopoly unions harming fellow workers. A is cleaner and more coherent, but substitutes a generic political before-and-after narrative in which the leader enables prosperity; it does not communicate union monopoly power or intra-labor harm. Neither is sufficiently accurate for publication alongside the quotation.",
+      "risk_flags": [
+        "no_good_candidate",
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "8bf11163cff70da7f79f": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "B",
+      "case_id": "8bf11163cff70da7f79f",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B’s direct pointing gesture, stern delivery, prominent British flags, and dark atmospheric backdrop better convey a stark national warning and ideological choice. The smoky setting also indirectly echoes the quotation’s metaphor of divisive clouds. A is strong, but its raised fist risks associations with revolutionary or socialist iconography that could blur the quotation’s anti-Marxist message.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "a449d3bd87a040ed34b1": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "B",
+      "case_id": "a449d3bd87a040ed34b1",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "neither",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "Neither image conveys the quotation’s essential progression from individual achievement to national representation. A offers usable British patriotic symbolism and a serious public-leadership tone, but substitutes a generic political speech for personal accomplishment or a culminating act of allegiance. B is more visually forceful, yet its dominant anti-communist threat narrative is unrelated and distracting. A is the closer candidate, but not strong enough to publish for this quotation.",
+      "risk_flags": [
+        "no_good_candidate",
+        "too_generic",
+        "wrong_dominant_message",
+        "distracting_symbol",
+        "tone_mismatch"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": false
+    },
+    "ad499c5e87c4b1061c82": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "ad499c5e87c4b1061c82",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A more clearly presents Thatcher delivering a forceful, nationally framed ideological declaration, with the pointing gesture and prominent Union Jacks supporting deliberate political action and British identity. B is visually strong and somewhat more resolute, but its raised clenched fist carries a familiar socialist or labor-movement association that risks directly contradicting a quotation celebrating socialism’s dismantling. A is more confrontational than the desired patriotic tone, yet its dominant message remains aligned and publishable.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "b0605e236e6885411c16": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "b0605e236e6885411c16",
+      "less_distracting": "A",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A’s forceful pointing gesture and emphatic delivery better convey the quote’s deliberate ideological rollback and assertive claim of national renewal. Its Union Jack backdrop supports British character and heritage, while the composition has stronger immediate impact. B is more tonally measured and patriotic, but its globe adds a somewhat distracting international-affairs message and the image feels less connected to dismantling socialism or advancing freedom. Both are speaker-centric rather than conceptually illustrating the quote, but A remains publishable as a strong portrait of the quoted political argument.",
+      "risk_flags": [
+        "too_literal"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "ba18bbea3acd4594ecf9": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "ba18bbea3acd4594ecf9",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B more directly connects consumer abundance with a freer market and therefore supports the quotation’s emphasis on consumer gains. Its shopping bags and contrasting scarcity provide a clear, accessible indirect illustration. However, the dominant capitalism-versus-communism framing substitutes a broader ideological argument for the specific claim about freer international trade. A is more visually forceful but is dominated by a Thatcher-like leader, communist collapse, and political triumph, making it substantially less relevant and more distracting.",
+      "risk_flags": [
+        "ideological_substitution",
+        "wrong_dominant_message",
+        "distracting_symbol"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "c4b43d7652a5a705a041": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "c4b43d7652a5a705a041",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A more directly visualises personal spending choice and material freedom through the shopping scene, while the opposing queue provides a clear—if heavy-handed—symbolic contrast. B is more compositionally focused and tonally authoritative, but its dominant message is that a particular leader drove a national transformation, which substitutes political leadership and historical change for the quotation’s emphasis on individual autonomy. A remains publishable as an indirect editorial illustration, though its capitalism-versus-communism framing is more propagandistic and less reflective than the quote itself.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "ideological_substitution",
+        "tone_mismatch"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "dbbca3ff711dd4d9eba3": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "dbbca3ff711dd4d9eba3",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B’s broken communist symbols, rubble and ominous atmosphere credibly evoke ideological destruction and lasting societal scars. It covers only the communist portion of the quotation and emphasizes collapse more than victims, but its warning tone is compatible. A has stronger human contrast, yet its dominant message—that modern Russia represents freedom and joyful liberation from Soviet oppression—introduces a triumphant patriotic claim absent from the quotation and distracts from the broader indictment of totalitarian ideologies.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "too_literal"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "de48e09553c333d2edb5": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "B",
+      "better_visual_impact": "A",
+      "case_id": "de48e09553c333d2edb5",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B offers a clearer, less symbolically overloaded contrast between stagnation and flourishing, making it a usable indirect illustration of the quotation. It still over-credits a central leader and does not visibly foreground distinctive individual talents, but its broader societal before-and-after framing is closer than A’s explicit anti-communist, free-market triumph narrative. A has stronger spectacle but substitutes a specific ideological and leader-driven message for the quote’s human-potential argument.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "ideological_substitution",
+        "wrong_dominant_message"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "f0858d5ba37a30559e98": {
+      "better_first_impression": "B",
+      "better_semantic_fit": "B",
+      "better_tone_match": "equal",
+      "better_visual_impact": "B",
+      "case_id": "f0858d5ba37a30559e98",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "moderate",
+      "preferred_candidate": "B",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "B more effectively connects the forceful British political speech to the quote’s emphasis on national character and public support through the visible crowd and restrained Union Jack symbolism. Its pointing gesture conveys emphatic ideological leadership without the raised fist in A, which could evoke revolutionary or socialist symbolism and distract from the anti-socialist message. Both are somewhat speaker-centric, but B offers stronger civic context and a clearer editorial fit.",
+      "risk_flags": [
+        "acceptable_symbolism"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    },
+    "f7919a292b295182ddf6": {
+      "better_first_impression": "A",
+      "better_semantic_fit": "A",
+      "better_tone_match": "A",
+      "better_visual_impact": "A",
+      "case_id": "f7919a292b295182ddf6",
+      "less_distracting": "B",
+      "model": "gpt-5.6-sol",
+      "preference_strength": "strong",
+      "preferred_candidate": "A",
+      "prompt_version": "pairwise-editorial-validation-v1",
+      "provider": "openai",
+      "reason": "A more directly conveys Thatcher’s forceful rejection of a left-wing ideology in a distinctly British setting, aligning with the quotation’s central claim about rolling back socialism. Its stop gesture, UK map and patriotic cues give the passage immediate ideological clarity and visual force. The hammer-and-sickle imagery substitutes communism for socialism and overstates the idea as an external menace, but this is still closer to the quotation than B’s dominant wartime, military-backed leadership message, which invokes a theme the quotation specifically does not concern.",
+      "risk_flags": [
+        "acceptable_symbolism",
+        "distracting_symbol",
+        "ideological_substitution"
+      ],
+      "transport": "openai",
+      "would_publish_preferred": true
+    }
+  },
+  "prompt_version": "pairwise-editorial-validation-v1",
+  "provider": "openai",
+  "schema_version": 1
+}

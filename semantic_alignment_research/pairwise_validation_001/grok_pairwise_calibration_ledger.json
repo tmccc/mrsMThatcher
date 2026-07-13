@@ -1,0 +1,127 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "case_id": "15b01ed0b7f0f7214a49",
+      "input_hash": "9b784038473f42f31689aeeb05857c0b8f7cc1f80dfa99d59a8445570d67cb1e",
+      "state": "completed",
+      "timestamp": 1783895059.2619274,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "4fef774dd375646c24ab",
+      "input_hash": "cb99eae35fa4b249a562b773687ef6a601fb0989dc24d3bdadcdcd335fc5bbfd",
+      "state": "completed",
+      "timestamp": 1783895066.3307443,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "648a780d62a5e292bfde",
+      "input_hash": "2c3d41e82f30877c56da133b60cf62df08081b9d84155b17712d47e3f096a967",
+      "state": "completed",
+      "timestamp": 1783895079.0051112,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "c8610c7f719c8adaf0dc",
+      "input_hash": "4189a6361cdf2476d8519ddfe3e2f19b1fb10996f97c7d05c85e95cec285fd41",
+      "state": "completed",
+      "timestamp": 1783895088.5790892,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "151fb29e96491875b9ea",
+      "input_hash": "db263cb0db18b98f1682f8489ec77f990a0808c9557f6f768998eea9e26860dd",
+      "state": "completed",
+      "timestamp": 1783895095.4029114,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "80b092b6130196244c59",
+      "input_hash": "0b0c99d4881a818aba8ba320c017e847dbb8af47dc81b57783be03c5a593b289",
+      "state": "completed",
+      "timestamp": 1783895102.1829627,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "8817906db04f42dfb463",
+      "input_hash": "d5c4cfc5f687d887457a25a34cf2e2f1176e01458bcce0f2c5fd1e61798c8044",
+      "state": "completed",
+      "timestamp": 1783895105.407469,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "8b8e8ba6c20422ff0eb6",
+      "input_hash": "a351e79f0ed89851045a9ba0a4e73f3330e0d3ca1c4c384948662a3b05013589",
+      "state": "completed",
+      "timestamp": 1783895116.0593681,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "52bd349ce17a14c07ded",
+      "input_hash": "841b8bbfeb4f832ccc416b123854ecbb48ba432f5e3c617e28b1d900a6546be0",
+      "state": "completed",
+      "timestamp": 1783895124.8726676,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "27e72b8b5d64cd044f3b",
+      "input_hash": "e1c0351d070127ddc60dcab10fed4c51b6d06cff520f5be62ad3eaff38027b0c",
+      "state": "completed",
+      "timestamp": 1783895132.3303192,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "55c4b1ec39c29fc6c0dd",
+      "input_hash": "80acba05e333e7cbcab3366416698be14d4ab48566017b250a83eaaf3c0a094b",
+      "state": "completed",
+      "timestamp": 1783895148.020094,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "1aa029132dceac146642",
+      "input_hash": "7632a37d0b387d491f5aa7e92aaa60b2bde00e8faf56cd00c571cfc250bd721a",
+      "state": "completed",
+      "timestamp": 1783895163.1049662,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "757fc0e1fa642cfaec4b",
+      "input_hash": "67d12e9f8f8b93ab1c31ce5775b5247c93460fbc30adc0f8697d3e901e9ad7af",
+      "state": "completed",
+      "timestamp": 1783895171.9898756,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "7eaee3f2b011ae18bf8c",
+      "input_hash": "0e1d98aa17db7a7210ea98ea4bb51727ed12480bf2d6304690ff52656c693775",
+      "state": "completed",
+      "timestamp": 1783895174.1636524,
+      "transport": "grok"
+    },
+    {
+      "attempt_number": 1,
+      "case_id": "1419ae3f9a07198d29d6",
+      "input_hash": "34a27bd1afbcc4ac873bc2456eb83fcb88b5e94bb3c63457e885865c380634b0",
+      "state": "completed",
+      "timestamp": 1783895185.2607915,
+      "transport": "grok"
+    }
+  ],
+  "known_cost_usd": 0.152578,
+  "provider": "grok",
+  "schema_version": 1
+}
