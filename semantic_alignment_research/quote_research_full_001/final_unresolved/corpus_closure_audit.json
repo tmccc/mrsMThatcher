@@ -1,0 +1,44 @@
+{
+  "all_checks_passed": true,
+  "checks": {
+    "all_packet_identities_immutable": true,
+    "all_packets_schema_valid": true,
+    "ambiguous_exposure_reconciles": true,
+    "completed_and_unresolved_disjoint": true,
+    "completed_count_626": true,
+    "fixed_unresolved_ids_match": true,
+    "manifest_count_632": true,
+    "manifest_partition_complete": true,
+    "no_duplicate_completed_ids": true,
+    "no_duplicate_manifest_ids": true,
+    "recovery_spend_reconciles": true,
+    "recovery_unique_counts_reconcile": true,
+    "unresolved_count_6": true
+  },
+  "costs": {
+    "all_discovered_ledgers_ambiguous_exposure_usd": 0.36637600000000003,
+    "all_discovered_ledgers_known_spend_usd": 72.88922379999998,
+    "full_run_ambiguous_exposure_usd": 0.220368,
+    "full_run_known_spend_usd": 58.68084039999998,
+    "staged_recovery_ambiguous_exposure_usd": 0.14600800000000003,
+    "staged_recovery_known_spend_usd": 14.208383400000002
+  },
+  "counts": {
+    "completed": 626,
+    "manifest": 632,
+    "unresolved": 6
+  },
+  "generated_at": "2026-07-14T11:29:55.096701Z",
+  "hashes": {
+    "corpus_manifest_sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "full_retry_manifest_sha256": "914c21e988228c23cd75c6a2761faf7258f0d936ee91b6b95b73c633a565b325",
+    "project_quote_manifest_sha256": "19f9435e4b2dda6f32461051d89d2c944978a30d82d6a1519db061a8e41a1b20",
+    "recovery_meta_report_sha256": "2b88285bed529765af53bdbbb0646d65c55d582e7e5882b22c9f8a87f0cb88e0",
+    "research_packets_sha256": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+  },
+  "identity_errors": [],
+  "record_kind": "quote_research_corpus_closure_audit",
+  "schema_errors": [],
+  "schema_version": 1,
+  "strict": true
+}

@@ -1,0 +1,37 @@
+{
+  "active": 0,
+  "ambiguous_possible_exposure_usd": 0.072982,
+  "average_cost_per_valid_quote": 0.04422815294117647,
+  "combined_known_spend_usd": 0.7518786,
+  "developer": {
+    "completed": 17,
+    "known_spend_usd": 0.7518786
+  },
+  "developer_pause_reason": null,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "eta_seconds": 0.0,
+  "mean_latency_seconds": 28.164442519029684,
+  "pending": 0,
+  "permanent_failures": 2,
+  "projected_final_spend_usd": 0.7518786,
+  "remaining_nonterminal": 0,
+  "resume_plan": {
+    "completed_will_be_skipped": 17,
+    "developer_will_be_probed": true,
+    "next_transport": "developer_api",
+    "permanent_failures_will_be_skipped": 2,
+    "unfinished_quotes": 0
+  },
+  "run_id": "retry_batch_030_002_recovery_19_run",
+  "schema_version": 1,
+  "total_quotes": 19,
+  "transient_failures": 0,
+  "updated_at": "2026-07-14T07:27:56.621384Z",
+  "valid_packets": 17,
+  "validation_failures": 0,
+  "vertex": {
+    "completed": 0,
+    "known_spend_usd": 0.0
+  }
+}

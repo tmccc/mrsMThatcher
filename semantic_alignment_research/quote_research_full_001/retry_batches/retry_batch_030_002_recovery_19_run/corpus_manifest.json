@@ -1,0 +1,352 @@
+{
+  "manifest_sha256": "4f36cf372319052f2a5cf1883a389630d5f6dabca5317602131cedfa9590ff1f",
+  "parent_retry_manifest_sha256": "43970d25acaa1df0f76bc233e82e817d87e4db1071c0da303c122b7092991216",
+  "parent_run": "quote_research_full_001",
+  "record_count": 19,
+  "record_kind": "quote_research_retry_validation_run",
+  "records": [
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "b4477fd761db24823c4f1e54db258eba7bc7e042a3106b39cbfff72c6f8bd798",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 98
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "11008a11aab9b2ed4a8924c84e23577277d6a0aed56e3be2ed20c65a2680f674",
+      "original_failure_category": "no_response_received",
+      "quote_hash": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "quote_id": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "quote_text": "We rejoice that Britain is still respected in all free countries as the Mother of Parliaments and the custodian of the principle of the rule of law.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "no_response_received",
+      "source_occurrences": [
+        {
+          "line_number": 249
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "bdd68047c8c9679e315ad268e093b506ff2862274a5edb6af12bc978b8da227c",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+      "quote_id": "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+      "quote_text": "Without more jobs, the future's bleak.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 447
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "0db33f6dc6526f65b025308ad71818cc63fd1f25dcc6b1bbcab36e395d5e309a",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "quote_text": "Change is coming, the slither and slide to the socialist state is going to be stopped in this United Kingdom of Great Britain and Northern Ireland. Stopped and turned back. It can be done and it will be done and we shall start on the 3rd May 1979.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 216
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "03210adbf79016c7a99aeb6f907fdadd27ab2c6cbcf7b5a79a113d670ea7efcb",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+      "quote_id": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+      "quote_text": "You don't tell deliberate lies, but sometimes you have to be evasive.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 89
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "00ae54feca4171aafc22c77a3ab8c35d8434f7d35c83a478197506d62d74f944",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "quote_id": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "quote_text": "To young people, I say: \"when you visit Eastern Europe, learn from them about the socialist past that didn't work, & tell them about the Conservative future that will. And then come home & tell your friends of the excitement of people who are tasting freedom for the first time\".",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 383
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a85379da2dc05d411d8e5f973fdf0cefc6649f02380c40235a58b3490c16b47d",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_id": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_text": "No nation ever retained its freedom for any length of time after losing its respect for the law, after losing the law-abiding spirit.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 453
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7a8f0b494c98d401a8c95125748b26baaee910e5b7ba0f6c732f61087afd1b01",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "b6a81009a88fcddd16db847ed9b7aaa1bfb9a623d31d08599b08e0f869fd04dd",
+      "quote_id": "b6a81009a88fcddd16db847ed9b7aaa1bfb9a623d31d08599b08e0f869fd04dd",
+      "quote_text": "The best reply to full-blooded Socialism is not milk and water Socialism, it is genuine Conservatism.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 305
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "1469ba4d90847f29e48d87aeebbb22d3ca965f73278af737be544c966c0965b9",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "bab24f7b3ae332817862430c146968a8179f1d6610af50ede8b9218a6c0eb760",
+      "quote_id": "bab24f7b3ae332817862430c146968a8179f1d6610af50ede8b9218a6c0eb760",
+      "quote_text": "When we can't run our own financial affairs properly - we don't command much respect in the world.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 450
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a6e6942dc5bebe06501c041dc411b15fa8afe622641fa976fd242b61b73d1554",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "quote_id": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "quote_text": "The primary duty of government is to maintain the absolute sovereignty of the law, always, everywhere and against any institution, however powerful.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 409
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "3557cfd6459f5f8da296c5c6217212dfd60c1249f1f5609863b3bde42d1ee99b",
+      "original_failure_category": "schema_validation_error",
+      "quote_hash": "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
+      "quote_id": "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
+      "quote_text": "Freedom has to be valued for itself - not just for its material benefits.",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "schema_validation_error",
+      "source_occurrences": [
+        {
+          "line_number": 616
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "61ff210b72480c6dfbce2983d9e29e30e18f294c37444dfdd10bcefa89e60bd1",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+      "quote_id": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+      "quote_text": "It is one of the great paradoxes of history that Socialism, which has done so much harm - was born of a great humanitarian urge - the desire to give people dignity and security. The trouble is that too much security removes a man's dignity by attenuating his freedom.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 500
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "de7c67b227c88e51ee4ca670b336cad2b79e8c0801be041c514a757f1c2a635d",
+      "original_failure_category": "malformed_or_truncated_json",
+      "quote_hash": "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+      "quote_id": "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+      "quote_text": "It used to be about trying to do something. Now it's about trying to be someone.",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "malformed_or_truncated_json",
+      "source_occurrences": [
+        {
+          "line_number": 42
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "104b8138b071476ad1a488bff6d8cd81f941485c66450168eb7c0dfbe5a43895",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+      "quote_id": "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+      "quote_text": "Terrorism is a deadly threat to our way of life, and we will not be cowed by it. We will continue to resist it with all our power and to uphold the principles of democratic government.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 441
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "33fd48297666bceb249fc332d8e0b831ae6a2199d86ff297257fa537f6cddc2e",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 539
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "5be063f7660a0d1dec80dce2327759211b422d7024029e00529b3a20008e3ac0",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "df956326a0b406392992c8aa43eb2b0c4a258c31db85dc93d3237f3fc8ef20d2",
+      "quote_id": "df956326a0b406392992c8aa43eb2b0c4a258c31db85dc93d3237f3fc8ef20d2",
+      "quote_text": "State-enforced egalitarianism is always the foe of freedom. For \"while democracy seeks equality in liberty, socialism seeks equality in restraint and servitude.\"",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 439
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "61fa741a0604113b8dd40a63bb876a41ada9b42d154917d190049f43acd88ea7",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+      "quote_id": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+      "quote_text": "I've no idea why people keep attacking me. I don't deserve it at all.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 517
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "cc8ca4b143e214ca1f0f44da93ed7ab22c134c8cad59e3f2be4a27b4343941c6",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+      "quote_id": "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+      "quote_text": "Once the State controls the means of production, distribution and exchange, all of us become dependent upon it.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 596
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7c14e7d9647eeb8bb76b8b1d718ea29722233f23980004f8cdf122cc740310dd",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e",
+      "quote_id": "fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e",
+      "quote_text": "The cuts are not divisive. Too much state spending is divisive. It divides the honest saver from the profligate spender. It favours those who live for the day rather than those who provide for the morrow.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 523
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

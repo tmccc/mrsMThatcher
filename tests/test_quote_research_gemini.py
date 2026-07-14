@@ -131,7 +131,7 @@ def test_vertex_none_text_is_returned_as_parse_error_not_transport_failure():
     client = type("Client", (), {"models": Models()})()
     result = VertexResearchClient("project", client=client).call("prompt")
     assert result["content"] is None
-    assert result["parse_error"].startswith("TypeError:")
+    assert result["parse_error"] == "ValueError: no JSON object found"
     assert result["usage"]["input_tokens"] == 10
 
 

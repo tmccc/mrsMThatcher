@@ -1,0 +1,35 @@
+{
+  "after_hashes": {
+    "grounding_sources.json": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
+    "permanent_failures.json": "d37dbbb4d47fd4f41f02e2cde8435608a49ed181ce328ec22f1e8ee8024ba907",
+    "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "run_state.json": "efe5dce051291cf62ddaf1f0f28c8f380c1e098cff88321724555a9f0c564791",
+    "status.json": "015e7be53872f77e41a1893fb0b162a74c23f99c819538057ece865d3d0823fc"
+  },
+  "applied_at": "2026-07-14T10:13:34.084735Z",
+  "applied_count": 12,
+  "backup_dir": "retry_batches/retry_validation_20/apply_backups/b7be1df79f9f653d",
+  "before_hashes": {
+    "grounding_sources.json": "8394f977603219e4ee289e68d95f2d75ac2b7aec44d0cae67d4ce754ca5c8a28",
+    "permanent_failures.json": "f0772f1f2878cae59e9f238bda0dc5d8b0433220c65ca6753ac0aacb1be565d3",
+    "research_packets.json": "b7be1df79f9f653dd0e46b6c1899725e001ad44c57196d4d778e5d7e55f5959d",
+    "run_state.json": "7b09f1957df55565d133e41fa86ad2aaee76d62648d9c2376d2480ffc91aab9b",
+    "status.json": "5d0ccf6628fc680e19edcadb4879f25394357ab2909deeb6944a6556c3351119"
+  },
+  "quote_ids": [
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+    "8bc8b0a04e5f442c60b967f72175b72134382710a1038971003ef8c2c40bc3bd",
+    "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+    "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+    "b36e8ec5e0de521adec8bfec7b4003a5f7560a00144e695118eead3048f640be",
+    "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+    "b6178d0b6eeed16ea3a6ef5181a41225d6e1b57fa4f39df2a18c177c8f91eb0e",
+    "c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "d43664f1ffe0f9c303e7cd80725d24f8c9b0e8d5acfd99233d8ef7db54d7fa48",
+    "d44cdb73a735c24e6451eca9077f5a184cbea8626d76d01046a4d4df1121524b"
+  ],
+  "record_kind": "paid_retry_validation_apply",
+  "schema_version": 1
+}

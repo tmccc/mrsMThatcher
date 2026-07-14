@@ -1,0 +1,37 @@
+{
+  "active": 0,
+  "ambiguous_possible_exposure_usd": 0.0,
+  "average_cost_per_valid_quote": 0.13163087272727272,
+  "combined_known_spend_usd": 1.4479396,
+  "developer": {
+    "completed": 1,
+    "known_spend_usd": 0.0873736
+  },
+  "developer_pause_reason": "two_429s_for_first_provider_wide_quota_case",
+  "developer_paused": true,
+  "direct_to_vertex_count": 27,
+  "eta_seconds": 0.0,
+  "mean_latency_seconds": 25.733019353886547,
+  "pending": 0,
+  "permanent_failures": 19,
+  "projected_final_spend_usd": 1.4479396,
+  "remaining_nonterminal": 0,
+  "resume_plan": {
+    "completed_will_be_skipped": 11,
+    "developer_will_be_probed": false,
+    "next_transport": "vertex_ai",
+    "permanent_failures_will_be_skipped": 19,
+    "unfinished_quotes": 0
+  },
+  "run_id": "retry_batch_030_002_run",
+  "schema_version": 1,
+  "total_quotes": 30,
+  "transient_failures": 0,
+  "updated_at": "2026-07-14T06:51:10.953279Z",
+  "valid_packets": 11,
+  "validation_failures": 0,
+  "vertex": {
+    "completed": 10,
+    "known_spend_usd": 1.360566
+  }
+}

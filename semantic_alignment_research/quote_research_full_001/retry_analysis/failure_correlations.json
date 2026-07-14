@@ -1,0 +1,137 @@
+{
+  "attempt_count": 206,
+  "attempt_hour_utc_counts": {
+    "2026-07-13T17:00Z": 14,
+    "2026-07-13T18:00Z": 34,
+    "2026-07-13T19:00Z": 21,
+    "2026-07-13T20:00Z": 33,
+    "2026-07-13T21:00Z": 24,
+    "2026-07-13T22:00Z": 17,
+    "2026-07-13T23:00Z": 43,
+    "2026-07-14T00:00Z": 20
+  },
+  "attempts_near_quota_or_capacity_event": 145,
+  "attempts_with_grounding_chunks": 2,
+  "attempts_without_grounding_chunks_despite_response": 189,
+  "case_count": 101,
+  "corpus_raw_grounding_baseline": {
+    "developer_api": {
+      "chunks_present": 152,
+      "raw_responses": 426,
+      "search_entry_without_chunks": 0,
+      "supports_present": 152
+    },
+    "unknown": {
+      "chunks_present": 5,
+      "raw_responses": 24,
+      "search_entry_without_chunks": 0,
+      "supports_present": 5
+    },
+    "vertex_ai": {
+      "chunks_present": 330,
+      "raw_responses": 1098,
+      "search_entry_without_chunks": 197,
+      "supports_present": 330
+    }
+  },
+  "grounding_by_model": {
+    "gemini-3.1-pro-preview": {
+      "attempts": 206,
+      "chunks_absent": 189,
+      "chunks_present": 2
+    }
+  },
+  "grounding_by_output_token_band": {
+    "0": {
+      "attempts": 15,
+      "chunks_absent": 0,
+      "chunks_present": 0
+    },
+    "1-1024": {
+      "attempts": 7,
+      "chunks_absent": 6,
+      "chunks_present": 1
+    },
+    "1025-2048": {
+      "attempts": 80,
+      "chunks_absent": 80,
+      "chunks_present": 0
+    },
+    "2049+": {
+      "attempts": 104,
+      "chunks_absent": 103,
+      "chunks_present": 1
+    }
+  },
+  "grounding_by_repair_kind": {
+    "initial": {
+      "attempts": 118,
+      "chunks_absent": 101,
+      "chunks_present": 2
+    },
+    "repair": {
+      "attempts": 88,
+      "chunks_absent": 88,
+      "chunks_present": 0
+    }
+  },
+  "grounding_by_search_query_band": {
+    "0": {
+      "attempts": 59,
+      "chunks_absent": 44,
+      "chunks_present": 0
+    },
+    "1": {
+      "attempts": 27,
+      "chunks_absent": 26,
+      "chunks_present": 1
+    },
+    "2": {
+      "attempts": 70,
+      "chunks_absent": 69,
+      "chunks_present": 1
+    },
+    "3+": {
+      "attempts": 50,
+      "chunks_absent": 50,
+      "chunks_present": 0
+    }
+  },
+  "grounding_by_transport": {
+    "developer_api": {
+      "attempts": 42,
+      "chunks_absent": 39,
+      "chunks_present": 2
+    },
+    "vertex_ai": {
+      "attempts": 164,
+      "chunks_absent": 150,
+      "chunks_present": 0
+    }
+  },
+  "initial_attempts": 118,
+  "mean_latency_with_chunks": 29.53247866302263,
+  "mean_latency_without_chunks": 37.56152710551396,
+  "mean_output_tokens_with_chunks": 1396.5,
+  "mean_output_tokens_without_chunks": 2174.4444444444443,
+  "mean_search_queries_with_chunks": 1.5,
+  "mean_search_queries_without_chunks": 1.9576719576719577,
+  "model_urls_without_chunks": 182,
+  "quote_type_counts": {
+    "excerpt_or_edited": 2,
+    "general": 74,
+    "short_attribution_risk": 25
+  },
+  "repair_attempts": 88,
+  "request_concurrency": "not recorded per attempt; the corpus runner was configured for bounded provider concurrency",
+  "response_status_counts": {
+    "transient_failure": 15,
+    "validation_failure": 191
+  },
+  "schema_version": 1,
+  "search_entry_html_without_chunks": 145,
+  "transport_attempt_counts": {
+    "developer_api": 42,
+    "vertex_ai": 164
+  }
+}

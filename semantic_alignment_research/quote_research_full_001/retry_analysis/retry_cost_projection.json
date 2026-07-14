@@ -1,0 +1,20 @@
+{
+  "full_retry_set": {
+    "expected_attempts_per_item": 1.2,
+    "expected_cost_usd": 13.2212,
+    "high_projection_usd": 33.9257,
+    "items": 170
+  },
+  "note": "Projections use observed grounded-call costs; execution guards still stop before the hard ceiling.",
+  "observed_call_median_usd": 0.06481,
+  "observed_call_p90_usd": 0.133042,
+  "schema_version": 1,
+  "validation_batch": {
+    "allowed": true,
+    "expected_attempts_per_item": 1.2,
+    "expected_cost_usd": 1.5554,
+    "hard_combined_ceiling_usd": 5.0,
+    "high_projection_usd": 3.9913,
+    "items": 20
+  }
+}

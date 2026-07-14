@@ -137,7 +137,10 @@ class CorpusRunner:
     def __init__(self, run_dir: Path, manifest: dict[str, Any], developer: Any, vertex: Any,
                  developer_limit: float, vertex_limit: float, combined_limit: float,
                  developer_concurrency: int = 2, vertex_concurrency: int = 2,
-                 sleep: Callable[[float], None] = time.sleep):
+                 sleep: Callable[[float], None] = time.sleep,
+                 prompt_builder: Callable[[dict[str, Any]], str] = research_prompt,
+                 repair_builder: Callable[[dict[str, Any], str, str], str] = repair_prompt,
+                 identity_binder: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None):
         verify_corpus_manifest(manifest)
         self.run_dir = run_dir
         self.manifest = manifest
@@ -150,6 +153,9 @@ class CorpusRunner:
         self.concurrency = {"developer_api": max(1, developer_concurrency),
                             "vertex_ai": max(1, vertex_concurrency)}
         self.sleep = sleep
+        self.prompt_builder = prompt_builder
+        self.repair_builder = repair_builder
+        self.identity_binder = identity_binder
         self.lock = threading.RLock()
         self.stop_event = threading.Event()
         self.paths = {name: run_dir / name for name in (
@@ -405,12 +411,18 @@ class CorpusRunner:
             self.grounding["items"][f"{quote_id}:{transport}:{number}"] = {"transport": transport, **response["grounding"]}
             atomic_write_json(self.paths["grounding_sources.json"], self.grounding)
         try:
+            if not response["grounding"].get("sources"):
+                raise LookupError("provider returned no linked grounding chunks/supports")
             if response.get("parse_error"):
                 raise ValueError(response["parse_error"])
-            bound = bind_packet_to_grounding(response["content"], response["grounding"])
+            content = response["content"]
+            if self.identity_binder:
+                content = self.identity_binder(content, record)
+            bound = bind_packet_to_grounding(content, response["grounding"])
             packet = validate_packet(bound, record)
-        except (ValueError, TypeError, KeyError) as exc:
-            failure = {"kind": "validation_failure", "message": str(exc),
+        except (ValueError, TypeError, KeyError, LookupError) as exc:
+            kind = "missing_grounding" if isinstance(exc, LookupError) else "validation_failure"
+            failure = {"kind": kind, "message": str(exc),
                        "raw_response_path": str(raw_path.relative_to(self.run_dir)),
                        "extracted_response_path": str(extracted_path.relative_to(self.run_dir))}
             self._record_attempt({**base, "state": "validation_failure", "failure": failure})
@@ -447,15 +459,17 @@ class CorpusRunner:
                 self._mark_permanent(record, {"kind": "exhausted_after_retry",
                     "message": f"{transport} attempts exhausted"}, transport)
                 return
-            prompt = research_prompt(record)
+            prompt = self.prompt_builder(record)
             result = self._attempt(record, client, prompt)
             outcome = result["outcome"]
             if outcome in {"completed", "cancelled"}:
                 return
             if outcome == "validation_failure":
                 if self.state["items"][quote_id]["transport_attempts"][transport] < MAX_ATTEMPTS:
-                    repair = repair_prompt(record, result.get("raw_text", ""), result["failure"]["message"])
-                    repaired = self._attempt(record, client, repair, repair=True)
+                    missing_grounding = result["failure"].get("kind") == "missing_grounding"
+                    next_prompt = self.prompt_builder(record) if missing_grounding else self.repair_builder(
+                        record, result.get("raw_text", ""), result["failure"]["message"])
+                    repaired = self._attempt(record, client, next_prompt, repair=not missing_grounding)
                     if repaired["outcome"] == "completed":
                         return
                     result, outcome = repaired, repaired["outcome"]

@@ -1,0 +1,550 @@
+{
+  "manifest_sha256": "2754a4aa7abe43c89fb64cdeee4ddc0c28d240f762ed1fa209a2e6cc06e88bc5",
+  "parent_retry_manifest_sha256": "4d8dd93d18015156acc9b143667a2dd2deca40dcb71c032771a55a8eedef6329",
+  "parent_run": "quote_research_full_001",
+  "record_count": 30,
+  "record_kind": "quote_research_retry_validation_run",
+  "records": [
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "f807cc27f9bcb43eb0171aa189bb87eecf98276194b03d97c3847f3478f6cda2",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb",
+      "quote_id": "094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb",
+      "quote_text": "I do not believe that even the free and ordered society which as a party we are trying to foster can satisfy the deepest human needs. I do not think that even this society will be able to sustain itself unless it keeps its religious foundations in good repair.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 198
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "89e17f9e4aadab1536561695343d74e7c6773787c74b746c4715032d7387a149",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f",
+      "quote_id": "13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f",
+      "quote_text": "The European single currency is bound to fail, economically, politically and indeed socially, though the timing, occasion and full consequences are all necessarily still unclear.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 96
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "cecc9b7b31b2f5d790bd5bf9c65d51c4026dd46c8c397ac2be603746bce65373",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_id": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 386
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "54e33ce2e6a642fb5cbd663baa6054a93fc830efbefa6c9e50d4409044b72f77",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 599
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "1392ffdbbd437ea09b1464793e088c47bda794c51d33aceb4894e4eb27426d75",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "quote_text": "Political myths - especially those cherished by political commentators - die hard; and as soon as one has been exploded by events, another is promptly created to fill its place as the basis of \"expert\" analysis and prediction.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 405
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "17bc1df2db6086deef46a238ae295be985ab2faf402d788cae14a73be2476c44",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+      "quote_id": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+      "quote_text": "The colour of someone's skin should not determine his or her political rights.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 173
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "8458ff0c468efb15d1f7e03a5de8fb31ee552ee247b4382516ef9ff6c1811546",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "3cfd627fe66d0f83539b77f4e94caeb3588a01c3bf1e5043686a7980019ea87b",
+      "quote_id": "3cfd627fe66d0f83539b77f4e94caeb3588a01c3bf1e5043686a7980019ea87b",
+      "quote_text": "Green socialism is no more an answer to the world's environmental needs than was the smoke-stack socialism of Eastern Europe which poisoned our rivers, disfigured our buildings and rotted our forests.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 514
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7a4ef72e750f0c660fe3b30126114b137ce0353246b327ed0dc0561aafe9dc2d",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_id": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 608
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "9c43eaa0176a93ecbcf86fd47676d5ffa8d8b892d69e069f2a9892a19e50afa1",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_id": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_text": "What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have got to have hard work and a certain sense of purpose.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 84
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a28a10564026439f55bff7d88600cf816f159d336b4ea6a6215f883a6f7c52d6",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789",
+      "quote_id": "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789",
+      "quote_text": "Religion teaches us that every human being is unique & must play his part in working out his own salvation. So whereas socialists begin with society, and how people can be fitted in, we start with Man, whose social and economic relationships are just part of his wider existence.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 470
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "904b373258fac1d24bd82609dd396abca00dd1d9f1631a2f7777e3c1fcad92be",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442",
+      "quote_id": "5e892c3dc2c64f50bfa16bae89ebe44c7e8176e90d70096859d3588c364d4442",
+      "quote_text": "Socialism demands that all should be alike-that the unequal should be artificially made equal.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 488
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c48df44a807a1453c6a91596b7e0085be098209f6b87355b19ce7a195eae3c04",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "7db9e95f72e1b6f9522a752360835c7c2389ff423e4b07c5a7ef7eab704385bc",
+      "quote_id": "7db9e95f72e1b6f9522a752360835c7c2389ff423e4b07c5a7ef7eab704385bc",
+      "quote_text": "Governments can animate industry but they should not seek indefinitely to sustain it.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 364
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "105f3c64668f7e80f9caa0cc7083e95cc5feb50c99c3bdb9292665a4241d4d19",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822",
+      "quote_id": "8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822",
+      "quote_text": "A free way of life gives both dignity and prosperity that you do not get in Communism.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 496
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c21117a2fc884d62fd3dd2213c0274837206c900a89f0ec022378e8eb7be5ea1",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "810bdf1482be16e82cdde6145f50fd3887026ecde907cbf38a2bdf606e1875e6",
+      "quote_id": "810bdf1482be16e82cdde6145f50fd3887026ecde907cbf38a2bdf606e1875e6",
+      "quote_text": "In the inner cities  -  where youngsters must have a decent education if they are to have a better future  -  that opportunity is all too often snatched from them by hard left education authorities and extremist teachers.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 276
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "eec41b6d9f29e271d914c78588ea003689edfeb800b4af36391623897d6719af",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "8ada29b44bd8d9d972323e94e70d9e116d16af0fc1f820e60ee848701087c1d8",
+      "quote_id": "8ada29b44bd8d9d972323e94e70d9e116d16af0fc1f820e60ee848701087c1d8",
+      "quote_text": "Socialism is a dangerous, but undeclared, enemy of freedom - and I do not just mean the socialist command economy but all those attitudes which socialism fosters: dependence, passivity, conformity, envy, lack of personal responsibility and lack of initiative.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 511
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e5e20c69b39b4ff6183fbf01b09daf09964aa9da1478076ded2a5d01e20ba582",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "949ba724b11e9f5a8b26d3939aa790bfb6e1727eaaf747eefd46138df5fd460f",
+      "quote_id": "949ba724b11e9f5a8b26d3939aa790bfb6e1727eaaf747eefd46138df5fd460f",
+      "quote_text": "Socialism is the planning by the few over the lives of the many.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 338
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "41e1c5ab0cd8d19925d073e2d0cbbbbfbf641e81d57c050572718c5024e72a6c",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "9c43feed102e8c7aa5aa9cc3e21593bfeab1a80461d49b983d15f33319874591",
+      "quote_id": "9c43feed102e8c7aa5aa9cc3e21593bfeab1a80461d49b983d15f33319874591",
+      "quote_text": "GULAG was the consequence of socialism. It was not the work of one man. It only happened because socialism demoralised the whole nation, replaced the individual conscience by the party, right and wrong by what was good for the revolution.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 250
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "cd31b9ddf8301852bbaff10862ab99351d745793237e5e13c55add802cb10c31",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "bdf13cf3061695601ea6bef2368dbdec358dfd9eb147d23be43f886e959127ec",
+      "quote_id": "bdf13cf3061695601ea6bef2368dbdec358dfd9eb147d23be43f886e959127ec",
+      "quote_text": "The first and perhaps the most important insight which we Conservatives have is that government can do little that is good and much that is harmful, and so the scope of government must be kept to a minimum.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 236
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "4bf0bfae153f3edc80be8f6a70ae92e1ac6d23f6a2078a80ef7a96ca025d33c1",
+      "original_failure_category": "no_response_received",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_id": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "no_response_received",
+      "source_occurrences": [
+        {
+          "line_number": 630
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "dc7c62ff1be0ef732141ce12a1186d0e52ba8d49fc84ca78a1d56835626d38c3",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "c2633f930597a6a5281672a0525268067de6b21081ba014381622f9757e21919",
+      "quote_id": "c2633f930597a6a5281672a0525268067de6b21081ba014381622f9757e21919",
+      "quote_text": "You will have noted too how socialists consider themselves qualified to lay down what is good for all countries and societies, for the Chinese and the Chileans, Uruguayans and Paraguay - and never does a shadow of self-doubt cross their closed little minds.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 469
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "b1459479657be960fd6156c5f636a06444e9d69d2a27ca95b2bfb41a2351ab81",
+      "original_failure_category": "quote_identity_changed",
+      "quote_hash": "c4e1b1ec6b7929df457805fc87fa5f66b85706894c0b62ffe1fb57ba64569237",
+      "quote_id": "c4e1b1ec6b7929df457805fc87fa5f66b85706894c0b62ffe1fb57ba64569237",
+      "quote_text": "No drunken sailor, no shrunken Socialist fleet of drunken sailors, could have spent more money less wisely or less well [than this Labour government].",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "quote_identity_changed",
+      "source_occurrences": [
+        {
+          "line_number": 483
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "0cb715b872274c83065be4e2ed8d6348b2bbd3d159b55d5d76ed2fdae3f6d647",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44",
+      "quote_id": "d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44",
+      "quote_text": "Any leader has to have a certain amount of steel in them, so I am not that put out being called the Iron Lady.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 3
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a004f783610e2228002fc5c4127330bedfffaffae4847e8dea354b36cbe94e99",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "quote_id": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
+      "quote_text": "Conservatives know that the British are at their best in a society where individual people - not the state - make the running and take most of the decisions. Where rewards are related to effort and skill, and where the innovators and creators can breathe deeply and feel at home.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 444
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "4b2d863209d28f038d95577ae0da08b9d1a9328c0053e1454a733214eff243be",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "d91ccdb8e430e61227a7e4c72af01b472f1231e99f7439e9bd1383c4338f4ca3",
+      "quote_id": "d91ccdb8e430e61227a7e4c72af01b472f1231e99f7439e9bd1383c4338f4ca3",
+      "quote_text": "In a Conservative society we must strive to use the welfare state to help people to independence not condemn them to dependence. Our caring community must continue to help the needy and those for whom only the state can provide.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 201
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e2d3902b46973d7cbce2d2ac29d447e8da63a9bcb552506ca30c5c33ff9fd898",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "quote_id": "d91d9b8211e3f37a74c51f6dc9eb4c0b96fc398228489ad81758ec9556ec1d95",
+      "quote_text": "Let Labour's Orwellian nightmare of the Left be the spur for us to dedicate with a new urgency our every ounce of energy and moral strength to rebuild the fortunes of this free nation.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 378
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "1ad291cebdb743ec7c42d17ad32b772250c1350d810ac1d2da5d834fda4ae7dc",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+      "quote_id": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+      "quote_text": "The free enterprise economy which underlies our prosperity and underpins our freedoms can survive only in a society devoted to personal liberties under just laws.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 319
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7f0e50deedfb5f641ab4bdf1abd2f2c85e0991bfe924a8910ba5d0404dde7ebf",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "quote_id": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "quote_text": "Islamic extremism today, like Bolshevism in the past, is an armed doctrine. It is an aggressive ideology promoted by fanatical, well-armed devotees. And, like Communism, it requires an all-embracing long-term strategy to defeat it.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 266
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "34502c0f9e9c09f09048640f1e77391e65c02d9d0f73939ef2a450ec559d8468",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "e901673a2a91f9dadb8b896ef8232aa5d7e6f20c0602f12721d74810db8233f0",
+      "quote_id": "e901673a2a91f9dadb8b896ef8232aa5d7e6f20c0602f12721d74810db8233f0",
+      "quote_text": "Socialism has only one remedy for anything - spend more of the people's money and raise higher taxes.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 356
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c5d7f3300e401c76621a85430636b50b8160a0eb967addb2423d431b0f12689e",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "edf27b51d4468d4df16baad2e7f311c551e3224396f5d1d07fe031552af9d31e",
+      "quote_id": "edf27b51d4468d4df16baad2e7f311c551e3224396f5d1d07fe031552af9d31e",
+      "quote_text": "The longer Labour remains in Government, the more vulnerable this country will be.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 215
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "8c31a03e8722c64efcb2b7de987570c69dbc01a0b821770818e313aadf40d9d8",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "f8ac9512d68039dc381e4180f24064d6babbf454689a83b4d91e30a8685d0187",
+      "quote_id": "f8ac9512d68039dc381e4180f24064d6babbf454689a83b4d91e30a8685d0187",
+      "quote_text": "Heavy taxation had lowered fiscal morality.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 474
+        }
+      ]
+    }
+  ],
+  "schema_version": 1
+}

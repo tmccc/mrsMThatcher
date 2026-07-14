@@ -1,0 +1,48 @@
+{
+  "actual_spend_usd": 2.9017102,
+  "average_cost_per_recovered_quote_usd": 0.1813568875,
+  "completed": 16,
+  "completed_by_failure_class": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 8,
+    "transport_failures": 5
+  },
+  "completed_by_failure_subclass": {
+    "malformed_or_truncated_json": 1,
+    "missing_grounded_source": 8,
+    "quote_identity_changed": 1,
+    "schema_validation_error": 1,
+    "timeout_or_transport_failure": 5
+  },
+  "developer_429_count": 3,
+  "developer_completions": 2,
+  "developer_pause_activated": true,
+  "developer_pause_reason": "two_429s_for_first_provider_wide_quota_case",
+  "direct_to_vertex_count": 17,
+  "elapsed_seconds": 1082.62756,
+  "grounding_success_rate": 0.8,
+  "main_packet_count_after_apply": 478,
+  "manifest_composition": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 10,
+    "transport_failures": 7
+  },
+  "manifest_count": 20,
+  "projected_cost_remaining_usd": 21.7628265,
+  "projected_recoveries_at_observed_rate": 120,
+  "quote_identity_rejection_count": 0,
+  "recommendation": "authorise_remaining_in_staged_batches",
+  "record_kind": "quote_research_retry_validation_summary",
+  "schema_version": 1,
+  "unresolved": 4,
+  "unresolved_by_failure_class": {
+    "missing_grounding": 2,
+    "transport_failures": 2
+  },
+  "unresolved_by_failure_subclass": {
+    "missing_grounded_source": 2,
+    "timeout_or_transport_failure": 2
+  },
+  "untouched_retry_candidates": 150,
+  "vertex_completions": 14
+}

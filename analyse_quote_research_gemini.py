@@ -20,6 +20,16 @@ from semantic_alignment.quote_research_corpus import (
     CorpusRunner, build_corpus_manifest, corpus_preflight,
     install_signal_handlers, restore_signal_handlers, verify_corpus_manifest,
 )
+from semantic_alignment.quote_research_recovery import (
+    apply_recovery, audit_failures, write_audit_outputs,
+)
+from semantic_alignment.quote_research_closure import corpus_closure_audit, write_final_outputs
+from semantic_alignment.quote_research_retry_analysis import generate_retry_analysis
+from semantic_alignment.quote_research_retry_execution import (
+    RETRY_PACKET_SCHEMA, RetryValidationRunner, apply_retry_results, build_failed_batch_recovery,
+    build_remaining_failed_recovery, build_retry_batch,
+    prepare_retry_run, validate_retry_manifest, write_recovery_stage_meta_report,
+)
 
 ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT / "thatcher_quote_research_project"
@@ -67,6 +77,56 @@ def parser() -> argparse.ArgumentParser:
     retry.add_argument("--run-dir", type=Path, required=True)
     retry.add_argument("--only-status", choices=("transient_failure", "validation_failure", "interrupted"), required=True)
     add_execution_flags(retry)
+    audit = sub.add_parser("audit-failures")
+    audit.add_argument("--run-dir", type=Path, required=True)
+    audit.add_argument("--json", action="store_true", dest="json_output")
+    recover = sub.add_parser("recover-offline")
+    recover.add_argument("--run-dir", type=Path, required=True)
+    mode = recover.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--dry-run", action="store_true")
+    mode.add_argument("--apply", action="store_true")
+    recover.add_argument("--json", action="store_true", dest="json_output")
+    plan_retries = sub.add_parser("plan-retries")
+    plan_retries.add_argument("--run-dir", type=Path, required=True)
+    plan_retries.add_argument("--validation-count", type=int, default=20)
+    plan_retries.add_argument("--json", action="store_true", dest="json_output")
+    retry_status = sub.add_parser("retry-plan-status")
+    retry_status.add_argument("--run-dir", type=Path, required=True)
+    retry_status.add_argument("--retry-manifest", type=Path, required=True)
+    retry_status.add_argument("--json", action="store_true", dest="json_output")
+    retry_run = sub.add_parser("run-retry-validation")
+    retry_run.add_argument("--run-dir", type=Path, required=True)
+    retry_run.add_argument("--retry-manifest", type=Path, required=True)
+    retry_run.add_argument("--execute", action="store_true")
+    retry_run.add_argument("--enable-vertex-fallback", action="store_true")
+    retry_run.add_argument("--developer-concurrency", type=int, default=1)
+    retry_run.add_argument("--vertex-concurrency", type=int, default=1)
+    retry_run.add_argument("--max-attempts", type=int, default=2)
+    retry_run.add_argument("--pause-developer-after-consecutive-provider-wide-429", type=int, default=2)
+    retry_run.add_argument("--no-automatic-developer-reprobe", action="store_true")
+    retry_run.add_argument("--confirm-combined-limit-usd", type=float)
+    retry_run.add_argument("--resume", action="store_true")
+    build_retry = sub.add_parser("build-retry-batch")
+    build_retry.add_argument("--run-dir", type=Path, required=True)
+    build_retry.add_argument("--source-manifest", type=Path, required=True)
+    build_retry.add_argument("--count", type=int, required=True)
+    build_retry.add_argument("--output", type=Path, required=True)
+    failed_recovery = sub.add_parser("build-failed-batch-recovery")
+    failed_recovery.add_argument("--run-dir", type=Path, required=True)
+    failed_recovery.add_argument("--source-manifest", type=Path, required=True)
+    failed_recovery.add_argument("--source-run", type=Path, required=True)
+    failed_recovery.add_argument("--output", type=Path, required=True)
+    remaining_recovery = sub.add_parser("build-remaining-recovery")
+    remaining_recovery.add_argument("--run-dir", type=Path, required=True)
+    remaining_recovery.add_argument("--source-manifest", type=Path, required=True)
+    remaining_recovery.add_argument("--output", type=Path, required=True)
+    meta_report = sub.add_parser("recovery-meta-report")
+    meta_report.add_argument("--run-dir", type=Path, required=True)
+    dossier = sub.add_parser("unresolved-dossier")
+    dossier.add_argument("--run-dir", type=Path, required=True)
+    closure = sub.add_parser("corpus-closure-audit")
+    closure.add_argument("--run-dir", type=Path, required=True)
+    closure.add_argument("--strict", action="store_true")
     return root
 
 
@@ -221,6 +281,29 @@ def status_command(args) -> int:
     return 0
 
 
+def offline_audit_command(args, recover: bool = False) -> int:
+    run = args.run_dir.resolve()
+    audit = audit_failures(run)
+    output = write_audit_outputs(run, audit, applied=False)
+    result: dict[str, object] = {"output_dir": str(output), **audit["summary"]}
+    if recover and args.apply:
+        result["apply"] = apply_recovery(run, audit)
+    if args.json_output:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print(f"Offline quote-research audit: {run.name}")
+        print(f"  non-completed audited={audit['summary']['non_completed_audited']}")
+        print(f"  recoverable={audit['summary']['recoverable_offline']}")
+        print(f"  parser/schema only={audit['summary']['parser_or_schema_work_only']}")
+        print(f"  lacking usable response={audit['summary']['lacking_usable_response']}")
+        print(f"  paid retry candidates={audit['summary']['paid_retry_candidates']}")
+        if "apply" in result:
+            print("  apply=" + json.dumps(result["apply"], sort_keys=True))
+        else:
+            print("  main packet collection unchanged")
+    return 0
+
+
 def write_full_report(run: Path, status: dict) -> None:
     packets = read_json(run / "research_packets.json", {"items": {}})
     costs = read_json(run / "cost_ledger.json", {"calls": []})
@@ -332,6 +415,90 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "status":
         return status_command(args)
+    if args.command == "audit-failures":
+        return offline_audit_command(args)
+    if args.command == "recover-offline":
+        return offline_audit_command(args, recover=True)
+    if args.command == "plan-retries":
+        result = generate_retry_analysis(args.run_dir.resolve(), args.validation_count)
+        summary = {
+            "output_dir": result["output_dir"],
+            "missing_grounding_cases": result["missing"]["correlations"]["case_count"],
+            "unique_paid_retry_candidates": result["plan"]["full"]["record_count"],
+            "validation_batch_items": result["plan"]["validation"]["record_count"],
+            "validation_expected_cost_usd": result["costs"]["validation_batch"]["expected_cost_usd"],
+        }
+        print(json.dumps(summary, indent=2) if args.json_output else "\n".join(f"{key}: {value}" for key, value in summary.items()))
+        return 0
+    if args.command == "retry-plan-status":
+        result = validate_retry_manifest(args.run_dir.resolve(), args.retry_manifest.resolve())
+        print(json.dumps(result, indent=2) if args.json_output else "\n".join(f"{key}: {value}" for key, value in result.items()))
+        return 0
+    if args.command == "build-retry-batch":
+        result = build_retry_batch(args.run_dir.resolve(), args.source_manifest.resolve(),
+                                   args.count, args.output.resolve())
+        print(json.dumps({"output": str(args.output.resolve()), "record_count": result["record_count"],
+                          "class_counts": result["class_counts"], "manifest_sha256": result["manifest_sha256"]}, indent=2))
+        return 0
+    if args.command == "build-failed-batch-recovery":
+        result = build_failed_batch_recovery(args.run_dir.resolve(), args.source_manifest.resolve(),
+                                             args.source_run.resolve(), args.output.resolve())
+        print(json.dumps({"output": str(args.output.resolve()), "record_count": result["record_count"],
+                          "class_counts": result["class_counts"], "manifest_sha256": result["manifest_sha256"]}, indent=2))
+        return 0
+    if args.command == "build-remaining-recovery":
+        result = build_remaining_failed_recovery(
+            args.run_dir.resolve(), args.source_manifest.resolve(), args.output.resolve())
+        print(json.dumps({"output": str(args.output.resolve()),
+                          "record_count": result["record_count"],
+                          "class_counts": result["class_counts"],
+                          "excluded_repeatedly_exhausted_ids": result["excluded_repeatedly_exhausted_ids"],
+                          "manifest_sha256": result["manifest_sha256"]}, indent=2))
+        return 0
+    if args.command == "recovery-meta-report":
+        result = write_recovery_stage_meta_report(args.run_dir.resolve())
+        print(json.dumps(result, indent=2))
+        return 0
+    if args.command == "unresolved-dossier":
+        result = write_final_outputs(args.run_dir.resolve(), strict=False)
+        print(json.dumps({"case_count": result["dossier"]["case_count"],
+                          "output": str(args.run_dir.resolve() / "final_unresolved")}, indent=2))
+        return 0
+    if args.command == "corpus-closure-audit":
+        result = corpus_closure_audit(args.run_dir.resolve(), strict=args.strict)
+        print(json.dumps(result, indent=2))
+        return 0
+    if args.command == "run-retry-validation":
+        preflight = validate_retry_manifest(args.run_dir.resolve(), args.retry_manifest.resolve())
+        approved_ceiling = float(preflight["hard_combined_ceiling_usd"])
+        if not args.execute or args.confirm_combined_limit_usd != approved_ceiling:
+            raise RuntimeError(f"retry validation requires --execute and exact --confirm-combined-limit-usd {approved_ceiling:g}")
+        if not args.enable_vertex_fallback:
+            raise RuntimeError("retry validation requires --enable-vertex-fallback")
+        if (args.developer_concurrency, args.vertex_concurrency, args.max_attempts,
+                args.pause_developer_after_consecutive_provider_wide_429) != (1, 1, 2, 2):
+            raise RuntimeError("retry validation requires concurrency 1, max attempts 2, and two-429 pause threshold")
+        if not args.no_automatic_developer_reprobe:
+            raise RuntimeError("retry validation requires --no-automatic-developer-reprobe")
+        parent = args.run_dir.resolve()
+        retry_dir, manifest = prepare_retry_run(parent, args.retry_manifest.resolve())
+        key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        developer = DeveloperResearchClient(key or "", connect_timeout=20, read_timeout=360,
+                                             response_schema=RETRY_PACKET_SCHEMA)
+        vertex_env = verify_adc_access(dict(os.environ))
+        vertex = VertexResearchClient(project=vertex_env["project"], location=vertex_env["location"],
+                                      read_timeout=360, response_schema=RETRY_PACKET_SCHEMA)
+        runner = RetryValidationRunner(retry_dir, manifest, developer, vertex,
+                                       approved_ceiling, approved_ceiling, approved_ceiling,
+                                       developer_concurrency=1, vertex_concurrency=1)
+        previous = install_signal_handlers(runner)
+        try:
+            status = runner.run()
+        finally:
+            restore_signal_handlers(previous)
+        applied = apply_retry_results(parent, retry_dir)
+        print(json.dumps({"retry_run": str(retry_dir), "status": status, "apply": applied}, indent=2))
+        return 0
     return run_command(args)
 
 

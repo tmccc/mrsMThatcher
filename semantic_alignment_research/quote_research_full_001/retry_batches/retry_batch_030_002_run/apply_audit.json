@@ -1,0 +1,34 @@
+{
+  "after_hashes": {
+    "grounding_sources.json": "0390f97c1b431e672336ffe567c3ee5d899cd49494535073f7a89402b048cded",
+    "permanent_failures.json": "9b4ff77f2fac68f092bc82b282444f847c252c7ce12b7ac3daa2ee18f5cd8b62",
+    "research_packets.json": "d6c542a43a4cc417db9c99ca68755b98580bfe646d868627dc1562f017089d04",
+    "run_state.json": "1f517404ef28f7c8503e493f0ed3b6485ab1270f8cf98c536cf92ed3d48330e1",
+    "status.json": "f22265cea8845192e99bc6477605b207b621930e08961d8e5e9705719d392ed0"
+  },
+  "applied_at": "2026-07-14T06:51:11.498124Z",
+  "applied_count": 11,
+  "backup_dir": "retry_batches/retry_batch_030_002_run/apply_backups/402879b8976eb22e",
+  "before_hashes": {
+    "grounding_sources.json": "3c26223731b04607455966a85a6171e4e9f1172a452ed077b505231830bfa757",
+    "permanent_failures.json": "e0baa87456b8c94d80068fff4e4f9b0c967a21d6dff7ad6bf2d64c25df166b4e",
+    "research_packets.json": "402879b8976eb22e8964feeea18731ff38a5fde4b2ac512bf1a3bb74c02e350e",
+    "run_state.json": "98c9a1d87206ed19afd1107ffa5280673b61186e4907e72913ae510c77601f99",
+    "status.json": "c3e2e33e5868c2f6ca715dc0280b5a137a001ff86cdea87b4e31b1b69fde932c"
+  },
+  "quote_ids": [
+    "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+    "343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d",
+    "36b2a8c67d50ee96a66e498fee99e582249046518a8a106b9f45a7252a04c250",
+    "4d0ee2952c87bc6d0ef3b344bf5bba3d1b37c48888576887232760ed0a8b9651",
+    "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+    "60c95d7ae755ca327f2afc73fcc86c7366f38547623d806ad69be07a590205d2",
+    "633b7deaa976e68566612cd4ad3a1aceb4f9583591017620f4ec032d0ff6199d",
+    "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+    "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+    "912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7",
+    "9fb2f7bc48ebf132080deced2446f1b2903b43ff70464a4234310934cfd09329"
+  ],
+  "record_kind": "paid_retry_validation_apply",
+  "schema_version": 1
+}

@@ -1,0 +1,38 @@
+{
+  "allowed": true,
+  "automatic_developer_reprobe": false,
+  "candidate_count": 20,
+  "completed_overlap": [
+    "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+    "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+    "32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17",
+    "5a4bdeaf484baa34fbbc226d2828b58fe98da9757449e92e5dc5d45850e6e4cf"
+  ],
+  "completed_overlap_provenance": "same_retry_run",
+  "concurrency": {
+    "developer_api": 1,
+    "vertex_ai": 1
+  },
+  "conservative_cost_usd": 3.6271,
+  "developer_first": true,
+  "developer_pause_after_consecutive_provider_wide_429": 2,
+  "duplicates": 0,
+  "expected_cost_usd": 3.6271,
+  "grounding_required": true,
+  "group_counts": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 7,
+    "transport_failures": 10
+  },
+  "hard_combined_ceiling_usd": 5.0,
+  "identity_fields_model_editable": false,
+  "live_execution_requires": [
+    "--execute",
+    "--confirm-combined-limit-usd 5"
+  ],
+  "manifest_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_recovery_remaining_020.json",
+  "manifest_sha256": "351e922f87b7937e5991423adebe038c9e87d3b1162569b69bf8142db16b70f6",
+  "max_attempts_per_transport": 2,
+  "read_timeout_seconds": 360,
+  "schema_version": 1
+}

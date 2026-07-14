@@ -1,0 +1,33 @@
+{
+  "allowed": true,
+  "automatic_developer_reprobe": false,
+  "candidate_count": 30,
+  "completed_overlap": [],
+  "completed_overlap_provenance": "none",
+  "concurrency": {
+    "developer_api": 1,
+    "vertex_ai": 1
+  },
+  "conservative_cost_usd": 5.4407,
+  "developer_first": true,
+  "developer_pause_after_consecutive_provider_wide_429": 2,
+  "duplicates": 0,
+  "expected_cost_usd": 5.4407,
+  "grounding_required": true,
+  "group_counts": {
+    "identity_and_structured_output": 1,
+    "missing_grounding": 17,
+    "transport_failures": 12
+  },
+  "hard_combined_ceiling_usd": 7.5,
+  "identity_fields_model_editable": false,
+  "live_execution_requires": [
+    "--execute",
+    "--confirm-combined-limit-usd 7.5"
+  ],
+  "manifest_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_005.json",
+  "manifest_sha256": "4d8dd93d18015156acc9b143667a2dd2deca40dcb71c032771a55a8eedef6329",
+  "max_attempts_per_transport": 2,
+  "read_timeout_seconds": 360,
+  "schema_version": 1
+}

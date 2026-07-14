@@ -1,0 +1,1916 @@
+{
+  "items": {
+    "2c95b35a3faf922bc70b661477646328e4cf52ddf75943a3fb94df9bcbb4dbea": {
+      "broader_principle": "Economic freedom and individual self-reliance are the foundations of a prosperous and dynamic society.",
+      "claimed_consequence": "Fostering this self-reliant attitude would create a new generation of entrepreneurs who generate jobs and wealth, ultimately revitalising the nation.",
+      "completed_at": "2026-07-13T18:24:53.352303Z",
+      "date": "February 8, 1984",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Portraying this as a speech to Parliament rather than a business conference.",
+          "Using imagery from her first term (1979) rather than her second term (1984)."
+        ],
+        "desired_first_impression": "Determined, transformative, and unapologetically pro-enterprise.",
+        "historical_requirements": [
+          "Acknowledge the context of the 1980s British economic transition.",
+          "Reflect the focus on small businesses and entrepreneurship."
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between 'dependent' and 'self-reliant'.",
+          "The hyphenated colloquial phrases."
+        ],
+        "must_not_dominate": [
+          "Unrelated Cold War or foreign policy themes.",
+          "Generalised conservative imagery without the specific economic focus."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Small Business Bureau",
+        "United Kingdom"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "During her second term, Thatcher sought to fundamentally restructure the British economy by rolling back state intervention and promoting private enterprise. She delivered this speech to small business owners to highlight her government's efforts to foster an 'enterprise culture'.",
+      "immediate_subject": "The overarching goal of her premiership regarding the British national character and economy.",
+      "intended_argument": "That the state must step back so that individual initiative, entrepreneurship, and self-reliance can flourish, replacing a culture of state dependency.",
+      "literal_meaning": "Her primary goal as Prime Minister was to transform the UK from a country that relies on government handouts to one driven by individual initiative and hard work.",
+      "mechanism": "By contrasting hyphenated colloquialisms ('give-it-to-me' vs. 'do-it-yourself', 'sit-back-and-wait-for-it' vs. 'get-up-and-go'), Thatcher creates a memorable, populist rhetorical dichotomy.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/2c95b35a3faf922bc70b661477646328e4cf52ddf75943a3fb94df9bcbb4dbea/developer_api_attempt_2.json",
+        "raw_response_sha256": "e1bb8e94a57ac35ff5aae7c97611304e13f382fc8406125ba91a41800c002de5",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "2c95b35a3faf922bc70b661477646328e4cf52ddf75943a3fb94df9bcbb4dbea",
+      "quote_text": "I came to office with one deliberate intent: to change Britain from a dependent to a self-reliant society, from a give-it-to-me to a do-it-yourself nation. A get-up-and-go, instead of a sit-back-and-wait-for-it Britain.",
+      "research_confidence": "high",
+      "source_event": "Speech to Small Business Bureau Conference",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "'get-up-and-go'), Thatcher creates a memorable, populist rhetorical dichotomy.\",\n  \"claimed_consequence\": \"Fostering this self-reliant attitude would create a new generation of entrepreneurs who generate jobs and wealth, ultimately revitalising the nation.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Small Business Bureau\",\n    \"United Kingdom\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Determined, transformative, and unapologetically pro-enterprise.\",\n    \"historical_requirements\": [\n      \"Acknowledge the context of the 1980s British economic transition.\",\n      \"Reflect the focus on small businesses and entrepreneurship.\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"The contrast between 'dependent' and 'self-reliant'.\",\n      \"The hyphenated colloquial phrases.\"\n    ],\n    \"must_not_dominate\": [\n      \"Unrelated Cold War or foreign policy themes.\",\n      \"Generalised conservative imagery without the specific economic focus.\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Portraying this as a speech to Parliament rather than a business conference.\",\n      \"Using imagery from her first term (1979) rather than her second term (1984).\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"10 Memorable Quotes From Margaret Thatcher\",\n      \"url\": \"https://bambooinnovator.com/2013/04/08/10-memorable-quotes-from-margaret-thatcher-economics-are-the-method-the-object-is-to-change-the-heart-and-soul/\",\n      \"source_type\": \"article\",\n      \"supports\": [\n        \"Provides the exact verified text and punctuation [1.1.9].\",\n        \"Confirms the date as February 8, 1984"
+          ],
+          "title": "bambooinnovator.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGDTabN7q6eMeGVdlXAflPmTObmjmciqwIGWeIvo7Xdvy236HeAX8-mgHfI8kM8wuhXMehDaK7b0IxWoz1jzfQosiZQ1bT_-tBOf2sef-zfWjJ3GSX-SZ1TDhdmRUh6YI8R5-6i-HJsAy0fM-wKuyHX3GfO5pcPFBrFrXuNR6K3xNgnwMjq6pxl7dz7gn59_9es4GxB1ukGyWl1ZtAlmxNS5BfwpWiFHBFCUThJ9co6Ow1CU7C88JDXX9QkvvscSkJwdXAO1xntO4TfdVS-"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, THCR5/1/4/65",
+      "text_variation_notes": "The uploaded quote replaces the original em-dash and comma with a single comma, but the wording is otherwise exact.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "normalised",
+      "verified_text": "I came to office with one deliberate intent: to change Britain from a dependent to a self-reliant society—from a give-it-to-me, to a do-it-yourself nation. A get-up-and-go, instead of a sit-back-and-wait-for-it Britain."
+    },
+    "33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3": {
+      "broader_principle": "The definitive ideological triumph of free enterprise and liberty over Marxist socialism.",
+      "claimed_consequence": "The Labour Party and socialism will be rejected by Britain, leaving them as mere historical artifacts.",
+      "completed_at": "2026-07-13T19:23:15.722992Z",
+      "date": "1990-10-12",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Showing Thatcher in her early 1980s appearance.",
+          "Placing her physically inside the British Library."
+        ],
+        "desired_first_impression": "Triumphant, resolute, and historically vindicated.",
+        "historical_requirements": [
+          "Depict Thatcher in her late-premiership era (1990).",
+          "Reflect the atmosphere of a major party conference.",
+          "Acknowledge the context of the fall of the Iron Curtain."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher delivering a speech.",
+          "Conservative Party Conference setting."
+        ],
+        "must_not_dominate": [
+          "Karl Marx or communist imagery, which should only be contextual or metaphorical.",
+          "The British Library itself, as it is a rhetorical device."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Labour Party",
+        "Karl Marx",
+        "British Library",
+        "Bournemouth"
+      ],
+      "grounding_source_count": 4,
+      "historical_context": "Delivered shortly before her resignation as Prime Minister, against the backdrop of the collapse of communism in Eastern Europe and the end of the Cold War.",
+      "immediate_subject": "The ideological defeat of socialism and the British Labour Party's perceived irrelevance.",
+      "intended_argument": "That socialism is an outdated 19th-century ideology that has failed in practice and belongs only in history books, contrasting it with the enduring success of conservative principles.",
+      "literal_meaning": "Socialism should be relegated to the archives of the British Library where Karl Marx originally researched it, categorized as an archaic 19th-century idea.",
+      "mechanism": "Relegating a failed political ideology to a historical archive.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "b55a11d9ccdbf5eaa9235d3710e5797f1f93d6d18cfed77fab00dcc0868b6ac3",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3",
+      "quote_text": "Socialism must return for ever to its proper place - the reading room of the British Library where Karl Marx found it, Section: History of Ideas, Subsection 19th Century, Status Archaic.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Conservative Party Conference",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"common_visual_mistakes\": [\n      \"Showing Thatcher in her early 1980s appearance.\",\n      \"Placing her physically inside the British Library.\"\n    ]\n  },\n  \"research_confidence\": \"high\",\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Party Conference\",\n      \"url\": \"https://www.margaretthatcher.org/document/108217\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quote.\",\n        \"Confirms the date as October 12, 1990.\",\n        \"Identifies the event as the Conservative Party Conference.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "goodreads.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEC2WBYWvsbKA9ALe6vXp6AAYch314V3Q3m9ILmsAi2Tm16vGW0LDWl1P-I_LDChKSg_HF5J9h9Mbdp78VPgozYpgqxhN5CjYVpGhb7GubjCHERNf7Cdo20_0hurYl-iobI366ICEVPSrPbC0T4F-l1XK-IrZU1562vNSuQUoP9fLLHa6YlXEwgAAzTToJdCHWWF_k="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"common_visual_mistakes\": [\n      \"Showing Thatcher in her early 1980s appearance.\",\n      \"Placing her physically inside the British Library.\"\n    ]\n  },\n  \"research_confidence\": \"high\",\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Party Conference\",\n      \"url\": \"https://www.margaretthatcher.org/document/108217\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quote.\",\n        \"Confirms the date as October 12, 1990.\",\n        \"Identifies the event as the Conservative Party Conference.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "weebly.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG5MnpmNRgfcpU8fiaICIeymmF0Y_SQeV3PJi1fhOmpQdq-uhp4EqXWwiUdfNuXZjN5KceZBrpLUddZJhH8KX5_j5vkiy4ZFeLSoTriAfR_KxmbJbmRXCv7dbvSrLTPcs5AMFrjjVStw_6o"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"common_visual_mistakes\": [\n      \"Showing Thatcher in her early 1980s appearance.\",\n      \"Placing her physically inside the British Library.\"\n    ]\n  },\n  \"research_confidence\": \"high\",\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Party Conference\",\n      \"url\": \"https://www.margaretthatcher.org/document/108217\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quote.\",\n        \"Confirms the date as October 12, 1990.\",\n        \"Identifies the event as the Conservative Party Conference.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGrb1DE6YmyxRfuBz5JiHot5rduJLHFsC0rWGcWJrt6tQcuDL9WFGkgL8QpEps5dxbuqcwSSJpan5Jf9nanBo6wn4Gv3Qs_Sw1ZhLjHLqjhP-J6YGh4YUkH9DlvpaXjSNVFRqHWl6_KSPe6dw=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"common_visual_mistakes\": [\n      \"Showing Thatcher in her early 1980s appearance.\",\n      \"Placing her physically inside the British Library.\"\n    ]\n  },\n  \"research_confidence\": \"high\",\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Party Conference\",\n      \"url\": \"https://www.margaretthatcher.org/document/108217\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quote.\",\n        \"Confirms the date as October 12, 1990.\",\n        \"Identifies the event as the Conservative Party Conference.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "internetpoem.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGR-6xMKXTE7LmxR_hWJiODN1iWKODUtDk2SKKwpOCjxrctH4UAfX3iPttu8CndkS7sqqiR6Cc2aH9rjMLLE07-15zPF9PVz0Iyc3e2eAwow9ACyNFrJmIBGttOAusWa6B0b2W3HZt0"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 108217",
+      "text_variation_notes": "The uploaded quote capitalises 'Socialism' and uses a hyphen instead of an em-dash, but otherwise matches the official transcript.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "normalised",
+      "verified_text": "socialism must return for ever to its proper place—the reading room of the British Library where Karl Marx found it, Section: History of Ideas, Subsection 19th Century, Status Archaic."
+    },
+    "5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483": {
+      "broader_principle": "Political unions must be grounded in organic, shared cultural foundations rather than abstract, top-down bureaucratic planning.",
+      "claimed_consequence": "The inevitable failure of the European project, with the only uncertainty being the extent of the resulting damage.",
+      "completed_at": "2026-07-13T18:16:44.299935Z",
+      "date": "2002",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using images of Thatcher from her early years as Prime Minister in the 1980s."
+        ],
+        "desired_first_impression": "Authoritative, critical, and prophetic.",
+        "historical_requirements": [
+          "Reflect Thatcher's post-premiership statesman persona.",
+          "Use imagery appropriate for the early 2000s publication era."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "The text of the quote"
+        ],
+        "must_not_dominate": [
+          "Pro-European Union symbols or flags, unless contextualized critically."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "European Union"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Published in 2002, Thatcher's book 'Statecraft' outlined her late-career views on international relations and the European Union. She argued strongly against the EU's trajectory toward a superstate and the adoption of the Euro, viewing the project as fundamentally unreformable.",
+      "immediate_subject": "The fundamental nature and viability of the European Union.",
+      "intended_argument": "The European Union is an artificial, top-down construct lacking the organic cultural unity required for a successful state, making its eventual failure inevitable.",
+      "literal_meaning": "Europe lacks a shared language and culture, being instead a planned, utopian scheme driven by intellectual vanity that is destined to fail disastrously.",
+      "mechanism": "By contrasting organic nation-states with artificial political constructs, Thatcher delegitimizes the European project as an intellectual folly.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483/developer_api_attempt_2.json",
+        "raw_response_sha256": "4236685bf516d7bc13a3ac0c0289f3d6479e83886053aa0907369037c3cca5da",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483",
+      "quote_text": "Europe is not based on a common language, culture and values... Europe is a result of plans. It is, in fact, a classic utopian project, a monument to the vanity of intellectuals, a programme whose inevitable destiny is failure; only the scale of the final damage done is in doubt.",
+      "research_confidence": "high",
+      "source_event": "Statecraft: Strategies for a Changing World (Book)",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She argued strongly against the EU's trajectory toward a superstate and the adoption of the Euro, viewing the project as fundamentally unreformable.\",\n  \"immediate_subject\": \"The fundamental nature and viability of the European Union.\",\n  \"intended_argument\": \"The European Union is an artificial, top-down construct lacking the organic cultural unity required for a successful state, making its eventual failure inevitable.\",\n  \"literal_meaning\": \"Europe lacks a shared language and culture, being instead a planned, utopian scheme driven by intellectual vanity that is destined to fail disastrously.\",\n  \"broader_principle\": \"Political unions must be grounded in organic, shared cultural foundations rather than abstract, top-down bureaucratic planning.\",\n  \"mechanism\": \"By contrasting organic nation-states with artificial political constructs, Thatcher delegitimizes the European project as an intellectual folly.\",\n  \"claimed_consequence\": \"The inevitable failure of the European project, with the only uncertainty being the extent of the resulting damage.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"European Union\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Authoritative, critical, and prophetic.\",\n    \"historical_requirements\": [\n      \"Reflect Thatcher's post-premiership statesman persona.\",\n      \"Use imagery appropriate for the early 2000s publication era.\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher\",\n      \"The text of the quote\"\n    ],\n    \"must_not_dominate\": [\n      \"Pro-European Union symbols or flags, unless contextualized critically.\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Using images of Thatcher from her early years as Prime Minister in the 1980s.\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Book Review: Statecraft by Margaret Thatcher | United Church of God\",\n      \"url\": \"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH7bXaoius0IEDXvlwB92UuZ2m3iMeXgHqSl6BN58GHjWiP1vnFXA8PcPaLZRP7iAEzPfDLieFu3BEQN5HpYs7itHo-pRM4_wHne_SKqvwUItlyDrrQua77gHt5ZW6NYCrK2llZhyLrwkCDTrGqp5i-5GN41M6FP8EVEdRAkiZrrM3FH5sFIV1EElpg4hMpchGvrb03B599805Ed97MDgVsbNtfhW6e6rzy9tkS\",\n      \"source_type\": \"Book Review\",\n      \"supports\": [\n        \"Identifies the quote as originating from page 359 of Statecraft [1.1.1].\",\n        \"Confirms the exact wording 'the result of plans'"
+          ],
+          "title": "ucg.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH7bXaoius0IEDXvlwB92UuZ2m3iMeXgHqSl6BN58GHjWiP1vnFXA8PcPaLZRP7iAEzPfDLieFu3BEQN5HpYs7itHo-pRM4_wHne_SKqvwUItlyDrrQua77gHt5ZW6NYCrK2llZhyLrwkCDTrGqp5i-5GN41M6FP8EVEdRAkiZrrM3FH5sFIV1EElpg4hMpchGvrb03B599805Ed97MDgVsbNtfhW6e6rzy9tkS"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She argued strongly against the EU's trajectory toward a superstate and the adoption of the Euro, viewing the project as fundamentally unreformable.\",\n  \"immediate_subject\": \"The fundamental nature and viability of the European Union.\",\n  \"intended_argument\": \"The European Union is an artificial, top-down construct lacking the organic cultural unity required for a successful state, making its eventual failure inevitable.\",\n  \"literal_meaning\": \"Europe lacks a shared language and culture, being instead a planned, utopian scheme driven by intellectual vanity that is destined to fail disastrously.\",\n  \"broader_principle\": \"Political unions must be grounded in organic, shared cultural foundations rather than abstract, top-down bureaucratic planning.\",\n  \"mechanism\": \"By contrasting organic nation-states with artificial political constructs, Thatcher delegitimizes the European project as an intellectual folly.\",\n  \"claimed_consequence\": \"The inevitable failure of the European project, with the only uncertainty being the extent of the resulting damage.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"European Union\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Authoritative, critical, and prophetic.\",\n    \"historical_requirements\": [\n      \"Reflect Thatcher's post-premiership statesman persona.\",\n      \"Use imagery appropriate for the early 2000s publication era.\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher\",\n      \"The text of the quote\"\n    ],\n    \"must_not_dominate\": [\n      \"Pro-European Union symbols or flags, unless contextualized critically.\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Using images of Thatcher from her early years as Prime Minister in the 1980s.\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Book Review: Statecraft by Margaret Thatcher | United Church of God\",\n      \"url\": \"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH7bXaoius0IEDXvlwB92UuZ2m3iMeXgHqSl6BN58GHjWiP1vnFXA8PcPaLZRP7iAEzPfDLieFu3BEQN5HpYs7itHo-pRM4_wHne_SKqvwUItlyDrrQua77gHt5ZW6NYCrK2llZhyLrwkCDTrGqp5i-5GN41M6FP8EVEdRAkiZrrM3FH5sFIV1EElpg4hMpchGvrb03B599805Ed97MDgVsbNtfhW6e6rzy9tkS\",\n      \"source_type\": \"Book Review\",\n      \"supports\": [\n        \"Identifies the quote as originating from page 359 of Statecraft [1.1.1].\",\n        \"Confirms the exact wording 'the result of plans'.\"\n      ]\n    },\n    {\n      \"title\": \"Thatcher's Plot — And How To Defeat It - Social Europe\",\n      \"url\": \"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFgMWr_HlrlY4KbzNJrdkQpDOeFHdxdfb0RK2N7lK4Fu3wTs_UTAd2ColdO60rtQcOtXGrEOIEwAuDf1J8V0x_Hcf4DZTjupqSzE_v9jY_7PuC95MJuVXhqJ3RntrQ03TsAMwhwpp7E\",\n      \"source_type\": \"Article\",\n      \"supports\": [\n        \"Confirms the quote is from Thatcher's 2002 book 'Statecraft' [1.2.2].\",\n        \"Provides the broader context of her argument against a United States of Europe"
+          ],
+          "title": "socialeurope.eu",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFgMWr_HlrlY4KbzNJrdkQpDOeFHdxdfb0RK2N7lK4Fu3wTs_UTAd2ColdO60rtQcOtXGrEOIEwAuDf1J8V0x_Hcf4DZTjupqSzE_v9jY_7PuC95MJuVXhqJ3RntrQ03TsAMwhwpp7E"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Page 359",
+      "text_variation_notes": "The uploaded quote slightly misquotes 'the result of plans' as 'a result of plans' and uses an ellipsis to join two separate sentences.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "variant",
+      "verified_text": "Europe is not based on a common language, culture and values. [...] Europe is the result of plans. It is in fact, a classic utopian project, a monument to the vanity of intellectuals, a programme whose inevitable destiny is failure; only the scale of the final damage done is in doubt."
+    },
+    "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614": {
+      "broader_principle": "Authoritarian attempts to suppress human freedom are inherently cruel and ultimately doomed to fail.",
+      "claimed_consequence": "The wall's existence exposes the weakness of the regime that built it, foreshadowing its eventual collapse.",
+      "completed_at": "2026-07-13T20:09:36.468057Z",
+      "date": "October 29, 1982",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Showing the fall of the wall in 1989 instead of its standing state in 1982"
+        ],
+        "desired_first_impression": "Resolute and historically significant.",
+        "historical_requirements": [
+          "Show the Berlin Wall as it stood in the early 1980s",
+          "Depict Margaret Thatcher in her early prime ministerial years"
+        ],
+        "must_be_visually_dominant": [
+          "The Berlin Wall",
+          "Margaret Thatcher"
+        ],
+        "must_not_dominate": [
+          "Modern Berlin skyline",
+          "Unrelated Cold War figures"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Berlin Wall",
+        "Cold War",
+        "West Berlin"
+      ],
+      "grounding_source_count": 3,
+      "historical_context": "During the Cold War, the Berlin Wall physically and ideologically divided West Berlin from East Germany. Margaret Thatcher visited the wall in 1982, reinforcing her strong anti-communist stance.",
+      "immediate_subject": "The Berlin Wall.",
+      "intended_argument": "The wall represents the moral failure and ultimate uselessness of the Soviet communist system.",
+      "literal_meaning": "The structure stands as a symbol of both harsh tyranny and pointless effort.",
+      "mechanism": "By highlighting both the cruelty and the futility of the wall, Thatcher undermines the perceived strength of the communist bloc.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "3ba92cf82c8900e2947cd9e36e6aa05e8edbabbc75e8d291bc17839230468311",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "quote_text": "It [The Berlin Wall] is a monument to oppression and cruelty, but also to futility.",
+      "research_confidence": "high",
+      "source_event": "Draft speech on first sight of the Berlin Wall",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Cold War: Draft of MT's speech on first sight of the Berlin Wall\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Primary Source (Archive)\",\n      \"supports\": [\n        \"Confirms the exact phrasing of the quote.\",\n        \"Dates the draft to October 29, 1982.\",\n        \"Identifies the archival location as Thatcher MSS THCR5/1/5/172.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "hatfulofhistory.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF7l_0wapqnQIBMWE1crsSylLTZOZz_BKcXps8jEgn9XIw7YgN_Em1R5LOh8A1tiOF2imgymrqkDvDVAmPxa33ve-Wk-jCRQDDolzlXfegh05V96TLGFTSDXWsMuo3-0hAsOxUE6Qc3YwEOgX6hnNAWSBgJQ3yAwIJFLld9NGDx09y9pzdFnz76_CoOmM8qlw=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Cold War: Draft of MT's speech on first sight of the Berlin Wall\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Primary Source (Archive)\",\n      \"supports\": [\n        \"Confirms the exact phrasing of the quote.\",\n        \"Dates the draft to October 29, 1982.\",\n        \"Identifies the archival location as Thatcher MSS THCR5/1/5/172.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEP_J0PHtPse9tJTZKxWOlWsyQo26DQXz-e90OIPdiEM39k4EXfj7KjF3yWIeLcQuh97YdclZTpv3ASb7uMqEUxOaw7Axs8xBidKcf1g2NAD12Zzdcf3LjxG2xJHqdmeguKRNcAaVNMCaMXGQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Cold War: Draft of MT's speech on first sight of the Berlin Wall\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Primary Source (Archive)\",\n      \"supports\": [\n        \"Confirms the exact phrasing of the quote.\",\n        \"Dates the draft to October 29, 1982.\",\n        \"Identifies the archival location as Thatcher MSS THCR5/1/5/172.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "https://www.google.com/search?q=time+in+Berlin,+DE",
+          "url": "https://www.google.com/search?q=time+in+Berlin,+DE"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Thatcher MSS (Churchill Archive Centre): THCR5/1/5/172 Part 2 f25",
+      "text_variation_notes": "The bracketed text '[The Berlin Wall]' is an editorial addition to clarify the pronoun 'It' from the original draft.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [
+        "Whether the exact phrasing from the draft was delivered verbatim in the final spoken remarks."
+      ],
+      "verification_status": "exact",
+      "verified_text": "It is a monument to oppression and cruelty, but also to futility."
+    },
+    "6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493": {
+      "broader_principle": "Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'.",
+      "claimed_consequence": "Adopting this stewardship model will prevent environmental degradation and fulfill the moral duty to future generations.",
+      "completed_at": "2026-07-13T18:34:31.315385Z",
+      "date": "October 14, 1988",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting her in a casual setting rather than a formal political conference",
+          "Using anachronistic green technology imagery"
+        ],
+        "desired_first_impression": "Statesmanlike, authoritative, and forward-thinking.",
+        "historical_requirements": [
+          "Late 1980s attire",
+          "Conservative Party Conference setting",
+          "Serious and resolute expression"
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher at the podium",
+          "Formal political atmosphere"
+        ],
+        "must_not_dominate": [
+          "Overly modern environmental symbols (like modern wind turbines)",
+          "Casual or purely outdoor settings"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Earth"
+      ],
+      "grounding_source_count": 7,
+      "historical_context": "In the late 1980s, global environmental issues such as the ozone hole, acid rain, and climate change were gaining significant scientific and political attention. Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.",
+      "immediate_subject": "The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.",
+      "intended_argument": "Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.",
+      "literal_meaning": "The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.",
+      "mechanism": "By framing environmental protection through the lens of property rights and inheritance, Thatcher aligns ecological responsibility with traditional conservative values.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "missing_grounded_source",
+        "raw_response_path": "raw_responses/6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493/developer_api_attempt_1.json",
+        "raw_response_sha256": "0e5e1558cb65db714db9dc9f9c615148bfa5a69a87c04ee1ad77a93ec93c2c83",
+        "repairs": [
+          "discarded_malformed_final_model_sources_rebuilt_from_grounding_metadata"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "6ed99b617e093add13e311291c0bf176dceccaf7978a98885476d932ec0c4493",
+      "quote_text": "There is nothing new about the Tory commitment to protect the environment. The last thing we want is to leave environmental debts for our children... It's we Conservatives who are not merely friends of the Earth - we are its guardians and trustees for generations to come.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Conservative Party Conference",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "[...] It's we Conservatives who are not merely friends of the Earth—we are its guardians and trustees for generations to come.\",\n  \"text_variation_notes\": \"The uploaded quote omits 'or unusual' and the specific examples of environmental debts ('slag, grime, acid rain and pollution'), and stitches together non-contiguous sentences from the speech.\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"October 14, 1988\",\n  \"source_event\": \"Speech to the Conservative Party Conference\",\n  \"stable_locator\": \"Margaret Thatcher Foundation archive, 1988 Conservative Party Conference speech\",\n  \"historical_context\": \"In the late 1980s, global environmental issues such as the ozone hole, acid rain, and climate change were gaining significant scientific and political attention"
+          ],
+          "title": "activehistory.ca",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHLJqMEQqh8t6mANTpaQoVsJ8r2ulDnozcd7x2oxnmdbFoBH7sKIXOLOlZvpKnxre_-VL6onfig3W5uDrBmAuFAiSKiUhN06UesuOkTRo2WaRLGB6WZDaZ1Xylc6Smy8pR4vsTrGhU="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty"
+          ],
+          "title": "spectator.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFB6jjRq3UI7muyatn0jWU1UTTIIfhfeAtmVmb8GdByt6Dqo6tjcvf8SUJelz8v3CgrVdgndNjBOj2nD5s8tzRJEvykzND2_dEkcDBI5BzjWea-xBJYAbrEl4NM_LyoPEXKu-HrvNtjIbF3CBkN6b_bviSess6pl0NAz6hpFHy5TIuNxLsbWlAtwwsJo9E="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world",
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue",
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.\",\n  \"broader_principle\": \"Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'.\",\n  \"mechanism\": \"By framing environmental protection through the lens of property rights and inheritance, Thatcher aligns ecological responsibility with traditional conservative values.\",\n  \"claimed_consequence\": \"Adopting this stewardship model will prevent environmental degradation and fulfill the moral duty to future generations"
+          ],
+          "title": "uk.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHFCo6KMp1EWYww1WUDn16leY9ecv0TyoaCE74C09O8fdHnG4XPEehG_CRD3w2kHOaC_ZouT8cGW09Pr9yQ-PInS7r6qS1NT_aIGFm6pq8V9GdU4usxuw=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue",
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.\",\n  \"broader_principle\": \"Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'",
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.\",\n  \"broader_principle\": \"Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'.\",\n  \"mechanism\": \"By framing environmental protection through the lens of property rights and inheritance, Thatcher aligns ecological responsibility with traditional conservative values"
+          ],
+          "title": "publicinterest.org.uk",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHDm2M7lVgaz049gbpQt1DLSookJGzgMQaFdb7EMkaiI4leJ_JSP5JmDnXiurOK4keciqpB1S3xs1izmQ7_8aJeizAgfD57N0-wypf8Rr6aTPG6kUBx3vu3-d6BI-Jpzpn-tRNz8ZPVfqOqAZczW17iDq1rlxPAjpZ_TywPYJVEaLydaimbIXLvu-ItAw=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage",
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.\",\n  \"broader_principle\": \"Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'.\",\n  \"mechanism\": \"By framing environmental protection through the lens of property rights and inheritance, Thatcher aligns ecological responsibility with traditional conservative values.\",\n  \"claimed_consequence\": \"Adopting this stewardship model will prevent environmental degradation and fulfill the moral duty to future generations.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Party\",\n    \"Earth\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Statesmanlike, authoritative, and forward-thinking.\",\n    \"historical_requirements\": [\n      \"Late 1980s attire\",\n      \"Conservative Party Conference setting\",\n      \"Serious and resolute expression\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher at the podium\",\n      \"Formal political atmosphere\"\n    ],\n    \"must_not_dominate\": [\n      \"Overly modern environmental symbols (like modern wind turbines)\",\n      \"Casual or purely outdoor settings\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Depicting her in a casual setting rather than a formal political conference\",\n      \"Using anachronistic green technology imagery\"\n    ]\n  },\n  \"unresolved_questions\": [\n    \"Whether her environmental rhetoric translated into sufficient long-term policy shifts within the Conservative Party at the time.\"\n  ],\n  \"sources\":",
+            "\",\n        \"Confirms the date and source event as the October 14, 1988 Conservative Party Conference"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFEdeX72p2_QslYRrjVJOpryJitHpfvtcmKKajJhavXWhwhTNOmh2eLNkRvJ-J0zCVlOu410wQ57PkAGfDD7h71AKgd6WGUeBsWum3VA58XCI6Z65vh3mGMkfBNeaSA3fbjBwaIVIM="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Thatcher, drawing on her background as a chemist, became one of the first major world leaders to address these issues, framing environmentalism as a conservative duty.\",\n  \"immediate_subject\": \"The Conservative Party's approach to environmental protection and the moral obligation to preserve the natural world.\",\n  \"intended_argument\": \"Environmental conservation is inherently aligned with conservative values, specifically the Burkean concept of intergenerational duty and stewardship, rather than being an exclusively left-wing issue.\",\n  \"literal_meaning\": \"The Conservative Party has a long-standing dedication to environmentalism, acting as protectors of the planet to ensure it is passed on safely to descendants without ecological damage.\",\n  \"broader_principle\": \"Intergenerational equity and environmental stewardship are core conservative principles, akin to maintaining a 'life tenancy with a full repairing lease'"
+          ],
+          "title": "greenallianceblog.org.uk",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG1hPN_t0AXlrqfEkjzIv_3EJhxQibbzWQI0LB3i9vx0lyNhzJmO_D3z2JWoDyW-c1vvo2ersD4Pm3BThtBVYQH7ahO_4uBbPuuJnKDYgvCgUpd6XhndwWMhnG8SWCDqeyk12_Ebxp-SR3RxPFdlsry0EQnQksXaIZ2QKkYAtcGSXFpzRHm3WlGejiGSaaO45x7ydmZU-IwFvI_fk0jwGB78SALow=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "\",\n        \"Confirms the date and source event as the October 14, 1988 Conservative Party Conference"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFg06bNVNJEJikR4D2nETMAEWgIygkXGG5JgynyL4CXC6f_H2jgmntpGp-RWYFyCFQ6PTHBsWkPGaDIAuyqnB6qhj1UNspQ1LX_E9GDLrbdR9fUkNQmJkw1zATegMj8z9-oW2WMqMo="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation archive, 1988 Conservative Party Conference speech",
+      "text_variation_notes": "The uploaded quote omits 'or unusual' and the specific examples of environmental debts ('slag, grime, acid rain and pollution'), and stitches together non-contiguous sentences from the speech.",
+      "transport": "developer_api",
+      "unresolved_questions": [
+        "Whether her environmental rhetoric translated into sufficient long-term policy shifts within the Conservative Party at the time."
+      ],
+      "verification_status": "variant",
+      "verified_text": "Madam President, there is nothing new or unusual about the Tory commitment to protect the environment. The last thing we want is to leave environmental debts for our children to clear up—slag, grime, acid rain and pollution. [...] It's we Conservatives who are not merely friends of the Earth—we are its guardians and trustees for generations to come."
+    },
+    "852c7fdb707c4beb387e3f94421617ab5836ea7e043b9fed1c8e0693467dee2b": {
+      "broader_principle": "The end of the Cold War does not mean the end of history or conflict; profound ideological and cultural differences will continue to threaten global security.",
+      "claimed_consequence": "Future instability and conflict driven by ideological differences, requiring continued Western military readiness and leadership.",
+      "completed_at": "2026-07-13T21:59:19.693687Z",
+      "date": "June 17, 1991",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using imagery from her time as active Prime Minister (she left office in November 1990).",
+          "Conflating this 1991 speech with later 21st-century conflicts."
+        ],
+        "desired_first_impression": "A stark, prescient warning about post-Cold War geopolitical realities and the need for continued vigilance.",
+        "historical_requirements": [
+          "Contextualize within the immediate post-Cold War and post-Gulf War era of 1991.",
+          "Reflect Thatcher's status as a recently retired Prime Minister on a speaking tour."
+        ],
+        "must_be_visually_dominant": [
+          "Thatcher's authoritative posture.",
+          "Themes of global security, vigilance, and international relations."
+        ],
+        "must_not_dominate": [
+          "Overly modern post-9/11 imagery, which would be anachronistic for a 1991 speech.",
+          "Cold War Soviet imagery, as the speech explicitly addresses the post-Soviet landscape."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Foreign Relations Council of Chicago",
+        "Cold War",
+        "Islam",
+        "Democracy"
+      ],
+      "grounding_source_count": 5,
+      "historical_context": "Following the end of the Cold War and the Gulf War, Thatcher warned against the prevailing optimism that global peace and democracy were guaranteed. She highlighted emerging threats, including dictatorships, ethnic conflicts in places like Yugoslavia, and ideological incompatibilities.",
+      "immediate_subject": "The persistence of global threats to democracy and stability despite the collapse of the Soviet Union.",
+      "intended_argument": "The West must remain vigilant and militarily prepared because the post-Cold War world remains dangerous, with new sources of conflict arising from non-democratic ideologies and regimes.",
+      "literal_meaning": "Certain Islamic ideals conflict with democratic principles, which will cause future global instability, meaning democracy is not universally secure.",
+      "mechanism": "The fundamental incompatibility between certain religious or cultural ideals and democratic governance leads to regional instability, which in turn threatens global peace.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/852c7fdb707c4beb387e3f94421617ab5836ea7e043b9fed1c8e0693467dee2b/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "aae97c359765c00bdf7696c8f7f23007dcc8cdf5af20c4edb2325303e2630669",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "852c7fdb707c4beb387e3f94421617ab5836ea7e043b9fed1c8e0693467dee2b",
+      "quote_text": "Many of Islam's ideals are not compatible with democracy, and that could be a great factor for instability and conflict in future. So don't conclude that the world is safe for democracy, it isn't.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Foreign Relations Council of Chicago",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"852c7fdb707c4beb387e3f94421617ab5836ea7e043b9fed1c8e0693467dee2b\",\n  \"quote_text\": \"\\\"Many of Islam's ideals are not compatible with democracy, and that could be a great factor for instability and conflict in future.",
+            "So don't conclude that the world is safe for democracy, it isn't.\\\"\",\n  \"verification_status\": \"exact\",\n  \"verified_text\": \"Many of Islam's ideals are not compatible with democracy, and that could be a great factor for instability and conflict in future.",
+            "},\n    {\n      \"title\": \"The Heritage Foundation: Backgrounder No. 2771\",\n      \"url\": \"https://www.heritage.org/americas/report/the-us-should-back-british-sovereignty-over-the-falkland-islands\",\n      \"source_type\": \"secondary history\",\n      \"supports\": [\n        \"Cites the June 17, 1991 speech to the Foreign Relations Council of Chicago.\",\n        \"Confirms the Margaret Thatcher Foundation document number 108275.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEqR2RciBNKMYgh5YtGVC49ByY6TZ0VbLhYzhvVpnaRLc2GVilNYOHGYxhlabOiAxkA7TsKIevOXOHF0EfQ0X18VIwp7jwf6C1W8O8uDXvJis7zsh01x-I7JRJcAZ5uYYVsiJCAodzBqTYjsw=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"must_be_visually_dominant\": [\n      \"Thatcher's authoritative posture.\",\n      \"Themes of global security, vigilance, and international relations.\"",
+            "},\n    {\n      \"title\": \"The Heritage Foundation: Backgrounder No. 2771\",\n      \"url\": \"https://www.heritage.org/americas/report/the-us-should-back-british-sovereignty-over-the-falkland-islands\",\n      \"source_type\": \"secondary history\",\n      \"supports\": [\n        \"Cites the June 17, 1991 speech to the Foreign Relations Council of Chicago.\",\n        \"Confirms the Margaret Thatcher Foundation document number 108275.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "heritage.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEjkrWVXKuFr94ZvDsrfRZcivPKMPg18_sTR0hXPHTFMtSTdyphbM2NnYnDt3Fn0zCjpBxYdZIcQ3udQD4NV5RRfPB4g-nfyBT84FrwlcfG8ya8Pq8Pu92vAInat8BWF-cNZLU37igEO3kcCTXmk7vzZzxlMAyTin2AkQHbj2IqlilgPiQ7uCwS07tcPIjYUayVcDxh6DC_ih9aJQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "},\n    {\n      \"title\": \"The Heritage Foundation: Backgrounder No. 2771\",\n      \"url\": \"https://www.heritage.org/americas/report/the-us-should-back-british-sovereignty-over-the-falkland-islands\",\n      \"source_type\": \"secondary history\",\n      \"supports\": [\n        \"Cites the June 17, 1991 speech to the Foreign Relations Council of Chicago.\",\n        \"Confirms the Margaret Thatcher Foundation document number 108275.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "wordpress.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHizI5jQNZzvGvQoI0fOZFLGqm8GDIqQDFrTn7GMHlC-5NtSvnnz3WfyTPDYW2BTTFkuFyVFgrDPn-aDpKVkixRtldLG0lKIBrIBcrkxvxJ2FrsuJEX23G-t8MuWt4BsNruL6-t8R09D-ZGQEQ_VdGVB-9e94Z_BMwDmJKEXWeSpKf5usd5j1jQNE0EHoLgysgVyHxDAaQF8LDSCCYObpCHB24hstXAwI53xzZrQvXeMPqMHsozi6ZoiXyEifNMeuTRQoLKn-wKkXtOfSfVfKUf_mals1SHyHsZGvBSiktd1Q=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "},\n    {\n      \"title\": \"The Heritage Foundation: Backgrounder No. 2771\",\n      \"url\": \"https://www.heritage.org/americas/report/the-us-should-back-british-sovereignty-over-the-falkland-islands\",\n      \"source_type\": \"secondary history\",\n      \"supports\": [\n        \"Cites the June 17, 1991 speech to the Foreign Relations Council of Chicago.\",\n        \"Confirms the Margaret Thatcher Foundation document number 108275.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "weebly.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFWkra_MivA9MDydLpKyeKkj44DnNFNFn39T3pdnRDBWrMceqN9AVlSHi5WH5jqKZJwYBsY8Vrakp7GNC-g7UxRoSI2KbsVTfRE4lDpfHwH4WIMmVGwwPemNKHWocB7fUTVfe7UjhobQdVtlmeNuR5IwYsBDX74qpDV6tpm"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "},\n    {\n      \"title\": \"The Heritage Foundation: Backgrounder No. 2771\",\n      \"url\": \"https://www.heritage.org/americas/report/the-us-should-back-british-sovereignty-over-the-falkland-islands\",\n      \"source_type\": \"secondary history\",\n      \"supports\": [\n        \"Cites the June 17, 1991 speech to the Foreign Relations Council of Chicago.\",\n        \"Confirms the Margaret Thatcher Foundation document number 108275.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "house.gov",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFK80OCMTgzXh6MJiERChKP-yO4OGyAijcS770hwJmbrV2xojZZ0QCSUNCSXxb-E-t0vdJHK0gsF1WwBRbSTqk7TgiUgTKiz2fVFgwCtz9vVynq8lATyCBTVUGqZPPxEnJElOre4zk9JhoCddUesEa6fo3BIbM2DNwkpIY-5FmeYM4ttTivfuHgr7KSPVAvYfJB2r8Ulzq8UH6K_KjaUg=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Document 108275",
+      "text_variation_notes": "The quote is exact as recorded in the official transcript of the speech.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "exact",
+      "verified_text": "Many of Islam's ideals are not compatible with democracy, and that could be a great factor for instability and conflict in future. So don't conclude that the world is safe for democracy, it isn't."
+    },
+    "893d33ddc59977611c2c195ba41afb787f27c954484bc9dea4ba28652921e8ce": {
+      "broader_principle": "Individualism and self-reliance are the necessary preconditions for political and economic liberty.",
+      "claimed_consequence": "A society that values and protects self-reliance will remain free and prosperous, whereas reliance on the state leads to the erosion of liberty.",
+      "completed_at": "2026-07-13T18:20:51.079133Z",
+      "date": "March 15, 1975",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Showing her at 10 Downing Street",
+          "Using photographs from her later years as Prime Minister"
+        ],
+        "desired_first_impression": "Resolute, principled, and foundational.",
+        "historical_requirements": [
+          "Depict Thatcher in her mid-1970s appearance as Leader of the Opposition",
+          "Reflect the political atmosphere of 1970s Britain"
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher speaking confidently",
+          "Themes of individual liberty and determination"
+        ],
+        "must_not_dominate": [
+          "Prime Ministerial trappings (she was not yet in office)",
+          "Cold War imagery from the 1980s"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Conservative Central Council",
+        "Labour Party"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Margaret Thatcher delivered this speech shortly after being elected Leader of the Conservative Party in February 1975. It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government.",
+      "immediate_subject": "The core principles and philosophical foundation of the Conservative Party.",
+      "intended_argument": "That true human progress and a free society depend fundamentally on individual liberty, self-reliance, and personal independence rather than state control.",
+      "literal_meaning": "The speaker holds a deep, almost religious conviction that individuals should depend on themselves, arguing that this independence is the bedrock of freedom.",
+      "mechanism": "By fostering personal independence and self-reliance, society allows individuals to freely develop their talents, which drives overall human progress.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/893d33ddc59977611c2c195ba41afb787f27c954484bc9dea4ba28652921e8ce/developer_api_attempt_2.json",
+        "raw_response_sha256": "9e1c63c1b59741f2a60acfb96468492cca33dc2d71f25c5bed4e4bd5b7dfea7c",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "893d33ddc59977611c2c195ba41afb787f27c954484bc9dea4ba28652921e8ce",
+      "quote_text": "I place a profound belief - indeed a fervent faith - in the virtues of self reliance and personal independence. On these is founded the whole case for the free society.",
+      "research_confidence": "high",
+      "source_event": "Speech to Conservative Central Council",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "On these is founded the whole case for the free society, for the assertion that human progress is best achieved by offering the freest possible scope for the development of individual talents",
+            "On these is founded the whole case for the free society, for the assertion that human progress is best achieved by offering the freest possible scope for the development of individual talents\",\n  \"text_variation_notes\": \"The uploaded quote omits the introductory phrase 'First among them' and truncates the second sentence, which originally continues to elaborate on human progress and individual talents",
+            "On these is founded the whole case for the free society, for the assertion that human progress is best achieved by offering the freest possible scope for the development of individual talents\",\n  \"text_variation_notes\": \"The uploaded quote omits the introductory phrase 'First among them' and truncates the second sentence, which originally continues to elaborate on human progress and individual talents.\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"March 15, 1975\",\n  \"source_event\": \"Speech to Conservative Central Council\",\n  \"stable_locator\": \"Margaret Thatcher Foundation Archive, Document 102639\",\n  \"historical_context\": \"Margaret Thatcher delivered this speech shortly after being elected Leader of the Conservative Party in February 1975",
+            "It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government.\",\n  \"immediate_subject\": \"The core principles and philosophical foundation of the Conservative Party.\",\n  \"intended_argument\": \"That true human progress and a free society depend fundamentally on individual liberty, self-reliance, and personal independence rather than state control.\",\n  \"literal_meaning\": \"The speaker holds a deep, almost religious conviction that individuals should depend on themselves, arguing that this independence is the bedrock of freedom.\",\n  \"broader_principle\": \"Individualism and self-reliance are the necessary preconditions for political and economic liberty.\",\n  \"mechanism\": \"By fostering personal independence and self-reliance, society allows individuals to freely develop their talents, which drives overall human progress.\",\n  \"claimed_consequence\": \"A society that values and protects self-reliance will remain free and prosperous, whereas reliance on the state leads to the erosion of liberty.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Party\",\n    \"Conservative Central Council\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and foundational.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1970s appearance as Leader of the Opposition\",\n      \"Reflect the political atmosphere of 1970s Britain\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking confidently\",\n      \"Themes of individual liberty and determination\"\n    ],\n    \"must_not_dominate\": [\n      \"Prime Ministerial trappings (she was not yet in office)\",\n      \"Cold War imagery from the 1980s\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Showing her at 10 Downing Street\",\n      \"Using photographs from her later years as Prime Minister\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/102639\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.1]\",\n        \"Confirms the date as March 15, 1975",
+            "It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government.\",\n  \"immediate_subject\": \"The core principles and philosophical foundation of the Conservative Party.\",\n  \"intended_argument\": \"That true human progress and a free society depend fundamentally on individual liberty, self-reliance, and personal independence rather than state control.\",\n  \"literal_meaning\": \"The speaker holds a deep, almost religious conviction that individuals should depend on themselves, arguing that this independence is the bedrock of freedom.\",\n  \"broader_principle\": \"Individualism and self-reliance are the necessary preconditions for political and economic liberty.\",\n  \"mechanism\": \"By fostering personal independence and self-reliance, society allows individuals to freely develop their talents, which drives overall human progress.\",\n  \"claimed_consequence\": \"A society that values and protects self-reliance will remain free and prosperous, whereas reliance on the state leads to the erosion of liberty.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Party\",\n    \"Conservative Central Council\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and foundational.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1970s appearance as Leader of the Opposition\",\n      \"Reflect the political atmosphere of 1970s Britain\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking confidently\",\n      \"Themes of individual liberty and determination\"\n    ],\n    \"must_not_dominate\": [\n      \"Prime Ministerial trappings (she was not yet in office)\",\n      \"Cold War imagery from the 1980s\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Showing her at 10 Downing Street\",\n      \"Using photographs from her later years as Prime Minister\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/102639\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.1]\",\n        \"Confirms the date as March 15, 1975\",\n        \"Identifies the event as the Speech to Conservative Central Council"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGIhIPkTu-nPQNcIfohyNRCJxKTd6fNJPXaapP7fA3a_2oG74GTIFg3aZZ_7QxX8QjfwOmx7LEvTGvjF_fAWKTl6P35iKwOAYPzCORrRAGGWfCyK-qe_4ql3a1kP44T0X0EiBE3zg=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government",
+            "It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government.\",\n  \"immediate_subject\": \"The core principles and philosophical foundation of the Conservative Party.\",\n  \"intended_argument\": \"That true human progress and a free society depend fundamentally on individual liberty, self-reliance, and personal independence rather than state control.\",\n  \"literal_meaning\": \"The speaker holds a deep, almost religious conviction that individuals should depend on themselves, arguing that this independence is the bedrock of freedom.\",\n  \"broader_principle\": \"Individualism and self-reliance are the necessary preconditions for political and economic liberty.\",\n  \"mechanism\": \"By fostering personal independence and self-reliance, society allows individuals to freely develop their talents, which drives overall human progress.\",\n  \"claimed_consequence\": \"A society that values and protects self-reliance will remain free and prosperous, whereas reliance on the state leads to the erosion of liberty.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Party\",\n    \"Conservative Central Council\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and foundational.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1970s appearance as Leader of the Opposition\",\n      \"Reflect the political atmosphere of 1970s Britain\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking confidently\",\n      \"Themes of individual liberty and determination\"\n    ],\n    \"must_not_dominate\": [\n      \"Prime Ministerial trappings (she was not yet in office)\",\n      \"Cold War imagery from the 1980s\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Showing her at 10 Downing Street\",\n      \"Using photographs from her later years as Prime Minister\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/102639\",\n      \"source_type\": \"official_transcript\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.1]\",\n        \"Confirms the date as March 15, 1975\",\n        \"Identifies the event as the Speech to Conservative Central Council\",\n        \"Shows the broader context of her argument against socialism"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGIhIPkTu-nPQNcIfohyNRCJxKTd6fNJPXaapP7fA3a_2oG74GTIFg3aZZ_7QxX8QjfwOmx7LEvTGvjF_fAWKTl6P35iKwOAYPzCORrRAGGWfCyK-qe_4ql3a1kP44T0X0EiBE3zg=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 102639",
+      "text_variation_notes": "The uploaded quote omits the introductory phrase 'First among them' and truncates the second sentence, which originally continues to elaborate on human progress and individual talents.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "excerpt",
+      "verified_text": "First among them I place a profound belief—indeed a fervent faith—in the virtues of self reliance and personal independence. On these is founded the whole case for the free society, for the assertion that human progress is best achieved by offering the freest possible scope for the development of individual talents"
+    },
+    "94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934": {
+      "broader_principle": "Appeasement of coercive forces for immediate relief poses a long-term existential threat to democratic institutions and economic freedoms.",
+      "claimed_consequence": "Choosing easy or popular measures to end immediate conflicts will result in the destruction of democracy itself.",
+      "completed_at": "2026-07-13T21:10:37.796716Z",
+      "date": "November 26, 1984",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting this as a foreign policy or Cold War speech rather than a domestic industrial relations speech."
+        ],
+        "desired_first_impression": "Resolute, principled, and warning against political complacency.",
+        "historical_requirements": [
+          "Must reflect the context of the 1984 miners' strike.",
+          "Should capture Thatcher's firm stance on economic freedom."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "Themes of democracy and economic freedom"
+        ],
+        "must_not_dominate": [
+          "Unrelated foreign policy events",
+          "Generic democratic imagery without the specific UK 1980s context"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Carlton Club",
+        "London",
+        "National Union of Mineworkers"
+      ],
+      "grounding_source_count": 3,
+      "historical_context": "Thatcher delivered this speech during the 1984-1985 miners' strike, a period of intense industrial conflict in the UK. She used the occasion to argue that yielding to the coercive demands of powerful trade unions for the sake of a 'quiet life' threatened the economic freedoms that underpin political democracy.",
+      "immediate_subject": "The danger of appeasing powerful producer groups or monopolies that use political muscle to force economic concessions.",
+      "intended_argument": "Democratic leaders must resist the temptation to appease coercive minority groups for short-term peace, as such economic concessions ultimately erode the foundations of political freedom.",
+      "literal_meaning": "Voters in a democracy can make choices that ultimately destroy their own system, so leaders must actively warn against taking the easy way out of immediate conflicts.",
+      "mechanism": "Yielding to monopoly power destroys economic freedom, which inevitably leads to the collapse of the political freedoms that rely upon it.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "1688d563ae47f700cc60e3c078de7711e396cca2def0456ab64449d5460732ee",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934",
+      "quote_text": "Never forget: democracies can, and have, voted for measures which lead to their own destruction. The job of democratic leaders is to warn that easy or popular measures, which may end some immediate conflict, must be resisted if in the end they risk destroying democracy itself.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Carlton Club",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934\",\n  \"quote_text\": \"\\\"Never forget: democracies can, and have, voted for measures which lead to their own destruction.",
+            "The job of democratic leaders is to warn that easy or popular measures, which may end some immediate conflict, must be resisted if in the end they risk destroying democracy itself.\\\"\",\n  \"verification_status\": \"variant\",\n  \"verified_text\": \"Let us never forget: democracies can, and in the past have, voted for measures which lead to their own destruction."
+          ],
+          "title": "substack.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEiFvygLTMamzPlEqAr63RJt28Q31SDEdng6ImDILDM2r1MDp41C6WED0d2w7lKDGInTHrYuXVSuznAb-UxQA1j70UgMkVQdnEYehsb1PFJkURMztRkOjPAaByFJzc6Xwe0mrv146ePSkOJsvPwfVZUFzy-U-KmATG0M0Y="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934\",\n  \"quote_text\": \"\\\"Never forget: democracies can, and have, voted for measures which lead to their own destruction.",
+            "The job of democratic leaders is to warn that easy or popular measures, which may end some immediate conflict, must be resisted if in the end they risk destroying democracy itself.\\\"\",\n  \"verification_status\": \"variant\",\n  \"verified_text\": \"Let us never forget: democracies can, and in the past have, voted for measures which lead to their own destruction.",
+            "She used the occasion to argue that yielding to the coercive demands of powerful trade unions for the sake of a 'quiet life' threatened the economic freedoms that underpin political democracy.\",\n  \"immediate_subject\": \"The danger of appeasing powerful producer groups or monopolies that use political muscle to force economic concessions.\",\n  \"intended_argument\": \"Democratic leaders must resist the temptation to appease coercive minority groups for short-term peace, as such economic concessions ultimately erode the foundations of political freedom.\",\n  \"literal_meaning\": \"Voters in a democracy can make choices that ultimately destroy their own system, so leaders must actively warn against taking the easy way out of immediate conflicts.\",\n  \"broader_principle\": \"Appeasement of coercive forces for immediate relief poses a long-term existential threat to democratic institutions and economic freedoms.\",\n  \"mechanism\": \"Yielding to monopoly power destroys economic freedom, which inevitably leads to the collapse of the political freedoms that rely upon it.\",\n  \"claimed_consequence\": \"Choosing easy or popular measures to end immediate conflicts will result in the destruction of democracy itself.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Carlton Club\",\n    \"London\",\n    \"National Union of Mineworkers\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and warning against political complacency.\",\n    \"historical_requirements\": [\n      \"Must reflect the context of the 1984 miners' strike.\",\n      \"Should capture Thatcher's firm stance on economic freedom.\""
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHmj7A7-EumgkkhpQhIGmxFUixw7WMqh2b3eyWpWw-1hjNw2SbI0WC8LqucEKsGpZ3PYcFM-fptbREqIOCqBQ3AVb7CNigaJC5LH3qCpOjSES8LcQlcapv0KpjweHEmmCDyk_Y7sP-fSs8Q"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"94af98b20cfa5e97965a5157a776f0edd072717ce3897df6b4696a659fe2c934\",\n  \"quote_text\": \"\\\"Never forget: democracies can, and have, voted for measures which lead to their own destruction.",
+            "The job of democratic leaders is to warn that easy or popular measures, which may end some immediate conflict, must be resisted if in the end they risk destroying democracy itself.\\\"\",\n  \"verification_status\": \"variant\",\n  \"verified_text\": \"Let us never forget: democracies can, and in the past have, voted for measures which lead to their own destruction."
+          ],
+          "title": "youtube.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF7kIxv_OUbgC8-kmBHGHPFNa2G5ismGZGkPSml6oY7yta3pMOLKWLHgqRSl1R-VcpxV7SqQf52jJSbiHWsounAEH5N5OTsz7bUw2562RHLscPOE9BTgcW9aaeVTI0ZDtdRgugr_A=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation, Document 105799",
+      "text_variation_notes": "The uploaded quote omits 'Let us' and 'in the past', and condenses 'measures which may seem easy or even popular' to 'easy or popular measures'.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "variant",
+      "verified_text": "Let us never forget: democracies can, and in the past have, voted for measures which lead to their own destruction. The job of democratic leaders is to warn that measures which may seem easy or even popular, which may end some immediate conflict, must be resisted if in the end they risk destroying democracy itself."
+    },
+    "9cff99eb9acab35c114c4ea26018a11fa1764abf5b5a653c4b07bb4271d415d9": {
+      "broader_principle": "Economic freedom is inextricably linked to political and personal liberty.",
+      "claimed_consequence": "A profound, almost unnoticed loss of fundamental liberties over time.",
+      "completed_at": "2026-07-13T20:51:01.022188Z",
+      "date": "October 1, 1996",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Presenting the quote as if it were from her time as Prime Minister rather than her later years."
+        ],
+        "desired_first_impression": "A stark, authoritative warning about the gradual loss of freedom.",
+        "historical_requirements": [
+          "Must attribute to Margaret Thatcher's post-premiership period.",
+          "Should reflect the context of her ongoing critique of socialism."
+        ],
+        "must_be_visually_dominant": [
+          "The phrase 'lose your liberty little by little'.",
+          "The progression of 'regulation', 'nationalisation', and 'taxation'."
+        ],
+        "must_not_dominate": [
+          "The introductory 'I will tell you'."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Socialism"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Thatcher delivered this speech in 1996, years after leaving office, reflecting on the ideological differences between free enterprise and socialism. She warned against the gradual erosion of freedoms through state intervention.",
+      "immediate_subject": "The creeping nature of state control under socialism.",
+      "intended_argument": "That socialism does not necessarily destroy freedom overnight, but rather erodes it incrementally through taxation and regulation.",
+      "literal_meaning": "Socialist policies like regulation, nationalisation, and taxation slowly take away personal liberties until they are largely gone.",
+      "mechanism": "Incremental state expansion (regulation, taxation, nationalisation) gradually displacing individual choice.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/9cff99eb9acab35c114c4ea26018a11fa1764abf5b5a653c4b07bb4271d415d9/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "17b71b6cc6f576bd12b3163866e1d0828d2147ed985505b95b28fb517c670c6d",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "9cff99eb9acab35c114c4ea26018a11fa1764abf5b5a653c4b07bb4271d415d9",
+      "quote_text": "The danger with socialism, I will tell you, is that you might lose your liberty little by little, with more and more regulation, with more and more nationalisation, with higher and higher taxation, until you look up one day and find a lot of it has gone.",
+      "research_confidence": "high",
+      "source_event": "Speech (October 1, 1996)",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She warned against the gradual erosion of freedoms through state intervention.\",\n  \"immediate_subject\": \"The creeping nature of state control under socialism.\",\n  \"intended_argument\": \"That socialism does not necessarily destroy freedom overnight, but rather erodes it incrementally through taxation and regulation.\",\n  \"literal_meaning\": \"Socialist policies like regulation, nationalisation, and taxation slowly take away personal liberties until they are largely gone.\",\n  \"broader_principle\": \"Economic freedom is inextricably linked to political and personal liberty.\",\n  \"mechanism\": \"Incremental state expansion (regulation, taxation, nationalisation) gradually displacing individual choice.\",\n  \"claimed_consequence\": \"A profound, almost unnoticed loss of fundamental liberties over time.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Socialism\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A stark, authoritative warning about the gradual loss of freedom.\",\n    \"historical_requirements\": [\n      \"Must attribute to Margaret Thatcher's post-premiership period.\",\n      \"Should reflect the context of her ongoing critique of socialism.\"",
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation: Speech (October 1, 1996)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation.\",\n        \"Confirms the date of the speech as October 1, 1996.\",\n        \"Confirms Margaret Thatcher as the speaker.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGI9hHn2YNwDcblKp-j-u4oxjEI1vSQ0TP5LmBHJ7L8gG5Vy6hgDmjjs_Jy_-2VJZTjoIJgjsOknDZ0yG9RHdGO97h7v0Ita651DrKz4asAyamza810DRvr5X7TNK-U5sW1Ryzt2RsuQ_y8IQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She warned against the gradual erosion of freedoms through state intervention.\",\n  \"immediate_subject\": \"The creeping nature of state control under socialism.\",\n  \"intended_argument\": \"That socialism does not necessarily destroy freedom overnight, but rather erodes it incrementally through taxation and regulation.\",\n  \"literal_meaning\": \"Socialist policies like regulation, nationalisation, and taxation slowly take away personal liberties until they are largely gone.\",\n  \"broader_principle\": \"Economic freedom is inextricably linked to political and personal liberty.\",\n  \"mechanism\": \"Incremental state expansion (regulation, taxation, nationalisation) gradually displacing individual choice.\",\n  \"claimed_consequence\": \"A profound, almost unnoticed loss of fundamental liberties over time.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Socialism\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A stark, authoritative warning about the gradual loss of freedom.\",\n    \"historical_requirements\": [\n      \"Must attribute to Margaret Thatcher's post-premiership period.\",\n      \"Should reflect the context of her ongoing critique of socialism.\"",
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation: Speech (October 1, 1996)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation.\",\n        \"Confirms the date of the speech as October 1, 1996.\",\n        \"Confirms Margaret Thatcher as the speaker.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "reddit.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEzmFesSftnMEfe0qPfNuGciufPALzsLJ8ffm1SbToa_zZKFRSbKI33eHXSMFaZAYCHB7krOkw-rRFaayOZD1XnrD0MaddB2uF3ykbdjDUtY5aJ8jk1zQTdQuf7mi5e-UQY1pTe9LU_e67WopWeslNpD1zz7MLVASZ-VEyEhv2tLsSbBpQ7UtH_dJmSKuhPR8DvBgHT"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive",
+      "text_variation_notes": "The uploaded quote omits the introductory phrase 'But, my friends, '.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [
+        "The exact venue and audience of the October 1, 1996 speech."
+      ],
+      "verification_status": "excerpt",
+      "verified_text": "But, my friends, the danger with socialism, I will tell you, is that you might lose your liberty little by little, with more and more regulation, with more and more nationalisation, with higher and higher taxation, until you look up one day and find a lot of it has gone."
+    },
+    "a0817766a020e293c32e5eeb0023c0ffccfd8f4fa8731858ea7140add588d306": {
+      "broader_principle": "Economic incentives matter; individuals are motivated by personal and familial benefit rather than state confiscation.",
+      "claimed_consequence": "Reducing the tax burden will lead to increased individual effort, greater prosperity, and national economic recovery.",
+      "completed_at": "2026-07-13T21:04:00.706440Z",
+      "date": "April 16, 1979",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using photographs of Thatcher from her later years in office (e.g., late 1980s)",
+          "Depicting modern economic contexts instead of the late 1970s"
+        ],
+        "desired_first_impression": "A resolute and pragmatic leader diagnosing the economic stagnation of the late 1970s.",
+        "historical_requirements": [
+          "Use imagery from the 1979 General Election campaign",
+          "Reflect the economic context of the Winter of Discontent",
+          "Maintain a serious, policy-focused tone"
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "The text of the quotation"
+        ],
+        "must_not_dominate": [
+          "Opposing political figures",
+          "Distracting background elements"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Chancellor of the Exchequer",
+        "Conservative Party",
+        "United Kingdom"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Delivered during the 1979 General Election campaign, which brought the Conservative Party to power following the 'Winter of Discontent'. Thatcher campaigned heavily on reducing the tax burden and curbing state interference in the economy.",
+      "immediate_subject": "The negative impact of high income taxes on individual work ethic and economic productivity.",
+      "intended_argument": "High taxation discourages hard work and initiative, so lowering taxes is the essential first step to national economic recovery.",
+      "literal_meaning": "Taxing people too much is stupid because they will only work hard if they can keep their earnings, rather than giving them to the government.",
+      "mechanism": "By lowering taxes on earnings, the government restores the financial incentive to work, thereby boosting overall economic output.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/a0817766a020e293c32e5eeb0023c0ffccfd8f4fa8731858ea7140add588d306/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "725b5d7b9f7616c1a2a6c81eb48193fa8c67e26d92e025a847aa09c7416d5d83",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "a0817766a020e293c32e5eeb0023c0ffccfd8f4fa8731858ea7140add588d306",
+      "quote_text": "Over-taxation is transparently foolish. Most of us are willing to work for our families and neighbours but not for the Chancellor of the Exchequer. In a free country people will work hard if it pays them to do so. At present taxes are so high that for many it is not worthwhile.",
+      "research_confidence": "high",
+      "source_event": "Election Message",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Most of us are willing to work for our families and neighbours but not for the Chancellor of the Exchequer.",
+            "In a free country people will work hard if it pays them to do so.",
+            "At present taxes are so high that for many it is not worthwhile.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Over-taxation is transparently foolish."
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHr8CugiH3U3vYtOdeCs0S9DYltukYvPIdgDBeJVQYBsNy7Ug2cfTtyFxsx1No5sP0FFIHCNn1I_xRIjyqP7ot7yRWIxjTH3NFGowpTzcsEb0xGzRKiA7DzRCV7pxsB7wca7nbJcrVF_mAtXg=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Most of us are willing to work for our families and neighbours but not for the Chancellor of the Exchequer.",
+            "In a free country people will work hard if it pays them to do so.",
+            "At present taxes are so high that for many it is not worthwhile.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Over-taxation is transparently foolish."
+          ],
+          "title": "cutmytax.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFPD4nT6baYEosjnSf78Nl_7ZvWyAXJzVrFpc8cOI7OF5o29ldBmxN-c8z9QrbyL6v-Ir7t9oZ5Pl2MAXeaJJLwuANK0XxD5ulGtAE7I8lfGNS_o0nfmA1D0ig="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 103998",
+      "text_variation_notes": "The uploaded quote truncates the final sentence, omitting 'working hard, and for some it is not worthwhile working at all.'",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "excerpt",
+      "verified_text": "Over-taxation is transparently foolish. Most of us are willing to work for our families and neighbours but not for the Chancellor of the Exchequer. In a free country people will work hard if it pays them to do so. At present taxes are so high that for many it is not worthwhile working hard, and for some it is not worthwhile working at all."
+    },
+    "a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130": {
+      "broader_principle": "True political leadership requires conviction, long-term vision, and the courage to enact unpopular but necessary policies.",
+      "claimed_consequence": "Adhering to long-term principles secures lasting respect and ultimately retains voter loyalty better than pandering to short-term trends.",
+      "completed_at": "2026-07-13T19:48:25.101277Z",
+      "date": "April 27, 1992",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Placing the quote in the context of her earlier 1979 or 1983 election victories.",
+          "Using imagery that suggests a campaign rally rather than reflective statesmanship."
+        ],
+        "desired_first_impression": "Resolute, principled, and authoritative.",
+        "historical_requirements": [
+          "Reflect the post-premiership period of Thatcher's career (early 1990s).",
+          "Convey a tone of steadfast conviction and political philosophy."
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between 'respect' and 'popularity'.",
+          "Margaret Thatcher as an elder stateswoman."
+        ],
+        "must_not_dominate": [
+          "Imagery of her time as active Prime Minister in the 1980s.",
+          "Overtly partisan modern symbols."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Newsweek",
+        "Conservative Party",
+        "John Major"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Following the April 1992 UK General Election, in which her successor John Major secured a Conservative victory, Margaret Thatcher wrote this article to defend her legacy. She warned against abandoning her foundational conservative principles in favor of softer, more populist approaches.",
+      "immediate_subject": "The necessity of adhering to firm political principles rather than seeking immediate public approval.",
+      "intended_argument": "Leaders should prioritize long-term structural and moral correctness over short-term electoral popularity, as steadfastness ultimately earns enduring public respect.",
+      "literal_meaning": "It is vastly preferable to earn respect by making correct, forward-looking decisions than to chase fleeting popularity through immediate appeasement.",
+      "mechanism": "By maintaining firm policies and saying 'no' when necessary, a leader establishes a reputation for integrity that outlasts temporary public dissatisfaction.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "d96c78e27c242998a8226a76faffee62a9c225b5b69dc61d367b8e6df535f8d2",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130",
+      "quote_text": "Far better to command respect for doing the right thing long-term than to pursue short-term popularity.",
+      "research_confidence": "high",
+      "source_event": "Article for Newsweek (\"Don't Undo My Work\")",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She warned against abandoning her foundational conservative principles in favor of softer, more populist approaches.\",\n  \"immediate_subject\": \"The necessity of adhering to firm political principles rather than seeking immediate public approval.\",\n  \"intended_argument\": \"Leaders should prioritize long-term structural and moral correctness over short-term electoral popularity, as steadfastness ultimately earns enduring public respect.\",\n  \"literal_meaning\": \"It is vastly preferable to earn respect by making correct, forward-looking decisions than to chase fleeting popularity through immediate appeasement.\",\n  \"broader_principle\": \"True political leadership requires conviction, long-term vision, and the courage to enact unpopular but necessary policies.\",\n  \"mechanism\": \"By maintaining firm policies and saying 'no' when necessary, a leader establishes a reputation for integrity that outlasts temporary public dissatisfaction.\",\n  \"claimed_consequence\": \"Adhering to long-term principles secures lasting respect and ultimately retains voter loyalty better than pandering to short-term trends.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Newsweek\",\n    \"Conservative Party\",\n    \"John Major\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and authoritative.\",\n    \"historical_requirements\": [\n      \"Reflect the post-premiership period of Thatcher's career (early 1990s).\",\n      \"Convey a tone of steadfast conviction and political philosophy.\"",
+            "],\n    \"must_be_visually_dominant\": [\n      \"The contrast between 'respect' and 'popularity'.\",\n      \"Margaret Thatcher as an elder stateswoman.\""
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHCC2GV9mJggboU4Lr-56Hz35_tlV3MaQVVmn0S-yLzPo2qDwXJXt7mZszkqFo3SsWIPN_OCRNmt65ZdQ5Gk0zIR8zt18VFFG7PTAwWj87aPVa7iNAR2Y3CP6aaGr6V4ydSmtGE9Pjk8eJ-Ag=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n    \"must_be_visually_dominant\": [\n      \"The contrast between 'respect' and 'popularity'.\",\n      \"Margaret Thatcher as an elder stateswoman.\""
+          ],
+          "title": "newsweek.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEVGmGvT6FfpiD2UIDEDMTas6OAdxABecBLRGb-e5o5OAcqsu1YJl_J-z_a4f5tjTCRnsZS4nwTFePs943URSp7fMlhgXqwhrUk6eqItx-MJVPXaS1ZS_qnR45PKAcntt1i-_G5Vs66QwOfd1k="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, THCR, Article for Newsweek",
+      "text_variation_notes": "The quote is exact as provided.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "exact",
+      "verified_text": "Far better to command respect for doing the right thing long-term than to pursue short-term popularity."
+    },
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": {
+      "broader_principle": "Free-market capitalism and limited government intervention are essential for maximizing national wealth and individual prosperity.",
+      "claimed_consequence": "Increased government taxation leads to reduced overall economic prosperity for the citizenry.",
+      "completed_at": "2026-07-13T18:00:19.230477Z",
+      "date": "2002",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting this as a speech from the 1980s rather than a later written reflection."
+        ],
+        "desired_first_impression": "A definitive statement of Thatcherite economic philosophy.",
+        "historical_requirements": [
+          "Attribute to her 2002 book 'Statecraft'.",
+          "Contextualize within her broader free-market ideology."
+        ],
+        "must_be_visually_dominant": [
+          "The metaphor of the 'slice' and the 'cake'."
+        ],
+        "must_not_dominate": [
+          "Specific policies from her time as Prime Minister, as this was written later."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Thatcher published 'Statecraft' in 2002, reflecting on her political philosophy and the global geopolitical landscape after her premiership. She used the book to reiterate her core conservative economic principles regarding taxation and state intervention.",
+      "immediate_subject": "The economic impact of government taxation and public spending.",
+      "intended_argument": "High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation. Therefore, limiting the size of the state is necessary to maximize prosperity for the general public.",
+      "literal_meaning": "If the government takes a larger portion of resources (the slice), the total amount of resources generated (the cake) shrinks, leaving less for the public.",
+      "mechanism": "By using the metaphor of a cake, Thatcher illustrates the concept of deadweight loss and the crowding-out effect, arguing that state extraction inherently diminishes total economic output.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "missing_grounded_source",
+        "raw_response_path": "raw_responses/a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7/developer_api_attempt_1.json",
+        "raw_response_sha256": "1416e2ffcf3ed1c0dce9fa237aea96c1005c5d15a33c11e5b70fe60a924110eb",
+        "repairs": [
+          "discarded_malformed_final_model_sources_rebuilt_from_grounding_metadata"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone.",
+      "research_confidence": "high",
+      "source_event": "Statecraft: Strategies for a Changing World (Book)",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "The larger the slice taken by government, the smaller the cake available for everyone.\",\n  \"verification_status\": \"exact\",\n  \"verified_text\": \"The larger the slice taken by government, the smaller the cake available for everyone.\",\n  \"text_variation_notes\": \"The quotation is consistently reproduced exactly as written in her 2002 book.\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"2002\",\n  \"source_event\": \"Statecraft: Strategies for a Changing World (Book)\",\n  \"stable_locator\": \"Page 327 or 425 (editions vary)\",\n  \"historical_context\": \"Thatcher published 'Statecraft' in 2002, reflecting on her political philosophy and the global geopolitical landscape after her premiership"
+          ],
+          "title": "azquotes.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHN8hvzrTwxGk89CGy5sgWSiRqwxdaio9tbK0WDSaxJG914a-QthMCstw26iWuSy0VOJsOW8aTxdIrkkZ714xRfyvm7JlPslJ-smGzQ98-2FrG8D5BrgyW4LWS0msjeB3Y7g3wYA6bkhT9x-4LsRikjGQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She used the book to reiterate her core conservative economic principles regarding taxation and state intervention"
+          ],
+          "title": "panarchy.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHFGfK3Wnv1-vO-E6vRsFQkYmZHusoT_AxPtauukmdPy7QW39ZxTgOy0M9muKT3KNo_y9YSLsoP-9R1WQQ8HSOVfV5ltczYgRwwN_oyFTtFvTJCptJCsDSTVF7bfd6FrFx05d1BdXo="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Page 327 or 425 (editions vary)",
+      "text_variation_notes": "The quotation is consistently reproduced exactly as written in her 2002 book.",
+      "transport": "developer_api",
+      "unresolved_questions": [
+        "The exact page number varies between the UK and US editions of 'Statecraft' (cited as p. 327 and p. 425 in different sources)."
+      ],
+      "verification_status": "exact",
+      "verified_text": "The larger the slice taken by government, the smaller the cake available for everyone."
+    },
+    "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346": {
+      "broader_principle": "True leadership requires steadfastness and a long-term perspective, prioritizing ultimate success over short-term popularity.",
+      "claimed_consequence": "Perseverance leads to the eventual success of fundamental changes, such as the reduction of unemployment and the creation of a more prosperous society.",
+      "completed_at": "2026-07-14T00:13:20.440871Z",
+      "date": "November 8, 1993",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using imagery from her later years rather than the period of her active premiership when these changes were enacted.",
+          "Failing to capture the severe economic conditions she was addressing."
+        ],
+        "desired_first_impression": "Resolute, principled, and unyielding in the face of adversity.",
+        "historical_requirements": [
+          "Contextualize within the economic struggles of early 1980s Britain.",
+          "Acknowledge the high unemployment that preceded the eventual economic recovery she claims."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "Themes of determination and structural change"
+        ],
+        "must_not_dominate": [
+          "Modern partisan commentary",
+          "Unrelated international events"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Britain"
+      ],
+      "grounding_source_count": 5,
+      "historical_context": "Thatcher was reflecting on her tenure as Prime Minister, specifically the difficult early years of her economic reforms when unemployment rose significantly before eventually falling. She was defending her conviction-led approach to governance against critics who argued her policies were too harsh.",
+      "immediate_subject": "The necessity of perseverance when implementing structural economic and political reforms.",
+      "intended_argument": "Leaders must have the moral courage to stick to their convictions and see difficult, fundamental reforms through to completion, rather than abandoning them at the first sign of hardship or unpopularity.",
+      "literal_meaning": "When making major changes, it is crucial to keep going until the desired results are achieved.",
+      "mechanism": "By refusing to reverse course during the painful transitional phases of reform, a leader allows the policies enough time to take effect and produce positive outcomes.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "5929a1d78afa138a5643fa7d1563f5f541a6418a54e4dea7fcab8ac5966a07b3",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "quote_text": "The important thing, when you're making fundamental changes, is that you have to persevere until they work.",
+      "research_confidence": "high",
+      "source_event": "Speech or interview recorded in the Margaret Thatcher Foundation archive",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She was defending her conviction-led approach to governance against critics who argued her policies were too harsh.\",\n  \"immediate_subject\": \"The necessity of perseverance when implementing structural economic and political reforms.\",\n  \"intended_argument\": \"Leaders must have the moral courage to stick to their convictions and see difficult, fundamental reforms through to completion, rather than abandoning them at the first sign of hardship or unpopularity.\",\n  \"literal_meaning\": \"When making major changes, it is crucial to keep going until the desired results are achieved.\",\n  \"broader_principle\": \"True leadership requires steadfastness and a long-term perspective, prioritizing ultimate success over short-term popularity.\",\n  \"mechanism\": \"By refusing to reverse course during the painful transitional phases of reform, a leader allows the policies enough time to take effect and produce positive outcomes.\",\n  \"claimed_consequence\": \"Perseverance leads to the eventual success of fundamental changes, such as the reduction of unemployment and the creation of a more prosperous society.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Britain\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, principled, and unyielding in the face of adversity.\",\n    \"historical_requirements\": [\n      \"Contextualize within the economic struggles of early 1980s Britain.\",\n      \"Acknowledge the high unemployment that preceded the eventual economic recovery she claims.\"",
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation Archive (November 08 1993)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive Transcript\",\n      \"supports\": [\n        \"Verifies the exact wording of the quote.\",\n        \"Confirms the date of the remarks as November 8, 1993.\",\n        \"Provides the context of her discussing unemployment and economic policies.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHu4DsUkjt6GhJ7GIWY1RWiDL0PnMv2QeWFcPAVCFuk1W_zXXV3RT0VVfY_Ha7ZKXifrANNjkgUbFDKRd6hPl3Ch7U_thnay9sYwjlFe0Gcm60UG5RSU60bdpqIf9izMizgRWIE5YxDDEPPQQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation Archive (November 08 1993)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive Transcript\",\n      \"supports\": [\n        \"Verifies the exact wording of the quote.\",\n        \"Confirms the date of the remarks as November 8, 1993.\",\n        \"Provides the context of her discussing unemployment and economic policies.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "indiana.edu",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFtcN5ig5LPCiWGDyT99MZeATn4CFKiO4rFwvubWonSNmIgoxlwnhnwTzRLBc_tLQzQlJL6UL9c86FKJ9fOvyyyO2U-OpWUodiCRZiCYQLtVaDjrmEeQj-ahTCpbKoHmIfVoDwXQbyy00MPX4RpctU="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation Archive (November 08 1993)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive Transcript\",\n      \"supports\": [\n        \"Verifies the exact wording of the quote.\",\n        \"Confirms the date of the remarks as November 8, 1993.\",\n        \"Provides the context of her discussing unemployment and economic policies.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "wmich.edu",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHtxxYMU-Dc7D7umKNsdoYe0yDAGA4wrSvaZNxVKMducLGPkopIep2grARf1HAcrLmXHsz35QmdPmQIkGzG8p2M9k8LuWUdEM9XUyQ5Ulm2-nWJ5gE--er-Y2gDxUg8F1XROvINzWqd5V2HCh6RSkrEUlz5MYKDzxASZ-lPFSTKpFbZVNlw004hEuKadFRm4X0="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation Archive (November 08 1993)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive Transcript\",\n      \"supports\": [\n        \"Verifies the exact wording of the quote.\",\n        \"Confirms the date of the remarks as November 8, 1993.\",\n        \"Provides the context of her discussing unemployment and economic policies.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "sahistory.org.za",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHbTyAy1SSwaqOKFOui4F04KpUZLyseuewa6rXhJ2SZfx5UNVsusKbrnOUxBG1xeIg0VlzcM57SshCsXYtqckWjRQ1U_deJerpbDmUB9hha9Qdx8mpOI-a3TgF87LwsyQ2WjRQw5ffjg23jHBlNsZQpRbxjPEeS-vTxzHwExfJ5n7Clodt1MAIHc__WGWvS3g=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation Archive (November 08 1993)\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"Official Archive Transcript\",\n      \"supports\": [\n        \"Verifies the exact wording of the quote.\",\n        \"Confirms the date of the remarks as November 8, 1993.\",\n        \"Provides the context of her discussing unemployment and economic policies.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "bethlehempubliclibrary.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFMPpy3sL24O-uSgNmPu4WuC-rHjpMLdaMq_aBunx0bSOu1XeVt0UA45TZQbI7gJpvtO_kLo7-L5aLT3TR3lEt0zcotUVyitayrJESm38_Srl938BLn7bOHh-biGVZWbXCmYCeXS7BzuXqrBBiZ143_8QWkoMRF4HJaNJpVSxII-gU8Zjqe9_u29g=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation archive, document dated November 8, 1993",
+      "text_variation_notes": "The quote is exact as recorded in the Margaret Thatcher Foundation archive transcript of her remarks on November 8, 1993.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [
+        "The exact venue and interviewer/audience for the November 8, 1993 remarks, though the transcript is verified by the Margaret Thatcher Foundation."
+      ],
+      "verification_status": "exact",
+      "verified_text": "The important thing, when you're making fundamental changes, is that you have to persevere until they work."
+    },
+    "b6d8f4a8a684486c91f5494012091018ffe54ffa92e9241ba109ec69cb125ce2": {
+      "broader_principle": "Economic liberty and private property are the fundamental mechanisms of individual freedom and the antithesis of state centralization.",
+      "claimed_consequence": "A society where power is held by individuals through ownership, rather than concentrated in the hands of the state.",
+      "completed_at": "2026-07-13T18:25:34.899204Z",
+      "date": "March 15, 1986",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using photographs from her early years as Prime Minister (pre-1982)",
+          "Using post-resignation imagery"
+        ],
+        "desired_first_impression": "A confident, ideological leader articulating the core philosophy of her government.",
+        "historical_requirements": [
+          "Depict Thatcher in her mid-1980s prime",
+          "Reflect a formal political conference setting"
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher speaking assertively",
+          "Conservative Party conference aesthetics"
+        ],
+        "must_not_dominate": [
+          "Images of industrial decline or protests",
+          "Unrelated international figures"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Central Council",
+        "Conservative Party",
+        "Labour Party"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "Entering her eighth year as Prime Minister, Thatcher was aggressively promoting 'popular capitalism' through the privatization of state-owned industries and the sale of council houses. She sought to contrast her government's tangible transfer of ownership to citizens with the Labour Party's socialist ideology.",
+      "immediate_subject": "The success of conservative economic policies in empowering ordinary citizens compared to socialist rhetoric.",
+      "intended_argument": "True empowerment comes from individual ownership and free markets, whereas socialist slogans about empowering the people actually mask a desire for state control.",
+      "literal_meaning": "Capitalism effectively distributes power throughout society, while socialists who claim to want power for the people actually want the government to have power over them.",
+      "mechanism": "Diffusing power through the privatization of state assets and encouraging individual share and home ownership.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/b6d8f4a8a684486c91f5494012091018ffe54ffa92e9241ba109ec69cb125ce2/developer_api_attempt_2.json",
+        "raw_response_sha256": "1b34abf6eaa85839fd1f202a6ee529b3352b788aea95bc352ba966955d3ee157",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "b6d8f4a8a684486c91f5494012091018ffe54ffa92e9241ba109ec69cb125ce2",
+      "quote_text": "Popular capitalism, which is the economic expression of liberty, is a far more attractive means for diffusing power in our society. Socialists cry \"Power to the people\" & raise the clenched fist as they say it. We all know what they mean - power over people, power to the State.",
+      "research_confidence": "high",
+      "source_event": "Speech to Conservative Central Council",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She sought to contrast her government's tangible transfer of ownership to citizens with the Labour Party's socialist ideology.\",\n  \"immediate_subject\": \"The success of conservative economic policies in empowering ordinary citizens compared to socialist rhetoric.\",\n  \"intended_argument\": \"True empowerment comes from individual ownership and free markets, whereas socialist slogans about empowering the people actually mask a desire for state control.\",\n  \"literal_meaning\": \"Capitalism effectively distributes power throughout society, while socialists who claim to want power for the people actually want the government to have power over them.\",\n  \"broader_principle\": \"Economic liberty and private property are the fundamental mechanisms of individual freedom and the antithesis of state centralization.\",\n  \"mechanism\": \"Diffusing power through the privatization of state assets and encouraging individual share and home ownership.\",\n  \"claimed_consequence\": \"A society where power is held by individuals through ownership, rather than concentrated in the hands of the state.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Central Council\",\n    \"Conservative Party\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A confident, ideological leader articulating the core philosophy of her government.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1980s prime\",\n      \"Reflect a formal political conference setting\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking assertively\",\n      \"Conservative Party conference aesthetics\"\n    ],\n    \"must_not_dominate\": [\n      \"Images of industrial decline or protests\",\n      \"Unrelated international figures\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Using photographs from her early years as Prime Minister (pre-1982)\",\n      \"Using post-resignation imagery\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/106348\",\n      \"source_type\": \"Primary\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.2]\",\n        \"Confirms the date as March 15, 1986",
+            "She sought to contrast her government's tangible transfer of ownership to citizens with the Labour Party's socialist ideology.\",\n  \"immediate_subject\": \"The success of conservative economic policies in empowering ordinary citizens compared to socialist rhetoric.\",\n  \"intended_argument\": \"True empowerment comes from individual ownership and free markets, whereas socialist slogans about empowering the people actually mask a desire for state control.\",\n  \"literal_meaning\": \"Capitalism effectively distributes power throughout society, while socialists who claim to want power for the people actually want the government to have power over them.\",\n  \"broader_principle\": \"Economic liberty and private property are the fundamental mechanisms of individual freedom and the antithesis of state centralization.\",\n  \"mechanism\": \"Diffusing power through the privatization of state assets and encouraging individual share and home ownership.\",\n  \"claimed_consequence\": \"A society where power is held by individuals through ownership, rather than concentrated in the hands of the state.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Central Council\",\n    \"Conservative Party\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A confident, ideological leader articulating the core philosophy of her government.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1980s prime\",\n      \"Reflect a formal political conference setting\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking assertively\",\n      \"Conservative Party conference aesthetics\"\n    ],\n    \"must_not_dominate\": [\n      \"Images of industrial decline or protests\",\n      \"Unrelated international figures\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Using photographs from her early years as Prime Minister (pre-1982)\",\n      \"Using post-resignation imagery\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/106348\",\n      \"source_type\": \"Primary\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.2]\",\n        \"Confirms the date as March 15, 1986\",\n        \"Identifies the event as the Speech to Conservative Central Council",
+            "She sought to contrast her government's tangible transfer of ownership to citizens with the Labour Party's socialist ideology.\",\n  \"immediate_subject\": \"The success of conservative economic policies in empowering ordinary citizens compared to socialist rhetoric.\",\n  \"intended_argument\": \"True empowerment comes from individual ownership and free markets, whereas socialist slogans about empowering the people actually mask a desire for state control.\",\n  \"literal_meaning\": \"Capitalism effectively distributes power throughout society, while socialists who claim to want power for the people actually want the government to have power over them.\",\n  \"broader_principle\": \"Economic liberty and private property are the fundamental mechanisms of individual freedom and the antithesis of state centralization.\",\n  \"mechanism\": \"Diffusing power through the privatization of state assets and encouraging individual share and home ownership.\",\n  \"claimed_consequence\": \"A society where power is held by individuals through ownership, rather than concentrated in the hands of the state.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Central Council\",\n    \"Conservative Party\",\n    \"Labour Party\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A confident, ideological leader articulating the core philosophy of her government.\",\n    \"historical_requirements\": [\n      \"Depict Thatcher in her mid-1980s prime\",\n      \"Reflect a formal political conference setting\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher speaking assertively\",\n      \"Conservative Party conference aesthetics\"\n    ],\n    \"must_not_dominate\": [\n      \"Images of industrial decline or protests\",\n      \"Unrelated international figures\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Using photographs from her early years as Prime Minister (pre-1982)\",\n      \"Using post-resignation imagery\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Conservative Central Council | Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/106348\",\n      \"source_type\": \"Primary\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation [1.1.2]\",\n        \"Confirms the date as March 15, 1986\",\n        \"Identifies the event as the Speech to Conservative Central Council\",\n        \"Establishes the context of promoting 'popular capitalism' and privatization"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFrc11d4ZLDW--PSaaUmrigBqeTChKNF6Q_b9Hu7w42lbqYPgg-_bXxkQlZ0QXSkVi8lpYWgBmr8IosvQ5pn1pNrMeEZeSNCtZOFWbDpz4S6zYZdTSHxl_Mo7vfR39rUhD73S54ZF4="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 106348",
+      "text_variation_notes": "The provided text omits 'For' at the beginning, changes 'is proving a much more' to 'is a far more', uses an ampersand instead of 'and', and omits 'really' before 'mean'.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "variant",
+      "verified_text": "For popular capitalism, which is the economic expression of liberty, is proving a much more attractive means for diffusing power in our society. Socialists cry \"Power to the people\", and raise the clenched fist as they say it. We all know what they really mean—power over people, power to the State."
+    },
+    "b92c09d707d631f548c58ac0c7a6e5d77a285f582312cd892699825ee65eb39c": {
+      "broader_principle": "Collectivism and state control are fundamentally incompatible with individual liberty and economic prosperity.",
+      "claimed_consequence": "The inevitable outcomes of pursuing socialist policies are national bankruptcy, loss of fundamental freedoms, and widespread economic failure.",
+      "completed_at": "2026-07-13T18:22:24.350932Z",
+      "date": "March 20, 1976",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting Thatcher in her 1980s Prime Ministerial era rather than 1976",
+          "Failing to capture the economic anxiety of 1970s Britain"
+        ],
+        "desired_first_impression": "A stark, uncompromising warning against the dangers of state control and collectivist policies.",
+        "historical_requirements": [
+          "Reflect the 1970s British political and economic context",
+          "Acknowledge Thatcher's role as Leader of the Opposition, not yet Prime Minister"
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between 'safe' and 'Socialism'",
+          "The concepts of freedom and bankruptcy"
+        ],
+        "must_not_dominate": [
+          "Imagery from her later years as Prime Minister",
+          "Modern political symbols unrelated to 1970s Britain"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Labour Party",
+        "United Kingdom"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "In 1976, Britain was experiencing severe economic stagnation, high inflation, and a public spending crisis under the Labour government. As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.",
+      "immediate_subject": "The illusion of a moderate or harmless form of socialism.",
+      "intended_argument": "To argue that the moderate wing of the Labour Party was complicit in the left's agenda, and that any degree of socialism inevitably leads to economic ruin and the erosion of liberty.",
+      "literal_meaning": "Socialism is inherently dangerous; its policies consistently reduce personal freedom and wealth, ultimately driving the country toward financial collapse.",
+      "mechanism": "By expanding bureaucracy, increasing taxes, and driving up public borrowing, socialist policies systematically erode the foundations of a free economy.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/b92c09d707d631f548c58ac0c7a6e5d77a285f582312cd892699825ee65eb39c/developer_api_attempt_2.json",
+        "raw_response_sha256": "8056db63808ff772cab48f3a005498e325e24fa1d611ed16b1ed91075379b313",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "b92c09d707d631f548c58ac0c7a6e5d77a285f582312cd892699825ee65eb39c",
+      "quote_text": "Safe Socialism? If it's safe, it's not Socialism. If it's Socialism, it's not safe. Signposts of Socialism point downhill to less freedom, less prosperity, more muddle, more failure. If we follow them to their destination, they will lead this nation into bankruptcy.",
+      "research_confidence": "high",
+      "source_event": "Speech to Conservative Central Council (\"The Historic Choice\")",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "If we follow them to their destination, they will lead this nation into bankruptcy.",
+            "\",\n  \"speaker\": \"Margaret Thatcher",
+            "\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"March 20, 1976",
+            "\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"March 20, 1976\",\n  \"source_event\": \"Speech to Conservative Central Council (\\\"The Historic Choice\\\")",
+            "\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"March 20, 1976\",\n  \"source_event\": \"Speech to Conservative Central Council (\\\"The Historic Choice\\\")\",\n  \"stable_locator\": \"Margaret Thatcher Foundation document 102990",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.\",\n  \"immediate_subject\": \"The illusion of a moderate or harmless form of socialism.",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.\",\n  \"immediate_subject\": \"The illusion of a moderate or harmless form of socialism.\",\n  \"intended_argument\": \"To argue that the moderate wing of the Labour Party was complicit in the left's agenda, and that any degree of socialism inevitably leads to economic ruin and the erosion of liberty.",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.\",\n  \"immediate_subject\": \"The illusion of a moderate or harmless form of socialism.\",\n  \"intended_argument\": \"To argue that the moderate wing of the Labour Party was complicit in the left's agenda, and that any degree of socialism inevitably leads to economic ruin and the erosion of liberty.\",\n  \"literal_meaning\": \"Socialism is inherently dangerous; its policies consistently reduce personal freedom and wealth, ultimately driving the country toward financial collapse.",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.\",\n  \"immediate_subject\": \"The illusion of a moderate or harmless form of socialism.\",\n  \"intended_argument\": \"To argue that the moderate wing of the Labour Party was complicit in the left's agenda, and that any degree of socialism inevitably leads to economic ruin and the erosion of liberty.\",\n  \"literal_meaning\": \"Socialism is inherently dangerous; its policies consistently reduce personal freedom and wealth, ultimately driving the country toward financial collapse.\",\n  \"broader_principle\": \"Collectivism and state control are fundamentally incompatible with individual liberty and economic prosperity.\",\n  \"mechanism\": \"By expanding bureaucracy, increasing taxes, and driving up public borrowing, socialist policies systematically erode the foundations of a free economy.",
+            "As the newly elected Leader of the Opposition, Thatcher sought to draw a sharp ideological contrast between the Conservative Party and the ruling Labour Party.\",\n  \"immediate_subject\": \"The illusion of a moderate or harmless form of socialism.\",\n  \"intended_argument\": \"To argue that the moderate wing of the Labour Party was complicit in the left's agenda, and that any degree of socialism inevitably leads to economic ruin and the erosion of liberty.\",\n  \"literal_meaning\": \"Socialism is inherently dangerous; its policies consistently reduce personal freedom and wealth, ultimately driving the country toward financial collapse.\",\n  \"broader_principle\": \"Collectivism and state control are fundamentally incompatible with individual liberty and economic prosperity.\",\n  \"mechanism\": \"By expanding bureaucracy, increasing taxes, and driving up public borrowing, socialist policies systematically erode the foundations of a free economy.\",\n  \"claimed_consequence\": \"The inevitable outcomes of pursuing socialist policies are national bankruptcy, loss of fundamental freedoms, and widespread economic failure."
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH-a37Uo6b6IqBTCCl6KUOpe1hQNfDoteyRTmKtRBoJmaefTcm-tg1BLr8dksvXBBuR_cCRSWwpdpmAN1hGBuSiuQoROs-6k5RgNtyqi6868dAEUKasrOolbZ4bcJyKdHSil0Yw-jQ="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation document 102990",
+      "text_variation_notes": "The uploaded quote slightly alters the opening by substituting 'Safe Socialism?' for 'There is no such thing as \"safe\" Socialism.' It also omits 'And' before the second sentence and removes the repeated 'downhill to' before 'more muddle'.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "variant",
+      "verified_text": "There is no such thing as \"safe\" Socialism. If it's safe, it's not Socialism. And if it's Socialism, it's not safe. The signposts of Socialism point downhill to less freedom, less prosperity, downhill to more muddle, more failure. If we follow them to their destination, they will lead this nation into bankruptcy."
+    },
+    "befe54db12c9ebd4fb3f5a02a33d141a62d9733a78ef0e9b80e38f13fdf8b0c4": {
+      "broader_principle": "Political opposition should be ideological as well as electoral, aiming to defeat the opponent's underlying philosophy.",
+      "claimed_consequence": "Defeating the ideology of socialism will prevent its adherents from excusing policy failures as mere implementation errors.",
+      "completed_at": "2026-07-13T18:23:02.332974Z",
+      "date": "May 4, 1976",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting her as Prime Minister (she was Leader of the Opposition at the time)."
+        ],
+        "desired_first_impression": "A resolute and ideologically driven political leader.",
+        "historical_requirements": [
+          "Must reflect the 1970s British political context.",
+          "Should convey an atmosphere of ideological conflict."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "Themes of political opposition"
+        ],
+        "must_not_dominate": [
+          "Modern political figures",
+          "Unrelated international events"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Labour Party",
+        "Conservative Party",
+        "Junior Carlton Club"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "In 1976, Margaret Thatcher was Leader of the Opposition against a struggling Labour government. Britain was facing severe economic difficulties, including high inflation and a falling pound, leading to a sense of national decline.",
+      "immediate_subject": "The Conservative Party's political objectives against the incumbent Labour government.",
+      "intended_argument": "The Conservative Party must not merely seek electoral victory to replace an incompetent administration, but must actively dismantle the ideological foundations of socialism.",
+      "literal_meaning": "The goal is to both vote out the current government and intellectually defeat the socialist ideas promoted by the Labour Party.",
+      "mechanism": "By exposing and destroying the 'fallacies' of socialism, the Conservative Party can prevent the cyclical return of socialist policies.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/befe54db12c9ebd4fb3f5a02a33d141a62d9733a78ef0e9b80e38f13fdf8b0c4/developer_api_attempt_2.json",
+        "raw_response_sha256": "d58dcc58c6090b02e55862b9e9a83a3ff4ca44f74e60d29ae8ea446f006405c8",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "befe54db12c9ebd4fb3f5a02a33d141a62d9733a78ef0e9b80e38f13fdf8b0c4",
+      "quote_text": "Our aim is not just to remove our uniquely incompetent Government from office, it is to destroy the socialist fallacies - indeed the whole fallacy of socialism - that the Labour Party exists to spread.",
+      "research_confidence": "high",
+      "source_event": "Speech to Junior Carlton Club Political Council",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Britain was facing severe economic difficulties, including high inflation and a falling pound, leading to a sense of national decline",
+            "Britain was facing severe economic difficulties, including high inflation and a falling pound, leading to a sense of national decline.\",\n  \"immediate_subject\": \"The Conservative Party's political objectives against the incumbent Labour government.\",\n  \"intended_argument\": \"The Conservative Party must not merely seek electoral victory to replace an incompetent administration, but must actively dismantle the ideological foundations of socialism.\",\n  \"literal_meaning\": \"The goal is to both vote out the current government and intellectually defeat the socialist ideas promoted by the Labour Party.\",\n  \"broader_principle\": \"Political opposition should be ideological as well as electoral, aiming to defeat the opponent's underlying philosophy.\",\n  \"mechanism\": \"By exposing and destroying the 'fallacies' of socialism, the Conservative Party can prevent the cyclical return of socialist policies.\",\n  \"claimed_consequence\": \"Defeating the ideology of socialism will prevent its adherents from excusing policy failures as mere implementation errors",
+            "Britain was facing severe economic difficulties, including high inflation and a falling pound, leading to a sense of national decline.\",\n  \"immediate_subject\": \"The Conservative Party's political objectives against the incumbent Labour government.\",\n  \"intended_argument\": \"The Conservative Party must not merely seek electoral victory to replace an incompetent administration, but must actively dismantle the ideological foundations of socialism.\",\n  \"literal_meaning\": \"The goal is to both vote out the current government and intellectually defeat the socialist ideas promoted by the Labour Party.\",\n  \"broader_principle\": \"Political opposition should be ideological as well as electoral, aiming to defeat the opponent's underlying philosophy.\",\n  \"mechanism\": \"By exposing and destroying the 'fallacies' of socialism, the Conservative Party can prevent the cyclical return of socialist policies.\",\n  \"claimed_consequence\": \"Defeating the ideology of socialism will prevent its adherents from excusing policy failures as mere implementation errors.\",\n  \"research_confidence\": \"high\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Labour Party\",\n    \"Conservative Party\",\n    \"Junior Carlton Club\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A resolute and ideologically driven political leader.\",\n    \"historical_requirements\": [\n      \"Must reflect the 1970s British political context.\",\n      \"Should convey an atmosphere of ideological conflict.\"\n    ],\n    \"must_be_visually_dominant\": [\n      \"Margaret Thatcher\",\n      \"Themes of political opposition\"\n    ],\n    \"must_not_dominate\": [\n      \"Modern political figures\",\n      \"Unrelated international events\"\n    ],\n    \"common_visual_mistakes\": [\n      \"Depicting her as Prime Minister (she was Leader of the Opposition at the time).\"\n    ]\n  },\n  \"unresolved_questions\": [],\n  \"sources\": [\n    {\n      \"title\": \"Speech to Junior Carlton Club Political Council - Margaret Thatcher Foundation\",\n      \"url\": \"https://www.margaretthatcher.org/document/102998\",\n      \"source_type\": \"Primary Source / Transcript\",\n      \"supports\": [\n        \"Provides the exact wording and date of the speech [1.1.5].\",\n        \"Confirms the venue as the Junior Carlton Club Political Council"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGlLVlwUtBeSyVjw-4NloX08PoHRqIpbHbvxJ6y_ZpyIBvStB0GvZRDf4to_2F4WurfT1eyHDW9IFi6HY0OyyIovA1Nu1DAGGPmneNlCTHy4GANcqfKDhGAVwCJ72WqASga7Z39nA=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive",
+      "text_variation_notes": "The uploaded quote replaces the original em-dashes with a comma and hyphens.",
+      "transport": "developer_api",
+      "unresolved_questions": [],
+      "verification_status": "normalised",
+      "verified_text": "Our aim is not just to remove our uniquely incompetent Government from office—it is to destroy the socialist fallacies—indeed the whole fallacy of socialism—that the Labour Party exists to spread."
+    },
+    "c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b": {
+      "broader_principle": "Socialism inevitably leads to economic ruin and loss of liberty, a reality its proponents ignore in theory but acknowledge in their personal choices.",
+      "claimed_consequence": "If the far-left gains power, they will destroy cherished freedoms and impose a system that causes low living standards, mirroring the Eastern Bloc.",
+      "completed_at": "2026-07-13T20:19:30.788482Z",
+      "date": "October 14, 1977",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting Thatcher as Prime Minister (she was not elected PM until 1979).",
+          "Showing a post-Soviet Eastern Europe."
+        ],
+        "desired_first_impression": "A forceful, witty critique of socialist hypocrisy during the Cold War.",
+        "historical_requirements": [
+          "Acknowledge the Cold War context of Eastern Europe.",
+          "Reflect Thatcher's role as Leader of the Opposition in 1977."
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "The contrast between British freedom and Eastern European living standards."
+        ],
+        "must_not_dominate": [
+          "Modern post-Cold War Eastern Europe.",
+          "Unrelated domestic policies."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Labour Party",
+        "Eastern Europe",
+        "Tribune Group"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "In 1977, Britain was governed by the Labour Party, and the Cold War sharply divided Europe. As Leader of the Opposition, Thatcher frequently warned against the leftward drift of Labour and the influence of its Marxist factions like the Tribune Group.",
+      "immediate_subject": "The ideological alignment of the British far-left with Soviet-dominated Eastern Europe.",
+      "intended_argument": "Thatcher argued that the far-left admired authoritarian socialist regimes in theory but hypocritically avoided living under them due to their resulting economic failures.",
+      "literal_meaning": "The extreme left does not care about traditional British freedoms and admires communist states, but they refuse to emigrate there because those countries are impoverished.",
+      "mechanism": "By contrasting the far-left's ideological praise for communist states with their practical refusal to live in them, Thatcher highlights the hypocrisy and economic failure of socialism.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "9332873c17d14dca8166c6a0b99b030a5aaa28b42e783283f8a7681cb0e39793",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b",
+      "quote_text": "Destroying freedoms we have cherished and defended down the centuries won't worry the far Left. They like everything about Eastern Europe [as it was in 1977] - except, alas, going to live there - because after all the living standards there are very low.",
+      "research_confidence": "high",
+      "source_event": "Conservative Party Conference",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b\",\n  \"quote_text\": \"\\\"Destroying freedoms we have cherished and defended down the centuries won't worry the far Left.",
+            "They like everything about Eastern Europe [as it was in 1977] - except, alas, going to live there - because after all the living standards there are very low.\\\"\",\n  \"verification_status\": \"variant\",\n  \"verified_text\": \"Destroying freedoms we have cherished and defended down the centuries won't worry the far Left.",
+            "As Leader of the Opposition, Thatcher frequently warned against the leftward drift of Labour and the influence of its Marxist factions like the Tribune Group.\",\n  \"immediate_subject\": \"The ideological alignment of the British far-left with Soviet-dominated Eastern Europe.\",\n  \"intended_argument\": \"Thatcher argued that the far-left admired authoritarian socialist regimes in theory but hypocritically avoided living under them due to their resulting economic failures.\",\n  \"literal_meaning\": \"The extreme left does not care about traditional British freedoms and admires communist states, but they refuse to emigrate there because those countries are impoverished.\",\n  \"broader_principle\": \"Socialism inevitably leads to economic ruin and loss of liberty, a reality its proponents ignore in theory but acknowledge in their personal choices.\",\n  \"mechanism\": \"By contrasting the far-left's ideological praise for communist states with their practical refusal to live in them, Thatcher highlights the hypocrisy and economic failure of socialism.\",\n  \"claimed_consequence\": \"If the far-left gains power, they will destroy cherished freedoms and impose a system that causes low living standards, mirroring the Eastern Bloc.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Conservative Party\",\n    \"Labour Party\",\n    \"Eastern Europe\",\n    \"Tribune Group\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"A forceful, witty critique of socialist hypocrisy during the Cold War.\",\n    \"historical_requirements\": [\n      \"Acknowledge the Cold War context of Eastern Europe.\",\n      \"Reflect Thatcher's role as Leader of the Opposition in 1977.\""
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFuLrIIFfKtgoYzsLrt9tvA1BdpPBONiMXnyN29gQjt1ZSQFAKqc8OKZUXUW-n_jQhrpkCcHZene4Clrr_EzPVujkhQlJmzVLkOi0v0tCGG2RMb3P4iVaJsqG3JCl8-e87O49FPH2IZRMs-0A=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 103443",
+      "text_variation_notes": "The uploaded quote inserts '[as it was in 1977]' to clarify the Cold War context of Eastern Europe. The original transcript uses em-dashes rather than hyphens.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "variant",
+      "verified_text": "Destroying freedoms we have cherished and defended down the centuries won't worry the far Left. They like everything about Eastern Europe—except, alas, going to live there—because after all the living standards there are very low."
+    },
+    "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283": {
+      "broader_principle": "Government spending and public sector wages are inextricably linked to the financial burden placed on taxpayers and consumers.",
+      "claimed_consequence": "Excessive wage demands harm fellow citizens and contribute to inflation rather than simply extracting wealth from the government.",
+      "completed_at": "2026-07-13T20:20:42.262448Z",
+      "date": "October 9, 1974",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Portraying this as a quote from her time as Prime Minister (she was in opposition in late 1974).",
+          "Using imagery from the 1984 miners' strike instead of the 1974 context."
+        ],
+        "desired_first_impression": "A stark economic warning about the realities of public sector wage demands.",
+        "historical_requirements": [
+          "Acknowledge the context of the October 1974 UK general election.",
+          "Reflect the era's high inflation and industrial disputes."
+        ],
+        "must_be_visually_dominant": [
+          "The core message that the public pays for government wage increases.",
+          "Margaret Thatcher as the speaker."
+        ],
+        "must_not_dominate": [
+          "The bracketed insertion '[nationalised industry]'.",
+          "Modern political contexts unrelated to the 1970s British economy."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "United Kingdom"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "The United Kingdom was facing severe inflation, industrial unrest, and a second general election in 1974. The Conservative Party was campaigning against the economic policies and union ties of the incumbent Labour government.",
+      "immediate_subject": "Wage demands by workers in state-owned enterprises.",
+      "intended_argument": "Public sector pay increases are not absorbed by a faceless state but are directly funded by ordinary citizens through higher prices and taxes.",
+      "literal_meaning": "Demands for higher wages in government-run sectors are ultimately paid for by the general public, including other workers and consumers.",
+      "mechanism": "When nationalised industries grant pay increases without matching productivity, the costs are passed on via increased utility prices or higher taxation.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "600eb688e0d4019bde800ebd88fd213003c1a8612ce27de87359fe3f47c3d06d",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283",
+      "quote_text": "When [nationalised industry] pay claims are made, they are sometimes presented as claims against Governments. But they are really claims which can only be paid for by fellow workers, housewives and consumers generally.",
+      "research_confidence": "high",
+      "source_event": "Speech or statement on the eve of the October 1974 United Kingdom general election",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283\",\n  \"quote_text\": \"\\\"When [nationalised industry] pay claims are made, they are sometimes presented as claims against Governments.",
+            "But they are really claims which can only be paid for by fellow workers, housewives and consumers generally.\\\"\",\n  \"verification_status\": \"variant\",\n  \"verified_text\": \"When pay claims are made, they are sometimes presented as claims against Governments.",
+            "],\n  \"sources\": [\n    {\n      \"title\": \"Margaret Thatcher Foundation: October 09 1974\",\n      \"url\": \"https://www.margaretthatcher.org/\",\n      \"source_type\": \"primary\",\n      \"supports\": [\n        \"Provides the exact verified text of the quotation.\",\n        \"Confirms the date as October 9, 1974.\",\n        \"Shows the immediate context regarding the cost of 15 nationalised industries.\"\n      ]\n    }\n  ]\n}"
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFYSLXs4A12AOgE8XbgyBSzg3bN5Aam9SA2QEgW7AhVoSZUuwhnkgvLsMbJ9dt_3kzUAwqObkjbA9ARdu7JxNXG-B5TXJ8gfA68CZ7AO8mNHrl414mkJGMTb4F-_hgJKcDFPIzgRRduReiD"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation archive, document from October 9, 1974",
+      "text_variation_notes": "The uploaded quote inserts '[nationalised industry]' to clarify the context, as the subsequent sentence in the original speech explicitly references the cost of the 15 nationalised industries.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [
+        "The exact venue or audience of the October 9, 1974 speech is not fully detailed in the snippet, though it was clearly a campaign address."
+      ],
+      "verification_status": "variant",
+      "verified_text": "When pay claims are made, they are sometimes presented as claims against Governments. But they are really claims which can only be paid for by fellow workers, housewives and consumers generally."
+    },
+    "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c": {
+      "broader_principle": "Economic freedom is inextricably linked to political freedom and societal well-being.",
+      "claimed_consequence": "Adopting free-market capitalism will restore national prosperity and individual liberty, reversing the decline caused by socialism.",
+      "completed_at": "2026-07-14T00:10:42.720425Z",
+      "date": "July 6, 1979",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using photos from the late 1980s or 1990s",
+          "Confusing this with her party conference speeches"
+        ],
+        "desired_first_impression": "Ideologically resolute and historically pivotal.",
+        "historical_requirements": [
+          "Use imagery from 1979",
+          "Reflect the post-Winter of Discontent atmosphere",
+          "Show Thatcher in her early prime ministerial role"
+        ],
+        "must_be_visually_dominant": [
+          "Margaret Thatcher",
+          "Themes of renewal or contrast between decline and prosperity"
+        ],
+        "must_not_dominate": [
+          "Later 1980s imagery",
+          "Unrelated international events"
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Conservative Political Centre"
+      ],
+      "grounding_source_count": 5,
+      "historical_context": "Delivered two months after Thatcher's May 1979 election victory, following the economically paralyzing 'Winter of Discontent'. The speech outlined her ideological vision for reversing British decline through free enterprise.",
+      "immediate_subject": "The global ideological shift away from state intervention and towards free-market economics.",
+      "intended_argument": "That socialist policies have demonstrably failed worldwide, while capitalism is the proven engine of both economic prosperity and individual liberty.",
+      "literal_meaning": "Socialism is experiencing a worldwide failure, whereas capitalism universally demonstrates its ability to generate wealth and freedom.",
+      "mechanism": "By contrasting the visible failures of state control with the successes of free enterprise, she establishes a binary choice that favors conservative policies.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "2499efa69786c8b4913a8073783bea6f56cd6ada8305a9891faea5cdace1e0c7",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
+      "quote_text": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Conservative Political Centre Summer School",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Everywhere a confirmation that capitalism produces freedom and prosperity.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Everywhere there is a crisis of Socialism.",
+            "Everywhere a confirmation that capitalism produces freedom and prosperity."
+          ],
+          "title": "notable-quotes.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGCYxsRnvzV7cBkptn0TgwJSUrJmmzGUmaSQedM1v4muqIzsG1-74RuTsxmYgUV_Z91kIkKisTXoWb0kaijRQBIpx8tBdsh1aL3aaHnYRJRlh-VIFjoTMEnPQLT7Y4vaknjiQw9uPrLlrOzpGEeFxLJJA=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Everywhere a confirmation that capitalism produces freedom and prosperity.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Everywhere there is a crisis of Socialism.",
+            "Everywhere a confirmation that capitalism produces freedom and prosperity."
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFEoDvBUsZRgvRnFDW8bDT-YT2WPO6zncny7_BYfbQ_HZUMboTnIsKg8OOz3W3-UfdgidS-9j_HVqOyGiHKzaE90ZNhmGqW3zRxTvmkZ3QA5FK4NsFx9fK_1Avfq67uVZuraabpqDHW3StnsA=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Everywhere a confirmation that capitalism produces freedom and prosperity.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Everywhere there is a crisis of Socialism.",
+            "Everywhere a confirmation that capitalism produces freedom and prosperity."
+          ],
+          "title": "manchester.ac.uk",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEUh4Cj9Uv0YbuSNWyT3c8lwLvmXe7VGuI_dRzjjiz0KvCXBUFFWx7WuSZjY_fqeplz2OZo1wP0OLMxNxXfyYYR4lxTG-LVhmS8K0qPwKkhkmvpiLD1dRyLcEjroWZzK_FuKxyxfTwpnCJxjXL2OWqqIJeOqL3bdRvSBlWvbIJadFt7Q8APYGhUdZQTCQz_8YoDS2IHgyITG_2OJzI9f8OWP30tYPBajbl06HQC376PuZ4SVDVPeg=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Everywhere a confirmation that capitalism produces freedom and prosperity.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Everywhere there is a crisis of Socialism."
+          ],
+          "title": "aau.dk",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGorj-k7r7ds9fEbv0FZd_HNgvJ1RKGbNjqw9iBnZ5AJixMc_rAF9tcUlFA0J7mO6S6y0hAoNxuIF3lmthL150V8EusI_QIiLJzV-LoRNVgrGng4_ypWs4r-KNqgryjtQ-4HXjLjT9ohYq8RJuz9XOb4w_5gBYae2OdGLpjpKC7rZs53xpCMLdFQK4sGS2uNg=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Everywhere a confirmation that capitalism produces freedom and prosperity.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"Everywhere there is a crisis of Socialism."
+          ],
+          "title": "scite.ai",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQENU92FRhe9nNMsu0o4uSqrp15ZOixLR_i_lNTHn5XELPehOE-sy5KDTw_MEkbCBnfECRB55JbEo5oZcAZ9hqs2yFVykhob8rumFheZphY-W4NZXrjmH7O_NGf433Q8GLyLpnDz79riJcGZQZvD3nZR3oB4DVq4o4pOtg=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive",
+      "text_variation_notes": "The uploaded quote is accurate but frequently omits the immediate following sentence regarding the demand for firm and traditional government.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "excerpt",
+      "verified_text": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity. Everywhere there is a demand, we sense, for firm and traditional Government."
+    },
+    "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9": {
+      "broader_principle": "Economic prosperity is driven by individual enterprise, not state intervention or wealth redistribution.",
+      "claimed_consequence": "Recognizing this truth forces society to abandon reliance on an 'all-providing government' and encourages the individual effort necessary for genuine economic revival.",
+      "completed_at": "2026-07-14T00:00:04.874799Z",
+      "date": "November 14, 1983",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Portraying this as a campaign speech rather than a formal address at the Guildhall."
+        ],
+        "desired_first_impression": "Resolute, economically conservative, and focused on individual responsibility.",
+        "historical_requirements": [
+          "Acknowledge the context of the 1983 post-election period.",
+          "Connect the quote to Thatcher's broader critique of the post-war welfare state consensus."
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between 'the state' and 'individual effort'."
+        ],
+        "must_not_dominate": [
+          "Unrelated foreign policy issues from the same speech (e.g., nuclear weapons or the EEC)."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Lord Mayor's Banquet",
+        "City of London",
+        "William Beveridge"
+      ],
+      "grounding_source_count": 3,
+      "historical_context": "Thatcher delivered this speech at the Lord Mayor's Banquet shortly after her landslide 1983 election victory. She used the occasion to reflect on her first term's economic policies, particularly the fight against inflation and the rejection of Keynesian deficit spending.",
+      "immediate_subject": "The limitations of government provision and the necessity of personal responsibility.",
+      "intended_argument": "To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.",
+      "literal_meaning": "The government cannot endlessly improve people's economic conditions if the people themselves do not work hard to generate that wealth.",
+      "mechanism": "By framing the expectation of state-provided prosperity as a 'debilitating myth', Thatcher shifts the moral and practical responsibility for economic well-being from the government to the citizen.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "59077213a987dd402f5615b9efbf520e87fe9467fa68e7b8996e11326decbf3b",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
+      "research_confidence": "high",
+      "source_event": "Speech at the Lord Mayor's Banquet",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9\",\n  \"quote_text\": \"\\\"The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort.",
+            "It can't and it never could.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort."
+          ],
+          "title": "objectobot.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFJwFjooITGL_smutMLKDA0yMYgp_AJ4w0ARj4q7t4HcvptU-jFOrab6rQkRmDXfU_lO7egWOA3BWp8ByNQlHM8C2HuCtEzkGQPD5BC1xeJmqC6"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9\",\n  \"quote_text\": \"\\\"The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort.",
+            "It can't and it never could.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort.",
+            "She used the occasion to reflect on her first term's economic policies, particularly the fight against inflation and the rejection of Keynesian deficit spending.\",\n  \"immediate_subject\": \"The limitations of government provision and the necessity of personal responsibility.\",\n  \"intended_argument\": \"To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.\",\n  \"literal_meaning\": \"The government cannot endlessly improve people's economic conditions if the people themselves do not work hard to generate that wealth.\",\n  \"broader_principle\": \"Economic prosperity is driven by individual enterprise, not state intervention or wealth redistribution.\",\n  \"mechanism\": \"By framing the expectation of state-provided prosperity as a 'debilitating myth', Thatcher shifts the moral and practical responsibility for economic well-being from the government to the citizen.\",\n  \"claimed_consequence\": \"Recognizing this truth forces society to abandon reliance on an 'all-providing government' and encourages the individual effort necessary for genuine economic revival.\",\n  \"entities\": [\n    \"Margaret Thatcher\",\n    \"Lord Mayor's Banquet\",\n    \"City of London\",\n    \"William Beveridge\"\n  ],\n  \"editorial_guidance\": {\n    \"desired_first_impression\": \"Resolute, economically conservative, and focused on individual responsibility.\",\n    \"historical_requirements\": [\n      \"Acknowledge the context of the 1983 post-election period.\",\n      \"Connect the quote to Thatcher's broader critique of the post-war welfare state consensus.\""
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9SEetr6rJQczgo50Gjnv6nvWVZmZNHFAwKyh7S0saeBHtenxk7Hg-rIRiRMSFFHIJn3hL4aNKjFEf0PHOmm898eBWu-W-1iNLdcGrgcEA-FIT7bdqP37uYRAAt1D_z5w7iOnuW9Iflyrjkg=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9\",\n  \"quote_text\": \"\\\"The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort.",
+            "It can't and it never could.\\\"\",\n  \"verification_status\": \"excerpt\",\n  \"verified_text\": \"But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort."
+          ],
+          "title": "objectobot.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGXjcRorJ96RTo1_V9mUQzjLxO-9F0TmidOVvQwEKt_-h27ufkUKExMfWtxiZ37EXOCwFpnX2liEiXnmRlJM9MNaAIyAyXdwv4wu0r3SQEQrxGwEa2OgrMIjLIDZ457_DRTxw=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document 105484",
+      "text_variation_notes": "The uploaded quote omits the introductory conjunction 'But' from the original speech transcript.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "excerpt",
+      "verified_text": "But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could."
+    },
+    "d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350": {
+      "broader_principle": "Strategic patience is a tool for ultimate victory, rather than a willingness to compromise on core principles.",
+      "claimed_consequence": "Reinforces her 'Iron Lady' persona by demonstrating that her patience should not be mistaken for flexibility.",
+      "completed_at": "2026-07-13T17:42:54.009714Z",
+      "date": "4 April 1989",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Misattributing to other political figures.",
+          "Using imagery from her earlier career instead of the late 1980s."
+        ],
+        "desired_first_impression": "Authoritative, unyielding, and strategically patient.",
+        "historical_requirements": [
+          "Must attribute to Margaret Thatcher.",
+          "Must reference the 1989 Observer interview."
+        ],
+        "must_be_visually_dominant": [
+          "The quote text.",
+          "Margaret Thatcher's name."
+        ],
+        "must_not_dominate": [
+          "The publication name."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "The Observer"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Margaret Thatcher was serving her third term as Prime Minister of the United Kingdom, having established a reputation for uncompromising leadership and strong political convictions.",
+      "immediate_subject": "Her personal approach to political negotiations and achieving her policy objectives.",
+      "intended_argument": "She is willing to wait and endure lengthy processes as long as the final outcome aligns entirely with her original goals.",
+      "literal_meaning": "I have a great deal of patience, but only on the condition that I ultimately achieve what I want.",
+      "mechanism": "Uses a humorous juxtaposition of a traditional virtue (patience) with a demanding condition (getting her own way) to assert dominance.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350/developer_api_attempt_2.json",
+        "raw_response_sha256": "4989dc23013c1c63848f87e9e8f2258809ae6abc82f1d09de4a273226919c31c",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350",
+      "quote_text": "I am extraordinarily patient, provided I get my own way in the end.",
+      "research_confidence": "high",
+      "source_event": "Interview in The Observer",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "\\\"\",\"verification_status\":\"exact\",\"verified_text\":\"I am extraordinarily patient, provided I get my own way in the end.\",\"text_variation_notes\":\"The quotation is consistently cited in this exact form across reference works and historical archives.\",\"speaker\":\"Margaret Thatcher\",\"date\":\"4 April 1989\",\"source_event\":\"Interview in The Observer\",\"stable_locator\":\"The Observer, 4 April 1989\",\"historical_context\":\"Margaret Thatcher was serving her third term as Prime Minister of the United Kingdom, having established a reputation for uncompromising leadership and strong political convictions.\",\"immediate_subject\":\"Her personal approach to political negotiations and achieving her policy objectives.\",\"intended_argument\":\"She is willing to wait and endure lengthy processes as long as the final outcome aligns entirely with her original goals.\",\"literal_meaning\":\"I have a great deal of patience, but only on the condition that I ultimately achieve what I want.\",\"broader_principle\":\"Strategic patience is a tool for ultimate victory, rather than a willingness to compromise on core principles.\",\"mechanism\":\"Uses a humorous juxtaposition of a traditional virtue (patience) with a demanding condition (getting her own way) to assert dominance.\",\"claimed_consequence\":\"Reinforces her 'Iron Lady' persona by demonstrating that her patience should not be mistaken for flexibility.\",\"research_confidence\":\"high\",\"entities\":[\"Margaret Thatcher\",\"The Observer\"],\"editorial_guidance\":{\"desired_first_impression\":\"Authoritative, unyielding, and strategically patient.\",\"historical_requirements\":[\"Must attribute to Margaret Thatcher.\",\"Must reference the 1989 Observer interview.\"],\"must_be_visually_dominant\":[\"The quote text.\",\"Margaret Thatcher's name.\"],\"must_not_dominate\":[\"The publication name.\"],\"common_visual_mistakes\":[\"Misattributing to other political figures.\",\"Using imagery from her earlier career instead of the late 1980s.\"]},\"unresolved_questions\":[\"The exact context of the question asked by the interviewer in The Observer.\"],\"sources\":[{\"title\":\"Margaret Thatcher 1925–2013 British Conservative stateswoman; Prime Minister, 1979–90 - Oxford Reference\",\"url\":\"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG75Q0SxVIW6zOaFX5k6viNLghAIWHoIr41xDwInY9YdXGItlj8kVDh9mwCuzXzDAXAozQ1AgqfESnzzceDBsDB7Un8LgSegXeQDzdWosDVCB2OAStR56jJjwXNsFutHkRREfybip16Kqe3I-3ZrAWCeOWPQsPjvfYbeC1iYroxeFXo24fxyZcPanCM73R6hSG_W8G0NQ==\",\"source_type\":\"reference\",\"supports\":[\"Confirms the exact wording of the quote [1.1.2].\",\"Confirms the publication as Observer, 4 April 1989"
+          ],
+          "title": "oxfordreference.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG75Q0SxVIW6zOaFX5k6viNLghAIWHoIr41xDwInY9YdXGItlj8kVDh9mwCuzXzDAXAozQ1AgqfESnzzceDBsDB7Un8LgSegXeQDzdWosDVCB2OAStR56jJjwXNsFutHkRREfybip16Kqe3I-3ZrAWCeOWPQsPjvfYbeC1iYroxeFXo24fxyZcPanCM73R6hSG_W8G0NQ=="
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "\\\"\",\"verification_status\":\"exact\",\"verified_text\":\"I am extraordinarily patient, provided I get my own way in the end.\",\"text_variation_notes\":\"The quotation is consistently cited in this exact form across reference works and historical archives.\",\"speaker\":\"Margaret Thatcher\",\"date\":\"4 April 1989\",\"source_event\":\"Interview in The Observer\",\"stable_locator\":\"The Observer, 4 April 1989\",\"historical_context\":\"Margaret Thatcher was serving her third term as Prime Minister of the United Kingdom, having established a reputation for uncompromising leadership and strong political convictions.\",\"immediate_subject\":\"Her personal approach to political negotiations and achieving her policy objectives.\",\"intended_argument\":\"She is willing to wait and endure lengthy processes as long as the final outcome aligns entirely with her original goals.\",\"literal_meaning\":\"I have a great deal of patience, but only on the condition that I ultimately achieve what I want.\",\"broader_principle\":\"Strategic patience is a tool for ultimate victory, rather than a willingness to compromise on core principles.\",\"mechanism\":\"Uses a humorous juxtaposition of a traditional virtue (patience) with a demanding condition (getting her own way) to assert dominance.\",\"claimed_consequence\":\"Reinforces her 'Iron Lady' persona by demonstrating that her patience should not be mistaken for flexibility.\",\"research_confidence\":\"high\",\"entities\":[\"Margaret Thatcher\",\"The Observer\"],\"editorial_guidance\":{\"desired_first_impression\":\"Authoritative, unyielding, and strategically patient.\",\"historical_requirements\":[\"Must attribute to Margaret Thatcher.\",\"Must reference the 1989 Observer interview.\"],\"must_be_visually_dominant\":[\"The quote text.\",\"Margaret Thatcher's name.\"],\"must_not_dominate\":[\"The publication name.\"],\"common_visual_mistakes\":[\"Misattributing to other political figures.\",\"Using imagery from her earlier career instead of the late 1980s.\"]},\"unresolved_questions\":[\"The exact context of the question asked by the interviewer in The Observer.\"],\"sources\":[{\"title\":\"Margaret Thatcher 1925–2013 British Conservative stateswoman; Prime Minister, 1979–90 - Oxford Reference\",\"url\":\"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQG75Q0SxVIW6zOaFX5k6viNLghAIWHoIr41xDwInY9YdXGItlj8kVDh9mwCuzXzDAXAozQ1AgqfESnzzceDBsDB7Un8LgSegXeQDzdWosDVCB2OAStR56jJjwXNsFutHkRREfybip16Kqe3I-3ZrAWCeOWPQsPjvfYbeC1iYroxeFXo24fxyZcPanCM73R6hSG_W8G0NQ==\",\"source_type\":\"reference\",\"supports\":[\"Confirms the exact wording of the quote [1.1.2].\",\"Confirms the publication as Observer, 4 April 1989.\"]},{\"title\":\"Quotes - The Margaret Thatcher Centre\",\"url\":\"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEncuY503ZXSCbbhdC7MU8_NRsQuUk5fnYGzFQIwtjNfKzaRenenLK07htVDADDnn65iwEQs1efw_RaQNlbrqDEsSNk24vW8gLsWbUhMtbczTX-ddqodGF1bpzxMg==\",\"source_type\":\"website\",\"supports\":[\"Attributes the quote to Margaret Thatcher [1.1.4].\",\"Dates the quote to an interview in The Observer on 4 April 1989"
+          ],
+          "title": "thatchercentre.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEncuY503ZXSCbbhdC7MU8_NRsQuUk5fnYGzFQIwtjNfKzaRenenLK07htVDADDnn65iwEQs1efw_RaQNlbrqDEsSNk24vW8gLsWbUhMtbczTX-ddqodGF1bpzxMg=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "The Observer, 4 April 1989",
+      "text_variation_notes": "The quotation is consistently cited in this exact form across reference works and historical archives.",
+      "transport": "developer_api",
+      "unresolved_questions": [
+        "The exact context of the question asked by the interviewer in The Observer."
+      ],
+      "verification_status": "exact",
+      "verified_text": "I am extraordinarily patient, provided I get my own way in the end."
+    },
+    "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4": {
+      "broader_principle": "The non-negotiable nature of individual liberty in political governance.",
+      "claimed_consequence": "Citizens will remain vigilant against political overreach by distrusting leaders who downplay the importance of freedom.",
+      "completed_at": "2026-07-13T18:05:01.389499Z",
+      "date": "2002",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Using images from her early life instead of her elder stateswoman era.",
+          "Misattributing the quote to a speech during her time as Prime Minister rather than her later writings."
+        ],
+        "desired_first_impression": "Authoritative, uncompromising, and principled.",
+        "historical_requirements": [
+          "Use imagery from her post-premiership era or classic Iron Lady portraits.",
+          "Maintain a serious, resolute tone."
+        ],
+        "must_be_visually_dominant": [
+          "The words 'free' and 'always'.",
+          "Margaret Thatcher's attribution."
+        ],
+        "must_not_dominate": [
+          "The word 'suspect'.",
+          "Overly aggressive or partisan modern imagery."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "Statecraft: Strategies for a Changing World"
+      ],
+      "grounding_source_count": 2,
+      "historical_context": "Written after her premiership, Thatcher's book 'Statecraft' reflected on the Cold War's end and the ideological battles of the 20th century. She sought to reaffirm the primacy of individual liberty against collectivist or authoritarian state models.",
+      "immediate_subject": "The fundamental value of freedom over state control.",
+      "intended_argument": "That liberty is an absolute good, and any political leader who compromises on this principle is inherently untrustworthy.",
+      "literal_meaning": "Being free is universally superior to lacking freedom, and politicians who argue otherwise are suspicious.",
+      "mechanism": "By framing freedom as an absolute binary, it delegitimizes authoritarian or overly interventionist political philosophies.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4/developer_api_attempt_1.json",
+        "raw_response_sha256": "fb0eec0298e9a6cf1f46564c54b5b2a5448ff212ed093176402c1547f027baf5",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
+      "quote_text": "To be free is better than to be unfree always. Any politician who suggests the opposite should be treated as suspect.",
+      "research_confidence": "high",
+      "source_event": "Publication of her book 'Statecraft: Strategies for a Changing World'",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "Any politician who suggests the opposite should be treated as suspect.\",\n  \"text_variation_notes\": \"The original text includes an em-dash before 'always', which is frequently omitted or replaced with a period in secondary quoting",
+            "Any politician who suggests the opposite should be treated as suspect.\",\n  \"text_variation_notes\": \"The original text includes an em-dash before 'always', which is frequently omitted or replaced with a period in secondary quoting.\",\n  \"speaker\": \"Margaret Thatcher\",\n  \"date\": \"2002\",\n  \"source_event\": \"Publication of her book 'Statecraft: Strategies for a Changing World'\",\n  \"stable_locator\": \"Statecraft: Strategies for a Changing World (HarperCollins, 2002)\",\n  \"historical_context\": \"Written after her premiership, Thatcher's book 'Statecraft' reflected on the Cold War's end and the ideological battles of the 20th century",
+            "She sought to reaffirm the primacy of individual liberty against collectivist or authoritarian state models.\",\n  \"immediate_subject\": \"The fundamental value of freedom over state control.\",\n  \"intended_argument\": \"That liberty is an absolute good, and any political leader who compromises on this principle is inherently untrustworthy"
+          ],
+          "title": "borgenproject.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEdBPrrGFV083Iefk4S3W6GVN1uPQDJ4UGYNtM8UqzDxwZ5kCd4pIV9HJlJpRJvtTHgb6GK9qq1P6K39ZNOxzG_L7ukE44hbUJLboYqkuAdXVA6MhY6MYGoEN6dAUC-rxJXWmDXlMMvZK8K8aGu24Dl4d1rbB3JQT_Jh-FMD-HgPDzaABuapeha98GGEGw8lZVQ"
+        },
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "She sought to reaffirm the primacy of individual liberty against collectivist or authoritarian state models"
+          ],
+          "title": "substack.com",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE_X7YH15E0FPu6ynyNmn9BPUXGV_pfMnVxneIn0YufgmbE0j87YO4dW1YlSJDdYHSJNehxGfkCQ7Uu4QaHOVPnOcIbUJQ3CZSJmOdoWRh-CEoFWJrvVgkUvj0lWF7wnuQjefiTHGV0-5MgWtedm22ohT1wjJ-GWL7bKT45"
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Statecraft: Strategies for a Changing World (HarperCollins, 2002)",
+      "text_variation_notes": "The original text includes an em-dash before 'always', which is frequently omitted or replaced with a period in secondary quoting.",
+      "transport": "developer_api",
+      "unresolved_questions": [
+        "The exact page number in the first edition of 'Statecraft' where this quote appears."
+      ],
+      "verification_status": "normalised",
+      "verified_text": "To be free is better than to be unfree – always. Any politician who suggests the opposite should be treated as suspect."
+    },
+    "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5": {
+      "broader_principle": "State centralization is fundamentally incompatible with individual liberty and economic freedom.",
+      "claimed_consequence": "An over-mighty state leads to the loss of personal, economic, and intellectual freedom for its citizens.",
+      "completed_at": "2026-07-13T19:47:13.272050Z",
+      "date": "March 16, 1976",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Depicting Thatcher as Prime Minister (she was Leader of the Opposition at the time)"
+        ],
+        "desired_first_impression": "A stark, principled warning about the dangers of state overreach.",
+        "historical_requirements": [
+          "Acknowledge the Cold War context",
+          "Note the domestic British political situation in 1976"
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between state power and individual freedom"
+        ],
+        "must_not_dominate": [
+          "Unrelated Cold War events"
+        ]
+      },
+      "entities": [
+        "Aleksandr Solzhenitsyn",
+        "Margaret Thatcher",
+        "Conservative Party",
+        "Bow Group"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "Delivered on the same day Labour Prime Minister Harold Wilson unexpectedly resigned amid severe British economic difficulties. Thatcher, as Leader of the Opposition, was positioning the Conservative Party against socialism and warning of the dangers of state overreach, referencing Alexander Solzhenitsyn's recent BBC broadcast.",
+      "immediate_subject": "The inverse relationship between state power and individual liberty.",
+      "intended_argument": "Expanding the power of the state inherently strips citizens of their fundamental freedoms, a danger exemplified by the Soviet system Solzhenitsyn exposed.",
+      "literal_meaning": "As a government gains more control, individuals are left with fewer opportunities to make their own choices or hold independent ideas, a reality Solzhenitsyn learned firsthand.",
+      "mechanism": "By appropriating decision-making power and economic control, the state structurally eliminates the space for individual autonomy.",
+      "model": "gemini-3.1-pro-preview",
+      "offline_recovery": {
+        "original_failure_category": "quote_identity_changed",
+        "raw_response_path": "raw_responses/faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5/vertex_ai_attempt_2.json",
+        "raw_response_sha256": "199a321fc4c94f31a00746e4d46c59c523ae86bc77635ace00cd28e744b85643",
+        "repairs": [
+          "restored_manifest_quote_text_after_outer_quote_or_whitespace_change"
+        ],
+        "schema_version": 1
+      },
+      "prompt_version": "quote-research-grounded-v1",
+      "quote_id": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "research_confidence": "high",
+      "source_event": "Speech to the Bow Group",
+      "sources": [
+        {
+          "source_type": "grounded_web_source",
+          "supports": [
+            "{\n  \"quote_id\": \"faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5\",\n  \"quote_text\": \"\\\"Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state.",
+            "The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.\\\"\",\n  \"verification_status\": \"exact\",\n  \"verified_text\": \"Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state."
+          ],
+          "title": "margaretthatcher.org",
+          "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHHiIRBKQP64PsaqQsXMdCdRgiQh3IG60AUv1wpudQ9Z72NQ0ecHKwo_FFHtIpq4CFcwAVPC_0j3ZWVVZjVG8AStxW_GDIZ_4g2I1ZGNOYGhM2Hgm_NqGiuT2IgjUVmo5sDe5BmnffoCgMOPg=="
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Margaret Thatcher Foundation Archive, Document from March 16, 1976",
+      "text_variation_notes": "The uploaded quote uses hyphens instead of the em-dashes found in the original transcript, but is otherwise an exact match.",
+      "transport": "vertex_ai",
+      "unresolved_questions": [],
+      "verification_status": "exact",
+      "verified_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state—the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas—remains for the individual citizen."
+    }
+  },
+  "schema_version": 1
+}

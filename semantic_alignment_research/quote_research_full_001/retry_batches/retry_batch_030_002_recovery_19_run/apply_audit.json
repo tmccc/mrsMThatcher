@@ -1,0 +1,40 @@
+{
+  "after_hashes": {
+    "grounding_sources.json": "19f1f191fd686b87569b2a6cb56beaaf1c5afa0778d22a87204556800a7693a8",
+    "permanent_failures.json": "ed379d56abee272ad9ca3fd6c9d89916ec28cf0de46cc8c4b032a4aed60349fa",
+    "research_packets.json": "e36842b0b64eb951f9ca607da6ec0aa0c2290ab8939fdeadadbe1a2d1a24a9b5",
+    "run_state.json": "ffb2ed6c35ea2910c99ff63ddca4c61412dc71045e64c03545d7049a7d3ee513",
+    "status.json": "b1aefa019e7861ed75c44bc353621a75bbd6cfa764efd8900a84e209aa3cfaf6"
+  },
+  "applied_at": "2026-07-14T07:27:57.199807Z",
+  "applied_count": 17,
+  "backup_dir": "retry_batches/retry_batch_030_002_recovery_19_run/apply_backups/d6c542a43a4cc417",
+  "before_hashes": {
+    "grounding_sources.json": "0390f97c1b431e672336ffe567c3ee5d899cd49494535073f7a89402b048cded",
+    "permanent_failures.json": "9b4ff77f2fac68f092bc82b282444f847c252c7ce12b7ac3daa2ee18f5cd8b62",
+    "research_packets.json": "d6c542a43a4cc417db9c99ca68755b98580bfe646d868627dc1562f017089d04",
+    "run_state.json": "1f517404ef28f7c8503e493f0ed3b6485ab1270f8cf98c536cf92ed3d48330e1",
+    "status.json": "f22265cea8845192e99bc6477605b207b621930e08961d8e5e9705719d392ed0"
+  },
+  "quote_ids": [
+    "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+    "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+    "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+    "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+    "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+    "b6a81009a88fcddd16db847ed9b7aaa1bfb9a623d31d08599b08e0f869fd04dd",
+    "bab24f7b3ae332817862430c146968a8179f1d6610af50ede8b9218a6c0eb760",
+    "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+    "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
+    "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+    "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+    "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+    "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+    "df956326a0b406392992c8aa43eb2b0c4a258c31db85dc93d3237f3fc8ef20d2",
+    "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+    "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+    "fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e"
+  ],
+  "record_kind": "paid_retry_validation_apply",
+  "schema_version": 1
+}

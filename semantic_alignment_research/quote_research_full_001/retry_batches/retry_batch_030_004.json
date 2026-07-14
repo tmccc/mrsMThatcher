@@ -1,0 +1,688 @@
+{
+  "batch_id": "retry_batch_030_004",
+  "carry_forward_not_included": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+    "32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17",
+    "5a4bdeaf484baa34fbbc226d2828b58fe98da9757449e92e5dc5d45850e6e4cf",
+    "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+    "8bc8b0a04e5f442c60b967f72175b72134382710a1038971003ef8c2c40bc3bd",
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+    "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+    "b6178d0b6eeed16ea3a6ef5181a41225d6e1b57fa4f39df2a18c177c8f91eb0e",
+    "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
+    "c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "d43664f1ffe0f9c303e7cd80725d24f8c9b0e8d5acfd99233d8ef7db54d7fa48"
+  ],
+  "class_counts": {
+    "identity_and_structured_output": 2,
+    "missing_grounding": 18,
+    "transport_failures": 10
+  },
+  "excluded_previous_validation_ids": [
+    "03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68",
+    "053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02",
+    "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766",
+    "1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc",
+    "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+    "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+    "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+    "1dde0bb1ec4fa393163170fa18ed57b08981e3f4f5fe36d343021331a85be8fe",
+    "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+    "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+    "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+    "2b94eab6f6a3cd9a4ac5f110a47d2ea2b8726f08622cb49db1a4c89d6d364884",
+    "2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1",
+    "2f987a874b7ca4b5d85b44e9dcea95ac53bb1f9c31d3575016e6a150ab357e51",
+    "2fadca50193cded1e1ab3a20b1fe18e511881589dafa50fd30e7b7bed9d51c6e",
+    "32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17",
+    "343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d",
+    "357eb64b9619ba2f80e303be128eb9aa4c647d19fd8e9110434e961e7cbf9766",
+    "36b2a8c67d50ee96a66e498fee99e582249046518a8a106b9f45a7252a04c250",
+    "3ceb27465a268a65848bfeaf1eb0171a691bbc27b42f74ea43131e5fe96e6eea",
+    "434c1f17b3bb99a0effc4c46299b891cf38aa514eecd56af4a7160bd8a77be53",
+    "469a6ec354b82c67cc085535d5ed8f16086ad66e22c9f4ca38e539b932326cdc",
+    "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+    "4c9b51eb69875a896e83f9e4a07655ad8c1de12056089090f235152d46f67b61",
+    "4d0ee2952c87bc6d0ef3b344bf5bba3d1b37c48888576887232760ed0a8b9651",
+    "4d226cdd3321371650fcf839f8920a27c3acd2836b2d57bdb5a235217224fcf6",
+    "586df70d0ca762e0c657a22adfee9caa7946da42acf90ca013bc3ddfb867b033",
+    "5a4bdeaf484baa34fbbc226d2828b58fe98da9757449e92e5dc5d45850e6e4cf",
+    "5e65bf83aadb295f5e136fb021a89eedfc2fad67ecc616133005e81012b2328b",
+    "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+    "5f58655af3683767213b37bb561575c7e2c39f60d21a9111c1cfbfca02ef7d27",
+    "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+    "60c95d7ae755ca327f2afc73fcc86c7366f38547623d806ad69be07a590205d2",
+    "633b7deaa976e68566612cd4ad3a1aceb4f9583591017620f4ec032d0ff6199d",
+    "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+    "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+    "6871cbac95a92fcbc6b383ed1031d694399351a54e3bf1c81bd86239a1b807e4",
+    "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+    "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+    "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+    "75f102a1b859b3fb5b260f7a35da8a63eeddbf04babd3ed2cdcac22889acd2c0",
+    "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+    "7b86acb542f03e2c29240471ef86f0a6549c1267dc70756551d9ff68d20135a9",
+    "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+    "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
+    "7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370",
+    "81ec5dbd93f167128cd36339f3195eb1b2e9ac6aef69d1ac62395be8ff421c2b",
+    "82ba147be005d490b314647f7d63f9ca0eb110543b109c38dd310ab9f752dad4",
+    "8b75093bc5c6bd6fad5d0b9bdd6e51a78c46c262eaee6bfae19c11e1fcc9f03c",
+    "8bc8b0a04e5f442c60b967f72175b72134382710a1038971003ef8c2c40bc3bd",
+    "8d23f8984b463c3b5218c7b3c7e56b0a8dea3025d3874a9970349a69f4e1e46e",
+    "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+    "912547decff638d587339e61584c8a4954e955087ca86c4fad6b8977507ed5c7",
+    "9189ef7d35fab34adace585f067caf959116285668919e18e4c2e84ec8ef9fb8",
+    "93fa5a4803e47bf57ecf8f718cbed055e6de30ecb6d14ef9a47abaefe2db05c8",
+    "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+    "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+    "9fb2f7bc48ebf132080deced2446f1b2903b43ff70464a4234310934cfd09329",
+    "a7747428a2af8b1230edcb738ac653564d8542ed06143e14ca7d94f6e429757b",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+    "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+    "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+    "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
+    "aed5fa16f4c533e2a475503fc3b7c955a68b5ec7f998022fbcc5a0d6958f4295",
+    "b316430b4f3e47f2816d0d7b44c211301234c9521bfa2417864b17be11ea9b32",
+    "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+    "b50bee201cb748e9c830c70e5476e0401ce8a46b11d8dad12a01e3168abf266d",
+    "b593a0ec642d5ab87e1bacd8d0f5d26f6ee48d48c41b0fd410e02c68e062c7df",
+    "b6178d0b6eeed16ea3a6ef5181a41225d6e1b57fa4f39df2a18c177c8f91eb0e",
+    "b6a81009a88fcddd16db847ed9b7aaa1bfb9a623d31d08599b08e0f869fd04dd",
+    "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
+    "bab24f7b3ae332817862430c146968a8179f1d6610af50ede8b9218a6c0eb760",
+    "bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1",
+    "c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b",
+    "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+    "c569dfaab82b96c05f89de49e2761fc3dc3105da5264e4ebb5d1fb45010d0ece",
+    "c6e7ab55a8630d4b96477677d9bd8215b71672801fbce3b0b1be5dba74515511",
+    "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+    "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
+    "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
+    "c9040d5f09e96cfcae62fba63d73e4d255213b39864fd89b623b67c4f8dbd18b",
+    "c904c4bb5bd556438d3dac2286f0b9977521cd72c5cca2a4eb4a2614ece0cda5",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+    "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+    "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+    "d3334ed440667a7b59860decd1cd2995beaaec687c1e0c6afce7081fde42d974",
+    "d43664f1ffe0f9c303e7cd80725d24f8c9b0e8d5acfd99233d8ef7db54d7fa48",
+    "d5371da309d337df802d77431c030251c5fa2c0d453c7e3cc683895f9438875c",
+    "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+    "d6ce2b7b10e28e0b801ad84890f229365fea41a8b494bfdf41adb9cc360373fd",
+    "d7d3544e2604dbc944cbf125a25848e216f3e29c5f8ec445e31e63abebb9fc8e",
+    "d99e97a36b135dc721ae65896d480f2a7cd43797d591db9b7c166fdf0412d1b6",
+    "dbfa68097a782d6daf0cb3db564af0377ee5d4b4664bf2d5b506487474578c1b",
+    "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+    "df1781edfd001245e669e91a3befd28630e7800981a8709c9625da712fcf0cf2",
+    "df956326a0b406392992c8aa43eb2b0c4a258c31db85dc93d3237f3fc8ef20d2",
+    "e0770f780618ce92d923068028007ac02706da421db1454ab8f9f88d80feec38",
+    "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+    "ee54561d01b8e0a1eaa6ac803a44731f503b4bf677393eedaea59f776dcaee8d",
+    "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+    "f04bbe960191c8eb537ecf87aa340fb2ae28076d25b791c06a5f0d3a82c9886b",
+    "f1f5099ef34119f9556e718afc2c2fdd1f1d15bbf6be029121657fdde487c679",
+    "f6b4fb6ced9724260c1d6d4ac3ce40bc1ad4bb872aa7e6a73a7a322880cab632",
+    "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+    "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+    "fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e"
+  ],
+  "expected_cost_usd": 5.4407,
+  "hard_combined_ceiling_usd": 7.5,
+  "manifest_sha256": "cb6611e51cf95ffd1d356396e66dcd437ddae8f878a5c8f97c9da5a846fa3b96",
+  "observed_cost_per_recovered_quote_usd": 0.1813568875,
+  "record_count": 30,
+  "record_kind": "quote_research_retry_staged_batch",
+  "records": [
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "1167e36be96fb41dba367c6ec2436adc838af562d362227d1790ba8a38aa1235",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_id": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 44
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "cad28484604a5c0ebf8b236e78d3f4cf5c78fd64a5f868e11addff6c3c9b6f10",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa",
+      "quote_id": "102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa",
+      "quote_text": "Liberty is a plant of slow growth and one that demands constant and careful attention. Yet there seems to be an inevitability about it, for liberty is man's natural and desired condition.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 547
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e9c08aab3d978905ca9f1276f30a4e890e0a30f0ca76449e0257c837e62fe7be",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11",
+      "quote_id": "10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11",
+      "quote_text": "Socialism demands the concentration of power, and a drab uniformity throughout. Under Socialism all initiative, all authority, all resources, all wealth are eventually concentrated in the hands of Government.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 503
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a14c6bb8e2082684de03d817e5149b30dfd2727af6f3a41074e934959bcd7ab1",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_id": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_text": "All collectivism is always conducive to oppression: it is only the victims who differ.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 164
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "24044c1d2b73c80a11d5fd0298799a7f95894a96452826a7e900481dc1d7f9d3",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1",
+      "quote_id": "17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1",
+      "quote_text": "Socialists say \"equality\". What they mean is \"levelling down\".",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 342
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "cd2ccd5b0383575ef91e018f0a27c6c1810cc1573509d00e174c5cc445a154dd",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "2746cc3b2d41939027388b11050761149043c861ccd0e460e49d47c6176c419f",
+      "quote_id": "2746cc3b2d41939027388b11050761149043c861ccd0e460e49d47c6176c419f",
+      "quote_text": "The choice before our people is the historic choice; between state domination and personal freedom. Between suffocating, and breathing free.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 612
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "88f94544897e0f4f09cf1cf2a93c14c29f2f51c37b0c6cef78d8e4e588fe16ca",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "quote_id": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "quote_text": "Mr. Chairman, if we let the grumblers have their way, we would be bending and turning with every twist in the opinion polls. That is not this Government's style, nor this Prime Minister's. Our style is to decide what is right for the country, not what is temporarily convenient.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 240
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e6cfa6c18810f5e42efc58068936421b22c2578777397394a5f69263b584dd40",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 261
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "2ad82e81b0325114255acea83eeb494596825d6be557d66171751625dc962587",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "3b3285fe25407b81c5b15528ecff391639f5ad89d810ac32a875af9f5a4a1cd9",
+      "quote_id": "3b3285fe25407b81c5b15528ecff391639f5ad89d810ac32a875af9f5a4a1cd9",
+      "quote_text": "The Britain I want is a land where a man can take a job he is capable of doing, and work for whom he chooses. Not a land where there is no employer but The State.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 294
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "6d14351709bf89d34a107a638b2ae92e70f186e3324359e9d8956280b3960d22",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "44272f7a446dab5829fffc29addddf2b4de19217d6f541b15c92b38a3891d190",
+      "quote_id": "44272f7a446dab5829fffc29addddf2b4de19217d6f541b15c92b38a3891d190",
+      "quote_text": "There is much to be said for trying to improve some disadvantaged people's lot. There is nothing to be said for trying to create heaven on earth.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 68
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "155721cadb25db26f905ce2146d30a5d80fe1afdfb0f86793d11a55f07ecf7b3",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "451d455b4ed75603a46b4d2590d73f54ffc078981ecb7fd9c9e8c2bfa7a684d2",
+      "quote_id": "451d455b4ed75603a46b4d2590d73f54ffc078981ecb7fd9c9e8c2bfa7a684d2",
+      "quote_text": "Freedom is our most precious possession. To defend it and maintain it is no passive task, but one that requires continuous vigilance and resolve. Let it never be said that the dedication of those who love freedom is less than the determination of those who would destroy it.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 504
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7d2d31d274f0e44c47a727d778f943611cdbb10a35d0a45089faeaa7287334f3",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+      "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+      "quote_text": "The better I do, the more is expected of me. I am ready for that. I think I have the strength to do anything that I feel has to be done.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 519
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "21575101702fa7c33d409737462ca465a8387520fe108f73b01591d5d0f0c290",
+      "original_failure_category": "quote_identity_changed",
+      "quote_hash": "67d4ca636be56c737a34bc9332278a8ba4293a2625825404942ef0123a8bdc56",
+      "quote_id": "67d4ca636be56c737a34bc9332278a8ba4293a2625825404942ef0123a8bdc56",
+      "quote_text": "Marxism-Leninism is simply not capable of producing either political freedom or economic success, because it does not recognise the dignity of the individual or his desire to better himself.",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "quote_identity_changed",
+      "source_occurrences": [
+        {
+          "line_number": 408
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a79959ac117ed2b74c20f134e07508d4073b3cec82177061c460c620c5ab2680",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "68ead3cffcf2c75a235ce9e70cc6f6b9fd5f09da874bf29dd579af85bfa87322",
+      "quote_id": "68ead3cffcf2c75a235ce9e70cc6f6b9fd5f09da874bf29dd579af85bfa87322",
+      "quote_text": "It's the oldest law of politics: government tends to expand and socialist government expands absolutely.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 328
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "d2ce040feaa68a3d5427e87300f002083e4b0ec25a83f7e9971860a2cbbfc28b",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
+      "quote_id": "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
+      "quote_text": "To be successful you have to be selfish, or else you never achieve. And once you get to your highest level, then you have to be unselfish. Stay reachable. Stay in touch. Don't isolate.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 74
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c0f664ba650501125f38a6f6b6132c2184fe05e8f65c5bbfe1a45e168e366567",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "71e778e84bc2ba28c0b29e582d11257f45ae093ce9b5db6a6531167adcc41a59",
+      "quote_id": "71e778e84bc2ba28c0b29e582d11257f45ae093ce9b5db6a6531167adcc41a59",
+      "quote_text": "The success of capitalism is that it benefits the masses, not just the few.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 449
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "91aeb7ebfd70e2c5808b9befdab77e8b07fabc3341b024c45f7a182f925db0bd",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "quote_id": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "quote_text": "We believe in standing ready to defend our beliefs. History does not long entrust the care of freedom to the weak and timid.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 508
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "2396523f80bacdfd462da9f6a7b21e259c608a2da0a001971d4428508cb0c76b",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "quote_id": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "quote_text": "In my view dictators do not surrender. They have to be well and truly defeated.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 562
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "4d75df567aa878ed45606085b6371b7566dbd2b58081b53e8a21fcee4cbd4428",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+      "quote_id": "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+      "quote_text": "Socialists claim that all they want is to re-distribute income and wealth from the rich to the poor. This is not the effect of high taxation. The effect of high taxation is to switch income and wealth from the people to the State.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 208
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "9ad1d804a579e228761d4dcd08e7a19489171c2401195032779f95e33b9b4327",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "b36e8ec5e0de521adec8bfec7b4003a5f7560a00144e695118eead3048f640be",
+      "quote_id": "b36e8ec5e0de521adec8bfec7b4003a5f7560a00144e695118eead3048f640be",
+      "quote_text": "We were told our campaign wasn't sufficiently slick. We regard that as a compliment.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 82
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "ada112336fc8c793bf3a919c0465be0f8a5a3c91dd791885f4102e70e48aa3a7",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "bf999e4ea585f46ca8e838864a83c3c7151590ddd28614e2f0515da14be36835",
+      "quote_id": "bf999e4ea585f46ca8e838864a83c3c7151590ddd28614e2f0515da14be36835",
+      "quote_text": "Europe has only been single under tyranny, not under liberty.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 625
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a3056ca93e8e5f949c64dd5b62468e121e7af8d9146b4d73906b39dd515f8785",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "c5e8fd131d1111a0b9ac39859c50ba262202fd18baa4c48b8d786abc3a6c6ac7",
+      "quote_id": "c5e8fd131d1111a0b9ac39859c50ba262202fd18baa4c48b8d786abc3a6c6ac7",
+      "quote_text": "For me, and so many others, our ideas of liberty, of honour, of sacrifice, of fellowship, of valour - our idea of Britain herself - have been formed by Churchill's words.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 315
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e3534bfa67fe26f927e5a4ceb512fde873b5a8fe4d500d0f659ae4074c599891",
+      "original_failure_category": "quote_identity_changed",
+      "quote_hash": "d44cdb73a735c24e6451eca9077f5a184cbea8626d76d01046a4d4df1121524b",
+      "quote_id": "d44cdb73a735c24e6451eca9077f5a184cbea8626d76d01046a4d4df1121524b",
+      "quote_text": "Dec 31st, 1978: Where shall we be in 1984? With the Big Brother State of Socialism providing everything on condition that we surrender all that makes life worth living? Or a Conservative Government dedicated to serving the liberty, law, dignity and institutions of a free people?",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "quote_identity_changed",
+      "source_occurrences": [
+        {
+          "line_number": 360
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "b7b1ecf4e56a636298c30ef39e33021ed1eb3fa6cac5befadd0c6f3b7bed2db6",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "d6339a4a3e7b322ec1c567a1c250de9cd826c8b6c3e0915b80c926b6aebfe573",
+      "quote_id": "d6339a4a3e7b322ec1c567a1c250de9cd826c8b6c3e0915b80c926b6aebfe573",
+      "quote_text": "We stress the need to have enough police, to have them well paid, well equipped and well respected.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 454
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "00b615eeaefed74fc20a2fc21c96c7b85746589f9ab96e006a6d744040c09cfa",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "d782cc3cc8713b7ea94cd321dcdc2527b8affcf965e5f6ed929b69a5f3008655",
+      "quote_id": "d782cc3cc8713b7ea94cd321dcdc2527b8affcf965e5f6ed929b69a5f3008655",
+      "quote_text": "We must build a society in which each citizen can develop his full potential, both for his benefit and for the community as a whole.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 520
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "93dd7d6ac8870ab224d1fb6130ba042fb8003658ac41b8ff743d6fd2e205bf44",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "f27e222324ea0fb1f6730d09cf00c1dc2ad155a7be66c32e7c9079a5c29c09c1",
+      "quote_id": "f27e222324ea0fb1f6730d09cf00c1dc2ad155a7be66c32e7c9079a5c29c09c1",
+      "quote_text": "The dying, the sick, the old, the children and even the bereaved are now regularly not just the victims, but the targets of industrial action.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 296
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "03c532d9a5b9f0fe71394ecc52d18a528bccf5e4627eb50cfb516e7e3690890f",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8",
+      "quote_id": "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8",
+      "quote_text": "The real case against socialism is not its economic inefficiency, though on all sides there is evidence of that. Much more fundamental is its basic immorality.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 477
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "f528257b5d6859342e5a62488e0014a6766c92be19380e08986c310df0ad848c",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "f610ee5b02c46536eb659f983ae1c978dd2a72e8bab8c333ae2220d39d403893",
+      "quote_id": "f610ee5b02c46536eb659f983ae1c978dd2a72e8bab8c333ae2220d39d403893",
+      "quote_text": "When Dr Johnson remarked that patriotism was the refuge of the scoundrel, he was not, of course, attacking patriotism, only noting how easily base motives and shoddy arguments could be concealed in the trappings of high-mindedness.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 231
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "0d0da754cacdb4293e19d4d399daff74633709011a3d799d88966515cfb37090",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e",
+      "quote_id": "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e",
+      "quote_text": "The only way we can achieve great things for Britain is by asking great things of Britain. We will not disguise our purpose, nor betray our principles. We will do what must be done. We will tell the people the truth and the people will be our judge.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 537
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e38e34b288b95163992d3598ba7bd50f71512e3a3da0cf771275b526e6a72eb5",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "fbb896ff0dc33f67f177980f5037c6e5b92b23f5b3edaa7f9892fedb2410e8a2",
+      "quote_id": "fbb896ff0dc33f67f177980f5037c6e5b92b23f5b3edaa7f9892fedb2410e8a2",
+      "quote_text": "Patriotism links the individual with the nation, not only with its present but with its past and with its future.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 460
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "selection_seed": "retry_batch_030_004",
+  "source_manifest_sha256": "914c21e988228c23cd75c6a2761faf7258f0d936ee91b6b95b73c633a565b325"
+}

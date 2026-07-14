@@ -1,0 +1,382 @@
+{
+  "batch_id": "retry_batch_recovery_remaining_020",
+  "class_counts": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 7,
+    "transport_failures": 10
+  },
+  "excluded_repeatedly_exhausted_ids": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32"
+  ],
+  "expected_cost_usd": 3.6271,
+  "hard_combined_ceiling_usd": 5.0,
+  "manifest_sha256": "91940c773dc03892618bdee9daed499dfbf503a23ffec961ef415d083fd13d95",
+  "maximum_prior_retry_cycles": 1,
+  "record_count": 20,
+  "record_kind": "quote_research_remaining_failed_recovery",
+  "records": [
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "a14c6bb8e2082684de03d817e5149b30dfd2727af6f3a41074e934959bcd7ab1",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_id": "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+      "quote_text": "All collectivism is always conducive to oppression: it is only the victims who differ.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 164
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c3bcdf4b140afb08b8eab1bbac6285e3271cd19956a3075321453a81482163b9",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "quote_id": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "quote_text": "If the State usurps or denies the right of the individual to make, where he is able to do so, the important decisions in his life and to provide the essentials for himself and his family, then he is demeaned and diminished as a moral being.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 475
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "1392ffdbbd437ea09b1464793e088c47bda794c51d33aceb4894e4eb27426d75",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "quote_text": "Political myths - especially those cherished by political commentators - die hard; and as soon as one has been exploded by events, another is promptly created to fill its place as the basis of \"expert\" analysis and prediction.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 405
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "c626e0bdab6e213edad27694cb77bb75dcf8cd3f6f326448029845963091abb4",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17",
+      "quote_id": "32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17",
+      "quote_text": "We need to create a mood where it is everywhere thought morally right for as many people as possible to acquire capital.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 574
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "d85ccfcb668cc9917bca46c11f6661d876d99f43416373550ab75da0005b6227",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "5a4bdeaf484baa34fbbc226d2828b58fe98da9757449e92e5dc5d45850e6e4cf",
+      "quote_id": "5a4bdeaf484baa34fbbc226d2828b58fe98da9757449e92e5dc5d45850e6e4cf",
+      "quote_text": "What Labour can't achieve in an independent, free enterprise Britain, they can hope to secure in a Euro-federalist Britain, whose people's instincts are ignored and whose parliamentary institutions are over-ridden",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 432
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "f6b17be72acdbd239c4fe396de58c601cdbbdd13f97a289932c2967f5534dec9",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+      "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+      "quote_text": "Only a Conservative government will cut out the red tape, the bureaucratic interference, the lethal taxes which have so poisoned the business atmosphere of this country.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 513
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "7d2d31d274f0e44c47a727d778f943611cdbb10a35d0a45089faeaa7287334f3",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+      "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+      "quote_text": "The better I do, the more is expected of me. I am ready for that. I think I have the strength to do anything that I feel has to be done.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 519
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e4a7917bebfefe31f7222592dac19dc920c435dca91de1cb8d48f807f0860886",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 175
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e68ae7a7bda351b6f3dbe22dfe494f4cbaacdcc037ebf384a4c32bb98867991c",
+      "original_failure_category": "quote_identity_changed",
+      "quote_hash": "8bc8b0a04e5f442c60b967f72175b72134382710a1038971003ef8c2c40bc3bd",
+      "quote_id": "8bc8b0a04e5f442c60b967f72175b72134382710a1038971003ef8c2c40bc3bd",
+      "quote_text": "New Labour politicians hate so much that Britain stands for, as the Old Left did: it's just that they are better actors.",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "quote_identity_changed",
+      "source_occurrences": [
+        {
+          "line_number": 281
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "91aeb7ebfd70e2c5808b9befdab77e8b07fabc3341b024c45f7a182f925db0bd",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "quote_id": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "quote_text": "We believe in standing ready to defend our beliefs. History does not long entrust the care of freedom to the weak and timid.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 508
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "bc7a1aabc5b1a110d509c0faeb8f54c23ddfa7a1dc19c43255e10b83ab4ac29f",
+      "original_failure_category": "schema_validation_error",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_id": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "schema_validation_error",
+      "source_occurrences": [
+        {
+          "line_number": 632
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "4d75df567aa878ed45606085b6371b7566dbd2b58081b53e8a21fcee4cbd4428",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+      "quote_id": "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+      "quote_text": "Socialists claim that all they want is to re-distribute income and wealth from the rich to the poor. This is not the effect of high taxation. The effect of high taxation is to switch income and wealth from the people to the State.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 208
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "9ad1d804a579e228761d4dcd08e7a19489171c2401195032779f95e33b9b4327",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "b36e8ec5e0de521adec8bfec7b4003a5f7560a00144e695118eead3048f640be",
+      "quote_id": "b36e8ec5e0de521adec8bfec7b4003a5f7560a00144e695118eead3048f640be",
+      "quote_text": "We were told our campaign wasn't sufficiently slick. We regard that as a compliment.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 82
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "d12d09a98cec96e9f4ed43cb6af9d429495405b817a1993378dff6b77e890365",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "quote_text": "Unless we change our ways and our direction, our greatness as a nation will soon be a footnote in the history books, a distant memory of an offshore island, lost in the mists of time like Camelot, remembered kindly for its noble past.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 525
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "ad4a7f62afc8af7ce60160aa63dd0c499b4c417ce8a872bd27d9748046218cdb",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "b6178d0b6eeed16ea3a6ef5181a41225d6e1b57fa4f39df2a18c177c8f91eb0e",
+      "quote_id": "b6178d0b6eeed16ea3a6ef5181a41225d6e1b57fa4f39df2a18c177c8f91eb0e",
+      "quote_text": "By undermining the self-respect of so many of the most vulnerable members of society - the respectable poor struggling for decency against the odds - the dependency culture poisoned and weakened society as a whole.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 512
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "ef6808021c55ff13e0807ed02a5ac352e74ca7c2b2260dbfc03fbe3fcfba3502",
+      "original_failure_category": "timeout_or_transport_failure",
+      "quote_hash": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
+      "quote_id": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
+      "quote_text": "Liberty and property are intricately bound up in our history; and a country that has no property right has no human rights... You cannot have freedom without capital and private property in the hands of the people.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "timeout_or_transport_failure",
+      "source_occurrences": [
+        {
+          "line_number": 524
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e9a0de9f32a91a9abdf4754543746bb46a7146e8ae42bd1ca7c7df4b072b48f0",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b",
+      "quote_id": "c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b",
+      "quote_text": "We must take with us into the 1990s the lessons of the decade we are leaving behind. And the overwhelming lesson is that Socialism has failed.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 560
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "d952a11d739831439e04af1dfc6b256eb1efc3682b3c9366856e47ac896d3418",
+      "original_failure_category": "missing_grounded_source",
+      "quote_hash": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin.",
+      "research_status": "pending",
+      "retry_group": "missing_grounding",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "missing_grounded_source",
+      "source_occurrences": [
+        {
+          "line_number": 126
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "f6945b9cb29f53edbc8d20da93647d5d9f8978f1e74d1e424c0d05438c60b54b",
+      "original_failure_category": "no_response_received",
+      "quote_hash": "d43664f1ffe0f9c303e7cd80725d24f8c9b0e8d5acfd99233d8ef7db54d7fa48",
+      "quote_id": "d43664f1ffe0f9c303e7cd80725d24f8c9b0e8d5acfd99233d8ef7db54d7fa48",
+      "quote_text": "Unlike the Socialists, our policies have never been merely a local version of an international creed; they have always been and remain British policies, for application within the framework of British institutions, which have evolved slowly since Saxon days.",
+      "research_status": "pending",
+      "retry_group": "transport_failures",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "no_response_received",
+      "source_occurrences": [
+        {
+          "line_number": 472
+        }
+      ]
+    },
+    {
+      "duplicate_occurrence_count": 1,
+      "input_hash": "e3534bfa67fe26f927e5a4ceb512fde873b5a8fe4d500d0f659ae4074c599891",
+      "original_failure_category": "quote_identity_changed",
+      "quote_hash": "d44cdb73a735c24e6451eca9077f5a184cbea8626d76d01046a4d4df1121524b",
+      "quote_id": "d44cdb73a735c24e6451eca9077f5a184cbea8626d76d01046a4d4df1121524b",
+      "quote_text": "Dec 31st, 1978: Where shall we be in 1984? With the Big Brother State of Socialism providing everything on condition that we surrender all that makes life worth living? Or a Conservative Government dedicated to serving the liberty, law, dignity and institutions of a free people?",
+      "research_status": "pending",
+      "retry_group": "identity_and_structured_output",
+      "retry_plan_version": 1,
+      "retry_prompt_version": "quote-research-grounded-v2-retry",
+      "retry_subgroup": "quote_identity_changed",
+      "source_occurrences": [
+        {
+          "line_number": 360
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source_manifest_sha256": "914c21e988228c23cd75c6a2761faf7258f0d936ee91b6b95b73c633a565b325"
+}

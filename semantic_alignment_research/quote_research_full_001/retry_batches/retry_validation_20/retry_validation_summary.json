@@ -1,0 +1,56 @@
+{
+  "actual_spend_usd": 1.21698,
+  "ambiguous_possible_exposure_usd": 0.0,
+  "average_cost_per_recovered_quote_usd": 0.07606125,
+  "completed": 16,
+  "completed_by_failure_class": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 6,
+    "transport_failures": 7
+  },
+  "completed_by_failure_subclass": {
+    "missing_grounded_source": 6,
+    "no_response_received": 1,
+    "quote_identity_changed": 2,
+    "schema_validation_error": 1,
+    "timeout_or_transport_failure": 6
+  },
+  "cumulative_retry_batches": {
+    "attempted": 170,
+    "recovered": 164,
+    "recovery_rate": 0.9647058823529412,
+    "spend_usd": 14.208383400000002
+  },
+  "developer_429_count": 0,
+  "developer_completions": 16,
+  "developer_pause_activated": false,
+  "developer_pause_reason": null,
+  "direct_to_vertex_count": 0,
+  "elapsed_seconds": 1971.82876,
+  "grounding_success_rate": 0.8,
+  "main_packet_count_after_apply": 626,
+  "manifest_composition": {
+    "identity_and_structured_output": 3,
+    "missing_grounding": 7,
+    "transport_failures": 10
+  },
+  "manifest_count": 20,
+  "projected_cost_remaining_usd": 0.0,
+  "projected_recoveries_at_observed_rate": 0,
+  "quote_identity_rejection_count": 0,
+  "recommendation": "authorise_next_30_item_batch",
+  "record_kind": "quote_research_retry_validation_summary",
+  "schema_version": 1,
+  "unresolved": 4,
+  "unresolved_by_failure_class": {
+    "missing_grounding": 1,
+    "transport_failures": 3
+  },
+  "unresolved_by_failure_subclass": {
+    "missing_grounded_source": 1,
+    "timeout_or_transport_failure": 3
+  },
+  "untouched_retry_candidates": 0,
+  "vertex_429_count": 0,
+  "vertex_completions": 0
+}

@@ -1,0 +1,10 @@
+{
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "fallback_enabled": true,
+  "model": "gemini-3.1-pro-preview",
+  "pause_reason": null,
+  "paused_at": null,
+  "schema_version": 1,
+  "trigger_attempts": []
+}

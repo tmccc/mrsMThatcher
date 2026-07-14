@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -160,36 +161,117 @@ def _key(value: str) -> str:
 
 
 def extract_grounding(raw: dict[str, Any]) -> dict[str, Any]:
+    """Extract only provider-linked grounding from Developer or Vertex response dumps."""
+    while isinstance(raw, dict) and not raw.get("candidates"):
+        wrapped = next((raw.get(key) for key in ("raw", "response", "result")
+                        if isinstance(raw.get(key), dict)), None)
+        if wrapped is None:
+            break
+        raw = wrapped
     candidates = raw.get("candidates") or []
-    candidate = candidates[0] if candidates else {}
-    metadata = candidate.get("groundingMetadata") or candidate.get("grounding_metadata") or {}
-    chunks = metadata.get("groundingChunks") or metadata.get("grounding_chunks") or []
-    supports = metadata.get("groundingSupports") or metadata.get("grounding_supports") or []
-    queries = metadata.get("webSearchQueries") or metadata.get("web_search_queries") or []
     sources = []
-    for index, chunk in enumerate(chunks):
-        web = chunk.get("web") or {}
-        uri = web.get("uri") or web.get("url")
-        title = web.get("title") or uri
-        if uri:
-            sources.append({"index": index, "title": str(title), "url": str(uri)})
-    linked: dict[int, list[str]] = {row["index"]: [] for row in sources}
+    queries: list[str] = []
     support_rows = []
-    for support in supports:
-        indices = support.get("groundingChunkIndices") or support.get("grounding_chunk_indices") or []
-        segment = support.get("segment") or {}
-        text = str(segment.get("text") or "").strip()
-        row = {"chunk_indices": [int(index) for index in indices], "text": text,
-               "start_index": segment.get("startIndex", segment.get("start_index")),
-               "end_index": segment.get("endIndex", segment.get("end_index"))}
-        support_rows.append(row)
-        if text:
-            for index in row["chunk_indices"]:
-                linked.setdefault(index, []).append(text)
-    for source in sources:
-        source["supports"] = list(dict.fromkeys(linked.get(source["index"], [])))
-    return {"queries": [str(query) for query in queries], "sources": sources, "supports": support_rows,
-            "search_entry_point": metadata.get("searchEntryPoint") or metadata.get("search_entry_point")}
+    search_entry_points = []
+    source_offset = 0
+    for candidate in candidates:
+        metadata = candidate.get("groundingMetadata") or candidate.get("grounding_metadata") or {}
+        chunks = metadata.get("groundingChunks") or metadata.get("grounding_chunks") or []
+        supports = metadata.get("groundingSupports") or metadata.get("grounding_supports") or []
+        queries.extend(str(query) for query in
+                       (metadata.get("webSearchQueries") or metadata.get("web_search_queries") or []))
+        entry = metadata.get("searchEntryPoint") or metadata.get("search_entry_point")
+        if entry:
+            search_entry_points.append(entry)
+        candidate_sources = []
+        for index, chunk in enumerate(chunks):
+            web = chunk.get("web") or chunk.get("retrievedContext") or chunk.get("retrieved_context") or {}
+            uri = web.get("uri") or web.get("url")
+            title = web.get("title") or uri
+            if uri:
+                candidate_sources.append({"index": source_offset + index, "local_index": index,
+                                          "title": str(title), "url": str(uri)})
+        linked: dict[int, list[str]] = {row["local_index"]: [] for row in candidate_sources}
+        for support in supports:
+            indices = support.get("groundingChunkIndices") or support.get("grounding_chunk_indices") or []
+            segment = support.get("segment") or {}
+            text = str(segment.get("text") or "").strip()
+            row = {"chunk_indices": [source_offset + int(index) for index in indices], "text": text,
+                   "start_index": segment.get("startIndex", segment.get("start_index")),
+                   "end_index": segment.get("endIndex", segment.get("end_index"))}
+            support_rows.append(row)
+            if text:
+                for index in indices:
+                    linked.setdefault(int(index), []).append(text)
+        for source in candidate_sources:
+            source["supports"] = list(dict.fromkeys(linked.get(source.pop("local_index"), [])))
+        sources.extend(candidate_sources)
+        source_offset += len(chunks)
+    return {"queries": list(dict.fromkeys(queries)), "sources": sources, "supports": support_rows,
+            "search_entry_point": search_entry_points[0] if search_entry_points else None}
+
+
+def _single_json_object(text: str) -> str:
+    start = text.find("{")
+    if start < 0:
+        raise ValueError("no JSON object found")
+    depth = 0
+    quoted = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if quoted:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                quoted = False
+            continue
+        if char == '"':
+            quoted = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]
+    raise ValueError("truncated JSON object")
+
+
+def parse_response_packet(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Parse a response with bounded, deterministic repairs only."""
+    repairs: list[str] = []
+    while isinstance(raw, dict) and not raw.get("candidates"):
+        parsed = raw.get("parsed")
+        if isinstance(parsed, dict):
+            return dict(parsed), repairs
+        wrapped = next((raw.get(key) for key in ("content", "raw", "response", "result")
+                        if isinstance(raw.get(key), dict)), None)
+        if wrapped is None:
+            break
+        repairs.append("normalised_transport_wrapper")
+        raw = wrapped
+    if isinstance(raw.get("parsed"), dict):
+        return dict(raw["parsed"]), repairs
+    text = _response_text(raw).strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, count=1, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text, count=1)
+        repairs.append("stripped_markdown_fence")
+    try:
+        value = json.loads(text)
+    except json.JSONDecodeError:
+        isolated = _single_json_object(text)
+        if isolated != text:
+            repairs.append("isolated_single_json_object")
+        repaired = re.sub(r",\s*([}\]])", r"\1", isolated)
+        if repaired != isolated:
+            repairs.append("removed_trailing_comma")
+        value = json.loads(repaired)
+    if not isinstance(value, dict):
+        raise ValueError("response JSON must be one object")
+    return value, repairs
 
 
 def _source_type(url: str) -> str:
@@ -249,8 +331,8 @@ def _response_text(raw: dict[str, Any]) -> str:
     )
 
 
-def generation_config() -> dict[str, Any]:
-    return {"responseMimeType": "application/json", "responseJsonSchema": PACKET_SCHEMA,
+def generation_config(response_schema: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {"responseMimeType": "application/json", "responseJsonSchema": response_schema or PACKET_SCHEMA,
             "maxOutputTokens": MAX_OUTPUT_TOKENS, "thinkingConfig": {"thinkingBudget": THINKING_BUDGET},
             "temperature": TEMPERATURE}
 
@@ -265,16 +347,18 @@ class DeveloperResearchClient:
     model = MODEL
 
     def __init__(self, api_key: str, request: Callable[..., Any] = requests.post,
-                 connect_timeout: float = 20, read_timeout: float = 300):
+                 connect_timeout: float = 20, read_timeout: float = 300,
+                 response_schema: dict[str, Any] | None = None):
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required only for explicit execution")
         self.api_key = api_key
         self.request = request
         self.timeout = (connect_timeout, read_timeout)
+        self.response_schema = response_schema or PACKET_SCHEMA
 
     def payload(self, prompt: str) -> dict[str, Any]:
         return {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "tools": [{"googleSearch": {}}], "generationConfig": generation_config()}
+                "tools": [{"googleSearch": {}}], "generationConfig": generation_config(self.response_schema)}
 
     def call(self, prompt: str) -> dict[str, Any]:
         started = time.monotonic()
@@ -289,10 +373,10 @@ class DeveloperResearchClient:
         grounding = extract_grounding(raw)
         usage = _usage(raw)
         costs = calculate_cost(usage, len(grounding["queries"]))
-        response_text = _response_text(raw)
         try:
-            content, parse_error = json.loads(response_text), None
-        except (json.JSONDecodeError, TypeError) as exc:
+            content, _repairs = parse_response_packet(raw)
+            parse_error = None
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             content, parse_error = None, f"{type(exc).__name__}: {exc}"
         return {"raw": raw, "content": content, "parse_error": parse_error, "grounding": grounding,
                 "usage": usage, **costs, "latency_seconds": latency,
@@ -304,15 +388,16 @@ class VertexResearchClient:
     model = MODEL
 
     def __init__(self, project: str, location: str = "global", client: Any | None = None,
-                 read_timeout: float = 300):
+                 read_timeout: float = 300, response_schema: dict[str, Any] | None = None):
         self.project = project
         self.location = location
         self.client = client or genai.Client(vertexai=True, project=project, location=location)
         self.read_timeout = read_timeout
+        self.response_schema = response_schema or PACKET_SCHEMA
 
     def config(self):
         return types.GenerateContentConfig(
-            response_mime_type="application/json", response_json_schema=PACKET_SCHEMA,
+            response_mime_type="application/json", response_json_schema=self.response_schema,
             max_output_tokens=MAX_OUTPUT_TOKENS,
             thinking_config=types.ThinkingConfig(thinking_budget=THINKING_BUDGET),
             temperature=TEMPERATURE, tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -328,9 +413,9 @@ class VertexResearchClient:
         usage = _usage(raw)
         costs = calculate_cost(usage, len(grounding["queries"]))
         try:
-            content = response.parsed if isinstance(response.parsed, dict) else json.loads(response.text)
+            content, _repairs = parse_response_packet(raw)
             parse_error = None
-        except (json.JSONDecodeError, TypeError) as exc:
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
             content, parse_error = None, f"{type(exc).__name__}: {exc}"
         return {"raw": raw, "content": content, "parse_error": parse_error,
                 "grounding": grounding, "usage": usage, **costs,
@@ -341,8 +426,8 @@ def require_transport_parity(developer: Any, vertex: Any) -> None:
     if developer.model != vertex.model:
         raise RuntimeError("Gemini research model parity failed")
     developer_payload = developer.payload("__PROMPT__")
-    expected = settings_signature()
-    if developer_payload["generationConfig"] != expected["generation_config"] or developer_payload["tools"] != expected["tools"]:
+    expected_config = developer_payload["generationConfig"]
+    if developer_payload["tools"] != [{"googleSearch": {}}]:
         raise RuntimeError("Developer research settings parity failed")
     config = vertex.config()
     vertex_signature = {
@@ -352,7 +437,7 @@ def require_transport_parity(developer: Any, vertex: Any) -> None:
         "thinkingConfig": {"thinkingBudget": config.thinking_config.thinking_budget},
         "temperature": config.temperature,
     }
-    if vertex_signature != expected["generation_config"] or not config.tools:
+    if vertex_signature != expected_config or not config.tools:
         raise RuntimeError("Vertex research settings parity failed")
 
 
