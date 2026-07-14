@@ -253,6 +253,30 @@ def write_digest_log(base_dir: Path, lines: list[str]) -> None:
     (base_dir / "test.log").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def test_digest_reports_historical_context_reply_outcomes(tmp_path: Path) -> None:
+    base_dir = prepare_base_dir(tmp_path / "digest-historical-context")
+    quote_a = "a" * 64
+    quote_b = "b" * 64
+    write_digest_log(
+        base_dir,
+        [
+            f'2026-07-14 21:01:40 INFO     log_event:330 - EVENT {{"event":"historical_context_reply","status":"completed","parent_post_id":"2074000000000000001","quote_id":"{quote_a}","character_count":512}}',
+            f'2026-07-14 21:02:40 INFO     log_event:330 - EVENT {{"event":"historical_context_reply","status":"already_completed","parent_post_id":"2074000000000000001","quote_id":"{quote_a}","character_count":512}}',
+            f'2026-07-14 23:01:40 INFO     log_event:330 - EVENT {{"event":"historical_context_reply","status":"failed","parent_post_id":"2074000000000000002","quote_id":"{quote_b}","character_count":431}}',
+            f'2026-07-14 23:02:40 INFO     log_event:330 - EVENT {{"event":"historical_context_reply","status":"skipped_no_completed_packet","parent_post_id":"2074000000000000003","quote_id":"{quote_b}","character_count":0}}',
+        ],
+    )
+
+    result = run_digest(base_dir)
+
+    assert result.returncode == 0, result.stderr
+    assert "1 historical context reply/replies completed" in result.stdout
+    assert "Historical context replies" in result.stdout
+    assert "already_completed" in result.stdout
+    assert "skipped_no_completed_packet" in result.stdout
+    assert "2074000000000000002" in result.stdout
+
+
 def event_payloads(base_dir: Path) -> list[dict]:
     payloads = []
     log_path = base_dir / "test.log"

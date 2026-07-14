@@ -1,6 +1,13 @@
 {
   "HOT_POST_REPLY_FULL_RESCAN_EVERY_CHECKS": 12,
   "HOT_POST_REPLY_USE_SINCE_ID": true,
+  "historical_context_reply": {
+    "enabled": false,
+    "maximum_length": 4000,
+    "include_meaning": true,
+    "include_source": true,
+    "include_verification": true
+  },
   "MAX_AUTO_REPLIES_PER_DAY": 24,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,
   "MIN_SECONDS_BETWEEN_REPLIES": 3600,

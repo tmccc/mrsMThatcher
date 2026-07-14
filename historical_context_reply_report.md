@@ -77,8 +77,19 @@ and missing packets produce no reply.
 
 ## Safety
 
-The feature remains disabled by default. No production configuration or state was edited, no X
-post was made, posting cadence and quotation text are unchanged, and nothing was deployed.
+The source default remains disabled, while the live host explicitly enables the feature through
+its ignored local configuration. Deployment did not alter posting cadence, quotation text, image
+selection, or ordinary reply behavior. Context replies are attempted only after a confirmed main
+quote post and use independent transactional state. The bot's own context replies are excluded
+from both mention and hot-post candidate processing.
+
+## Digest Observability
+
+`mrs_log_digest.py` retains the structured `historical_context_reply` event. Digest JSON includes
+the event list and status counts; Markdown includes the completed count in the headline and a
+table containing status, parent post ID, quote ID and weighted character count. This covers
+completed, already-completed, failed, skipped and dry-run outcomes without treating the context
+reply as an ordinary inbound or Grok-generated reply.
 
 ## Implementation Review
 

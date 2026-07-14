@@ -113,6 +113,12 @@ The integration harness and golden tests assume these files are versioned or
 deployed as a coherent set:
 
 - `mrsMThatcher2.py`
+- `historical_context_formatter.py`
+- `historical_context_reply_schema.json`
+- `semantic_alignment/quote_research_gemini.py`
+- `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
+- `semantic_alignment_research/quote_research_full_001/research_packets.json`
+- `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
 - `tests/test_integration_harness.py`
 - `tests/fake_api_server.py`
 - `tests/fixtures/scenarios/*.json`
@@ -148,6 +154,45 @@ and the boost that was applied. `mrs_log_digest.py` reports these as
 observational metrics only: regular image selections, original versus generated
 counts, generated origin matches, and generated cross-quote selections. There is
 currently no generated-image frequency cap.
+
+## Historical Context Replies
+
+The optional historical-context stage posts a neutral, corpus-backed threaded reply only
+after a regular quotation post has been confirmed. It does not change the quotation,
+image selection, schedule, or main-post receipt semantics. Startup validates the canonical
+research corpus as exactly 626 completed packets and six unresolved quotations. A quote
+without a matching completed packet receives no context reply.
+
+Enable it in the ignored `mrsMThatcher.local.json` file:
+
+```json
+{
+  "historical_context_reply": {
+    "enabled": true,
+    "maximum_length": 4000,
+    "include_meaning": true,
+    "include_source": true,
+    "include_verification": true
+  }
+}
+```
+
+The posting path supports X long posts and does not impose an application-level
+280-character limit. `maximum_length` is an explicit safety ceiling measured using X's
+weighted-length rules. The current canonical corpus fits below 650 weighted characters.
+
+Context replies use independent ignored runtime files:
+
+- `historical_context_reply_receipt.json` records an in-flight or confirmed reply;
+- `historical_context_reply_history.json` records completed and confirmed-failed outcomes.
+
+The main quote remains successful if context delivery fails. A confirmed context receipt
+is reconciled on resume without reposting either the quote or reply. An ambiguous sending
+receipt requires operator reconciliation and is not automatically duplicated. The bot's
+own context replies are excluded from mention and hot-post reply processing.
+
+`mrs_log_digest.py` reports structured context outcomes by status, including completed,
+already-completed, failed, skipped and dry-run events.
 
 ## Local Runtime Files
 

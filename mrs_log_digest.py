@@ -1740,6 +1740,17 @@ def analyse(
                         "post_id": event_obj.get("post_id"),
                         "file": event_obj.get("filename"),
                     })
+            elif event_obj and event_obj.get("event") == "historical_context_reply":
+                status = str(event_obj.get("status") or "unknown")
+                add_event(
+                    "historical_context_reply",
+                    r.ts,
+                    status=status,
+                    parent_post_id=event_obj.get("parent_post_id"),
+                    quote_id=event_obj.get("quote_id"),
+                    character_count=event_obj.get("character_count"),
+                )
+                stats[f"historical_context_reply_status_{status}"] += 1
             continue
 
         if "Wrote confirmed regular-post receipt pending local reconciliation" in msg:
@@ -2485,6 +2496,10 @@ def analyse(
     headline.append(f"{stats.get('mention_reply_posted', 0)} mention reply/replies")
     headline.append(f"{stats.get('hot_post_reply_posted', 0)} hot-post reply/replies")
     headline.append(f"{stats.get('quote_tweet_reply_posted', 0)} quote-tweet reply/replies")
+    headline.append(
+        f"{stats.get('historical_context_reply_status_completed', 0)} "
+        "historical context reply/replies completed"
+    )
     headline.append(f"{stats.get('mention_grok_skip', 0) + stats.get('hot_post_reply_grok_skip', 0) + stats.get('quote_tweet_grok_skip', 0)} Grok skip(s)")
     if serious_errors:
         headline.append(f"{len(serious_errors)} operational error(s)")
@@ -2614,6 +2629,14 @@ def analyse(
         "confirmed_reply_recovery": {
             "receipt_events": confirmed_reply_receipts,
             "warnings": confirmed_reply_recovery,
+        },
+        "historical_context_replies": {
+            "events": [item for item in events if item.get("kind") == "historical_context_reply"],
+            "status_counts": {
+                key.removeprefix("historical_context_reply_status_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("historical_context_reply_status_")
+            },
         },
         "reply_media_context": reply_media_context,
         "asset_health": asset_health,
@@ -3572,6 +3595,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("mention_reply_posted", "Mention replies", ["time", "mention_id", "author_id", "incoming_text", "reply", "reply_post_id"])
     section("hot_post_reply_posted", "Hot-post replies", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reply", "reply_post_id"])
     section("quote_tweet_reply_posted", "Quote-tweet replies", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text", "reply", "reply_post_id"])
+    section(
+        "historical_context_reply",
+        "Historical context replies",
+        ["time", "status", "parent_post_id", "quote_id", "character_count"],
+    )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
     section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])
     section("hot_post_reply_grok_skip", "Hot-post Grok skips", ["time", "hot_post_reply_id", "author_id", "incoming_text"])
