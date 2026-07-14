@@ -1,15 +1,15 @@
 {
-  "character_count": 408,
+  "character_count": 407,
   "maximum_length": 4000,
   "meaning_included": true,
   "quote_id": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
   "quote_text": "It is Government's job to maximise the liberty of the people under a rule of law and therefore to make your Government systems serve the liberty of the people, and not to extinguish them. In other words, the Government is servant of the people and not their master.",
-  "raw_character_count": 600,
+  "raw_character_count": 407,
   "source": {
-    "source_type": "grounded_web_source",
-    "title": "margaretthatcher.org",
-    "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGpBnXgnU29y8l7rSTuF9xPoBAc5O8COr7YSu_8Lt1KcQEPLXjSm_UbTPhNxqULOkaC2iRl00DrrjXauXCvb85aiwthLMKzNe3vz2atQiCr7-cVn8gEqRBsyxRigSfuhp75JJQuGZqh2Wx0pg=="
+    "source_type": "canonical_stable_locator",
+    "title": "Margaret Thatcher Foundation Archive",
+    "url": ""
   },
-  "text": "Context\nSpoken during: Interview for The Guardian.\nDate: 1986-07-08\nImmediate context: The fundamental role and limits of government in a free society.\n\nMeaning\nGovernment must be strong in essential duties like defense and law and order, but its ultimate purpose is to serve the people by maximizing their individual liberty.\n\nVerification: Exact wording\n\nSource\nmargaretthatcher.org\nhttps://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGpBnXgnU29y8l7rSTuF9xPoBAc5O8COr7YSu_8Lt1KcQEPLXjSm_UbTPhNxqULOkaC2iRl00DrrjXauXCvb85aiwthLMKzNe3vz2atQiCr7-cVn8gEqRBsyxRigSfuhp75JJQuGZqh2Wx0pg==",
+  "text": "Historical context\nOccasion: Interview for The Guardian.\nDate: 1986-07-08\nImmediate context: The fundamental role and limits of government in a free society.\n\nMeaning: Government must be strong in essential duties like defense and law and order, but its ultimate purpose is to serve the people by maximizing their individual liberty.\n\nVerification: Exact wording\nSource: Margaret Thatcher Foundation Archive",
   "verification_label": "Exact wording"
 }

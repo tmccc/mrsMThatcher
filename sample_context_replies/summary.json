@@ -1,9 +1,9 @@
 {
-  "average_raw_length": 594.35,
-  "average_x_weighted_length": 439.65,
+  "average_raw_length": 454.34,
+  "average_x_weighted_length": 453.88,
   "completed_packets": 626,
   "format_successes": 626,
-  "maximum_x_weighted_length": 646,
+  "maximum_x_weighted_length": 645,
   "sample_quote_ids": {
     "exact": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
     "historically_uncertain": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",

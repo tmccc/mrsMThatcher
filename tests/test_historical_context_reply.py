@@ -73,8 +73,9 @@ def test_exact_deterministic_formatting_and_character_limit(corpus):
     packets, _ = corpus; packet = next(row for row in packets.values() if row["verification_status"] == "exact")
     first = format_context_reply(packet); second = format_context_reply(packet)
     assert first == second and first["verification_label"] == "Exact wording"
-    assert first["text"].startswith("Context\n") and "\n\nMeaning\n" in first["text"]
-    assert "\n\nVerification: Exact wording\n\nSource\n" in first["text"]
+    assert first["text"].startswith("Historical context\n") and "\n\nMeaning: " in first["text"]
+    assert "\n\nVerification: Exact wording\nSource: " in first["text"]
+    assert "\n\nSource: " not in first["text"]
     assert first["character_count"] == x_weighted_length(first["text"]) <= 4000
 
 
@@ -103,7 +104,7 @@ def test_uncertain_wording_does_not_claim_it_was_spoken_during_source_event(corp
     packets, _ = corpus
     packet = next(row for row in packets.values() if row["verification_status"] == status)
     result = format_context_reply(packet)
-    assert "Spoken during:" not in result["text"]
+    assert "Occasion:" not in result["text"]
     assert "Source event:" in result["text"]
 
 
@@ -133,6 +134,37 @@ def test_authoritative_stable_locator_beats_secondary_web_source():
         "url": "",
         "source_type": "canonical_stable_locator",
     }
+
+
+def test_grounding_redirect_is_never_published_when_stable_locator_exists():
+    packet = {
+        "verification_status": "exact",
+        "stable_locator": "Margaret Thatcher Foundation Archive, November 8, 1993",
+        "sources": [{
+            "title": "margaretthatcher.org",
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/opaque-token",
+            "source_type": "grounded_web_source",
+        }],
+    }
+    assert select_primary_source(packet) == {
+        "title": "Margaret Thatcher Foundation Archive, November 8, 1993",
+        "url": "",
+        "source_type": "canonical_stable_locator",
+    }
+
+
+def test_context_reply_uses_compact_archive_entry_layout(corpus):
+    packets, _ = corpus
+    packet = packets["e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b"]
+
+    text = format_context_reply(packet)["text"]
+
+    assert text.startswith("Historical context\nOccasion: Speech to the Fraser Institute.\n")
+    assert "\n\nMeaning: Capitalism is inherently moral" in text
+    assert "\nVerification: Exact wording\n" in text
+    assert "\nSource: Margaret Thatcher Foundation Archive, November 8, 1993" in text
+    assert "vertexaisearch.cloud.google.com" not in text
+    assert "\nSource\n" not in text
 
 
 def test_aggregator_is_rejected_when_only_url_reveals_it():
@@ -193,7 +225,7 @@ def test_placeholder_context_metadata_is_not_rendered_literally():
         "sources": [],
     }
     result = format_context_reply(packet)
-    assert "Spoken during: Source event not established." in result["text"]
+    assert "Occasion: Source event not established." in result["text"]
     assert "Date: Unknown" in result["text"]
     assert "Immediate context:" not in result["text"]
     assert "N/A" not in result["text"] and "None" not in result["text"]
@@ -204,7 +236,7 @@ def test_shortening_removes_meaning_before_provenance(corpus):
     packet = max(packets.values(), key=lambda row: len(row["intended_argument"]))
     result = format_context_reply(packet, maximum_length=180)
     assert result and result["character_count"] <= 180
-    assert "Context\n" in result["text"] and "Verification:" in result["text"] and "Source\n" in result["text"]
+    assert "Historical context\n" in result["text"] and "Verification:" in result["text"] and "Source:" in result["text"]
 
 
 def test_all_completed_packets_format_without_hashtags_or_emoji(corpus):
@@ -212,6 +244,7 @@ def test_all_completed_packets_format_without_hashtags_or_emoji(corpus):
     results = [format_context_reply(packet) for packet in packets.values()]
     assert all(results) and all(result["character_count"] <= 4000 for result in results)
     assert all(" #" not in result["text"] and "😀" not in result["text"] for result in results)
+    assert all("vertexaisearch.cloud.google.com" not in result["text"] for result in results)
 
 
 def test_normalised_text_lookup_preserves_canonical_identity(corpus):

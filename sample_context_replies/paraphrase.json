@@ -1,15 +1,15 @@
 {
-  "character_count": 463,
+  "character_count": 467,
   "maximum_length": 4000,
   "meaning_included": true,
   "quote_id": "2f5df9185bdf06e8ffe184a0e65edfe238a7dcea2a3b482103f763947aa05467",
   "quote_text": "I owe nothing to Women's Lib.",
-  "raw_character_count": 651,
+  "raw_character_count": 467,
   "source": {
-    "source_type": "grounded_web_source",
-    "title": "margaretthatcher.org",
-    "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHnhpScNlUICan0kkz-L1cHkvIrboFRqc409ljq-_4rcY9W1BUibSoZGgPchHU04GnicECLEXBaf1LP8wNC-XZSA4hal1DENpnM8-vKZhdN8ceOWvpW0aO66APkMcB8tHmz9JrOwUYA1jnh"
+    "source_type": "canonical_stable_locator",
+    "title": "Margaret Thatcher Foundation Archive",
+    "url": ""
   },
-  "text": "Context\nSource event: Interview for Thames TV children's programme CBTV.\nDate: December 13, 1982\nImmediate context: The role of the Women's Liberation movement in advancing women's careers.\n\nMeaning\nWomen achieve success and overcome barriers through individual merit and qualifications, rather than through the collective demands or quotas advocated by feminist movements.\n\nVerification: Historical paraphrase\n\nSource\nmargaretthatcher.org\nhttps://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHnhpScNlUICan0kkz-L1cHkvIrboFRqc409ljq-_4rcY9W1BUibSoZGgPchHU04GnicECLEXBaf1LP8wNC-XZSA4hal1DENpnM8-vKZhdN8ceOWvpW0aO66APkMcB8tHmz9JrOwUYA1jnh",
+  "text": "Historical context\nSource event: Interview for Thames TV children's programme CBTV.\nDate: December 13, 1982\nImmediate context: The role of the Women's Liberation movement in advancing women's careers.\n\nMeaning: Women achieve success and overcome barriers through individual merit and qualifications, rather than through the collective demands or quotas advocated by feminist movements.\n\nVerification: Historical paraphrase\nSource: Margaret Thatcher Foundation Archive",
   "verification_label": "Historical paraphrase"
 }

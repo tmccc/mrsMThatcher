@@ -30,8 +30,8 @@ The optional stage is default-disabled and accepts this local configuration:
 }
 ```
 
-The allowed maximum is 120 to 25,000 characters. The current 626 replies average 439.65
-X-weighted characters and 594.35 raw characters; the maximum is 646 weighted characters.
+The allowed maximum is 120 to 25,000 characters. The current 626 replies average 453.88
+X-weighted characters and 454.34 raw characters; the maximum is 645 weighted characters.
 Consequently, the 4,000-character default preserves every current section without shortening.
 
 The posting path does not impose a 280-character application limit. It passes reply text unchanged
@@ -108,3 +108,9 @@ Placeholder metadata such as `N/A` and `None` is never rendered as provenance. A
 canonical locators outrank secondary web sources. Runtime context history and receipt files are
 Git-ignored, and corpus validation rejects duplicate manifest or unresolved-status records before
 dictionary or set conversion could conceal them.
+
+After the first live reply exposed clumsy X rendering, the public layout was compacted into a
+single archive-entry format with inline Meaning, Verification and Source labels. Opaque Vertex
+grounding redirect URLs are never published: the formatter uses the canonical stable locator, or
+the grounded source title without a public URL when no stable locator exists. This changes only
+presentation and source-link hygiene; canonical context and verification data remain unchanged.

@@ -1,13 +1,9 @@
-Context
-Spoken during: Radio speech during the Winter of Discontent.
+Historical context
+Occasion: Radio speech during the Winter of Discontent.
 Date: 1979-01-31
 Immediate context: Militant trade unionists and striking workers.
 
-Meaning
-The government must take a strong stance against unions whose strikes threaten public welfare and essential liberties.
+Meaning: The government must take a strong stance against unions whose strikes threaten public welfare and essential liberties.
 
 Verification: Historically verified variant
-
-Source
-spiegel.de
-https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGogl9MaYhTvkTvbhBDa252AnNFqHfNmum2E_ZDEx8WO3SSrbGvqRX74bElhH8vWej2ufFtc9bJKtANdZwfuThg1LghFzavrWNQVUruJrdApUbogcMHBQH5vjnQ9brGQT8CzlLl66uKP95d-oPTi5cBTlmB5MedXJ7E9ItP0ipqKJDQykrTVGDLIvM5aQXbJvblhJWWqbFOGGseZuPX93MRhsQQZD2BG2k=
+Source: spiegel.de

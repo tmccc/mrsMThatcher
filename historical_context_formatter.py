@@ -156,26 +156,50 @@ def _locator_rank(locator: str) -> int:
     return 6
 
 
+def _is_grounding_redirect(url: str) -> bool:
+    parsed = urlsplit(url)
+    return (
+        parsed.netloc.lower() == "vertexaisearch.cloud.google.com"
+        and parsed.path.startswith("/grounding-api-redirect/")
+    )
+
+
 def select_primary_source(packet: dict[str, Any]) -> dict[str, str] | None:
     locator = " ".join(str(packet.get("stable_locator") or "").split())
     valid_locator = locator if locator.lower() not in UNKNOWN_VALUES else ""
     all_sources = [source for source in packet.get("sources", []) if isinstance(source, dict)
                and str(source.get("title") or "").strip()
                and str(source.get("url") or "").startswith(("https://", "http://"))]
-    sources = [
+    eligible_sources = [
         source for source in all_sources
         if not any(
             marker in f"{source.get('title', '')} {source.get('url', '')}".lower()
             for marker in QUOTATION_AGGREGATORS
         )
     ]
+    sources = [
+        source for source in eligible_sources
+        if not _is_grounding_redirect(str(source.get("url") or ""))
+    ]
     if not sources:
         if valid_locator:
             return {"title": valid_locator, "url": "", "source_type": "canonical_stable_locator"}
+        if eligible_sources:
+            source = min(eligible_sources, key=_source_rank)
+            title = " ".join(str(source["title"]).split())
+            if packet.get("verification_status") in {"unverified", "misattributed"}:
+                title = "Attribution record: " + title
+            return {
+                "title": title,
+                "url": "",
+                "source_type": "grounded_source_title_without_public_url",
+            }
         if packet.get("verification_status") in {"unverified", "misattributed"} and all_sources:
             source = min(all_sources, key=_source_rank)
+            source_url = str(source["url"]).strip()
             return {"title": "Attribution record: " + " ".join(str(source["title"]).split()),
-                    "url": str(source["url"]).strip(), "source_type": "attribution_error_documentation"}
+                    "url": "" if _is_grounding_redirect(source_url) else source_url,
+                    "source_type": "attribution_error_documentation"}
         return None
     source = min(sources, key=_source_rank)
     if valid_locator and _locator_rank(valid_locator) < _source_rank(source)[0]:
@@ -230,18 +254,20 @@ def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAUL
     meaning = _first_sentence(packet.get("intended_argument"), packet.get("literal_meaning")) if include_meaning else ""
     verification = VERIFICATION_LABELS[packet["verification_status"]]
     event_label = (
-        "Spoken during"
+        "Occasion"
         if packet["verification_status"] in {"exact", "normalised", "excerpt", "variant"}
         else "Source event"
     )
 
     def render(current_meaning: str, current_context: str, current_event: str, current_title: str) -> str:
-        context_lines = ["Context", f"{event_label}: {current_event}", f"Date: {date}"]
+        context_lines = ["Historical context", f"{event_label}: {current_event}", f"Date: {date}"]
         if current_context: context_lines.append(f"Immediate context: {current_context}")
         sections = ["\n".join(context_lines)]
-        if current_meaning: sections.append(f"Meaning\n{current_meaning}")
-        if include_verification: sections.append(f"Verification: {verification}")
-        if source: sections.append(f"Source\n{current_title}" + (f"\n{source['url']}" if source["url"] else ""))
+        if current_meaning: sections.append(f"Meaning: {current_meaning}")
+        provenance = []
+        if include_verification: provenance.append(f"Verification: {verification}")
+        if source: provenance.append(f"Source: {current_title}" + (f"\n{source['url']}" if source["url"] else ""))
+        if provenance: sections.append("\n".join(provenance))
         return "\n\n".join(sections)
 
     source_title = source["title"] if source else ""
@@ -249,7 +275,7 @@ def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAUL
     # Meaning is always compressed or removed before any provenance field.
     if x_weighted_length(text) > maximum_length and meaning:
         fixed = x_weighted_length(render("", immediate, event, source_title))
-        meaning = _shorten_words(meaning, maximum_length - fixed - len("\n\nMeaning\n"))
+        meaning = _shorten_words(meaning, maximum_length - fixed - len("\n\nMeaning: "))
         text = render(meaning, immediate, event, source_title)
     if x_weighted_length(text) > maximum_length:
         meaning = ""; text = render("", immediate, event, source_title)
