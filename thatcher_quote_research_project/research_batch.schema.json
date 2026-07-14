@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mrs-m-thatcher:research-input-batch:schema:1",
+  "title": "Margaret Thatcher quotation research input batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "batch_schema_version",
+    "manifest_version",
+    "builder_version",
+    "batch_id",
+    "purpose",
+    "source_file_sha256",
+    "record_count",
+    "records",
+    "manifest_sha256"
+  ],
+  "properties": {
+    "batch_schema_version": { "const": 1 },
+    "manifest_version": { "const": 1 },
+    "builder_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "batch_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "purpose": { "type": "string", "minLength": 1 },
+    "source_file_sha256": { "$ref": "#/$defs/sha256" },
+    "record_count": { "type": "integer", "minimum": 1 },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/batchRecord" }
+    },
+    "manifest_sha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "lineLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_number"],
+      "properties": {
+        "line_number": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "batchRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "quote_id",
+        "quote_hash",
+        "quote_text",
+        "source_occurrences",
+        "research_status"
+      ],
+      "properties": {
+        "quote_id": { "$ref": "#/$defs/sha256" },
+        "quote_hash": { "$ref": "#/$defs/sha256" },
+        "quote_text": { "type": "string", "minLength": 1 },
+        "source_occurrences": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/lineLocator" }
+        },
+        "research_status": { "const": "pending" }
+      }
+    }
+  }
+}

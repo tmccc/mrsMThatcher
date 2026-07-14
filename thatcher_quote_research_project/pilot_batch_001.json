@@ -1,0 +1,122 @@
+{
+  "batch_schema_version": 1,
+  "manifest_version": 1,
+  "builder_version": "1.0.0",
+  "batch_id": "pilot_001",
+  "purpose": "Schema and research-method pilot; not production import",
+  "source_file_sha256": "4a3eec7b9233f74c58ddfe8a3484bd32d72d6fe658ba1882f0dfd6b3b8479496",
+  "record_count": 10,
+  "records": [
+    {
+      "quote_id": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "source_occurrences": [
+        {
+          "line_number": 1
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08",
+      "quote_hash": "073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08",
+      "quote_text": "It seems like cloud cuckoo land... If anyone is suggesting that I would go to Parliament and suggest the abolition of the pound sterling - no! We have made it quite clear that we will not have a single currency imposed on us.",
+      "source_occurrences": [
+        {
+          "line_number": 5
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "quote_hash": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "quote_text": "I seem to smell the stench of appeasement in the air.",
+      "source_occurrences": [
+        {
+          "line_number": 35
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+      "quote_hash": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+      "quote_text": "The problem with socialism is that you eventually run out of other people's money.",
+      "source_occurrences": [
+        {
+          "line_number": 65
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "quote_hash": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "quote_text": "There is no such thing as society: there are individual men and women, and there are families.",
+      "source_occurrences": [
+        {
+          "line_number": 69
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "quote_hash": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "quote_text": "To those waiting with bated breath for that favourite media catchphrase, the U-turn, I have only this to say, You turn if you want; the lady's not for turning.",
+      "source_occurrences": [
+        {
+          "line_number": 77
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2",
+      "quote_hash": "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2",
+      "quote_text": "The right hon. Gentleman is afraid of an election is he? Oh, if I were going to cut and run I'd have gone after the Falklands. Afraid? Frightened? Frit? Couldn't take it? Right now inflation is lower than it has been for thirteen years, a record he couldn't begin to touch!",
+      "source_occurrences": [
+        {
+          "line_number": 120
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
+      "quote_hash": "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
+      "quote_text": "364 economists who claimed that it was madness to think you could get economic growth by cutting government borrowing were proved wrong: I'm told they were never the same again.",
+      "source_occurrences": [
+        {
+          "line_number": 416
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa",
+      "quote_hash": "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa",
+      "quote_text": "I don't like strident women.",
+      "source_occurrences": [
+        {
+          "line_number": 556
+        }
+      ],
+      "research_status": "pending"
+    },
+    {
+      "quote_id": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "source_occurrences": [
+        {
+          "line_number": 632
+        }
+      ],
+      "research_status": "pending"
+    }
+  ],
+  "manifest_sha256": "19f9435e4b2dda6f32461051d89d2c944978a30d82d6a1519db061a8e41a1b20"
+}

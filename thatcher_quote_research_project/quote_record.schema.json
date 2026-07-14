@@ -1,0 +1,5 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mrs-m-thatcher:quote-record:schema:2",
+  "$ref": "urn:mrs-m-thatcher:quote-research:schema:2#/$defs/record"
+}

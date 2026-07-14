@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "background": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "camera_height": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "camera_position": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "desired_first_second_message": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "desired_tone": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "dominant_object": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "forbidden_messages": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "foreground": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "largest_object": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "lens_style": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "midground": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "must_include": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "must_not_include": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "primary_subject": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "scale_relationships": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "secondary_subjects": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "setting": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "success_test": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "viewer_eye_path": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    }
+  },
+  "required": [
+    "primary_subject",
+    "secondary_subjects",
+    "setting",
+    "camera_position",
+    "camera_height",
+    "lens_style",
+    "foreground",
+    "midground",
+    "background",
+    "dominant_object",
+    "largest_object",
+    "viewer_eye_path",
+    "scale_relationships",
+    "must_include",
+    "must_not_include",
+    "forbidden_messages",
+    "desired_first_second_message",
+    "desired_tone",
+    "success_test"
+  ],
+  "title": "Scene Grammar Planning v1",
+  "type": "object"
+}

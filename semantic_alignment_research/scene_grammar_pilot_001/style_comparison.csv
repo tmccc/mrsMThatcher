@@ -1,0 +1,3 @@
+style,human_wins,win_rate,first_impression_mean,semantic_mean,tone_mean,editorial_mean
+scene_grammar_direct,6,0.3,70.2,52.9,74.05,48.5
+scene_grammar_cinematic,4,0.2,68.45,57.2,71.65,51.75

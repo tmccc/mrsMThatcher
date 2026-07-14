@@ -1,0 +1,19 @@
+{
+  "analysis_retry_reserve_usd": 3.3934,
+  "cases": 20,
+  "conservative_maximum_cost_usd": 8.3469,
+  "conservative_retry_cost_usd": 4.1734,
+  "expected_analysis_cost_usd": 3.3934,
+  "expected_cost_usd": 4.1734,
+  "expected_generation_cost_usd": 0.78,
+  "generation_calls": 60,
+  "generation_retry_reserve_usd": 0.78,
+  "hard_ceiling_usd": 20.0,
+  "maximum_attempts_per_candidate": 2,
+  "model": "gpt-image-1.5",
+  "paid_execution_allowed": true,
+  "pricing_basis": "observed project cost per gpt-image-1.5 low 1024x1024 request",
+  "quality": "low",
+  "schema_version": 1,
+  "size": "1024x1024"
+}

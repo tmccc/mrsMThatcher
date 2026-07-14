@@ -1,0 +1,38 @@
+{
+  "developer_paused": true,
+  "direct_to_vertex_count": 465,
+  "fallback_enabled": true,
+  "model": "gemini-3.1-pro-preview",
+  "pause_reason": "two_429s_for_first_provider_wide_quota_case",
+  "paused_at": "2026-07-13T18:47:48.215272Z",
+  "schema_version": 1,
+  "trigger_attempts": [
+    {
+      "elapsed_seconds": 0.2822838220745325,
+      "http_status": 429,
+      "kind": "quota_429",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_requests_per_model_per_day, limit: 250, model: gemini-3.1-pro\nPlease retry in 5h12m14.040061961s.",
+      "provider_code": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "raw_error_path": "raw_responses/4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747/developer_api_attempt_1_http_error.json",
+      "recorded_at": "2026-07-13T18:47:45.980909Z",
+      "timeout_type": null,
+      "transport_attempt_number": 1
+    },
+    {
+      "elapsed_seconds": 0.12839417508803308,
+      "http_status": 429,
+      "kind": "quota_429",
+      "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_requests_per_model_per_day, limit: 250, model: gemini-3.1-pro\nPlease retry in 5h12m11.806247216s.",
+      "provider_code": 429,
+      "provider_status": "RESOURCE_EXHAUSTED",
+      "quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "raw_error_path": "raw_responses/4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747/developer_api_attempt_2_http_error.json",
+      "recorded_at": "2026-07-13T18:47:48.215232Z",
+      "timeout_type": null,
+      "transport_attempt_number": 2
+    }
+  ],
+  "trigger_quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747"
+}

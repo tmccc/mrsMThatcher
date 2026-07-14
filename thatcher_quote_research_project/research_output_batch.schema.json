@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:mrs-m-thatcher:research-output-batch:schema:2",
+  "title": "Compiled Margaret Thatcher quote-research output batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "batch_schema_version",
+    "batch_id",
+    "input_batch_sha256",
+    "source_file_sha256",
+    "expected_quote_ids",
+    "records",
+    "unresolved_quotes",
+    "validation"
+  ],
+  "properties": {
+    "batch_schema_version": { "const": 2 },
+    "batch_id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "input_batch_sha256": { "$ref": "#/$defs/sha256" },
+    "source_file_sha256": { "$ref": "#/$defs/sha256" },
+    "expected_quote_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sha256" },
+      "uniqueItems": true
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "urn:mrs-m-thatcher:quote-research:schema:2#/$defs/record" }
+    },
+    "unresolved_quotes": {
+      "type": "array",
+      "items": { "$ref": "urn:mrs-m-thatcher:quote-research:schema:2#/$defs/unresolvedQuote" }
+    },
+    "validation": {
+      "$ref": "#/$defs/batchValidation"
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "batchValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_id", "semantic_validator_version", "passed", "errors", "warnings"],
+      "properties": {
+        "schema_id": { "const": "urn:mrs-m-thatcher:research-output-batch:schema:2" },
+        "semantic_validator_version": { "type": "string", "minLength": 1 },
+        "passed": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

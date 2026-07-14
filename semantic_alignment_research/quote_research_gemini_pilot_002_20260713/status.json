@@ -1,0 +1,37 @@
+{
+  "active": 0,
+  "ambiguous_possible_exposure_usd": 0.6611020000000001,
+  "average_cost_per_valid_quote": 0.044242800000000006,
+  "combined_known_spend_usd": 0.7521276000000001,
+  "developer": {
+    "completed": 17,
+    "known_spend_usd": 0.7521276000000001
+  },
+  "developer_pause_reason": null,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "eta_seconds": 0.0,
+  "mean_latency_seconds": 32.083791826667856,
+  "pending": 0,
+  "permanent_failures": 3,
+  "projected_final_spend_usd": 0.8848560000000001,
+  "remaining_nonterminal": 0,
+  "resume_plan": {
+    "completed_will_be_skipped": 17,
+    "developer_will_be_probed": true,
+    "next_transport": "developer_api",
+    "permanent_failures_will_be_skipped": 3,
+    "unfinished_quotes": 0
+  },
+  "run_id": "quote_research_gemini_pilot_002_20260713",
+  "schema_version": 1,
+  "total_quotes": 20,
+  "transient_failures": 0,
+  "updated_at": "2026-07-13T17:28:49.739942Z",
+  "valid_packets": 17,
+  "validation_failures": 0,
+  "vertex": {
+    "completed": 0,
+    "known_spend_usd": 0.0
+  }
+}

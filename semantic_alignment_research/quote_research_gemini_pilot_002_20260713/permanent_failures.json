@@ -1,0 +1,51 @@
+{
+  "items": {
+    "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215": {
+      "attempts": {
+        "developer_api": 2,
+        "vertex_ai": 0
+      },
+      "failure": {
+        "kind": "exhausted_validation_failure",
+        "message": "at least one grounded source is required"
+      },
+      "input_hash": "9c43eaa0176a93ecbcf86fd47676d5ffa8d8b892d69e069f2a9892a19e50afa1",
+      "quote_hash": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_id": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "recorded_at": "2026-07-13T17:27:56.862975Z",
+      "transport": "developer_api"
+    },
+    "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c": {
+      "attempts": {
+        "developer_api": 2,
+        "vertex_ai": 0
+      },
+      "failure": {
+        "kind": "exhausted_after_retry",
+        "message": "developer_api attempts exhausted"
+      },
+      "input_hash": "abd2c2713258017cf17f57d10026c37d23938c03e081646efbc384d82117c5fd",
+      "quote_hash": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "quote_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "recorded_at": "2026-07-13T17:27:24.518027Z",
+      "transport": "developer_api"
+    },
+    "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee": {
+      "attempts": {
+        "developer_api": 2,
+        "vertex_ai": 0
+      },
+      "failure": {
+        "kind": "exhausted_after_retry",
+        "message": "developer_api attempts exhausted"
+      },
+      "input_hash": "47eef726a874b2310579bb3836403655254d749ebbcc6c7e8f9cfb7697724f03",
+      "quote_hash": "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee",
+      "quote_id": "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee",
+      "recorded_at": "2026-07-13T17:28:49.710563Z",
+      "transport": "developer_api"
+    }
+  },
+  "reset_audit": [],
+  "schema_version": 1
+}

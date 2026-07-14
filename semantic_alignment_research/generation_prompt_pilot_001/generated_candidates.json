@@ -1,0 +1,2500 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "candidate_id": "2a77d4e7abf10712bded",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "completed_at": "2026-07-13T02:43:15.643110+00:00",
+      "prepared_at": "2026-07-13T02:43:00.658264+00:00",
+      "prompt_hash": "a4e46c74be84b7d88558eca2577dfe39c5893ac9c647ae11c612c5820ed37827",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "d8f59a87289ee95a2172",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "completed_at": "2026-07-13T02:43:28.252164+00:00",
+      "prepared_at": "2026-07-13T02:43:15.679529+00:00",
+      "prompt_hash": "efd5badd86f326b43a1271b102b3123533ca4edc768b6d7da31d8667c07c5ab2",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "eaa2922dcdae7d2cf670",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "completed_at": "2026-07-13T02:43:39.143012+00:00",
+      "prepared_at": "2026-07-13T02:43:28.280064+00:00",
+      "prompt_hash": "4fb6b7bd916f36fa8cfa5f126ab88ac512356b3c741eff760ee3834442c74368",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "ed7394ccf16c9d43fbaf",
+      "case_id": "26617c4249fd779dfd9d",
+      "completed_at": "2026-07-13T02:43:52.292101+00:00",
+      "prepared_at": "2026-07-13T02:43:39.161380+00:00",
+      "prompt_hash": "ccdeb30fd7635184d09641292408f92479f64aa35354f9e45ea0cae7ff9cf1aa",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "d01c987108b255bc24b9",
+      "case_id": "26617c4249fd779dfd9d",
+      "completed_at": "2026-07-13T02:44:01.583372+00:00",
+      "prepared_at": "2026-07-13T02:43:52.318648+00:00",
+      "prompt_hash": "bf7f045a1ef7a4c4c93f5ae5994d7227d9b481ab63c540275a54b1099e7fb5b9",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "93866b7ff23aee015658",
+      "case_id": "26617c4249fd779dfd9d",
+      "completed_at": "2026-07-13T02:44:13.734620+00:00",
+      "prepared_at": "2026-07-13T02:44:01.609694+00:00",
+      "prompt_hash": "1df9e97391af770cd113c54b1cd8bb1a2ee92bd8b5f89dcec2555006ee9c784a",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "5bf62cb821253a7b51dc",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "completed_at": "2026-07-13T02:44:22.723258+00:00",
+      "prepared_at": "2026-07-13T02:44:13.757624+00:00",
+      "prompt_hash": "d173af6d5f3660178c546a6a35e5736c5c195eac89ac6dbec60e8c52d4e78abc",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "99abe8936c520212190c",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "completed_at": "2026-07-13T02:44:35.164912+00:00",
+      "prepared_at": "2026-07-13T02:44:22.753417+00:00",
+      "prompt_hash": "ca6a087e37ecd22a05520debdfe8bedfb8663e5012bb270a2ab39ee3e7248fc0",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "2e73af4f6e73a6d2775c",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "completed_at": "2026-07-13T02:44:46.838374+00:00",
+      "prepared_at": "2026-07-13T02:44:35.199151+00:00",
+      "prompt_hash": "5a2bb36bc7185b407b8ef0606aeb842b36e3930f960b525cc94215aa0e9ecb55",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "bee0213569054f8a50df",
+      "case_id": "306a82edc7a8147b5f31",
+      "completed_at": "2026-07-13T02:44:57.151023+00:00",
+      "prepared_at": "2026-07-13T02:44:46.873029+00:00",
+      "prompt_hash": "051214686ecd295dad844c53a9a5ac23dde45bfe792694d5d6c26ef486bc44d1",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "b07fa697803661688041",
+      "case_id": "306a82edc7a8147b5f31",
+      "completed_at": "2026-07-13T02:45:08.132257+00:00",
+      "prepared_at": "2026-07-13T02:44:57.166357+00:00",
+      "prompt_hash": "efd383357cdb2ccd70832f9505fe62176b4c53f3929289bdd12171a63a961180",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "04ae973c1fdabe4324d9",
+      "case_id": "306a82edc7a8147b5f31",
+      "completed_at": "2026-07-13T02:45:20.226294+00:00",
+      "prepared_at": "2026-07-13T02:45:08.176080+00:00",
+      "prompt_hash": "e4f07d64760346bff3fc36abf23ea06acc694d6a1eed852cf847377eac503738",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "112a9dc7caa94cd26847",
+      "case_id": "d536b4de87d7a7511a94",
+      "completed_at": "2026-07-13T02:45:29.848375+00:00",
+      "prepared_at": "2026-07-13T02:45:20.263680+00:00",
+      "prompt_hash": "d612beec556ec6b9c5ffcc5cb5562451870d2fd353dd1f2857b9e41ee3a02e2e",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "9eac34a1ce66239a38da",
+      "case_id": "d536b4de87d7a7511a94",
+      "completed_at": "2026-07-13T02:45:40.644272+00:00",
+      "prepared_at": "2026-07-13T02:45:29.891448+00:00",
+      "prompt_hash": "440c544c99fc975c5c9d5c773ddc352a0f420dc868ae7fc0633549132f6ead8b",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "ef6edda18c65a481d534",
+      "case_id": "d536b4de87d7a7511a94",
+      "completed_at": "2026-07-13T02:45:52.528125+00:00",
+      "prepared_at": "2026-07-13T02:45:40.668405+00:00",
+      "prompt_hash": "7c954a52ad053ebdbf77d5eb1289840133a2d2d884892b86dd41b8be675b13f2",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "17145ab73b05a2d79947",
+      "case_id": "e30b2c632c778eab5930",
+      "completed_at": "2026-07-13T02:46:01.878126+00:00",
+      "prepared_at": "2026-07-13T02:45:52.590673+00:00",
+      "prompt_hash": "e81e333fbca07a67c62d35c0b60f658c433b19c60d1af96d82ccc0861c8736c5",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "85c5eeb14d9c8ad7b4a3",
+      "case_id": "e30b2c632c778eab5930",
+      "completed_at": "2026-07-13T02:46:10.456373+00:00",
+      "prepared_at": "2026-07-13T02:46:01.905703+00:00",
+      "prompt_hash": "281fda60977168fc2a6a669f310979b0e21ea277b5faf47670ee2254e9a9f49c",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "2109fe1e436f76c6226a",
+      "case_id": "e30b2c632c778eab5930",
+      "completed_at": "2026-07-13T02:46:19.474261+00:00",
+      "prepared_at": "2026-07-13T02:46:10.481477+00:00",
+      "prompt_hash": "bd502456dbc4563b2e217b8b1f6f9fc3bfad37a2edfcba9142e7952edf504450",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "32def1d43182a9efa71d",
+      "case_id": "b0ec09020e96b269e52d",
+      "completed_at": "2026-07-13T02:46:32.783060+00:00",
+      "prepared_at": "2026-07-13T02:46:19.511346+00:00",
+      "prompt_hash": "12180447ca4adcefe38d29cc1a837e7e58b8609ad1d8877269f19baa17fce72e",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "b5c50c5b0676ca841ce6",
+      "case_id": "b0ec09020e96b269e52d",
+      "completed_at": "2026-07-13T02:46:42.087395+00:00",
+      "prepared_at": "2026-07-13T02:46:32.818020+00:00",
+      "prompt_hash": "45bed4fd9502f08f6dfebec072e33cdadde82047fc23e0fcc70e2509776f828c",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "fab591100f24dcb5e07b",
+      "case_id": "b0ec09020e96b269e52d",
+      "completed_at": "2026-07-13T02:46:51.805126+00:00",
+      "prepared_at": "2026-07-13T02:46:42.113187+00:00",
+      "prompt_hash": "88c47075a0efd6f60281cac5329f0b917456c9f2c97f4864b89ac501176a6298",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "2e6df6a3c238257f3e63",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "completed_at": "2026-07-13T02:47:02.212971+00:00",
+      "prepared_at": "2026-07-13T02:46:51.841780+00:00",
+      "prompt_hash": "4e5dc47f66cf806d6d75fad98d31880172d9ba9f36e42c0a24eb850cd500e5b6",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "96fb6487bbf5da0cad5f",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "completed_at": "2026-07-13T02:47:12.416984+00:00",
+      "prepared_at": "2026-07-13T02:47:02.243696+00:00",
+      "prompt_hash": "431f7cbb8e195b1b07e84eaa089541654b94938dd3781ced2882e6073101affb",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "4ef72c79ae27ea8d13c5",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "completed_at": "2026-07-13T02:47:23.246604+00:00",
+      "prepared_at": "2026-07-13T02:47:12.459596+00:00",
+      "prompt_hash": "d0cb6049b161623bd52bf6f52d8851d5ed7961dabfa79467859f9ac4374f5dff",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "33a493a109f6df97641a",
+      "case_id": "86346f7d038b654174d3",
+      "completed_at": "2026-07-13T02:47:34.498156+00:00",
+      "prepared_at": "2026-07-13T02:47:23.281992+00:00",
+      "prompt_hash": "02769473a75b25344faa58220a186db96fd447ece0b70911d5e92b630eb5015d",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "287ebae180991591dc13",
+      "case_id": "86346f7d038b654174d3",
+      "completed_at": "2026-07-13T02:47:44.815740+00:00",
+      "prepared_at": "2026-07-13T02:47:34.532247+00:00",
+      "prompt_hash": "bd5eee8b536943817b22a6380e1a8f85f899c1c4b55930f5a514965fef836e1d",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "6f2843e66a33612ca2c5",
+      "case_id": "86346f7d038b654174d3",
+      "completed_at": "2026-07-13T02:48:00.152455+00:00",
+      "prepared_at": "2026-07-13T02:47:44.851944+00:00",
+      "prompt_hash": "530982be3ee967e95e58bf8f79ae3bf52a50caca3df24581bd12d76a6541dc34",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "a929233530944d564d83",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "completed_at": "2026-07-13T02:48:12.118624+00:00",
+      "prepared_at": "2026-07-13T02:48:00.194326+00:00",
+      "prompt_hash": "60b6af8a81e0c7a49a46a773885129dc0b9d296cf4f3544540efb15583962aaf",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "1718d520638ba293173c",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "completed_at": "2026-07-13T02:48:22.604339+00:00",
+      "prepared_at": "2026-07-13T02:48:12.158733+00:00",
+      "prompt_hash": "80ed59ba6f9b1c448a8450d06b1db8a0728505704e3970abc82836e236104848",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "3e2eb5d1676f9a2475e6",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "completed_at": "2026-07-13T02:48:34.106837+00:00",
+      "prepared_at": "2026-07-13T02:48:22.642521+00:00",
+      "prompt_hash": "debba7659f96a3cdc369284891e90de027a1d80e03a951d8416f79660320ee7b",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "95c2c56ebfefe6ef90a8",
+      "case_id": "e98593e10072f6429099",
+      "completed_at": "2026-07-13T02:48:43.687037+00:00",
+      "prepared_at": "2026-07-13T02:48:34.138902+00:00",
+      "prompt_hash": "b706112d4565a124798d6a83dc840c366e2118099cee1092ffd8cacc50c67657",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "8ede99c51c7cd08a46dc",
+      "case_id": "e98593e10072f6429099",
+      "completed_at": "2026-07-13T02:48:53.952270+00:00",
+      "prepared_at": "2026-07-13T02:48:43.702427+00:00",
+      "prompt_hash": "2965d7d31db9904b6612dd0b92f6e34296d50ba83ee69036010f9139fe7ad9c5",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "af48a3e3ee0d475b673b",
+      "case_id": "e98593e10072f6429099",
+      "completed_at": "2026-07-13T02:49:03.032438+00:00",
+      "prepared_at": "2026-07-13T02:48:53.988189+00:00",
+      "prompt_hash": "efe32637c69d92b3f6a277a9cfd25563a42b971d04af3b96e0af6af243b19560",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "9df6edd6691a5857c668",
+      "case_id": "109aaa465585620fd084",
+      "completed_at": "2026-07-13T02:49:12.967858+00:00",
+      "prepared_at": "2026-07-13T02:49:03.060988+00:00",
+      "prompt_hash": "e0d32431c184c9c0e7ea76af837977381ca39192d47b510dfb7c8a1e701576a1",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "206ac2b666492fe8f309",
+      "case_id": "109aaa465585620fd084",
+      "completed_at": "2026-07-13T02:49:23.024749+00:00",
+      "prepared_at": "2026-07-13T02:49:13.003174+00:00",
+      "prompt_hash": "bd381e84d3bfe7c7c3cdd8f0dae0283ae7fcfb1d795e3049d991ffcd48d7082a",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "fc9d44ecf6ed63409917",
+      "case_id": "109aaa465585620fd084",
+      "completed_at": "2026-07-13T02:49:34.778722+00:00",
+      "prepared_at": "2026-07-13T02:49:23.066035+00:00",
+      "prompt_hash": "c265c8c68d801752ba0a47e2a3cec3917287183c5580439740be2b93dfc81437",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "535f57cc81e333ab0688",
+      "case_id": "38dcb6b5c297feab58e1",
+      "completed_at": "2026-07-13T02:49:46.453388+00:00",
+      "prepared_at": "2026-07-13T02:49:34.817392+00:00",
+      "prompt_hash": "551ae26c2ad833402c0f1c6406ec28916729fd4ccda44b592265014dce9ba1bf",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "58eb4bc1859804927fa1",
+      "case_id": "38dcb6b5c297feab58e1",
+      "completed_at": "2026-07-13T02:49:58.157896+00:00",
+      "prepared_at": "2026-07-13T02:49:46.498931+00:00",
+      "prompt_hash": "cc40df00375bd550936277fa5db68e4ef2d87c8920df45b880576a342a62a06f",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "98bca0eb7ee8280bbe51",
+      "case_id": "38dcb6b5c297feab58e1",
+      "completed_at": "2026-07-13T02:50:09.166735+00:00",
+      "prepared_at": "2026-07-13T02:49:58.192528+00:00",
+      "prompt_hash": "162d3141a41866bc45900c6666466d409f4a27d5126ca00298e6d9ed46866089",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "caf075d394a51496cdce",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "completed_at": "2026-07-13T02:50:19.273587+00:00",
+      "prepared_at": "2026-07-13T02:50:09.205544+00:00",
+      "prompt_hash": "9c96c3981713a265e9d13cbaafaa855ec91355e05f4fb57f6b7615585d3cb296",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "08277d7baea1d8aa3be7",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "completed_at": "2026-07-13T02:50:30.187162+00:00",
+      "prepared_at": "2026-07-13T02:50:19.314794+00:00",
+      "prompt_hash": "8af4ba872a71754cc65b20c8e9a0bf81c20daabd20be3bbcca8d72d262f57b76",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "d04002b8b0fad7b9a742",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "completed_at": "2026-07-13T02:50:42.119395+00:00",
+      "prepared_at": "2026-07-13T02:50:30.202681+00:00",
+      "prompt_hash": "b23ced91ba5c67bea01b4fc3fa5be24881e875a3ebc8ac80bdb3d7c46fc31d56",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "783eeb6bd20d998262e6",
+      "case_id": "6735dd6f9451659687c3",
+      "completed_at": "2026-07-13T02:50:53.947782+00:00",
+      "prepared_at": "2026-07-13T02:50:42.158081+00:00",
+      "prompt_hash": "437b61ff980d9928ef30587dbfb9dce80bf079b5c119cfbe2e9c5dc71b8d7ebc",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "c3e62e52a91cc96ac66d",
+      "case_id": "6735dd6f9451659687c3",
+      "completed_at": "2026-07-13T02:51:07.621141+00:00",
+      "prepared_at": "2026-07-13T02:50:53.982579+00:00",
+      "prompt_hash": "7e042c4e8de3322fe84ed47bf8a8d258b5512d1a6dd2558701ebad6a50aa4816",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "b87a25fae5c71ecdcbba",
+      "case_id": "6735dd6f9451659687c3",
+      "completed_at": "2026-07-13T02:51:19.643852+00:00",
+      "prepared_at": "2026-07-13T02:51:07.672795+00:00",
+      "prompt_hash": "512f1f98ba3d48e7c32052eb7d13cf87ac3dfd03b61fbddb214a4a3eee472c4a",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "dd02b22ba3ae57368c85",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "completed_at": "2026-07-13T02:51:30.305880+00:00",
+      "prepared_at": "2026-07-13T02:51:19.685800+00:00",
+      "prompt_hash": "b0ece2b214736d25deead2da1d853330850084033e5a94e9a25dcd78d0e096cf",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "c16eb34aceaa0db978a9",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "completed_at": "2026-07-13T02:51:40.401077+00:00",
+      "prepared_at": "2026-07-13T02:51:30.354853+00:00",
+      "prompt_hash": "3833e2a99161523fe49eab325c3cdbf6dd677fb254b5a50f401c4997e92f6319",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "703097046e7432f641be",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "error": "HTTP 429: {\n  \"error\": {\n    \"message\": \"Rate limit reached for gpt-image-1.5 (for limit gpt-image) in organization org-1i7ivyfi8WByvkMpklhycqkE on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit https://platform.openai.com/account/rate-limits to learn more.\",\n    \"type\": \"input-images\",\n    \"param\": null,\n    \"code\": \"rate_limit_exceeded\"\n  }\n}",
+      "prepared_at": "2026-07-13T02:51:40.429611+00:00",
+      "prompt_hash": "9dcb7045366dc635ffecc60140e8f359156ccb8e4d3af10fe19983ccc86f2b62",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "state": "confirmed_failure",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 2,
+      "candidate_id": "703097046e7432f641be",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "completed_at": "2026-07-13T02:51:53.294870+00:00",
+      "prepared_at": "2026-07-13T02:51:42.663563+00:00",
+      "prompt_hash": "9dcb7045366dc635ffecc60140e8f359156ccb8e4d3af10fe19983ccc86f2b62",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "9463f0a94eb07ca453de",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "completed_at": "2026-07-13T02:52:05.820458+00:00",
+      "prepared_at": "2026-07-13T02:51:53.331409+00:00",
+      "prompt_hash": "9548c97a8aea2b0a54dde1b4d11a0f5cfff92818ef66b6bec313bf753fc4a503",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "dd583718446d9e8effe4",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "completed_at": "2026-07-13T02:52:17.164391+00:00",
+      "prepared_at": "2026-07-13T02:52:05.860914+00:00",
+      "prompt_hash": "349a71415a56f5002b39c67df2a7f6994f772ac50678dbdee6f160d6ea2bb21d",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "bf920883968be342d271",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "completed_at": "2026-07-13T02:52:28.542819+00:00",
+      "prepared_at": "2026-07-13T02:52:17.203787+00:00",
+      "prompt_hash": "49f076c32fa1d9558f231a703591c24f8e006a4510205dba6f661e347a91de6b",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "0f60be6e85037c1b94b2",
+      "case_id": "b6f083595c5cbbd14e59",
+      "completed_at": "2026-07-13T02:52:39.091252+00:00",
+      "prepared_at": "2026-07-13T02:52:28.600619+00:00",
+      "prompt_hash": "286516f258e4367adc580799a3989e1deccf1f30151e47b4adf20f90ced4b10f",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "23b0c4ef364e50d431e8",
+      "case_id": "b6f083595c5cbbd14e59",
+      "error": "HTTP 429: {\n  \"error\": {\n    \"message\": \"Rate limit reached for gpt-image-1.5 (for limit gpt-image) in organization org-1i7ivyfi8WByvkMpklhycqkE on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit https://platform.openai.com/account/rate-limits to learn more.\",\n    \"type\": \"input-images\",\n    \"param\": null,\n    \"code\": \"rate_limit_exceeded\"\n  }\n}",
+      "prepared_at": "2026-07-13T02:52:39.129353+00:00",
+      "prompt_hash": "da777b4f9902ad69476f453772ba0284bcdd25546eb19ca9d84675204e33e070",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "state": "confirmed_failure",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 2,
+      "candidate_id": "23b0c4ef364e50d431e8",
+      "case_id": "b6f083595c5cbbd14e59",
+      "completed_at": "2026-07-13T02:52:51.404651+00:00",
+      "prepared_at": "2026-07-13T02:52:41.356080+00:00",
+      "prompt_hash": "da777b4f9902ad69476f453772ba0284bcdd25546eb19ca9d84675204e33e070",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "3cd2401bf98277b7dcc9",
+      "case_id": "b6f083595c5cbbd14e59",
+      "error": "HTTP 429: {\n  \"error\": {\n    \"message\": \"Rate limit reached for gpt-image-1.5 (for limit gpt-image) in organization org-1i7ivyfi8WByvkMpklhycqkE on input-images per min: Limit 5, Used 5, Requested 1. Please try again in 12s. Visit https://platform.openai.com/account/rate-limits to learn more.\",\n    \"type\": \"input-images\",\n    \"param\": null,\n    \"code\": \"rate_limit_exceeded\"\n  }\n}",
+      "prepared_at": "2026-07-13T02:52:51.440937+00:00",
+      "prompt_hash": "12faa21a959cbb5176330c0880a32e282cb15f6eec090bc2f9e4581a8f239dd0",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "state": "confirmed_failure",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 2,
+      "candidate_id": "3cd2401bf98277b7dcc9",
+      "case_id": "b6f083595c5cbbd14e59",
+      "completed_at": "2026-07-13T02:53:07.308404+00:00",
+      "prepared_at": "2026-07-13T02:52:53.672430+00:00",
+      "prompt_hash": "12faa21a959cbb5176330c0880a32e282cb15f6eec090bc2f9e4581a8f239dd0",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "3a1430ff0304d0990a8b",
+      "case_id": "7bef741d596d40b3379f",
+      "completed_at": "2026-07-13T02:53:17.629541+00:00",
+      "prepared_at": "2026-07-13T02:53:07.369218+00:00",
+      "prompt_hash": "14ae3a3f822ea8b8e67885ef3125e59ab0df30a451e98cca3f752ee730d0ab77",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "4e2fdcd34c27dd1ba9f2",
+      "case_id": "7bef741d596d40b3379f",
+      "completed_at": "2026-07-13T02:53:30.881608+00:00",
+      "prepared_at": "2026-07-13T02:53:17.675585+00:00",
+      "prompt_hash": "e9a9d1d9c78ab6ffa203359e781652945b434777bb4df941f580be07710b06d0",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "1e962c3f3477943f9fb9",
+      "case_id": "7bef741d596d40b3379f",
+      "completed_at": "2026-07-13T02:53:42.430360+00:00",
+      "prepared_at": "2026-07-13T02:53:30.932822+00:00",
+      "prompt_hash": "352ad2d1eddb041ade22a9d4d237ce8dea580505ad9b3e987fb31e01cd8328cd",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "state": "completed",
+      "style": "balanced_editorial"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "4f2f14fa15afb29a950d",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "completed_at": "2026-07-13T02:53:55.675594+00:00",
+      "prepared_at": "2026-07-13T02:53:42.479525+00:00",
+      "prompt_hash": "de861bf0fb4f79529fe449cd4000e07e8b7c4b66280f8c6309338dc83123c4b0",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "state": "completed",
+      "style": "mechanism_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "0d89935b6f31a41207b2",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "completed_at": "2026-07-13T02:54:06.633956+00:00",
+      "prepared_at": "2026-07-13T02:53:55.715877+00:00",
+      "prompt_hash": "6fb5f77ee2ad2455de6ad213c02429b00c11f1838dc227b42b564e4348ad0712",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "state": "completed",
+      "style": "first_impression_first"
+    },
+    {
+      "attempt": 1,
+      "candidate_id": "15cdc01826157264cda1",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "completed_at": "2026-07-13T02:54:17.182651+00:00",
+      "prepared_at": "2026-07-13T02:54:06.666368+00:00",
+      "prompt_hash": "d19094abddbd19a0fef5a8d0f23f42d2f2e3fc252b2b207c67edf3af15774eb9",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "state": "completed",
+      "style": "balanced_editorial"
+    }
+  ],
+  "items": {
+    "04ae973c1fdabe4324d9": {
+      "candidate_id": "04ae973c1fdabe4324d9",
+      "case_id": "306a82edc7a8147b5f31",
+      "generated_at": "2026-07-13T02:45:20.232926+00:00",
+      "image_basename": "04ae973c1fdabe4324d9.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/04ae973c1fdabe4324d9.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 447,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 447
+          },
+          "output_tokens": 542,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 270
+          },
+          "total_tokens": 989
+        }
+      },
+      "sha256": "03d1362f25cd1109ec93e87ece35ab1b827ac1d363a1a2c7d25a80e8dc274621",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "08277d7baea1d8aa3be7": {
+      "candidate_id": "08277d7baea1d8aa3be7",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "generated_at": "2026-07-13T02:50:30.192726+00:00",
+      "image_basename": "08277d7baea1d8aa3be7.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/08277d7baea1d8aa3be7.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 414,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 414
+          },
+          "output_tokens": 451,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 179
+          },
+          "total_tokens": 865
+        }
+      },
+      "sha256": "6d5833b16513bd9e59001adb6dd1e550e53ab2770d2b5333e31561de18329cb9",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "0d89935b6f31a41207b2": {
+      "candidate_id": "0d89935b6f31a41207b2",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "generated_at": "2026-07-13T02:54:06.643599+00:00",
+      "image_basename": "0d89935b6f31a41207b2.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/0d89935b6f31a41207b2.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 436,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 436
+          },
+          "output_tokens": 530,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 258
+          },
+          "total_tokens": 966
+        }
+      },
+      "sha256": "bb6902d3d4c8c60c7a53f2267e347fbfbf7069d7267ca5779335dae15ac8fc4a",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "0f60be6e85037c1b94b2": {
+      "candidate_id": "0f60be6e85037c1b94b2",
+      "case_id": "b6f083595c5cbbd14e59",
+      "generated_at": "2026-07-13T02:52:39.097770+00:00",
+      "image_basename": "0f60be6e85037c1b94b2.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/0f60be6e85037c1b94b2.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 424,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 424
+          },
+          "output_tokens": 551,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 279
+          },
+          "total_tokens": 975
+        }
+      },
+      "sha256": "5230a8b292d97895840fe18b5e8c2545dc725aa113d80081d130c44990b8467f",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "112a9dc7caa94cd26847": {
+      "candidate_id": "112a9dc7caa94cd26847",
+      "case_id": "d536b4de87d7a7511a94",
+      "generated_at": "2026-07-13T02:45:29.855536+00:00",
+      "image_basename": "112a9dc7caa94cd26847.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/112a9dc7caa94cd26847.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 431,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 431
+          },
+          "output_tokens": 536,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 264
+          },
+          "total_tokens": 967
+        }
+      },
+      "sha256": "cae69c00e2b774d82172e1afe7fd4d7696bbfef4158aa7d7739f4dd4967c92de",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "15cdc01826157264cda1": {
+      "candidate_id": "15cdc01826157264cda1",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "generated_at": "2026-07-13T02:54:17.199758+00:00",
+      "image_basename": "15cdc01826157264cda1.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/15cdc01826157264cda1.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 433,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 433
+          },
+          "output_tokens": 528,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 256
+          },
+          "total_tokens": 961
+        }
+      },
+      "sha256": "a55ce0d009fd34b80bc3c9281d49ae53571dd972aeab0e6eca24bd8103f73354",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "17145ab73b05a2d79947": {
+      "candidate_id": "17145ab73b05a2d79947",
+      "case_id": "e30b2c632c778eab5930",
+      "generated_at": "2026-07-13T02:46:01.883107+00:00",
+      "image_basename": "17145ab73b05a2d79947.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/17145ab73b05a2d79947.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 475,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 475
+          },
+          "output_tokens": 482,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 210
+          },
+          "total_tokens": 957
+        }
+      },
+      "sha256": "4463c4715acac8bf959d659949448dbb6b62098e5d86e6c2414ced11f1e140cc",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "1718d520638ba293173c": {
+      "candidate_id": "1718d520638ba293173c",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "generated_at": "2026-07-13T02:48:22.610932+00:00",
+      "image_basename": "1718d520638ba293173c.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/1718d520638ba293173c.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 528,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 528
+          },
+          "output_tokens": 510,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 238
+          },
+          "total_tokens": 1038
+        }
+      },
+      "sha256": "2ff57edaf874ad24057c6cc4c877895e76201aa96f94b2c0e58bc7a3974b228b",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "1e962c3f3477943f9fb9": {
+      "candidate_id": "1e962c3f3477943f9fb9",
+      "case_id": "7bef741d596d40b3379f",
+      "generated_at": "2026-07-13T02:53:42.436966+00:00",
+      "image_basename": "1e962c3f3477943f9fb9.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/1e962c3f3477943f9fb9.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 498,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 498
+          },
+          "output_tokens": 490,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 218
+          },
+          "total_tokens": 988
+        }
+      },
+      "sha256": "711ed81ce24fcf1986ab0074ea3ebfed5e6a4467dabd8b1fcf92d8289f77a324",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "206ac2b666492fe8f309": {
+      "candidate_id": "206ac2b666492fe8f309",
+      "case_id": "109aaa465585620fd084",
+      "generated_at": "2026-07-13T02:49:23.031012+00:00",
+      "image_basename": "206ac2b666492fe8f309.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/206ac2b666492fe8f309.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 463,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 463
+          },
+          "output_tokens": 463,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 191
+          },
+          "total_tokens": 926
+        }
+      },
+      "sha256": "3db23d50507f185b4e6f24e123ed0fd0bd4588cab6ef7646b5b958e7090adce7",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "2109fe1e436f76c6226a": {
+      "candidate_id": "2109fe1e436f76c6226a",
+      "case_id": "e30b2c632c778eab5930",
+      "generated_at": "2026-07-13T02:46:19.478637+00:00",
+      "image_basename": "2109fe1e436f76c6226a.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/2109fe1e436f76c6226a.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 478,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 478
+          },
+          "output_tokens": 469,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 197
+          },
+          "total_tokens": 947
+        }
+      },
+      "sha256": "c22794c3899d616313df06f93e0d612724e6d8fc65bb7a5059741591efa815ec",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "23b0c4ef364e50d431e8": {
+      "candidate_id": "23b0c4ef364e50d431e8",
+      "case_id": "b6f083595c5cbbd14e59",
+      "generated_at": "2026-07-13T02:52:51.411266+00:00",
+      "image_basename": "23b0c4ef364e50d431e8.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/23b0c4ef364e50d431e8.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 430,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 430
+          },
+          "output_tokens": 510,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 238
+          },
+          "total_tokens": 940
+        }
+      },
+      "sha256": "b5d5e9b2c5ce23e6c7f3be302d8f5a0e318208cdf69700b31562c852295b2425",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "287ebae180991591dc13": {
+      "candidate_id": "287ebae180991591dc13",
+      "case_id": "86346f7d038b654174d3",
+      "generated_at": "2026-07-13T02:47:44.824570+00:00",
+      "image_basename": "287ebae180991591dc13.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/287ebae180991591dc13.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 485,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 485
+          },
+          "output_tokens": 496,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 224
+          },
+          "total_tokens": 981
+        }
+      },
+      "sha256": "06aacbeeeaab416e5b365151e222c15f42a62c3a36baf797504ad103d183fd6f",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "2a77d4e7abf10712bded": {
+      "candidate_id": "2a77d4e7abf10712bded",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "generated_at": "2026-07-13T02:43:15.649132+00:00",
+      "image_basename": "2a77d4e7abf10712bded.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/2a77d4e7abf10712bded.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 493,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 493
+          },
+          "output_tokens": 494,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 222
+          },
+          "total_tokens": 987
+        }
+      },
+      "sha256": "bd5c7f5b06430f892fc8f10bd63f76f8b50d54fd64aa71790724fa6da480f19c",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "2e6df6a3c238257f3e63": {
+      "candidate_id": "2e6df6a3c238257f3e63",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "generated_at": "2026-07-13T02:47:02.219622+00:00",
+      "image_basename": "2e6df6a3c238257f3e63.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/2e6df6a3c238257f3e63.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 431,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 431
+          },
+          "output_tokens": 442,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 170
+          },
+          "total_tokens": 873
+        }
+      },
+      "sha256": "109393176e5b031a405d46c3697262543c370e62f78cf2f68197263a637c1e12",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "2e73af4f6e73a6d2775c": {
+      "candidate_id": "2e73af4f6e73a6d2775c",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "generated_at": "2026-07-13T02:44:46.844374+00:00",
+      "image_basename": "2e73af4f6e73a6d2775c.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/2e73af4f6e73a6d2775c.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 452,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 452
+          },
+          "output_tokens": 485,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 213
+          },
+          "total_tokens": 937
+        }
+      },
+      "sha256": "e6558a40d12460c3821f31a6fb27c8fdf315adb7ccfab4e4ff60727b57914922",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "32def1d43182a9efa71d": {
+      "candidate_id": "32def1d43182a9efa71d",
+      "case_id": "b0ec09020e96b269e52d",
+      "generated_at": "2026-07-13T02:46:32.803044+00:00",
+      "image_basename": "32def1d43182a9efa71d.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/32def1d43182a9efa71d.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 398,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 398
+          },
+          "output_tokens": 520,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 248
+          },
+          "total_tokens": 918
+        }
+      },
+      "sha256": "81217b4d1353ff4336c892e6659ec549824c1dc7e026cda33a880e7fe45a7332",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "33a493a109f6df97641a": {
+      "candidate_id": "33a493a109f6df97641a",
+      "case_id": "86346f7d038b654174d3",
+      "generated_at": "2026-07-13T02:47:34.506541+00:00",
+      "image_basename": "33a493a109f6df97641a.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/33a493a109f6df97641a.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 479,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 479
+          },
+          "output_tokens": 510,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 238
+          },
+          "total_tokens": 989
+        }
+      },
+      "sha256": "df91fa77d36f577aa7aaa54cbef171c489ffa224240289684c352c2000bc50b7",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "3a1430ff0304d0990a8b": {
+      "candidate_id": "3a1430ff0304d0990a8b",
+      "case_id": "7bef741d596d40b3379f",
+      "generated_at": "2026-07-13T02:53:17.636707+00:00",
+      "image_basename": "3a1430ff0304d0990a8b.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/3a1430ff0304d0990a8b.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 495,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 495
+          },
+          "output_tokens": 531,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 259
+          },
+          "total_tokens": 1026
+        }
+      },
+      "sha256": "6f429589d2827f17eeeffbc4d827cafba87ea9b6ea2d468d245cea76219098b7",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "3cd2401bf98277b7dcc9": {
+      "candidate_id": "3cd2401bf98277b7dcc9",
+      "case_id": "b6f083595c5cbbd14e59",
+      "generated_at": "2026-07-13T02:53:07.315995+00:00",
+      "image_basename": "3cd2401bf98277b7dcc9.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/3cd2401bf98277b7dcc9.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 427,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 427
+          },
+          "output_tokens": 513,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 241
+          },
+          "total_tokens": 940
+        }
+      },
+      "sha256": "87b44a04804ea2252d73220b68538cd31e2ed2d6b6ea0f98279e8c977b5a0915",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "3e2eb5d1676f9a2475e6": {
+      "candidate_id": "3e2eb5d1676f9a2475e6",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "generated_at": "2026-07-13T02:48:34.114025+00:00",
+      "image_basename": "3e2eb5d1676f9a2475e6.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/3e2eb5d1676f9a2475e6.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 525,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 525
+          },
+          "output_tokens": 547,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 275
+          },
+          "total_tokens": 1072
+        }
+      },
+      "sha256": "b477e9265fb23c65b4eacb1db3f17c3d972c92732573191fca9ff3e83e0c0671",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "4e2fdcd34c27dd1ba9f2": {
+      "candidate_id": "4e2fdcd34c27dd1ba9f2",
+      "case_id": "7bef741d596d40b3379f",
+      "generated_at": "2026-07-13T02:53:30.889200+00:00",
+      "image_basename": "4e2fdcd34c27dd1ba9f2.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/4e2fdcd34c27dd1ba9f2.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 501,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 501
+          },
+          "output_tokens": 496,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 224
+          },
+          "total_tokens": 997
+        }
+      },
+      "sha256": "c63d054983e186797faab52f677db590d925bb0977bd9ec603b70e3eafb857d9",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "4ef72c79ae27ea8d13c5": {
+      "candidate_id": "4ef72c79ae27ea8d13c5",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "generated_at": "2026-07-13T02:47:23.253345+00:00",
+      "image_basename": "4ef72c79ae27ea8d13c5.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/4ef72c79ae27ea8d13c5.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 434,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 434
+          },
+          "output_tokens": 539,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 267
+          },
+          "total_tokens": 973
+        }
+      },
+      "sha256": "c336f0fb591924d6c475885c8641aa0a24f7063a0d8a23d873c55e637824bc30",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "4f2f14fa15afb29a950d": {
+      "candidate_id": "4f2f14fa15afb29a950d",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "generated_at": "2026-07-13T02:53:55.681090+00:00",
+      "image_basename": "4f2f14fa15afb29a950d.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/4f2f14fa15afb29a950d.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 430,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 430
+          },
+          "output_tokens": 506,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 234
+          },
+          "total_tokens": 936
+        }
+      },
+      "sha256": "4c260ce21e69b34253ef5f3ffa98f18fba4d9d2115148bb4c38d2d0b5d568cec",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "535f57cc81e333ab0688": {
+      "candidate_id": "535f57cc81e333ab0688",
+      "case_id": "38dcb6b5c297feab58e1",
+      "generated_at": "2026-07-13T02:49:46.461119+00:00",
+      "image_basename": "535f57cc81e333ab0688.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/535f57cc81e333ab0688.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 450,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 450
+          },
+          "output_tokens": 522,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 250
+          },
+          "total_tokens": 972
+        }
+      },
+      "sha256": "841cb0bc6ea5204d4503f78aaf7f0fd3b9c923605168cd09752eb8a3c00caa53",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "58eb4bc1859804927fa1": {
+      "candidate_id": "58eb4bc1859804927fa1",
+      "case_id": "38dcb6b5c297feab58e1",
+      "generated_at": "2026-07-13T02:49:58.164807+00:00",
+      "image_basename": "58eb4bc1859804927fa1.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/58eb4bc1859804927fa1.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 456,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 456
+          },
+          "output_tokens": 541,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 269
+          },
+          "total_tokens": 997
+        }
+      },
+      "sha256": "0e38c823687a834d94736e44ed71a00891a77f2493ce8f42cae14cbb273588f9",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "5bf62cb821253a7b51dc": {
+      "candidate_id": "5bf62cb821253a7b51dc",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "generated_at": "2026-07-13T02:44:22.729384+00:00",
+      "image_basename": "5bf62cb821253a7b51dc.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/5bf62cb821253a7b51dc.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 449,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 449
+          },
+          "output_tokens": 468,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 196
+          },
+          "total_tokens": 917
+        }
+      },
+      "sha256": "9e06a9415fa057b812f20c78ce41fd19fc9834e5ecc45a21eb6452c999228d89",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "6f2843e66a33612ca2c5": {
+      "candidate_id": "6f2843e66a33612ca2c5",
+      "case_id": "86346f7d038b654174d3",
+      "generated_at": "2026-07-13T02:48:00.160758+00:00",
+      "image_basename": "6f2843e66a33612ca2c5.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/6f2843e66a33612ca2c5.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 482,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 482
+          },
+          "output_tokens": 511,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 239
+          },
+          "total_tokens": 993
+        }
+      },
+      "sha256": "aa1b11e6db354b1b3ef28231e04d92c98b21b4d01b9f45d84266088a6d3fdca9",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "703097046e7432f641be": {
+      "candidate_id": "703097046e7432f641be",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "generated_at": "2026-07-13T02:51:53.301845+00:00",
+      "image_basename": "703097046e7432f641be.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/703097046e7432f641be.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 499,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 499
+          },
+          "output_tokens": 574,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 302
+          },
+          "total_tokens": 1073
+        }
+      },
+      "sha256": "0fece7e9331c22a463089ea29cd42e2d10fb9349243755988e713f55a640c449",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "783eeb6bd20d998262e6": {
+      "candidate_id": "783eeb6bd20d998262e6",
+      "case_id": "6735dd6f9451659687c3",
+      "generated_at": "2026-07-13T02:50:53.953440+00:00",
+      "image_basename": "783eeb6bd20d998262e6.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/783eeb6bd20d998262e6.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 446,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 446
+          },
+          "output_tokens": 479,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 207
+          },
+          "total_tokens": 925
+        }
+      },
+      "sha256": "86186844589a25c941a40e3d15888eb8b0ffe1460d953b71227d7750b7e923be",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "85c5eeb14d9c8ad7b4a3": {
+      "candidate_id": "85c5eeb14d9c8ad7b4a3",
+      "case_id": "e30b2c632c778eab5930",
+      "generated_at": "2026-07-13T02:46:10.463550+00:00",
+      "image_basename": "85c5eeb14d9c8ad7b4a3.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/85c5eeb14d9c8ad7b4a3.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 481,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 481
+          },
+          "output_tokens": 474,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 202
+          },
+          "total_tokens": 955
+        }
+      },
+      "sha256": "f6cb07f72883e600ca9ec38931dd427739a03ac9db0d443d63ea83aa374d0361",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "8ede99c51c7cd08a46dc": {
+      "candidate_id": "8ede99c51c7cd08a46dc",
+      "case_id": "e98593e10072f6429099",
+      "generated_at": "2026-07-13T02:48:53.959463+00:00",
+      "image_basename": "8ede99c51c7cd08a46dc.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/8ede99c51c7cd08a46dc.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 496,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 496
+          },
+          "output_tokens": 530,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 258
+          },
+          "total_tokens": 1026
+        }
+      },
+      "sha256": "c673475a85f3256bdbe51783a0b0a0dce6297fb5b5b3d34805b3757809104a43",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "93866b7ff23aee015658": {
+      "candidate_id": "93866b7ff23aee015658",
+      "case_id": "26617c4249fd779dfd9d",
+      "generated_at": "2026-07-13T02:44:13.739319+00:00",
+      "image_basename": "93866b7ff23aee015658.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/93866b7ff23aee015658.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 494,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 494
+          },
+          "output_tokens": 537,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 265
+          },
+          "total_tokens": 1031
+        }
+      },
+      "sha256": "684dcc51990174f9fb1960f89dde388c4563d2ee8c415ffcd2c50acaeabd7b13",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "9463f0a94eb07ca453de": {
+      "candidate_id": "9463f0a94eb07ca453de",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "generated_at": "2026-07-13T02:52:05.826224+00:00",
+      "image_basename": "9463f0a94eb07ca453de.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/9463f0a94eb07ca453de.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 445,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 445
+          },
+          "output_tokens": 486,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 214
+          },
+          "total_tokens": 931
+        }
+      },
+      "sha256": "ef201e00aa53fd9921181929c66e11757c2ddf6c1f3c7de121d4a23ea9ab9340",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "95c2c56ebfefe6ef90a8": {
+      "candidate_id": "95c2c56ebfefe6ef90a8",
+      "case_id": "e98593e10072f6429099",
+      "generated_at": "2026-07-13T02:48:43.692397+00:00",
+      "image_basename": "95c2c56ebfefe6ef90a8.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/95c2c56ebfefe6ef90a8.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 490,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 490
+          },
+          "output_tokens": 486,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 214
+          },
+          "total_tokens": 976
+        }
+      },
+      "sha256": "3b4261573e11a7411a8b37df09ecbdb6d89da0544c929c472bd7ca62d0d31f40",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "96fb6487bbf5da0cad5f": {
+      "candidate_id": "96fb6487bbf5da0cad5f",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "generated_at": "2026-07-13T02:47:12.425133+00:00",
+      "image_basename": "96fb6487bbf5da0cad5f.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/96fb6487bbf5da0cad5f.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 437,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 437
+          },
+          "output_tokens": 456,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 184
+          },
+          "total_tokens": 893
+        }
+      },
+      "sha256": "61b1cfc6795316f5dcaaeb4d85785ef63fe192da0ef0c3a63d199f36628c9eeb",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "98bca0eb7ee8280bbe51": {
+      "candidate_id": "98bca0eb7ee8280bbe51",
+      "case_id": "38dcb6b5c297feab58e1",
+      "generated_at": "2026-07-13T02:50:09.173392+00:00",
+      "image_basename": "98bca0eb7ee8280bbe51.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/98bca0eb7ee8280bbe51.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 453,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 453
+          },
+          "output_tokens": 541,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 269
+          },
+          "total_tokens": 994
+        }
+      },
+      "sha256": "f183bb6e6768a362655117fb573831ee820b499da92c014f04529a112371e1e4",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "99abe8936c520212190c": {
+      "candidate_id": "99abe8936c520212190c",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "generated_at": "2026-07-13T02:44:35.170488+00:00",
+      "image_basename": "99abe8936c520212190c.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/99abe8936c520212190c.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 455,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 455
+          },
+          "output_tokens": 485,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 213
+          },
+          "total_tokens": 940
+        }
+      },
+      "sha256": "39de085e151b935d628bb705097373af5b3137bc7fec5f26e34063a382c5cc57",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "9df6edd6691a5857c668": {
+      "candidate_id": "9df6edd6691a5857c668",
+      "case_id": "109aaa465585620fd084",
+      "generated_at": "2026-07-13T02:49:12.974785+00:00",
+      "image_basename": "9df6edd6691a5857c668.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/9df6edd6691a5857c668.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 457,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 457
+          },
+          "output_tokens": 415,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 143
+          },
+          "total_tokens": 872
+        }
+      },
+      "sha256": "edae9ce2b46b1662e9b8ae6e0c87e362820c4fa141ee3e474636f0863ebd2159",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "9eac34a1ce66239a38da": {
+      "candidate_id": "9eac34a1ce66239a38da",
+      "case_id": "d536b4de87d7a7511a94",
+      "generated_at": "2026-07-13T02:45:40.649778+00:00",
+      "image_basename": "9eac34a1ce66239a38da.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/9eac34a1ce66239a38da.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 437,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 437
+          },
+          "output_tokens": 528,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 256
+          },
+          "total_tokens": 965
+        }
+      },
+      "sha256": "2e51ec1ac1cfc0b43cfd8e7b0289ddc969c077c3e722a0c9007c008477125e94",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "a929233530944d564d83": {
+      "candidate_id": "a929233530944d564d83",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "generated_at": "2026-07-13T02:48:12.123203+00:00",
+      "image_basename": "a929233530944d564d83.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/a929233530944d564d83.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 522,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 522
+          },
+          "output_tokens": 526,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 254
+          },
+          "total_tokens": 1048
+        }
+      },
+      "sha256": "20717b7c5e304528a6c613d399e48b6da351029e4091954b4193e7aed86736e3",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "af48a3e3ee0d475b673b": {
+      "candidate_id": "af48a3e3ee0d475b673b",
+      "case_id": "e98593e10072f6429099",
+      "generated_at": "2026-07-13T02:49:03.039019+00:00",
+      "image_basename": "af48a3e3ee0d475b673b.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/af48a3e3ee0d475b673b.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 493,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 493
+          },
+          "output_tokens": 489,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 217
+          },
+          "total_tokens": 982
+        }
+      },
+      "sha256": "c3efe2ca6671f827b2250414385603c2ccc15d42d48254fedbfdb8a5345d4527",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "b07fa697803661688041": {
+      "candidate_id": "b07fa697803661688041",
+      "case_id": "306a82edc7a8147b5f31",
+      "generated_at": "2026-07-13T02:45:08.139057+00:00",
+      "image_basename": "b07fa697803661688041.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/b07fa697803661688041.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 450,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 450
+          },
+          "output_tokens": 544,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 272
+          },
+          "total_tokens": 994
+        }
+      },
+      "sha256": "4c549cc6c9be9f90c452bea621c356d46d49d06085db38cff0a937db0b0c516f",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "b5c50c5b0676ca841ce6": {
+      "candidate_id": "b5c50c5b0676ca841ce6",
+      "case_id": "b0ec09020e96b269e52d",
+      "generated_at": "2026-07-13T02:46:42.093791+00:00",
+      "image_basename": "b5c50c5b0676ca841ce6.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/b5c50c5b0676ca841ce6.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 404,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 404
+          },
+          "output_tokens": 502,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 230
+          },
+          "total_tokens": 906
+        }
+      },
+      "sha256": "4b89dfa8f70118fbd1e31ed80155dcefd61cc5742eae992d53cd945fa0184d52",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "b87a25fae5c71ecdcbba": {
+      "candidate_id": "b87a25fae5c71ecdcbba",
+      "case_id": "6735dd6f9451659687c3",
+      "generated_at": "2026-07-13T02:51:19.650042+00:00",
+      "image_basename": "b87a25fae5c71ecdcbba.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/b87a25fae5c71ecdcbba.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 449,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 449
+          },
+          "output_tokens": 492,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 220
+          },
+          "total_tokens": 941
+        }
+      },
+      "sha256": "6e3ba415496c978c9ceeb35d1cb75f422f25a3fde8c3350d496d48bd35a07661",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "bee0213569054f8a50df": {
+      "candidate_id": "bee0213569054f8a50df",
+      "case_id": "306a82edc7a8147b5f31",
+      "generated_at": "2026-07-13T02:44:57.157857+00:00",
+      "image_basename": "bee0213569054f8a50df.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/bee0213569054f8a50df.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 444,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 444
+          },
+          "output_tokens": 548,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 276
+          },
+          "total_tokens": 992
+        }
+      },
+      "sha256": "a2337a7bd3fd771b31efe9fdc8de75eeefba4e27ea2615e9d20bdf441212b1ec",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "bf920883968be342d271": {
+      "candidate_id": "bf920883968be342d271",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "generated_at": "2026-07-13T02:52:28.549347+00:00",
+      "image_basename": "bf920883968be342d271.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/bf920883968be342d271.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 448,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 448
+          },
+          "output_tokens": 517,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 245
+          },
+          "total_tokens": 965
+        }
+      },
+      "sha256": "bc44e079e6e5dbf7cb10f2dbd306230773c072453489274658c7df91f8079fe1",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "c16eb34aceaa0db978a9": {
+      "candidate_id": "c16eb34aceaa0db978a9",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "generated_at": "2026-07-13T02:51:40.408258+00:00",
+      "image_basename": "c16eb34aceaa0db978a9.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/c16eb34aceaa0db978a9.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 502,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 502
+          },
+          "output_tokens": 536,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 264
+          },
+          "total_tokens": 1038
+        }
+      },
+      "sha256": "7cd7545d0b480972b0cc3b78a63962e9dbd4d608226c67542c9c1826f4c2b6f7",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "c3e62e52a91cc96ac66d": {
+      "candidate_id": "c3e62e52a91cc96ac66d",
+      "case_id": "6735dd6f9451659687c3",
+      "generated_at": "2026-07-13T02:51:07.629301+00:00",
+      "image_basename": "c3e62e52a91cc96ac66d.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/c3e62e52a91cc96ac66d.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 452,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 452
+          },
+          "output_tokens": 484,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 212
+          },
+          "total_tokens": 936
+        }
+      },
+      "sha256": "6b4de5902d36c93f2205c6c84bd9dcc668914e27d94665003889b10fcf8edc06",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "caf075d394a51496cdce": {
+      "candidate_id": "caf075d394a51496cdce",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "generated_at": "2026-07-13T02:50:19.280518+00:00",
+      "image_basename": "caf075d394a51496cdce.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/caf075d394a51496cdce.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 408,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 408
+          },
+          "output_tokens": 462,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 190
+          },
+          "total_tokens": 870
+        }
+      },
+      "sha256": "63827ebdec4cdd284245f7271ce131b37d56271fb89e26f81fad3a63c10d1e67",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "d01c987108b255bc24b9": {
+      "candidate_id": "d01c987108b255bc24b9",
+      "case_id": "26617c4249fd779dfd9d",
+      "generated_at": "2026-07-13T02:44:01.589541+00:00",
+      "image_basename": "d01c987108b255bc24b9.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/d01c987108b255bc24b9.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 497,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 497
+          },
+          "output_tokens": 463,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 191
+          },
+          "total_tokens": 960
+        }
+      },
+      "sha256": "92a710490052dfb4880b22526bb45e4daeab3851a28efc3c941e14c66611db97",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "d04002b8b0fad7b9a742": {
+      "candidate_id": "d04002b8b0fad7b9a742",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "generated_at": "2026-07-13T02:50:42.127685+00:00",
+      "image_basename": "d04002b8b0fad7b9a742.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/d04002b8b0fad7b9a742.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 411,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 411
+          },
+          "output_tokens": 530,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 258
+          },
+          "total_tokens": 941
+        }
+      },
+      "sha256": "7d885e0ff3490c96890aeab2fe585a359aeb7b50c0525bdcf32eaf0376d169d9",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "d8f59a87289ee95a2172": {
+      "candidate_id": "d8f59a87289ee95a2172",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "generated_at": "2026-07-13T02:43:28.258124+00:00",
+      "image_basename": "d8f59a87289ee95a2172.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/d8f59a87289ee95a2172.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 499,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 499
+          },
+          "output_tokens": 484,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 212
+          },
+          "total_tokens": 983
+        }
+      },
+      "sha256": "0b058eff37677ac42ecc228bc5af400e7bd4a8ee2abc7814d9e8bf345fa1c490",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "dd02b22ba3ae57368c85": {
+      "candidate_id": "dd02b22ba3ae57368c85",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "generated_at": "2026-07-13T02:51:30.313880+00:00",
+      "image_basename": "dd02b22ba3ae57368c85.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/dd02b22ba3ae57368c85.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 496,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 496
+          },
+          "output_tokens": 506,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 234
+          },
+          "total_tokens": 1002
+        }
+      },
+      "sha256": "85e68e295b8103eb5876dd8cb54090680b71a29bef8620fcd46174d69d987ef2",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "dd583718446d9e8effe4": {
+      "candidate_id": "dd583718446d9e8effe4",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "generated_at": "2026-07-13T02:52:17.170170+00:00",
+      "image_basename": "dd583718446d9e8effe4.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/dd583718446d9e8effe4.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 451,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 451
+          },
+          "output_tokens": 488,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 216
+          },
+          "total_tokens": 939
+        }
+      },
+      "sha256": "1aa3ea20dbf722299229ac5767e77e341ff0ee2d6adbadd46e575e8e16e1acae",
+      "size": "1024x1024",
+      "style": "first_impression_first"
+    },
+    "eaa2922dcdae7d2cf670": {
+      "candidate_id": "eaa2922dcdae7d2cf670",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "generated_at": "2026-07-13T02:43:39.152392+00:00",
+      "image_basename": "eaa2922dcdae7d2cf670.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/eaa2922dcdae7d2cf670.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 496,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 496
+          },
+          "output_tokens": 501,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 229
+          },
+          "total_tokens": 997
+        }
+      },
+      "sha256": "0d78cb0249e3b760f849660525a2c5e7472bde6bf680e18831cc9251029dcade",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "ed7394ccf16c9d43fbaf": {
+      "candidate_id": "ed7394ccf16c9d43fbaf",
+      "case_id": "26617c4249fd779dfd9d",
+      "generated_at": "2026-07-13T02:43:52.298094+00:00",
+      "image_basename": "ed7394ccf16c9d43fbaf.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/ed7394ccf16c9d43fbaf.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 491,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 491
+          },
+          "output_tokens": 479,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 207
+          },
+          "total_tokens": 970
+        }
+      },
+      "sha256": "be8878c7d48cf40414ff81d3510f820b4280391e7be73ae367ba63a1d750cabf",
+      "size": "1024x1024",
+      "style": "mechanism_first"
+    },
+    "ef6edda18c65a481d534": {
+      "candidate_id": "ef6edda18c65a481d534",
+      "case_id": "d536b4de87d7a7511a94",
+      "generated_at": "2026-07-13T02:45:52.543248+00:00",
+      "image_basename": "ef6edda18c65a481d534.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/ef6edda18c65a481d534.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 434,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 434
+          },
+          "output_tokens": 561,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 289
+          },
+          "total_tokens": 995
+        }
+      },
+      "sha256": "8be414a28c380eaa882ef67521ba24da0ec1cd00eefed2be57e1517e7c3ae5c7",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "fab591100f24dcb5e07b": {
+      "candidate_id": "fab591100f24dcb5e07b",
+      "case_id": "b0ec09020e96b269e52d",
+      "generated_at": "2026-07-13T02:46:51.811010+00:00",
+      "image_basename": "fab591100f24dcb5e07b.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/fab591100f24dcb5e07b.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 401,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 401
+          },
+          "output_tokens": 538,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 266
+          },
+          "total_tokens": 939
+        }
+      },
+      "sha256": "20ba75a080c55c7c432d5cac4ab8cbf5640375ed537ff3cc3fffd5ad2b2fd2f7",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    },
+    "fc9d44ecf6ed63409917": {
+      "candidate_id": "fc9d44ecf6ed63409917",
+      "case_id": "109aaa465585620fd084",
+      "generated_at": "2026-07-13T02:49:34.784142+00:00",
+      "image_basename": "fc9d44ecf6ed63409917.png",
+      "model": "gpt-image-1.5",
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/generation_prompt_pilot_001/images/fc9d44ecf6ed63409917.png",
+      "prompt_version": "generation-brief-v1",
+      "quality": "low",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "response_metadata": {
+        "id": null,
+        "usage": {
+          "input_tokens": 460,
+          "input_tokens_details": {
+            "image_tokens": 0,
+            "text_tokens": 460
+          },
+          "output_tokens": 440,
+          "output_tokens_details": {
+            "image_tokens": 272,
+            "text_tokens": 168
+          },
+          "total_tokens": 900
+        }
+      },
+      "sha256": "d237d76eb88756cacd7d407f3aa8025207466f7484a4dcb34bbe0e3604c67e9b",
+      "size": "1024x1024",
+      "style": "balanced_editorial"
+    }
+  },
+  "schema_version": 1
+}

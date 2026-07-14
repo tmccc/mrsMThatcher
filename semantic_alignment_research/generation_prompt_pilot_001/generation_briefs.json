@@ -1,0 +1,889 @@
+{
+  "items": {
+    "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa": {
+      "attention_hierarchy": [
+        "national parliament or historic assembly chamber",
+        "people waving a national flag at a public square",
+        "historic charter or constitution document under glass",
+        "EU headquarters building in Brussels exterior"
+      ],
+      "broader_principle": "national sovereignty; source of political authority; EU institutions",
+      "claimed_consequence": "National sovereignty is inherent by right and heritage rather than conferred by the EU institutions in Brussels.",
+      "core_claim": "Sovereignty does not originate from Brussels but belongs to the nation by right and heritage.",
+      "desired_first_impression": "Assertion that sovereignty belongs to the British people by right and heritage, not granted by Brussels.",
+      "desired_primary_subject": "national parliament or historic assembly chamber",
+      "desired_tone": [
+        "patriotic"
+      ],
+      "forbidden_dominant_messages": [
+        "specific EU policies or legislation",
+        "economic costs or benefits of membership",
+        "immigration statistics",
+        "military alliances",
+        "party politics or election campaigns",
+        "Brexit procedural details"
+      ],
+      "mechanism": "Brussels; sovereignty; right; heritage",
+      "must_avoid": [
+        "specific EU policies or legislation",
+        "economic costs or benefits of membership",
+        "immigration statistics",
+        "military alliances",
+        "party politics or election campaigns",
+        "Brexit procedural details"
+      ],
+      "must_include": [
+        "national parliament or historic assembly chamber",
+        "people waving a national flag at a public square",
+        "historic charter or constitution document under glass",
+        "EU headquarters building in Brussels exterior"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "quote_text": "Our sovereignty does not come from Brussels - it is ours by right and by heritage.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc": {
+      "attention_hierarchy": [
+        "woman continuing methodical work at a desk or workstation after colleagues leave",
+        "office or factory floor emptying while one person remains focused",
+        "hands steadily completing paperwork or a physical task others have abandoned",
+        "symbolic image of a solitary figure finishing a half-done job"
+      ],
+      "broader_principle": "perseverance at work; gendered abilities; task completion after abandonment",
+      "claimed_consequence": "The speaker claims a distinctly feminine capacity for persevering with unfinished work after others abandon it.",
+      "core_claim": "The speaker possesses a woman's ability to stick to a job and continue with it when everyone else walks off and leaves it.",
+      "desired_first_impression": "Thatcher attributes her determination and persistence to a woman's capacity to complete tasks that others abandon.",
+      "desired_primary_subject": "woman continuing methodical work at a desk or workstation after colleagues leave",
+      "desired_tone": [
+        "reflective"
+      ],
+      "forbidden_dominant_messages": [
+        "modern feminist theory or policy debates",
+        "specific occupations or industries",
+        "criticism of men or other groups",
+        "emotional labour or unpaid domestic work",
+        "claims of superiority beyond the stated ability",
+        "quantitative productivity statistics"
+      ],
+      "mechanism": "woman's ability; stick to a job; get on with it; walks off and leaves it; everyone else",
+      "must_avoid": [
+        "modern feminist theory or policy debates",
+        "specific occupations or industries",
+        "criticism of men or other groups",
+        "emotional labour or unpaid domestic work",
+        "claims of superiority beyond the stated ability",
+        "quantitative productivity statistics"
+      ],
+      "must_include": [
+        "woman continuing methodical work at a desk or workstation after colleagues leave",
+        "office or factory floor emptying while one person remains focused",
+        "hands steadily completing paperwork or a physical task others have abandoned",
+        "symbolic image of a solitary figure finishing a half-done job"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a": {
+      "attention_hierarchy": [
+        "bustling private markets and small businesses with customers and entrepreneurs",
+        "factory floors or commercial districts showing private industry activity",
+        "government office buildings with long queues or empty bureaucratic corridors",
+        "side-by-side scenes of vibrant private commerce versus stalled public projects"
+      ],
+      "broader_principle": "free enterprise success; opposition to big government; universal applicability of free markets",
+      "claimed_consequence": "Free enterprise succeeds where big government fails, both locally and universally.",
+      "core_claim": "Free enterprise is what works here and elsewhere, in contrast to big government which does not.",
+      "desired_first_impression": "Free enterprise succeeds over big government both locally and more generally.",
+      "desired_primary_subject": "bustling private markets and small businesses with customers and entrepreneurs",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific political parties or candidates",
+        "detailed policy prescriptions",
+        "historical events or named countries",
+        "social issues beyond economics",
+        "personal anecdotes or individual stories"
+      ],
+      "mechanism": "free enterprise; big government; what works; here as elsewhere",
+      "must_avoid": [
+        "specific political parties or candidates",
+        "detailed policy prescriptions",
+        "historical events or named countries",
+        "social issues beyond economics",
+        "personal anecdotes or individual stories"
+      ],
+      "must_include": [
+        "bustling private markets and small businesses with customers and entrepreneurs",
+        "factory floors or commercial districts showing private industry activity",
+        "government office buildings with long queues or empty bureaucratic corridors",
+        "side-by-side scenes of vibrant private commerce versus stalled public projects"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "quote_text": "What works here, as elsewhere, is free enterprise and not big government.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417": {
+      "attention_hierarchy": [
+        "privately owned factories or shops with workers and customers",
+        "citizens engaging in commerce at markets or small businesses",
+        "government office buildings appearing reduced or less dominant",
+        "stock exchanges or private investment activity"
+      ],
+      "broader_principle": "privatisation; free enterprise; state power; people's power",
+      "claimed_consequence": "Privatisation reduces state power while free enterprise increases the power of ordinary people.",
+      "core_claim": "Privatisation shrinks the power of the state and free enterprise enlarges the power of the people.",
+      "desired_first_impression": "Privatisation reduces state power while free enterprise increases individual power.",
+      "desired_primary_subject": "privately owned factories or shops with workers and customers",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific national policies or case studies",
+        "detailed economic data or performance metrics",
+        "critiques of particular political parties",
+        "environmental or social welfare side-effects",
+        "historical timelines of privatisation programmes"
+      ],
+      "mechanism": "privatisation; free enterprise; power of the state; power of the people",
+      "must_avoid": [
+        "specific national policies or case studies",
+        "detailed economic data or performance metrics",
+        "critiques of particular political parties",
+        "environmental or social welfare side-effects",
+        "historical timelines of privatisation programmes"
+      ],
+      "must_include": [
+        "privately owned factories or shops with workers and customers",
+        "citizens engaging in commerce at markets or small businesses",
+        "government office buildings appearing reduced or less dominant",
+        "stock exchanges or private investment activity"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "quote_text": "Privatisation shrinks the power of the state and free enterprise enlarges the power of the people.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1": {
+      "attention_hierarchy": [
+        "diverse people inventing, teaching or creating in open workplaces and schools",
+        "public institutions and marketplaces supporting entrepreneurship and arts",
+        "crowded classrooms or labs where individuals experiment freely",
+        "contrasting images of rigid factories or bureaucracies enforcing uniformity"
+      ],
+      "broader_principle": "individual talent and potential; societal flourishing; suppression versus enablement of people; progress and stagnation",
+      "claimed_consequence": "States, societies and economies flourish only when they enable individuals’ distinctive talents to develop; suppressing those talents blocks progress.",
+      "core_claim": "Allowing distinctive individual talents to flourish causes states, societies and economies to flourish, whereas dwarfing, crushing, distorting, manipulating or ignoring those talents prevents progress.",
+      "desired_first_impression": "Quote argues that societies and economies thrive when they enable individual talents to flourish, but stagnate when they suppress or ignore them.",
+      "desired_primary_subject": "diverse people inventing, teaching or creating in open workplaces and schools",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific named countries or leaders",
+        "detailed economic doctrines or policy blueprints",
+        "genetic determinism or IQ debates",
+        "purely personal self-help without societal link",
+        "quantitative growth statistics or historical case studies"
+      ],
+      "mechanism": "distinctive talents of individuals; flourish; dwarf; crush; distort; manipulate; ignore; progress; states societies and economies",
+      "must_avoid": [
+        "specific named countries or leaders",
+        "detailed economic doctrines or policy blueprints",
+        "genetic determinism or IQ debates",
+        "purely personal self-help without societal link",
+        "quantitative growth statistics or historical case studies"
+      ],
+      "must_include": [
+        "diverse people inventing, teaching or creating in open workplaces and schools",
+        "public institutions and marketplaces supporting entrepreneurship and arts",
+        "crowded classrooms or labs where individuals experiment freely",
+        "contrasting images of rigid factories or bureaucracies enforcing uniformity"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "quote_text": "States, societies and economies, which allow the distinctive talents of individuals to flourish, themselves also flourish. Those which dwarf, crush, distort, manipulate or ignore them cannot progress.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b": {
+      "attention_hierarchy": [
+        "busy commercial ports with cargo ships and cranes",
+        "shipping containers being loaded or unloaded",
+        "crowded retail markets or supermarkets with diverse imported goods",
+        "shoppers examining price tags and products"
+      ],
+      "broader_principle": "post-war economic growth; freer trade and payments; consumer benefits; competition and lower prices",
+      "claimed_consequence": "Freer post-war trade has driven strong economic growth and delivered lower prices, more competition, and universal consumer gains.",
+      "core_claim": "Trade has been a great engine of post-war growth from which all, especially every consumer, have benefited through freer trade and payments that produced lower prices, more competition and faster growth.",
+      "desired_first_impression": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "desired_primary_subject": "busy commercial ports with cargo ships and cranes",
+      "desired_tone": [
+        "optimistic"
+      ],
+      "forbidden_dominant_messages": [
+        "specific modern trade wars or tariffs",
+        "named countries or trade agreements",
+        "environmental or labour critiques of trade",
+        "pre-war economic history",
+        "monetary policy details beyond payments freedom",
+        "inequality or distributional losers from trade"
+      ],
+      "mechanism": "post-war growth; freedom of trade and payments; freer trade; lower prices; more competition; faster growth; consumer benefits",
+      "must_avoid": [
+        "specific modern trade wars or tariffs",
+        "named countries or trade agreements",
+        "environmental or labour critiques of trade",
+        "pre-war economic history",
+        "monetary policy details beyond payments freedom",
+        "inequality or distributional losers from trade"
+      ],
+      "must_include": [
+        "busy commercial ports with cargo ships and cranes",
+        "shipping containers being loaded or unloaded",
+        "crowded retail markets or supermarkets with diverse imported goods",
+        "shoppers examining price tags and products"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739": {
+      "attention_hierarchy": [
+        "parliament chamber with ministers addressing elected representatives",
+        "voters at polling stations casting ballots",
+        "minister facing public questions or media scrutiny",
+        "contrast of crowded bureaucratic office desks versus open legislative debate"
+      ],
+      "broader_principle": "democratic accountability; government by consent; rejection of bureaucracy expansion; ministerial responsibility to electorate",
+      "claimed_consequence": "Real progress arises from democratic consent, values, and accountable ministers rather than expanded bureaucracy.",
+      "core_claim": "Real progress comes not from more bureaucracy but from the values and institutions of government by consent through ministers accountable to their electorate.",
+      "desired_first_impression": "Real progress stems from accountable democratic government by consent rather than expanded bureaucracy.",
+      "desired_primary_subject": "parliament chamber with ministers addressing elected representatives",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific policy proposals or legislation",
+        "economic growth metrics or markets",
+        "party politics or individual politicians",
+        "international relations or foreign policy",
+        "technological innovation or private-sector reform"
+      ],
+      "mechanism": "bureaucracy; government by consent; ministerial accountability; electorate; institutions of government; values of consent",
+      "must_avoid": [
+        "specific policy proposals or legislation",
+        "economic growth metrics or markets",
+        "party politics or individual politicians",
+        "international relations or foreign policy",
+        "technological innovation or private-sector reform"
+      ],
+      "must_include": [
+        "parliament chamber with ministers addressing elected representatives",
+        "voters at polling stations casting ballots",
+        "minister facing public questions or media scrutiny",
+        "contrast of crowded bureaucratic office desks versus open legislative debate"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7": {
+      "attention_hierarchy": [
+        "open marketplace with independent vendors and free exchange of goods",
+        "crowded public square with people exercising speech and assembly rights",
+        "contrasting institutional buildings representing free societies versus state-controlled economies",
+        "symbolic editorial imagery of broken chains next to centralized planning symbols"
+      ],
+      "broader_principle": "political ideology; freedom versus collectivism; liberty and economic systems",
+      "claimed_consequence": "Freedom and socialism are fundamentally incompatible and cannot coexist.",
+      "core_claim": "Freedom and socialism just do not mix and are incompatible with each other.",
+      "desired_first_impression": "Freedom and socialism are fundamentally incompatible.",
+      "desired_primary_subject": "open marketplace with independent vendors and free exchange of goods",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "specific historical regimes or leaders",
+        "detailed economic policy prescriptions",
+        "capitalism as an explicit alternative",
+        "democratic voting procedures",
+        "religious or cultural freedom debates"
+      ],
+      "mechanism": "freedom; socialism; incompatibility; mixing of systems",
+      "must_avoid": [
+        "specific historical regimes or leaders",
+        "detailed economic policy prescriptions",
+        "capitalism as an explicit alternative",
+        "democratic voting procedures",
+        "religious or cultural freedom debates"
+      ],
+      "must_include": [
+        "open marketplace with independent vendors and free exchange of goods",
+        "crowded public square with people exercising speech and assembly rights",
+        "contrasting institutional buildings representing free societies versus state-controlled economies",
+        "symbolic editorial imagery of broken chains next to centralized planning symbols"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a": {
+      "attention_hierarchy": [
+        "climber reaching a snowy mountain summit alone",
+        "figure planting a national flag at a peak",
+        "close-up of a flag unfurling against mountain backdrop",
+        "base camp with national emblems and expedition gear"
+      ],
+      "broader_principle": "individual achievement; national identity; symbolic appropriation of success",
+      "claimed_consequence": "Personal feats may be pursued for individual reasons yet are ultimately claimed as national symbols through public acts of allegiance.",
+      "core_claim": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "desired_first_impression": "Individual achievement reaches its highest point when it culminates in service to or representation of one's country.",
+      "desired_primary_subject": "climber reaching a snowy mountain summit alone",
+      "desired_tone": [
+        "patriotic",
+        "inspirational",
+        "reflective"
+      ],
+      "forbidden_dominant_messages": [
+        "actual mountaineering techniques or gear",
+        "climate change or environmental impact on Everest",
+        "specific historical expeditions or named climbers",
+        "political critique of nationalism in general",
+        "gender roles or the word 'man' as exclusion",
+        "overseas diplomatic event without british symbols"
+      ],
+      "mechanism": "climbing Everest; planting a flag; country's flag; summit; personal vs. national ownership",
+      "must_avoid": [
+        "actual mountaineering techniques or gear",
+        "climate change or environmental impact on Everest",
+        "specific historical expeditions or named climbers",
+        "political critique of nationalism in general",
+        "gender roles or the word 'man' as exclusion",
+        "overseas diplomatic event without british symbols"
+      ],
+      "must_include": [
+        "climber reaching a snowy mountain summit alone",
+        "figure planting a national flag at a peak",
+        "close-up of a flag unfurling against mountain backdrop",
+        "base camp with national emblems and expedition gear"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d": {
+      "attention_hierarchy": [
+        "closed factory gates and idle industrial sites",
+        "workers facing layoffs or reduced hours",
+        "families experiencing economic strain at home",
+        "union meeting halls or picket lines"
+      ],
+      "broader_principle": "monopoly power in trade unions; harm inflicted on workers; intra-labor conflict",
+      "claimed_consequence": "Monopoly trade unions today can severely harm fellow workers and even fellow trade unionists through their destructive potential.",
+      "core_claim": "Monopoly trade unions possess immense destructive potential that enables them to inflict severe damage and hardship on fellow workers and fellow trade unionists.",
+      "desired_first_impression": "Criticism of monopoly trade unions' power to cause severe damage and hardship to workers, including fellow union members.",
+      "desired_primary_subject": "closed factory gates and idle industrial sites",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "benefits or achievements of trade unions",
+        "non-monopoly or competitive unions",
+        "employer or corporate monopoly power",
+        "government labor policy details",
+        "historical origins of unions",
+        "specific named unions or countries"
+      ],
+      "mechanism": "monopoly trade unions; potential for destruction; severe damage; hardship; fellow workers; fellow trade unionists",
+      "must_avoid": [
+        "benefits or achievements of trade unions",
+        "non-monopoly or competitive unions",
+        "employer or corporate monopoly power",
+        "government labor policy details",
+        "historical origins of unions",
+        "specific named unions or countries"
+      ],
+      "must_include": [
+        "closed factory gates and idle industrial sites",
+        "workers facing layoffs or reduced hours",
+        "families experiencing economic strain at home",
+        "union meeting halls or picket lines"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_text": "In today's world, monopoly trade unions have immense potential for destruction and can inflict severe damage and hardship on their fellow workers - indeed on their fellow trade unionists.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5": {
+      "attention_hierarchy": [
+        "police officers addressing a community gathering",
+        "public service announcement posters urging law compliance",
+        "courtroom or government building exterior",
+        "officials speaking at a town hall"
+      ],
+      "broader_principle": "duty and responsibility; obedience to law; public instruction",
+      "claimed_consequence": "The speaker's professional duty is to actively instruct the public to comply with the law.",
+      "core_claim": "It is our job to go about telling everybody to obey the law.",
+      "desired_first_impression": "Statement that promoting obedience to the law is a core duty of government or public office.",
+      "desired_primary_subject": "police officers addressing a community gathering",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific statutes or crimes",
+        "punishment or enforcement actions",
+        "personal views on whether laws are just",
+        "civil disobedience",
+        "legislative process"
+      ],
+      "mechanism": "our job; telling everybody; obey the law; go about",
+      "must_avoid": [
+        "specific statutes or crimes",
+        "punishment or enforcement actions",
+        "personal views on whether laws are just",
+        "civil disobedience",
+        "legislative process"
+      ],
+      "must_include": [
+        "police officers addressing a community gathering",
+        "public service announcement posters urging law compliance",
+        "courtroom or government building exterior",
+        "officials speaking at a town hall"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c": {
+      "attention_hierarchy": [
+        "person freely choosing activities or hobbies within everyday settings",
+        "individual shopping or making a purchase with their own cash or card",
+        "marketplace or high street scenes of voluntary exchange",
+        "wallet, purse or personal budget documents"
+      ],
+      "broader_principle": "freedom as core personal belief; individual autonomy in action; freedom to spend one's own money",
+      "claimed_consequence": "The speaker's core belief is freedom, defined as the ability to act as one wishes within sensible limits and to spend one's own money as one chooses.",
+      "core_claim": "I believe in freedom: specifically the freedom to do, within sensible limits, what you want, and the freedom to spend your own money in the way you think fit.",
+      "desired_first_impression": "Thatcher states her core belief is freedom, specifically the liberty to act within sensible limits and to spend one's own money as one chooses.",
+      "desired_primary_subject": "person freely choosing activities or hobbies within everyday settings",
+      "desired_tone": [
+        "reflective"
+      ],
+      "forbidden_dominant_messages": [
+        "absolute unrestricted freedom without limits",
+        "detailed political party platforms",
+        "specific government policies or taxes",
+        "collective or group rights",
+        "economic data or statistics",
+        "historical events or figures"
+      ],
+      "mechanism": "Freedom; sensible limits; freedom to do what you want; freedom to spend your own money; own money",
+      "must_avoid": [
+        "absolute unrestricted freedom without limits",
+        "detailed political party platforms",
+        "specific government policies or taxes",
+        "collective or group rights",
+        "economic data or statistics",
+        "historical events or figures"
+      ],
+      "must_include": [
+        "person freely choosing activities or hobbies within everyday settings",
+        "individual shopping or making a purchase with their own cash or card",
+        "marketplace or high street scenes of voluntary exchange",
+        "wallet, purse or personal budget documents"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d": {
+      "attention_hierarchy": [
+        "politician at a podium addressing a crowd with promises of abundance",
+        "shoppers filling carts in a crowded supermarket",
+        "factory production line or farm harvest representing output",
+        "unbalanced scale with consumption goods outweighing produced goods"
+      ],
+      "broader_principle": "causes of inflation; political deception about economics; consumption versus production",
+      "claimed_consequence": "Inflation is caused by politicians misleading people into believing they can consume far more than they produce.",
+      "core_claim": "Inflation arises because some politicians lead the people to believe that they can consume more—much more—than they produce.",
+      "desired_first_impression": "Inflation results when politicians encourage people to believe they can consume much more than they produce.",
+      "desired_primary_subject": "politician at a podium addressing a crowd with promises of abundance",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "technical monetary policy mechanisms",
+        "specific inflation rates or historical data series",
+        "non-political causes of inflation",
+        "particular countries or named politicians",
+        "solutions or remedies for inflation"
+      ],
+      "mechanism": "inflation; politicians; leading the people to believe; consume more than produce; much more",
+      "must_avoid": [
+        "technical monetary policy mechanisms",
+        "specific inflation rates or historical data series",
+        "non-political causes of inflation",
+        "particular countries or named politicians",
+        "solutions or remedies for inflation"
+      ],
+      "must_include": [
+        "politician at a podium addressing a crowd with promises of abundance",
+        "shoppers filling carts in a crowded supermarket",
+        "factory production line or farm harvest representing output",
+        "unbalanced scale with consumption goods outweighing produced goods"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d": {
+      "attention_hierarchy": [
+        "public speakers at outdoor rallies or Speakers' Corner",
+        "war veterans in uniform or with medals at memorials",
+        "parliamentary debate chambers",
+        "soldiers serving in historical wartime settings"
+      ],
+      "broader_principle": "freedom of speech; equal rights to expression; respect for military service; hypocrisy in free speech advocacy",
+      "claimed_consequence": "Those who exercise freedom of speech must not deny the same freedom to others, especially war veterans who served with distinction.",
+      "core_claim": "People who use the country's tradition of free speech should not seek to deny that freedom to others, particularly those like Mr Powell with distinguished wartime service in the Forces.",
+      "desired_first_impression": "Defends freedom of speech for all citizens, especially those like Enoch Powell who rendered distinguished military service in wartime.",
+      "desired_primary_subject": "public speakers at outdoor rallies or Speakers' Corner",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific content of any speech by Mr Powell",
+        "immigration policy debates",
+        "modern free-speech controversies",
+        "censorship laws or legal cases",
+        "criticism of military institutions"
+      ],
+      "mechanism": "freedom of speech; great tradition; Mr Powell; war years; distinguished service; the Forces",
+      "must_avoid": [
+        "specific content of any speech by Mr Powell",
+        "immigration policy debates",
+        "modern free-speech controversies",
+        "censorship laws or legal cases",
+        "criticism of military institutions"
+      ],
+      "must_include": [
+        "public speakers at outdoor rallies or Speakers' Corner",
+        "war veterans in uniform or with medals at memorials",
+        "parliamentary debate chambers",
+        "soldiers serving in historical wartime settings"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28": {
+      "attention_hierarchy": [
+        "destroyed civilian areas and mass-grave sites in a European conflict zone",
+        "Western government buildings and empty diplomatic conference rooms",
+        "military equipment or bases idle while conflict continues nearby",
+        "maps highlighting Europe with markers of violence"
+      ],
+      "broader_principle": "Western political inaction; massacres in Europe; will versus capability",
+      "claimed_consequence": "The speaker is appalled that Western countries refuse to take effective action against massacres occurring in Europe, framing the failure as deliberate unwillingness rather than inability.",
+      "core_claim": "Western countries have taken no effective action against massacres in the midst of Europe because they will not, not because they cannot.",
+      "desired_first_impression": "Criticism of Western countries' failure to act against massacres occurring in Europe, attributing the inaction to unwillingness rather than inability.",
+      "desired_primary_subject": "destroyed civilian areas and mass-grave sites in a European conflict zone",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "specific named wars or historical attributions beyond the quotation",
+        "non-European massacres",
+        "detailed military strategy or logistics",
+        "praise for Western interventions",
+        "economic sanctions alone as the sole topic"
+      ],
+      "mechanism": "countries of the west; effective action; massacres; midst of Europe; can't versus won't",
+      "must_avoid": [
+        "specific named wars or historical attributions beyond the quotation",
+        "non-European massacres",
+        "detailed military strategy or logistics",
+        "praise for Western interventions",
+        "economic sanctions alone as the sole topic"
+      ],
+      "must_include": [
+        "destroyed civilian areas and mass-grave sites in a European conflict zone",
+        "Western government buildings and empty diplomatic conference rooms",
+        "military equipment or bases idle while conflict continues nearby",
+        "maps highlighting Europe with markers of violence"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d": {
+      "attention_hierarchy": [
+        "person shaking head or waving hand in firm dismissal",
+        "speaker at podium or interview setting rejecting a charge",
+        "flexible versus rigid objects (e.g., bending rod vs rigid bar) as symbolic contrast",
+        "dictionary or vintage print illustrating the word poppycock"
+      ],
+      "broader_principle": "denial of personal inflexibility; dismissal of criticism; self-defense against character attack",
+      "claimed_consequence": "The speaker categorically dismisses any charge of inflexibility as total nonsense.",
+      "core_claim": "Accusing me of being inflexible is absolute poppycock.",
+      "desired_first_impression": "Thatcher dismisses accusations of inflexibility as nonsense using the word poppycock.",
+      "desired_primary_subject": "person shaking head or waving hand in firm dismissal",
+      "desired_tone": [],
+      "forbidden_dominant_messages": [
+        "specific political parties or policies",
+        "quantitative data or statistics",
+        "legal proceedings",
+        "physical inflexibility or medical conditions",
+        "unrelated personality traits beyond flexibility"
+      ],
+      "mechanism": "inflexible; poppycock; accusation; absolute nonsense",
+      "must_avoid": [
+        "specific political parties or policies",
+        "quantitative data or statistics",
+        "legal proceedings",
+        "physical inflexibility or medical conditions",
+        "unrelated personality traits beyond flexibility"
+      ],
+      "must_include": [
+        "person shaking head or waving hand in firm dismissal",
+        "speaker at podium or interview setting rejecting a charge",
+        "flexible versus rigid objects (e.g., bending rod vs rigid bar) as symbolic contrast",
+        "dictionary or vintage print illustrating the word poppycock"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a": {
+      "attention_hierarchy": [
+        "people making everyday personal decisions in shops, clinics, or workplaces",
+        "volunteers or neighbors helping others in concrete acts of charity",
+        "individuals recovering from visible personal mistakes without state intervention",
+        "citizens at town halls or voting stations showing responsibility for the state"
+      ],
+      "broader_principle": "individual freedom of choice; personal responsibility; moral society; limits of state responsibility",
+      "claimed_consequence": "A moral society is one of free individuals who can choose, err, and act with generosity and compassion, not one in which the state is responsible for everything while no one is responsible for the state.",
+      "core_claim": "A moral society means people free to make choices, mistakes, and act generously and compassionately, not a society where the state is responsible for everything and no one is responsible for the state.",
+      "desired_first_impression": "Advocates a moral society grounded in individual freedom to choose, err, and show compassion, rather than one where the state assumes all responsibility.",
+      "desired_primary_subject": "people making everyday personal decisions in shops, clinics, or workplaces",
+      "desired_tone": [
+        "reflective"
+      ],
+      "forbidden_dominant_messages": [
+        "specific welfare or tax policies",
+        "partisan political parties or elections",
+        "economic systems such as capitalism versus socialism in detail",
+        "crime or punishment",
+        "international relations or foreign policy",
+        "quantitative statistics or data charts"
+      ],
+      "mechanism": "free to make choices; free to make mistakes; generous and compassionate; moral society; state responsible for everything; no one responsible for the state",
+      "must_avoid": [
+        "specific welfare or tax policies",
+        "partisan political parties or elections",
+        "economic systems such as capitalism versus socialism in detail",
+        "crime or punishment",
+        "international relations or foreign policy",
+        "quantitative statistics or data charts"
+      ],
+      "must_include": [
+        "people making everyday personal decisions in shops, clinics, or workplaces",
+        "volunteers or neighbors helping others in concrete acts of charity",
+        "individuals recovering from visible personal mistakes without state intervention",
+        "citizens at town halls or voting stations showing responsibility for the state"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_text": "We want a society where people are free to make choices, to make mistakes, to be generous and compassionate. This is what we mean by a moral society; not a society where the state is responsible for everything, and no one is responsible for the state.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659": {
+      "attention_hierarchy": [
+        "citizens queuing orderly at a courthouse or polling place",
+        "police and civilians cooperating at a traffic stop or public event",
+        "historic legislature or supreme-court building exterior",
+        "public statue of justice or liberty still standing amid orderly streets"
+      ],
+      "broader_principle": "rule of law; national freedom; civic virtue; law-abiding spirit",
+      "claimed_consequence": "A nation’s lasting freedom depends on continuous public respect for law and a law-abiding spirit; once that respect vanishes, freedom soon follows.",
+      "core_claim": "No nation has ever kept its freedom for long after it lost respect for the law and the law-abiding spirit.",
+      "desired_first_impression": "A nation cannot retain freedom without sustained respect for the law and a law-abiding spirit.",
+      "desired_primary_subject": "citizens queuing orderly at a courthouse or polling place",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "specific statutes or legal codes",
+        "crime-rate statistics",
+        "particular political parties or ideologies",
+        "individual civil liberties debates",
+        "economic policy",
+        "military strength"
+      ],
+      "mechanism": "respect for the law; law-abiding spirit; retention of freedom; national freedom",
+      "must_avoid": [
+        "specific statutes or legal codes",
+        "crime-rate statistics",
+        "particular political parties or ideologies",
+        "individual civil liberties debates",
+        "economic policy",
+        "military strength"
+      ],
+      "must_include": [
+        "citizens queuing orderly at a courthouse or polling place",
+        "police and civilians cooperating at a traffic stop or public event",
+        "historic legislature or supreme-court building exterior",
+        "public statue of justice or liberty still standing amid orderly streets"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_text": "No nation ever retained its freedom for any length of time after losing its respect for the law, after losing the law-abiding spirit.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57": {
+      "attention_hierarchy": [
+        "NATO summit meeting of leaders around a conference table",
+        "joint military exercises of allied forces",
+        "flags of NATO member states flying together",
+        "civilians watching news or celebrating a peace milestone"
+      ],
+      "broader_principle": "balance of imagination and realism; risk of public euphoria; continued necessity of NATO",
+      "claimed_consequence": "Balance imaginative optimism about security with hard realism so public euphoria does not erode recognition of NATO’s continuing necessity.",
+      "core_claim": "Imagination must be matched with realism lest people be lulled into euphoria and begin to question the very need for NATO.",
+      "desired_first_impression": "Stresses balancing imagination with realism in defence policy to preserve public awareness of NATO's necessity and avoid complacency from excessive optimism.",
+      "desired_primary_subject": "NATO summit meeting of leaders around a conference table",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "specific military campaigns or wars",
+        "internal politics of individual member states",
+        "economic or trade policy",
+        "other international organizations such as the UN or EU",
+        "detailed force-structure numbers or budgets"
+      ],
+      "mechanism": "imagination; realism; euphoria; NATO; need for NATO",
+      "must_avoid": [
+        "specific military campaigns or wars",
+        "internal politics of individual member states",
+        "economic or trade policy",
+        "other international organizations such as the UN or EU",
+        "detailed force-structure numbers or budgets"
+      ],
+      "must_include": [
+        "NATO summit meeting of leaders around a conference table",
+        "joint military exercises of allied forces",
+        "flags of NATO member states flying together",
+        "civilians watching news or celebrating a peace milestone"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    },
+    "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120": {
+      "attention_hierarchy": [
+        "ordinary British citizens appearing diminished beside large government buildings",
+        "crowded state bureaucracy offices and official paperwork",
+        "closed factories, empty shops, or queues illustrating economic strain",
+        "national treasury or currency symbols with visual depletion"
+      ],
+      "broader_principle": "Socialism's effects on the individual; elevation of State power; economic deterioration under Socialism; loss of national wealth",
+      "claimed_consequence": "British experience shows every advance toward Socialism diminishes the individual, elevates the State, worsens economic problems, and depletes national wealth.",
+      "core_claim": "Every advance to Socialism in Britain reduces the individual, exalts the State, exacerbates economic problems, and drains away wealth.",
+      "desired_first_impression": "Critique of socialism in Britain: it diminishes the individual, elevates the state, worsens economic problems and depletes wealth.",
+      "desired_primary_subject": "ordinary British citizens appearing diminished beside large government buildings",
+      "desired_tone": [
+        "warning"
+      ],
+      "forbidden_dominant_messages": [
+        "praise of capitalism or free markets as such",
+        "specific named British politicians or parties",
+        "detailed policy prescriptions or reforms",
+        "international comparisons beyond Britain",
+        "theoretical definitions of Socialism unrelated to observed effects"
+      ],
+      "mechanism": "advance to Socialism; reduction of the individual; exaltation of the State; exacerbation of economic problems; drainage of wealth; Britain as observed case",
+      "must_avoid": [
+        "praise of capitalism or free markets as such",
+        "specific named British politicians or parties",
+        "detailed policy prescriptions or reforms",
+        "international comparisons beyond Britain",
+        "theoretical definitions of Socialism unrelated to observed effects"
+      ],
+      "must_include": [
+        "ordinary British citizens appearing diminished beside large government buildings",
+        "crowded state bureaucracy offices and official paperwork",
+        "closed factories, empty shops, or queues illustrating economic strain",
+        "national treasury or currency symbols with visual depletion"
+      ],
+      "prompt_version": "generation-brief-v1",
+      "provenance": "deterministic projection of cached quote and visual-intent fingerprints",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_text": "We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and drains away our wealth.",
+      "schema_version": 1,
+      "timeline_readability": "high",
+      "visual_style": "editorial photorealism, clear human-scale scene, restrained period detail"
+    }
+  },
+  "schema_version": 1
+}

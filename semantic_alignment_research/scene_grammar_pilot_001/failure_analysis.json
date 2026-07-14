@@ -1,0 +1,156 @@
+{
+  "analysis_kind": "offline_scene_failure_analysis",
+  "category_counts": {
+    "distracting symbolism": 5,
+    "identity/likeness problem": 1,
+    "incorrect physical relationship": 1,
+    "missing required object": 3,
+    "other": 0,
+    "poor scale": 1,
+    "scene too generic": 8,
+    "tone mismatch": 3,
+    "visual quality problem": 0,
+    "weak composition": 2,
+    "wrong camera/viewpoint": 0,
+    "wrong dominant subject": 7
+  },
+  "items": [
+    {
+      "case_id": "c4ab29f84aaaa7e47294",
+      "categories": [
+        "missing required object",
+        "incorrect physical relationship",
+        "poor scale"
+      ],
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "tony_note": "should be a uk flag; Everest should be taller than all visible peaks"
+    },
+    {
+      "case_id": "306a82edc7a8147b5f31",
+      "categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "tone mismatch"
+      ],
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "tony_note": ""
+    },
+    {
+      "case_id": "e30b2c632c778eab5930",
+      "categories": [
+        "scene too generic"
+      ],
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "tony_note": ""
+    },
+    {
+      "case_id": "b0ec09020e96b269e52d",
+      "categories": [
+        "missing required object",
+        "distracting symbolism"
+      ],
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "tony_note": "this is not the uk"
+    },
+    {
+      "case_id": "c80b2ef409eadfd41ac9",
+      "categories": [
+        "scene too generic",
+        "wrong dominant subject"
+      ],
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "tony_note": ""
+    },
+    {
+      "case_id": "aa3c305e1fc88d9654e6",
+      "categories": [
+        "scene too generic",
+        "wrong dominant subject"
+      ],
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "tony_note": ""
+    },
+    {
+      "case_id": "e98593e10072f6429099",
+      "categories": [
+        "identity/likeness problem",
+        "wrong dominant subject"
+      ],
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "tony_note": "should be thatcher"
+    },
+    {
+      "case_id": "109aaa465585620fd084",
+      "categories": [
+        "missing required object"
+      ],
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "tony_note": "it should be the uk"
+    },
+    {
+      "case_id": "38dcb6b5c297feab58e1",
+      "categories": [
+        "wrong dominant subject",
+        "distracting symbolism"
+      ],
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "tony_note": ""
+    },
+    {
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "categories": [
+        "weak composition"
+      ],
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "tony_note": ""
+    },
+    {
+      "case_id": "6735dd6f9451659687c3",
+      "categories": [
+        "weak composition"
+      ],
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "tony_note": ""
+    },
+    {
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "categories": [
+        "scene too generic",
+        "distracting symbolism"
+      ],
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "tony_note": ""
+    },
+    {
+      "case_id": "fd1586f47da85b5a0b5e",
+      "categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "tone mismatch"
+      ],
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "tony_note": ""
+    },
+    {
+      "case_id": "b6f083595c5cbbd14e59",
+      "categories": [
+        "scene too generic",
+        "tone mismatch",
+        "distracting symbolism"
+      ],
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "tony_note": ""
+    },
+    {
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "distracting symbolism"
+      ],
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "tony_note": ""
+    }
+  ],
+  "schema_version": 1
+}

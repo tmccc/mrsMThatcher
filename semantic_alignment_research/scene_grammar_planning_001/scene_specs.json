@@ -1,0 +1,1213 @@
+{
+  "analysis_kind": "scene_grammar_planning_set",
+  "items": [
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "c4ab29f84aaaa7e47294",
+      "input_hash": "c203fd766c5919316aaf6dae9d36c5a3ea502bef7794a05853e37722206aaae6",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+      "scene_spec": {
+        "background": "all Himalayan peaks and cloud layers visibly below Everest's summit",
+        "camera_height": "low, below the primary subject",
+        "camera_position": "low three-quarter wide view from just below the summit, showing the climber and full height dominance of Everest",
+        "desired_first_second_message": "Individual achievement reaches its highest point when it culminates in service to or representation of one's country.",
+        "desired_tone": [
+          "patriotic",
+          "inspirational",
+          "reflective"
+        ],
+        "dominant_object": "Everest summit with climber and Union Flag",
+        "forbidden_messages": [
+          "foreign expedition nationalism",
+          "communist warning",
+          "geopolitical conflict"
+        ],
+        "foreground": "the summit ridge rising directly to the climber",
+        "largest_object": "Mount Everest, visibly the tallest mountain and taller than every surrounding peak",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "climber standing at Everest's highest point and planting a recognisable Union Flag",
+        "must_include": [
+          "recognisable Union Flag",
+          "climber at the summit",
+          "surrounding peaks visibly lower"
+        ],
+        "must_not_include": [
+          "US flag",
+          "Dutch flag",
+          "prayer flags",
+          "base camp",
+          "communist symbols",
+          "maps",
+          "geopolitical imagery"
+        ],
+        "primary_subject": "a lone climber standing on the unmistakable highest summit of Mount Everest and planting a clearly recognisable Union Flag",
+        "scale_relationships": [
+          "Everest summit is visibly taller than every surrounding peak",
+          "all surrounding peaks sit clearly below the summit horizon",
+          "Union Flag is large enough to identify at timeline size but smaller than the mountain and climber"
+        ],
+        "secondary_subjects": [
+          "lower Himalayan peaks far below",
+          "cloud layer below the summit"
+        ],
+        "setting": "the summit ridge of Mount Everest",
+        "success_test": "At X timeline size, Everest is unmistakably the tallest mountain, a climber stands at its summit, and a recognisable Union Flag communicates patriotic achievement. No communist, map, Cold War or geopolitical imagery appears.",
+        "viewer_eye_path": [
+          "Everest summit and climber",
+          "recognisable Union Flag",
+          "lower surrounding peaks"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "missing required object",
+        "incorrect physical relationship",
+        "poor scale"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "26617c4249fd779dfd9d",
+      "input_hash": "3a98791f007b79952dc4a709521cc3f6cba3cd00512eaecac4e0d3e5a1213a04",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+      "scene_spec": {
+        "background": "working British loading bay connected to an international port",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium-wide view close enough to read the handshake, goods and exchange",
+        "desired_first_second_message": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+        "desired_tone": [
+          "optimistic"
+        ],
+        "dominant_object": "voluntary exchange between seller and buyer",
+        "forbidden_messages": [
+          "ideological conflict",
+          "communist threat",
+          "abstract finance",
+          "government trade negotiation"
+        ],
+        "foreground": "real British-made goods and visible payment evidence",
+        "largest_object": "seller, buyer and exchanged goods as one connected group",
+        "lens_style": "50mm natural-perspective editorial portrait lens",
+        "midground": "British seller and overseas buyer freely completing an exchange",
+        "must_include": [
+          "British small business",
+          "buyer and seller freely agreeing",
+          "real goods moving in exchange",
+          "subtle recognisable UK setting"
+        ],
+        "must_not_include": [
+          "hammer and sickle",
+          "split capitalism-versus-socialism poster",
+          "generic stock-market imagery",
+          "luxury-only prosperity"
+        ],
+        "primary_subject": "a British small manufacturer completing a voluntary export sale with an overseas buyer",
+        "scale_relationships": [
+          "the voluntary exchange between seller and buyer is the dominant action",
+          "goods and payment evidence are clearly visible but subordinate to the people",
+          "no political symbol dominates the transaction"
+        ],
+        "secondary_subjects": [
+          "finished British goods being loaded for export",
+          "buyer confirming payment and receipt"
+        ],
+        "setting": "a recognisably British small factory loading bay connected to an international port",
+        "success_test": "At X timeline size, a viewer immediately reads voluntary international exchange and a real consumer or growth consequence, not capitalism-versus-socialism conflict. No generic ideological symbolism dominates.",
+        "viewer_eye_path": [
+          "voluntary exchange",
+          "real goods and payment",
+          "international shipping context"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": []
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "input_hash": "39fc78aa9a644d21fac883a8b8e872f226cd21452efd07862e999306648aebbf",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "scene_spec": {
+        "background": "Speakers' Corner in Hyde Park, London, with recognisable British park railings and restrained period detail; Speakers' Corner setting",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium shot placing the veteran and listening opponent in the same focal plane",
+        "desired_first_second_message": "Defends freedom of speech for all citizens, especially those like Enoch Powell who rendered distinguished military service in wartime.",
+        "desired_tone": [],
+        "dominant_object": "veteran exercising free speech",
+        "forbidden_messages": [
+          "specific content of any speech by Mr Powell",
+          "immigration policy debates",
+          "modern free-speech controversies",
+          "censorship laws or legal cases",
+          "criticism of military institutions"
+        ],
+        "foreground": "an opponent listening",
+        "largest_object": "a decorated British war veteran speaking calmly at Speakers' Corner while an opponent listens",
+        "lens_style": "35-50mm natural-perspective documentary lens",
+        "midground": "a decorated British war veteran speaking calmly at Speakers' Corner while an opponent listens",
+        "must_include": [
+          "British war veteran with restrained service medals",
+          "an opponent listening",
+          "Speakers' Corner setting"
+        ],
+        "must_not_include": [
+          "immigration placards",
+          "angry riot",
+          "gagged mouth",
+          "generic censorship symbol"
+        ],
+        "primary_subject": "a decorated British war veteran speaking calmly at Speakers' Corner while an opponent listens",
+        "scale_relationships": [
+          "both speakers remain human-scale equals",
+          "service medals are legible but do not dominate",
+          "the listening gesture is visible at timeline size"
+        ],
+        "secondary_subjects": [
+          "an opponent listening",
+          "Speakers' Corner setting"
+        ],
+        "setting": "Speakers' Corner in Hyde Park, London, with recognisable British park railings and restrained period detail",
+        "success_test": "At X timeline size, the first reading is 'Defends freedom of speech for all citizens, especially those like Enoch Powell who rendered distinguished military service in wartime.'. The eye moves through veteran exercising free speech -> opponent listening rather than silencing -> British public setting; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "veteran exercising free speech",
+          "opponent listening rather than silencing",
+          "British public setting"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": []
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "306a82edc7a8147b5f31",
+      "input_hash": "3081931e5cea1de89ddc386a0ce12ad26b1409e7b6b6b88a7feb63b8dd261a9f",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_text": "In today's world, monopoly trade unions have immense potential for destruction and can inflict severe damage and hardship on their fellow workers - indeed on their fellow trade unionists.",
+      "scene_spec": {
+        "background": "a British industrial town factory gate during an otherwise normal working day; idle production line visible beyond",
+        "camera_height": "natural standing eye height",
+        "camera_position": "medium-wide eye-level view from the workers' side of the locked gate",
+        "desired_first_second_message": "Criticism of monopoly trade unions' power to cause severe damage and hardship to workers, including fellow union members.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "workers unable to work",
+        "forbidden_messages": [
+          "benefits or achievements of trade unions",
+          "non-monopoly or competitive unions",
+          "employer or corporate monopoly power",
+          "government labor policy details",
+          "historical origins of unions",
+          "specific named unions or countries"
+        ],
+        "foreground": "locked factory gate",
+        "largest_object": "ordinary British factory workers locked outside an idle works because a monopoly union has halted the plant",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "ordinary British factory workers locked outside an idle works because a monopoly union has halted the plant",
+        "must_include": [
+          "British workers",
+          "locked factory gate",
+          "idle production line visible beyond"
+        ],
+        "must_not_include": [
+          "heroic picket line",
+          "violent clash",
+          "closed factory with no causal evidence"
+        ],
+        "primary_subject": "ordinary British factory workers locked outside an idle works because a monopoly union has halted the plant",
+        "scale_relationships": [
+          "affected workers dominate the frame",
+          "the locked gate visibly separates them from idle work",
+          "union signage remains evidence, not a heroic focal point"
+        ],
+        "secondary_subjects": [
+          "locked factory gate",
+          "idle production line visible beyond"
+        ],
+        "setting": "a British industrial town factory gate during an otherwise normal working day",
+        "success_test": "At X timeline size, the first reading is 'Criticism of monopoly trade unions' power to cause severe damage and hardship to workers, including fellow union members.'. The eye moves through workers unable to work -> locked idle factory -> small union stoppage notice; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "workers unable to work",
+          "locked idle factory",
+          "small union stoppage notice"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "tone mismatch"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "d536b4de87d7a7511a94",
+      "input_hash": "18c055b1ce409c908669ec8717354d0bb2591738b13ba2e8ae0943371405c48d",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "quote_text": "What works here, as elsewhere, is free enterprise and not big government.",
+      "scene_spec": {
+        "background": "a recognisable British high street with a small workshop open for business; paying customers",
+        "camera_height": "natural standing eye height",
+        "camera_position": "street-level medium-wide view through the open workshop frontage",
+        "desired_first_second_message": "Free enterprise succeeds over big government both locally and more generally.",
+        "desired_tone": [],
+        "dominant_object": "small business producing and selling",
+        "forbidden_messages": [
+          "specific political parties or candidates",
+          "detailed policy prescriptions",
+          "historical events or named countries",
+          "social issues beyond economics",
+          "personal anecdotes or individual stories"
+        ],
+        "foreground": "owner producing something tangible",
+        "largest_object": "a busy owner-operated British high-street workshop serving real customers",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a busy owner-operated British high-street workshop serving real customers",
+        "must_include": [
+          "working British small business",
+          "owner producing something tangible",
+          "paying customers"
+        ],
+        "must_not_include": [
+          "split-screen comparison",
+          "stock exchange",
+          "luxury finance",
+          "government building as dominant subject"
+        ],
+        "primary_subject": "a busy owner-operated British high-street workshop serving real customers",
+        "scale_relationships": [
+          "productive private activity fills most of the frame",
+          "customers and owner are clearly interacting",
+          "government architecture occupies less than 15% of attention"
+        ],
+        "secondary_subjects": [
+          "owner producing something tangible",
+          "paying customers"
+        ],
+        "setting": "a recognisable British high street with a small workshop open for business",
+        "success_test": "At X timeline size, the first reading is 'Free enterprise succeeds over big government both locally and more generally.'. The eye moves through small business producing and selling -> customers choosing to buy -> British high street; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "small business producing and selling",
+          "customers choosing to buy",
+          "British high street"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": []
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "e30b2c632c778eab5930",
+      "input_hash": "fc0383254087acbea99cc095bf1df25224f819ca0a2278137b0b20d409b76a01",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit.",
+      "scene_spec": {
+        "background": "a modest independent shop on a recognisable British high street; payment from her own purse",
+        "camera_height": "natural standing eye height",
+        "camera_position": "natural eye-level medium shot of the voluntary choice and payment",
+        "desired_first_second_message": "Thatcher states her core belief is freedom, specifically the liberty to act within sensible limits and to spend one's own money as one chooses.",
+        "desired_tone": [
+          "reflective"
+        ],
+        "dominant_object": "Margaret Thatcher making her own choice",
+        "forbidden_messages": [
+          "absolute unrestricted freedom without limits",
+          "detailed political party platforms",
+          "specific government policies or taxes",
+          "collective or group rights",
+          "economic data or statistics",
+          "historical events or figures"
+        ],
+        "foreground": "genuine choice between ordinary goods",
+        "largest_object": "a highly realistic recognisable Margaret Thatcher choosing and paying for an ordinary purchase with her own purse",
+        "lens_style": "35-50mm natural-perspective documentary lens",
+        "midground": "a highly realistic recognisable Margaret Thatcher choosing and paying for an ordinary purchase with her own purse",
+        "must_include": [
+          "recognisable Margaret Thatcher",
+          "genuine choice between ordinary goods",
+          "payment from her own purse"
+        ],
+        "must_not_include": [
+          "political rally",
+          "luxury shopping",
+          "broken chains",
+          "abstract liberty symbols"
+        ],
+        "primary_subject": "a highly realistic recognisable Margaret Thatcher choosing and paying for an ordinary purchase with her own purse",
+        "scale_relationships": [
+          "Thatcher and the act of choosing share the focal point",
+          "money and selected item are visible but natural",
+          "shop details remain secondary"
+        ],
+        "secondary_subjects": [
+          "genuine choice between ordinary goods",
+          "payment from her own purse"
+        ],
+        "setting": "a modest independent shop on a recognisable British high street",
+        "success_test": "At X timeline size, the first reading is 'Thatcher states her core belief is freedom, specifically the liberty to act within sensible limits and to spend one's own money as one chooses.'. The eye moves through Margaret Thatcher making her own choice -> voluntary payment -> ordinary British shop; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "Margaret Thatcher making her own choice",
+          "voluntary payment",
+          "ordinary British shop"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "b0ec09020e96b269e52d",
+      "input_hash": "fb474674e553ea55dc6e6ce577ec171f3b6ec499e54397cf07d9d7adff3eaa12",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law.",
+      "scene_spec": {
+        "background": "a town-hall meeting in a recognisable British community centre; calm explanation of lawful conduct",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium-wide view showing officer, residents and the rule being explained",
+        "desired_first_second_message": "Statement that promoting obedience to the law is a core duty of government or public office.",
+        "desired_tone": [],
+        "dominant_object": "calm public instruction",
+        "forbidden_messages": [
+          "specific statutes or crimes",
+          "punishment or enforcement actions",
+          "personal views on whether laws are just",
+          "civil disobedience",
+          "legislative process"
+        ],
+        "foreground": "attentive residents",
+        "largest_object": "a British police community officer explaining a simple civic rule to attentive residents",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a British police community officer explaining a simple civic rule to attentive residents",
+        "must_include": [
+          "British community officer",
+          "attentive residents",
+          "calm explanation of lawful conduct"
+        ],
+        "must_not_include": [
+          "arrest",
+          "riot gear",
+          "courtroom punishment",
+          "US police imagery"
+        ],
+        "primary_subject": "a British police community officer explaining a simple civic rule to attentive residents",
+        "scale_relationships": [
+          "officer and residents occupy equal civic space",
+          "the explanatory document is readable as an object but contains no rendered text",
+          "police equipment is not prominent"
+        ],
+        "secondary_subjects": [
+          "attentive residents",
+          "calm explanation of lawful conduct"
+        ],
+        "setting": "a town-hall meeting in a recognisable British community centre",
+        "success_test": "At X timeline size, the first reading is 'Statement that promoting obedience to the law is a core duty of government or public office.'. The eye moves through calm public instruction -> residents listening -> British civic setting; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "calm public instruction",
+          "residents listening",
+          "British civic setting"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "missing required object",
+        "distracting symbolism"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "c80b2ef409eadfd41ac9",
+      "input_hash": "e9f940c73a7b41060104437fcf6c234e331a6cc7140e2c5e0c047026a062edb3",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "quote_text": "Privatisation shrinks the power of the state and free enterprise enlarges the power of the people.",
+      "scene_spec": {
+        "background": "a productive British workshop recently transferred into private ownership; subtle transfer from state control",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium-wide interior view centred on workers making decisions and serving a customer",
+        "desired_first_second_message": "Privatisation reduces state power while free enterprise increases individual power.",
+        "desired_tone": [],
+        "dominant_object": "workers exercising ownership",
+        "forbidden_messages": [
+          "specific national policies or case studies",
+          "detailed economic data or performance metrics",
+          "critiques of particular political parties",
+          "environmental or social welfare side-effects",
+          "historical timelines of privatisation programmes"
+        ],
+        "foreground": "active productive business",
+        "largest_object": "ordinary British employee-shareholders actively running a formerly state-owned local workshop",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "ordinary British employee-shareholders actively running a formerly state-owned local workshop",
+        "must_include": [
+          "British workers with ownership responsibility",
+          "active productive business",
+          "subtle transfer from state control"
+        ],
+        "must_not_include": [
+          "stock-market montage",
+          "giant government building",
+          "abstract shrinking arrows",
+          "luxury investors"
+        ],
+        "primary_subject": "ordinary British employee-shareholders actively running a formerly state-owned local workshop",
+        "scale_relationships": [
+          "empowered workers dominate",
+          "productive machinery and customer remain clear",
+          "state symbol is small and receding"
+        ],
+        "secondary_subjects": [
+          "active productive business",
+          "subtle transfer from state control"
+        ],
+        "setting": "a productive British workshop recently transferred into private ownership",
+        "success_test": "At X timeline size, the first reading is 'Privatisation reduces state power while free enterprise increases individual power.'. The eye moves through workers exercising ownership -> productive enterprise -> receding state control; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "workers exercising ownership",
+          "productive enterprise",
+          "receding state control"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "wrong dominant subject"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "86346f7d038b654174d3",
+      "input_hash": "b5f3b78165c588abcc6b6ceefb0eda1de248067f7d018cb07d0933105ce0ac27",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "scene_spec": {
+        "background": "a Western European diplomatic conference room overlooking unmistakable nearby civilian destruction; clear unused capacity for action",
+        "camera_height": "standing eye height with the stated over-shoulder relationship",
+        "camera_position": "wide interior view from behind the empty action folder toward inactive officials and the crisis outside",
+        "desired_first_second_message": "Criticism of Western countries' failure to act against massacres occurring in Europe, attributing the inaction to unwillingness rather than inability.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "official inaction",
+        "forbidden_messages": [
+          "specific named wars or historical attributions beyond the quotation",
+          "non-European massacres",
+          "detailed military strategy or logistics",
+          "praise for Western interventions",
+          "economic sanctions alone as the sole topic"
+        ],
+        "foreground": "nearby European civilian destruction",
+        "largest_object": "Western diplomats sitting inactive in a secure conference room while a European city burns visibly beyond the windows",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "Western diplomats sitting inactive in a secure conference room while a European city burns visibly beyond the windows",
+        "must_include": [
+          "inactive Western officials",
+          "nearby European civilian destruction",
+          "clear unused capacity for action"
+        ],
+        "must_not_include": [
+          "mass graves",
+          "graphic bodies",
+          "map of Europe",
+          "heroic combat",
+          "named modern conflict"
+        ],
+        "primary_subject": "Western diplomats sitting inactive in a secure conference room while a European city burns visibly beyond the windows",
+        "scale_relationships": [
+          "inactive officials and visible destruction receive comparable visual weight",
+          "the untouched action folder sits in the foreground",
+          "military hardware does not dominate"
+        ],
+        "secondary_subjects": [
+          "nearby European civilian destruction",
+          "clear unused capacity for action"
+        ],
+        "setting": "a Western European diplomatic conference room overlooking unmistakable nearby civilian destruction",
+        "success_test": "At X timeline size, the first reading is 'Criticism of Western countries' failure to act against massacres occurring in Europe, attributing the inaction to unwillingness rather than inability.'. The eye moves through official inaction -> civilian destruction nearby -> unused capacity to act; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "official inaction",
+          "civilian destruction nearby",
+          "unused capacity to act"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": []
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "aa3c305e1fc88d9654e6",
+      "input_hash": "92226b676ec4cdb0fb64b8abc51f92855f4f365b5c6e0ce826a61eca1732ac26",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_text": "We want a society where people are free to make choices, to make mistakes, to be generous and compassionate. This is what we mean by a moral society; not a society where the state is responsible for everything, and no one is responsible for the state.",
+      "scene_spec": {
+        "background": "a recognisable British residential street after a minor household mishap; British domestic setting",
+        "camera_height": "natural standing eye height",
+        "camera_position": "warm eye-level medium-wide view showing choice, responsibility and voluntary help together",
+        "desired_first_second_message": "Advocates a moral society grounded in individual freedom to choose, err, and show compassion, rather than one where the state assumes all responsibility.",
+        "desired_tone": [
+          "reflective"
+        ],
+        "dominant_object": "personal responsibility",
+        "forbidden_messages": [
+          "specific welfare or tax policies",
+          "partisan political parties or elections",
+          "economic systems such as capitalism versus socialism in detail",
+          "crime or punishment",
+          "international relations or foreign policy",
+          "quantitative statistics or data charts"
+        ],
+        "foreground": "neighbours helping voluntarily",
+        "largest_object": "British neighbours voluntarily helping a family repair damage after a personal mistake",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "British neighbours voluntarily helping a family repair damage after a personal mistake",
+        "must_include": [
+          "person correcting a mistake",
+          "neighbours helping voluntarily",
+          "British domestic setting"
+        ],
+        "must_not_include": [
+          "charity poster",
+          "government office",
+          "helpless passive recipient",
+          "ideological symbols"
+        ],
+        "primary_subject": "British neighbours voluntarily helping a family repair damage after a personal mistake",
+        "scale_relationships": [
+          "people and their voluntary action dominate",
+          "the repair visibly follows the mistake",
+          "government presence is absent rather than symbolically attacked"
+        ],
+        "secondary_subjects": [
+          "neighbours helping voluntarily",
+          "British domestic setting"
+        ],
+        "setting": "a recognisable British residential street after a minor household mishap",
+        "success_test": "At X timeline size, the first reading is 'Advocates a moral society grounded in individual freedom to choose, err, and show compassion, rather than one where the state assumes all responsibility.'. The eye moves through personal responsibility -> voluntary compassion -> repaired consequence; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "personal responsibility",
+          "voluntary compassion",
+          "repaired consequence"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "wrong dominant subject"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "e98593e10072f6429099",
+      "input_hash": "c0501df14289c720fc2d6a3aaffe68c1b8018505fca246790513b8df284b067f",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "scene_spec": {
+        "background": "a British government office late at night with empty desks and coats gone; empty British workplace showing others have left",
+        "camera_height": "natural standing eye height",
+        "camera_position": "intimate eye-level medium shot across the final unfinished papers toward Thatcher",
+        "desired_first_second_message": "Thatcher attributes her determination and persistence to a woman's capacity to complete tasks that others abandon.",
+        "desired_tone": [
+          "reflective"
+        ],
+        "dominant_object": "Margaret Thatcher persisting",
+        "forbidden_messages": [
+          "modern feminist theory or policy debates",
+          "specific occupations or industries",
+          "criticism of men or other groups",
+          "emotional labour or unpaid domestic work",
+          "claims of superiority beyond the stated ability",
+          "quantitative productivity statistics"
+        ],
+        "foreground": "unfinished work being completed",
+        "largest_object": "a highly realistic recognisable Margaret Thatcher finishing difficult work alone after colleagues have left",
+        "lens_style": "35-50mm natural-perspective documentary lens",
+        "midground": "a highly realistic recognisable Margaret Thatcher finishing difficult work alone after colleagues have left",
+        "must_include": [
+          "recognisable Margaret Thatcher",
+          "unfinished work being completed",
+          "empty British workplace showing others have left"
+        ],
+        "must_not_include": [
+          "generic anonymous woman",
+          "domestic chores",
+          "heroic podium portrait",
+          "crowded office"
+        ],
+        "primary_subject": "a highly realistic recognisable Margaret Thatcher finishing difficult work alone after colleagues have left",
+        "scale_relationships": [
+          "Thatcher and unfinished work dominate",
+          "empty desks establish abandonment without becoming eerie",
+          "no symbolic object competes with her action"
+        ],
+        "secondary_subjects": [
+          "unfinished work being completed",
+          "empty British workplace showing others have left"
+        ],
+        "setting": "a British government office late at night with empty desks and coats gone",
+        "success_test": "At X timeline size, the first reading is 'Thatcher attributes her determination and persistence to a woman's capacity to complete tasks that others abandon.'. The eye moves through Margaret Thatcher persisting -> unfinished work being completed -> empty office; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "Margaret Thatcher persisting",
+          "unfinished work being completed",
+          "empty office"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "identity/likeness problem",
+        "wrong dominant subject"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "109aaa465585620fd084",
+      "input_hash": "ddcc58d5f555173b86c5444b281d6c75f820afec8661365f20d74b48161a5b53",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_text": "No nation ever retained its freedom for any length of time after losing its respect for the law, after losing the law-abiding spirit.",
+      "scene_spec": {
+        "background": "an active British civic square outside a recognisable courthouse; recognisable British courthouse",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level wide view connecting free public life with voluntary law-abiding conduct",
+        "desired_first_second_message": "A nation cannot retain freedom without sustained respect for the law and a law-abiding spirit.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "free law-abiding citizens",
+        "forbidden_messages": [
+          "specific statutes or legal codes",
+          "crime-rate statistics",
+          "particular political parties or ideologies",
+          "individual civil liberties debates",
+          "economic policy",
+          "military strength"
+        ],
+        "foreground": "visible respect for law",
+        "largest_object": "British citizens freely entering a courthouse while carefully respecting an ordinary lawful boundary",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "British citizens freely entering a courthouse while carefully respecting an ordinary lawful boundary",
+        "must_include": [
+          "British citizens acting freely",
+          "visible respect for law",
+          "recognisable British courthouse"
+        ],
+        "must_not_include": [
+          "prison bars",
+          "riot",
+          "authoritarian police line",
+          "US Supreme Court"
+        ],
+        "primary_subject": "British citizens freely entering a courthouse while carefully respecting an ordinary lawful boundary",
+        "scale_relationships": [
+          "free citizens dominate",
+          "courthouse anchors the background",
+          "the lawful boundary is clear but not oppressive"
+        ],
+        "secondary_subjects": [
+          "visible respect for law",
+          "recognisable British courthouse"
+        ],
+        "setting": "an active British civic square outside a recognisable courthouse",
+        "success_test": "At X timeline size, the first reading is 'A nation cannot retain freedom without sustained respect for the law and a law-abiding spirit.'. The eye moves through free law-abiding citizens -> British courthouse -> orderly shared space; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "free law-abiding citizens",
+          "British courthouse",
+          "orderly shared space"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "missing required object"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "38dcb6b5c297feab58e1",
+      "input_hash": "f3f4e589cb8d5f3dad86b1e99485507fd65e4e1fb346cbce609cbe29c1a0b20f",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "scene_spec": {
+        "background": "a NATO planning room in Western Europe during a period of public optimism; visible but secondary peace euphoria",
+        "camera_height": "standing eye height with the stated over-shoulder relationship",
+        "camera_position": "medium-wide view over a sober defence plan toward leaders and distant celebrations through a window",
+        "desired_first_second_message": "Stresses balancing imagination with realism in defence policy to preserve public awareness of NATO's necessity and avoid complacency from excessive optimism.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "continued realistic defence planning",
+        "forbidden_messages": [
+          "specific military campaigns or wars",
+          "internal politics of individual member states",
+          "economic or trade policy",
+          "other international organizations such as the UN or EU",
+          "detailed force-structure numbers or budgets"
+        ],
+        "foreground": "allied cooperation",
+        "largest_object": "NATO civilian and military leaders studying a realistic defence map while a peace celebration remains distant outside",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "NATO civilian and military leaders studying a realistic defence map while a peace celebration remains distant outside",
+        "must_include": [
+          "NATO planning",
+          "allied cooperation",
+          "visible but secondary peace euphoria"
+        ],
+        "must_not_include": [
+          "NATO flag collage",
+          "missile spectacle",
+          "triumphal celebration as dominant subject",
+          "EU symbolism"
+        ],
+        "primary_subject": "NATO civilian and military leaders studying a realistic defence map while a peace celebration remains distant outside",
+        "scale_relationships": [
+          "leaders and defence plan dominate",
+          "distant celebration occupies less than one quarter",
+          "NATO emblem is small contextual evidence"
+        ],
+        "secondary_subjects": [
+          "allied cooperation",
+          "visible but secondary peace euphoria"
+        ],
+        "setting": "a NATO planning room in Western Europe during a period of public optimism",
+        "success_test": "At X timeline size, the first reading is 'Stresses balancing imagination with realism in defence policy to preserve public awareness of NATO's necessity and avoid complacency from excessive optimism.'. The eye moves through continued realistic defence planning -> allied leaders -> distant public euphoria; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "continued realistic defence planning",
+          "allied leaders",
+          "distant public euphoria"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "wrong dominant subject",
+        "distracting symbolism"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "input_hash": "babb0b85b9abc3f9f09d1d5b6159ecc783a221fbd74a6937e024df264cf6ec56",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "quote_text": "Our sovereignty does not come from Brussels - it is ours by right and by heritage.",
+      "scene_spec": {
+        "background": "the Palace of Westminster in London with British civic continuity visible in stone, ceremony and public access; recognisable Union Flag",
+        "camera_height": "low, below the primary subject",
+        "camera_position": "low but human-scale medium-wide view from the public approach toward Parliament",
+        "desired_first_second_message": "Assertion that sovereignty belongs to the British people by right and heritage, not granted by Brussels.",
+        "desired_tone": [
+          "patriotic"
+        ],
+        "dominant_object": "British people and Parliament",
+        "forbidden_messages": [
+          "specific EU policies or legislation",
+          "economic costs or benefits of membership",
+          "immigration statistics",
+          "military alliances",
+          "party politics or election campaigns",
+          "Brexit procedural details"
+        ],
+        "foreground": "Palace of Westminster",
+        "largest_object": "British citizens entering the Palace of Westminster beneath inherited constitutional symbols",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "British citizens entering the Palace of Westminster beneath inherited constitutional symbols",
+        "must_include": [
+          "British citizens",
+          "Palace of Westminster",
+          "recognisable Union Flag",
+          "historic constitutional continuity"
+        ],
+        "must_not_include": [
+          "EU headquarters",
+          "Brexit rally",
+          "Brussels skyline",
+          "broken chains",
+          "aggressive nationalism"
+        ],
+        "primary_subject": "British citizens entering the Palace of Westminster beneath inherited constitutional symbols",
+        "scale_relationships": [
+          "citizens remain prominent in the foreground",
+          "Parliament provides enduring context",
+          "Union Flag is recognisable but not oversized"
+        ],
+        "secondary_subjects": [
+          "Palace of Westminster",
+          "recognisable Union Flag"
+        ],
+        "setting": "the Palace of Westminster in London with British civic continuity visible in stone, ceremony and public access",
+        "success_test": "At X timeline size, the first reading is 'Assertion that sovereignty belongs to the British people by right and heritage, not granted by Brussels.'. The eye moves through British people and Parliament -> constitutional heritage -> Union Flag; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "British people and Parliament",
+          "constitutional heritage",
+          "Union Flag"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "weak composition"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "6735dd6f9451659687c3",
+      "input_hash": "334e0f49782c7c234eff77ec373eaafe090fbff3052fad400a54f9490498b571",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "scene_spec": {
+        "background": "a restrained British television interview studio; firm dismissive hand gesture",
+        "camera_height": "natural standing eye height",
+        "camera_position": "tight medium shot capturing Thatcher's expressive dismissive gesture and wry expression",
+        "desired_first_second_message": "Thatcher dismisses accusations of inflexibility as nonsense using the word poppycock.",
+        "desired_tone": [],
+        "dominant_object": "Margaret Thatcher's amused dismissal",
+        "forbidden_messages": [
+          "specific political parties or policies",
+          "quantitative data or statistics",
+          "legal proceedings",
+          "physical inflexibility or medical conditions",
+          "unrelated personality traits beyond flexibility"
+        ],
+        "foreground": "wry amused expression",
+        "largest_object": "a highly realistic recognisable Margaret Thatcher responding with amused firmness during a British television interview",
+        "lens_style": "50mm natural-perspective editorial portrait lens",
+        "midground": "a highly realistic recognisable Margaret Thatcher responding with amused firmness during a British television interview",
+        "must_include": [
+          "recognisable Margaret Thatcher",
+          "wry amused expression",
+          "firm dismissive hand gesture"
+        ],
+        "must_not_include": [
+          "bending metal",
+          "dictionary",
+          "written word poppycock",
+          "angry shouting",
+          "cartoon style"
+        ],
+        "primary_subject": "a highly realistic recognisable Margaret Thatcher responding with amused firmness during a British television interview",
+        "scale_relationships": [
+          "Thatcher's face and gesture dominate",
+          "interviewer remains only a shoulder at frame edge",
+          "studio background is quiet"
+        ],
+        "secondary_subjects": [
+          "wry amused expression",
+          "firm dismissive hand gesture"
+        ],
+        "setting": "a restrained British television interview studio",
+        "success_test": "At X timeline size, the first reading is 'Thatcher dismisses accusations of inflexibility as nonsense using the word poppycock.'. The eye moves through Margaret Thatcher's amused dismissal -> firm hand gesture -> interview context; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "Margaret Thatcher's amused dismissal",
+          "firm hand gesture",
+          "interview context"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "weak composition"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "input_hash": "27debfcac5a4fe8a3451d16a4eff62c4d28d20c41194b90d4d6eef2e7af9919c",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "quote_text": "States, societies and economies, which allow the distinctive talents of individuals to flourish, themselves also flourish. Those which dwarf, crush, distort, manipulate or ignore them cannot progress.",
+      "scene_spec": {
+        "background": "an open British technical college workshop connected to a thriving local enterprise; visible wider benefit",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium-wide view connecting the individual invention to people putting it into use",
+        "desired_first_second_message": "Quote argues that societies and economies thrive when they enable individual talents to flourish, but stagnate when they suppress or ignore them.",
+        "desired_tone": [],
+        "dominant_object": "distinctive individual talent",
+        "forbidden_messages": [
+          "specific named countries or leaders",
+          "detailed economic doctrines or policy blueprints",
+          "genetic determinism or IQ debates",
+          "purely personal self-help without societal link",
+          "quantitative growth statistics or historical case studies"
+        ],
+        "foreground": "people enabling rather than suppressing it",
+        "largest_object": "a gifted young British engineer demonstrating an invention while teachers, investors and workers enable it to grow",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a gifted young British engineer demonstrating an invention while teachers, investors and workers enable it to grow",
+        "must_include": [
+          "individual creative achievement",
+          "people enabling rather than suppressing it",
+          "visible wider benefit"
+        ],
+        "must_not_include": [
+          "diversity montage",
+          "generic smiling office",
+          "crushed person metaphor",
+          "growth chart"
+        ],
+        "primary_subject": "a gifted young British engineer demonstrating an invention while teachers, investors and workers enable it to grow",
+        "scale_relationships": [
+          "the individual and invention dominate",
+          "supporters visibly enable rather than direct",
+          "wider flourishing remains concrete and secondary"
+        ],
+        "secondary_subjects": [
+          "people enabling rather than suppressing it",
+          "visible wider benefit"
+        ],
+        "setting": "an open British technical college workshop connected to a thriving local enterprise",
+        "success_test": "At X timeline size, the first reading is 'Quote argues that societies and economies thrive when they enable individual talents to flourish, but stagnate when they suppress or ignore them.'. The eye moves through distinctive individual talent -> enabling institutions -> wider productive benefit; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "distinctive individual talent",
+          "enabling institutions",
+          "wider productive benefit"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "distracting symbolism"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "fd1586f47da85b5a0b5e",
+      "input_hash": "bedda4b538d3b2bc64945ea174f8850df053bf533899971ab4ba13e186be932e",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce.",
+      "scene_spec": {
+        "background": "a British town meeting beside a working factory and local shop; real factory output",
+        "camera_height": "natural standing eye height",
+        "camera_position": "medium-wide view aligning politician, eager consumers and insufficient real production in depth",
+        "desired_first_second_message": "Inflation results when politicians encourage people to believe they can consume much more than they produce.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "promise of excess consumption",
+        "forbidden_messages": [
+          "technical monetary policy mechanisms",
+          "specific inflation rates or historical data series",
+          "non-political causes of inflation",
+          "particular countries or named politicians",
+          "solutions or remedies for inflation"
+        ],
+        "foreground": "consumption visibly exceeding production",
+        "largest_object": "a British politician promising overflowing consumption while a visibly smaller factory output sits behind the crowd",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a British politician promising overflowing consumption while a visibly smaller factory output sits behind the crowd",
+        "must_include": [
+          "British politician making promises",
+          "consumption visibly exceeding production",
+          "real factory output"
+        ],
+        "must_not_include": [
+          "price chart",
+          "shopping-only scene",
+          "money printing press",
+          "named politician"
+        ],
+        "primary_subject": "a British politician promising overflowing consumption while a visibly smaller factory output sits behind the crowd",
+        "scale_relationships": [
+          "promised consumption pile is visibly much larger than actual output",
+          "politician and claim remain prominent",
+          "factory output is unmistakably limited"
+        ],
+        "secondary_subjects": [
+          "consumption visibly exceeding production",
+          "real factory output"
+        ],
+        "setting": "a British town meeting beside a working factory and local shop",
+        "success_test": "At X timeline size, the first reading is 'Inflation results when politicians encourage people to believe they can consume much more than they produce.'. The eye moves through promise of excess consumption -> insufficient real production -> misled public; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "promise of excess consumption",
+          "insufficient real production",
+          "misled public"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "tone mismatch"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "b6f083595c5cbbd14e59",
+      "input_hash": "ff6fedb40fecadc12122d1013f51a81163a7f42dc7a12dca5f35841115de8ac7",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "scene_spec": {
+        "background": "a recognisable British covered market where one ordinary exchange is being blocked; state direction preventing their exchange",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium shot of buyer, seller and intervening allocation officer",
+        "desired_first_second_message": "Freedom and socialism are fundamentally incompatible.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "blocked voluntary exchange",
+        "forbidden_messages": [
+          "specific historical regimes or leaders",
+          "detailed economic policy prescriptions",
+          "capitalism as an explicit alternative",
+          "democratic voting procedures",
+          "religious or cultural freedom debates"
+        ],
+        "foreground": "voluntary buyer and seller",
+        "largest_object": "an independent British market trader prevented from making a voluntary sale by a uniform state allocation officer",
+        "lens_style": "35-50mm natural-perspective documentary lens",
+        "midground": "an independent British market trader prevented from making a voluntary sale by a uniform state allocation officer",
+        "must_include": [
+          "British market",
+          "voluntary buyer and seller",
+          "state direction preventing their exchange"
+        ],
+        "must_not_include": [
+          "hammer and sickle",
+          "capitalism-versus-socialism poster",
+          "broken chains",
+          "split screen"
+        ],
+        "primary_subject": "an independent British market trader prevented from making a voluntary sale by a uniform state allocation officer",
+        "scale_relationships": [
+          "buyer and seller are the intended focal action",
+          "the official interruption is equally legible but not monstrous",
+          "no ideology emblem dominates"
+        ],
+        "secondary_subjects": [
+          "voluntary buyer and seller",
+          "state direction preventing their exchange"
+        ],
+        "setting": "a recognisable British covered market where one ordinary exchange is being blocked",
+        "success_test": "At X timeline size, the first reading is 'Freedom and socialism are fundamentally incompatible.'. The eye moves through blocked voluntary exchange -> buyer and seller -> central direction; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "blocked voluntary exchange",
+          "buyer and seller",
+          "central direction"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "tone mismatch",
+        "distracting symbolism"
+      ]
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "7bef741d596d40b3379f",
+      "input_hash": "9768abdfc0670b2a03569422982ab70b6486dd2094e710cfc9ed92272fa8639c",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_text": "We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and drains away our wealth.",
+      "scene_spec": {
+        "background": "a drab British state office attached to an idle local workshop; idle productive tools",
+        "camera_height": "standing eye height with the stated over-shoulder relationship",
+        "camera_position": "medium-wide view from beside the worker's idle tools toward the oversized official counter",
+        "desired_first_second_message": "Critique of socialism in Britain: it diminishes the individual, elevates the state, worsens economic problems and depletes wealth.",
+        "desired_tone": [
+          "warning"
+        ],
+        "dominant_object": "individual diminished by state control",
+        "forbidden_messages": [
+          "praise of capitalism or free markets as such",
+          "specific named British politicians or parties",
+          "detailed policy prescriptions or reforms",
+          "international comparisons beyond Britain",
+          "theoretical definitions of Socialism unrelated to observed effects"
+        ],
+        "foreground": "state permission barrier",
+        "largest_object": "a British craft worker reduced to waiting for permission at an enormous state allocation counter while productive tools sit idle",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a British craft worker reduced to waiting for permission at an enormous state allocation counter while productive tools sit idle",
+        "must_include": [
+          "British worker",
+          "state permission barrier",
+          "idle productive tools",
+          "visible economic depletion"
+        ],
+        "must_not_include": [
+          "communist symbols",
+          "generic poverty queue",
+          "capitalist hero",
+          "currency draining illustration"
+        ],
+        "primary_subject": "a British craft worker reduced to waiting for permission at an enormous state allocation counter while productive tools sit idle",
+        "scale_relationships": [
+          "state counter towers over the worker",
+          "idle tools and empty order book remain visible",
+          "no abstract giant statue or logo"
+        ],
+        "secondary_subjects": [
+          "state permission barrier",
+          "idle productive tools"
+        ],
+        "setting": "a drab British state office attached to an idle local workshop",
+        "success_test": "At X timeline size, the first reading is 'Critique of socialism in Britain: it diminishes the individual, elevates the state, worsens economic problems and depletes wealth.'. The eye moves through individual diminished by state control -> idle productive capacity -> oversized bureaucracy; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "individual diminished by state control",
+          "idle productive capacity",
+          "oversized bureaucracy"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": []
+    },
+    {
+      "analysis_kind": "scene_grammar_plan",
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "input_hash": "3c5caf0facbc33de58dc92e62c2f13d881e1d60e598f3af97062d73cc2513e01",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate.",
+      "scene_spec": {
+        "background": "the House of Commons chamber during accountable ministerial questioning; public gallery",
+        "camera_height": "natural standing eye height",
+        "camera_position": "eye-level medium-wide view connecting minister, MPs and public gallery",
+        "desired_first_second_message": "Real progress stems from accountable democratic government by consent rather than expanded bureaucracy.",
+        "desired_tone": [],
+        "dominant_object": "ministerial accountability",
+        "forbidden_messages": [
+          "specific policy proposals or legislation",
+          "economic growth metrics or markets",
+          "party politics or individual politicians",
+          "international relations or foreign policy",
+          "technological innovation or private-sector reform"
+        ],
+        "foreground": "elected MPs questioning",
+        "largest_object": "a British minister answering difficult questions directly before elected MPs and watching constituents",
+        "lens_style": "28-35mm documentary wide lens without exaggerated distortion",
+        "midground": "a British minister answering difficult questions directly before elected MPs and watching constituents",
+        "must_include": [
+          "British minister answering Parliament",
+          "elected MPs questioning",
+          "public gallery"
+        ],
+        "must_not_include": [
+          "empty chamber",
+          "generic office bureaucracy",
+          "ballot-box montage",
+          "party campaign branding"
+        ],
+        "primary_subject": "a British minister answering difficult questions directly before elected MPs and watching constituents",
+        "scale_relationships": [
+          "minister and questioning MPs dominate",
+          "constituents are clearly visible in the gallery",
+          "bureaucratic paperwork occupies less than 10%"
+        ],
+        "secondary_subjects": [
+          "elected MPs questioning",
+          "public gallery"
+        ],
+        "setting": "the House of Commons chamber during accountable ministerial questioning",
+        "success_test": "At X timeline size, the first reading is 'Real progress stems from accountable democratic government by consent rather than expanded bureaucracy.'. The eye moves through ministerial accountability -> elected representatives -> watching electorate; every must_include element is physically visible; no must_not_include element or forbidden message is present or visually dominant.",
+        "viewer_eye_path": [
+          "ministerial accountability",
+          "elected representatives",
+          "watching electorate"
+        ]
+      },
+      "schema_version": 1,
+      "source_failure_categories": [
+        "scene too generic",
+        "wrong dominant subject",
+        "distracting symbolism"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "set_hash": "c312269efb401f566c0d7eeb347d055e1c0b7582ea403d506d9e6e6017b861de",
+  "source_manifest_hash": "929f60f84668543c352eec13e4d8038549ac6c1223f5689411322560665151a0"
+}

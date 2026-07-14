@@ -1,0 +1,145 @@
+{
+  "items": {
+    "109aaa465585620fd084": {
+      "case_id": "109aaa465585620fd084",
+      "message_match": "no",
+      "notes": "it should be the uk",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:13:12.934302+00:00"
+    },
+    "26617c4249fd779dfd9d": {
+      "case_id": "26617c4249fd779dfd9d",
+      "message_match": "partly",
+      "notes": "",
+      "preferred_candidate": "B",
+      "updated_at": "2026-07-13T03:04:54.880283+00:00"
+    },
+    "306a82edc7a8147b5f31": {
+      "case_id": "306a82edc7a8147b5f31",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:07:25.131216+00:00"
+    },
+    "38dcb6b5c297feab58e1": {
+      "case_id": "38dcb6b5c297feab58e1",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:13:32.300929+00:00"
+    },
+    "6735dd6f9451659687c3": {
+      "case_id": "6735dd6f9451659687c3",
+      "message_match": "partly",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:14:49.601856+00:00"
+    },
+    "6c62d1f0e7b813cc8b3c": {
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "message_match": "partly",
+      "notes": "",
+      "preferred_candidate": "B",
+      "updated_at": "2026-07-13T03:05:39.415270+00:00"
+    },
+    "7bef741d596d40b3379f": {
+      "case_id": "7bef741d596d40b3379f",
+      "message_match": "partly",
+      "notes": "",
+      "preferred_candidate": "C",
+      "updated_at": "2026-07-13T03:16:22.069540+00:00"
+    },
+    "86346f7d038b654174d3": {
+      "case_id": "86346f7d038b654174d3",
+      "message_match": "partly",
+      "notes": "map should highlighlight Serbia/bosnia/croatia",
+      "preferred_candidate": "C",
+      "updated_at": "2026-07-13T03:11:44.950557+00:00"
+    },
+    "9c0bd005a2cc4fc3a8fa": {
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:17:15.122153+00:00"
+    },
+    "aa3c305e1fc88d9654e6": {
+      "case_id": "aa3c305e1fc88d9654e6",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:12:01.844070+00:00"
+    },
+    "aa9e75a35f39f9d73b2f": {
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:15:08.003261+00:00"
+    },
+    "aaf00ee85b585eb3ff4a": {
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:14:03.635830+00:00"
+    },
+    "b0ec09020e96b269e52d": {
+      "case_id": "b0ec09020e96b269e52d",
+      "message_match": "no",
+      "notes": "this is not the uk",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:09:49.556221+00:00"
+    },
+    "b6f083595c5cbbd14e59": {
+      "case_id": "b6f083595c5cbbd14e59",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:15:45.057860+00:00"
+    },
+    "c4ab29f84aaaa7e47294": {
+      "case_id": "c4ab29f84aaaa7e47294",
+      "message_match": "partly",
+      "notes": "should be a uk flag; Everest should be taller than all visible peaks",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:02:45.913281+00:00"
+    },
+    "c80b2ef409eadfd41ac9": {
+      "case_id": "c80b2ef409eadfd41ac9",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:10:11.116288+00:00"
+    },
+    "d536b4de87d7a7511a94": {
+      "case_id": "d536b4de87d7a7511a94",
+      "message_match": "partly",
+      "notes": "",
+      "preferred_candidate": "A",
+      "updated_at": "2026-07-13T03:08:55.154681+00:00"
+    },
+    "e30b2c632c778eab5930": {
+      "case_id": "e30b2c632c778eab5930",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:09:12.984473+00:00"
+    },
+    "e98593e10072f6429099": {
+      "case_id": "e98593e10072f6429099",
+      "message_match": "no",
+      "notes": "should be thatcher",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:12:40.632793+00:00"
+    },
+    "fd1586f47da85b5a0b5e": {
+      "case_id": "fd1586f47da85b5a0b5e",
+      "message_match": "no",
+      "notes": "",
+      "preferred_candidate": "none",
+      "updated_at": "2026-07-13T03:15:24.747265+00:00"
+    }
+  },
+  "schema_version": 1
+}

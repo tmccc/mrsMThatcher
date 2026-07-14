@@ -1,0 +1,4 @@
+prompt_style,human_wins,human_win_rate,none_rate,message_yes,message_partly,message_no,first_impression_mean,semantic_mean,tone_mean,editorial_power_mean,estimated_generation_cost_per_human_win
+mechanism_first,2,0.1,0.75,0,2,0,74.6,65.0,70.75,61.7,0.13
+first_impression_first,2,0.1,0.75,0,2,0,76.8,64.65,75.05,61.7,0.13
+balanced_editorial,1,0.05,0.75,0,1,0,76.25,63.5,73.5,62.6,0.26

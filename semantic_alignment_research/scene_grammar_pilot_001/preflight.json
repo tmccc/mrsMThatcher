@@ -1,0 +1,13 @@
+{
+  "allowed": true,
+  "cases": 20,
+  "conservative_retry_total_usd": 5.6344,
+  "expected_analysis_cost_usd": 2.2972,
+  "expected_generation_cost_usd": 0.52,
+  "expected_total_cost_usd": 2.8172,
+  "hard_ceiling_usd": 15.0,
+  "identity_audit_calls": 6,
+  "images": 40,
+  "provider_trial": "deferred to avoid confounding scene grammar with provider",
+  "schema_version": 1
+}

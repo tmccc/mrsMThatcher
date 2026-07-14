@@ -1,0 +1,128 @@
+{
+  "analysis_kind": "generation_prompt_validation_manifest",
+  "items": [
+    {
+      "case_id": "c4ab29f84aaaa7e47294",
+      "inclusion_reason": "forced_everest_regression",
+      "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+      "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag."
+    },
+    {
+      "case_id": "26617c4249fd779dfd9d",
+      "inclusion_reason": "forced_free_trade_regression",
+      "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+      "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited."
+    },
+    {
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "inclusion_reason": "pairwise_neither_existing_candidates",
+      "quote_hash": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces."
+    },
+    {
+      "case_id": "306a82edc7a8147b5f31",
+      "inclusion_reason": "pairwise_neither_existing_candidates",
+      "quote_hash": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_text": "In today's world, monopoly trade unions have immense potential for destruction and can inflict severe damage and hardship on their fellow workers - indeed on their fellow trade unionists."
+    },
+    {
+      "case_id": "d536b4de87d7a7511a94",
+      "inclusion_reason": "pairwise_neither_existing_candidates",
+      "quote_hash": "1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a",
+      "quote_text": "What works here, as elsewhere, is free enterprise and not big government."
+    },
+    {
+      "case_id": "e30b2c632c778eab5930",
+      "inclusion_reason": "pairwise_neither_existing_candidates",
+      "quote_hash": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit."
+    },
+    {
+      "case_id": "b0ec09020e96b269e52d",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law."
+    },
+    {
+      "case_id": "c80b2ef409eadfd41ac9",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417",
+      "quote_text": "Privatisation shrinks the power of the state and free enterprise enlarges the power of the people."
+    },
+    {
+      "case_id": "86346f7d038b654174d3",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't."
+    },
+    {
+      "case_id": "aa3c305e1fc88d9654e6",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_text": "We want a society where people are free to make choices, to make mistakes, to be generous and compassionate. This is what we mean by a moral society; not a society where the state is responsible for everything, and no one is responsible for the state."
+    },
+    {
+      "case_id": "e98593e10072f6429099",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it."
+    },
+    {
+      "case_id": "109aaa465585620fd084",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "ab81f26fbbdea5b50b5f95a4b89e91f2491d707ee3d98b06e1b2a8f203e5e659",
+      "quote_text": "No nation ever retained its freedom for any length of time after losing its respect for the law, after losing the law-abiding spirit."
+    },
+    {
+      "case_id": "38dcb6b5c297feab58e1",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO."
+    },
+    {
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa",
+      "quote_text": "Our sovereignty does not come from Brussels - it is ours by right and by heritage."
+    },
+    {
+      "case_id": "6735dd6f9451659687c3",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock."
+    },
+    {
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1",
+      "quote_text": "States, societies and economies, which allow the distinctive talents of individuals to flourish, themselves also flourish. Those which dwarf, crush, distort, manipulate or ignore them cannot progress."
+    },
+    {
+      "case_id": "fd1586f47da85b5a0b5e",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce."
+    },
+    {
+      "case_id": "b6f083595c5cbbd14e59",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix."
+    },
+    {
+      "case_id": "7bef741d596d40b3379f",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120",
+      "quote_text": "We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and drains away our wealth."
+    },
+    {
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "inclusion_reason": "human_replace_wrong_message_or_tone",
+      "quote_hash": "1fd9dc8bc79b72ba11ce420cab2061aa9586117e10f8c38f6f60ab3c2a55b739",
+      "quote_text": "Real progress comes not from more bureaucracy, but from the values and institutions of government by consent, through ministers seen to be accountable to their electorate."
+    }
+  ],
+  "manifest_hash": "929f60f84668543c352eec13e4d8038549ac6c1223f5689411322560665151a0",
+  "prompt_version": "generation-brief-v1",
+  "schema_version": 1
+}

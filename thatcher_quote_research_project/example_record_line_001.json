@@ -1,0 +1,462 @@
+{
+  "quote_id": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+  "quote_hash": "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+  "quote_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+  "source_occurrences": [
+    {
+      "line_number": 1
+    }
+  ],
+  "verification": {
+    "status": "exact",
+    "verified_text": "A man may climb Everest for himself, but at the summit he plants his country's flag.",
+    "text_variation_notes": "The uploaded wording matches the checked-delivery transcript; only surrounding audience reaction is omitted.",
+    "attributed_speaker": "Margaret Thatcher",
+    "verified_speaker": "Margaret Thatcher",
+    "principal_source_id": "S1",
+    "principal_source_event_id": "EVT1",
+    "principal_source_relationship": "exact_wording",
+    "uploaded_wording_origin_source_id": "S1",
+    "direct_evidence_ids": [
+      "E1"
+    ],
+    "related_quotes": [],
+    "publication_recommendation": "eligible",
+    "publication_reason": "The wording and attribution are established by a transcript checked against delivery."
+  },
+  "source_events": [
+    {
+      "event_id": "EVT1",
+      "relationship": "principal",
+      "title": "Speech to Conservative Party Conference",
+      "communication_type": "speech",
+      "occasion_type": "conference",
+      "event_date": {
+        "start": "1988-10-14",
+        "end": null,
+        "precision": "day"
+      },
+      "publication_date": {
+        "start": null,
+        "end": null,
+        "precision": "unknown"
+      },
+      "venue_or_platform": "Conference Centre, Brighton",
+      "intended_audience": "Conservative Party conference delegates and the wider broadcast audience",
+      "delivery_status": "checked_against_delivery",
+      "primary_source_available": "yes",
+      "source_ids": [
+        "S1"
+      ],
+      "evidence_ids": [
+        "E1",
+        "E2",
+        "E3"
+      ],
+      "selection_reason": "This occurrence contains the exact sentence in a transcript explicitly checked against delivery."
+    }
+  ],
+  "historical_context": {
+    "summary": "In a 1988 party-conference speech, Thatcher rejected criticism that individual advancement necessarily harms the community and argued that personal effort can strengthen shared institutions and national life.",
+    "immediate_trigger": "Critics' contention that individual success comes at the community's expense",
+    "immediate_subject": "The relationship between individual achievement and the community",
+    "political_issue": "Conservative individualism, prosperity and social responsibility",
+    "response_to_criticism": "yes",
+    "current_event_reference": null,
+    "surrounding_circumstances": "The Everest sentence concludes a passage moving from individual effort through family, school and regiment to country.",
+    "claims": [
+      {
+        "claim_id": "C1",
+        "text": "The surrounding section introduces a criticism that individual success is achieved at the expense of the community.",
+        "epistemic_status": "source_fact",
+        "evidence_ids": [
+          "E2"
+        ]
+      },
+      {
+        "claim_id": "C2",
+        "text": "Thatcher's answer is that personal effort and individual talent strengthen rather than weaken the community.",
+        "epistemic_status": "speaker_claim",
+        "evidence_ids": [
+          "E2"
+        ]
+      }
+    ]
+  },
+  "entities": [
+    {
+      "entity_id": "ENT1",
+      "type": "person",
+      "name": "Margaret Thatcher",
+      "canonical_name": "Margaret Thatcher",
+      "role": "Speaker",
+      "scope": "source_event",
+      "evidence_ids": [
+        "E1"
+      ]
+    },
+    {
+      "entity_id": "ENT2",
+      "type": "place",
+      "name": "Everest",
+      "canonical_name": "Mount Everest",
+      "role": "Metaphorical summit representing individual achievement",
+      "scope": "quote_text",
+      "evidence_ids": [
+        "E1"
+      ]
+    },
+    {
+      "entity_id": "ENT3",
+      "type": "place",
+      "name": "Brighton",
+      "canonical_name": "Brighton, England",
+      "role": "Location of the source event",
+      "scope": "source_event",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    {
+      "entity_id": "ENT4",
+      "type": "political_party",
+      "name": "Conservative Party",
+      "canonical_name": "Conservative Party",
+      "role": "Conference organiser and principal audience",
+      "scope": "source_event",
+      "evidence_ids": [
+        "E3"
+      ]
+    }
+  ],
+  "meaning": {
+    "literal_meaning": "A climber pursues a personal achievement but marks the summit on behalf of a country.",
+    "intended_argument": "Individual ambition and communal or national service are complementary rather than opposed.",
+    "meaning_in_context": "The original audience would have understood the sentence as a rebuttal to criticism that Conservative encouragement of individual success produces selfishness.",
+    "broader_principle": "Responsible individual achievement can strengthen wider communities.",
+    "mechanism": "Personal effort develops ability and produces achievements whose benefits, pride or example are shared with larger institutions.",
+    "claimed_consequence": "Encouraging individuals benefits families, schools, regiments, communities and the country."
+  },
+  "editorial_guidance": {
+    "guidance_status": "ready",
+    "desired_first_impression": "Personal achievement culminating in service to, and pride in, one's country",
+    "suitable_visual_subjects": [
+      "A lone mountaineer reaching a high summit",
+      "A climber planting a national flag after the ascent"
+    ],
+    "suitable_symbolism": [
+      "Mountain summit",
+      "National flag",
+      "Upward route showing effort before achievement"
+    ],
+    "visual_concepts": [
+      {
+        "concept_id": "VC1",
+        "priority": 1,
+        "depiction_mode": "metaphorical",
+        "concept": "A climber at a vast summit plants a national flag, with the arduous ascent visible below.",
+        "rationale": "It uses Thatcher's own metaphor and makes the transition from personal effort to national representation legible immediately.",
+        "recommended_period": null,
+        "recommended_location": "A visually plausible high Himalayan-style summit without identifying a particular expedition",
+        "thatcher_presence": "avoid",
+        "must_include": [
+          "One clearly dominant climber",
+          "Summit",
+          "Flag being planted",
+          "Visible scale and ascent"
+        ],
+        "must_avoid": [
+          "Portraits of Hillary or Tenzing",
+          "A 1953 expedition caption or other claim of a specific historic ascent",
+          "Conquest imagery directed at another country"
+        ]
+      },
+      {
+        "concept_id": "VC2",
+        "priority": 2,
+        "depiction_mode": "metaphorical",
+        "concept": "From behind the climber, the viewer sees the planted flag and an immense landscape opening beyond the summit.",
+        "rationale": "The viewpoint leads from individual effort in the foreground to a larger national horizon.",
+        "recommended_period": null,
+        "recommended_location": "Unspecified mountain summit",
+        "thatcher_presence": "avoid",
+        "must_include": [
+          "Climber in foreground",
+          "Flag as the central destination",
+          "Broad horizon"
+        ],
+        "must_avoid": [
+          "Generic political rally",
+          "Military occupation cues",
+          "Multiple competing symbols"
+        ]
+      }
+    ],
+    "historical_accuracy_requirements": [
+      {
+        "requirement": "If the delivery occasion is depicted instead of the metaphor, it must be a 1988 Conservative Party conference setting in Brighton.",
+        "strength": "required",
+        "basis": "historical_fact",
+        "evidence_ids": [
+          "E3"
+        ]
+      }
+    ],
+    "avoid": [
+      "Treating the metaphor as a reference to a named Everest expedition",
+      "Making solitary ego or territorial conquest the message",
+      "Unrelated Cold War or protest imagery"
+    ],
+    "common_misinterpretations": [
+      "Reading the sentence as praise of individual glory alone",
+      "Assuming it describes the 1953 Everest expedition"
+    ],
+    "image_generation_constraints": {
+      "primary_subject": "Mountaineer at the moment of planting a national flag",
+      "secondary_subjects": [
+        "Summit ridge",
+        "Route of ascent",
+        "Distant landscape"
+      ],
+      "dominant_object": "The climber and flag as one visual action",
+      "largest_object": "The mountain and summit environment",
+      "required_relationships": [
+        "The climber must be actively placing or securing the flag at the summit",
+        "The ascent below must make the achievement feel earned"
+      ],
+      "required_scale": "The mountain should dwarf the climber while the climber-and-flag action remains immediately legible",
+      "camera_position": "Slightly behind and below the climber, close enough to read the action but wide enough to show scale",
+      "lighting": "Clear, restrained summit light suggesting achievement without fantasy spectacle",
+      "foreground": "Climber, ice or rock, and planted flag",
+      "midground": "Summit ridge and visible ascent",
+      "background": "Expansive mountain horizon",
+      "viewer_eye_path": [
+        "Climber",
+        "Flag",
+        "Summit edge",
+        "Wider national horizon"
+      ],
+      "required_objects": [
+        "Mountaineer",
+        "Summit",
+        "National flag"
+      ],
+      "forbidden_objects": [
+        "Named-expedition labels",
+        "Weapons",
+        "Opposing national flags",
+        "Generic political placards"
+      ]
+    }
+  },
+  "sources": [
+    {
+      "source_id": "S1",
+      "title": "Speech to Conservative Party Conference",
+      "creator_or_issuing_body": "Margaret Thatcher",
+      "passage_speaker": "Margaret Thatcher",
+      "host_or_repository": "Margaret Thatcher Foundation",
+      "source_kind": "transcript",
+      "primary_status": "primary_reproduction",
+      "source_format": "checked_delivery_transcript",
+      "event_date": {
+        "start": "1988-10-14",
+        "end": null,
+        "precision": "day"
+      },
+      "publication_date": {
+        "start": null,
+        "end": null,
+        "precision": "unknown"
+      },
+      "canonical_url": "https://www.margaretthatcher.org/document/107352",
+      "stable_document_id": "MTF:107352",
+      "archive_reference": "Thatcher MSS (Churchill Archive Centre): THCR",
+      "edition": null,
+      "isbn": null,
+      "accessed_at": "2026-07-13T00:00:00Z"
+    }
+  ],
+  "evidence": [
+    {
+      "evidence_id": "E1",
+      "source_id": "S1",
+      "locator": {
+        "type": "other",
+        "value": "Document 107352; transcript p.8, immediately after [end p7]; section INDIVIDUAL IN THE COMMUNITY; Everest quote anchor"
+      },
+      "evidence_excerpt": "climb Everest for himself, but at the summit he plants his country's flag",
+      "analyst_note": "The decisive passage matches the uploaded sentence and identifies Thatcher as the passage speaker.",
+      "passage_primary_status": "primary_reproduction",
+      "support_type": "direct",
+      "targets": [
+        {
+          "type": "json_pointer",
+          "value": "/verification/status"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/verification/verified_text"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/verification/verified_speaker"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/entities/1"
+        }
+      ]
+    },
+    {
+      "evidence_id": "E2",
+      "source_id": "S1",
+      "locator": {
+        "type": "section",
+        "value": "Document 107352; INDIVIDUAL IN THE COMMUNITY; transcript pp.7-8"
+      },
+      "evidence_excerpt": "They say the individual gains success",
+      "analyst_note": "The surrounding passage states the criticism and records Thatcher's answer that personal effort benefits the community.",
+      "passage_primary_status": "primary_reproduction",
+      "support_type": "direct",
+      "targets": [
+        {
+          "type": "claim_id",
+          "value": "C1"
+        },
+        {
+          "type": "claim_id",
+          "value": "C2"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/historical_context/summary"
+        }
+      ]
+    },
+    {
+      "evidence_id": "E3",
+      "source_id": "S1",
+      "locator": {
+        "type": "document_fragment",
+        "value": "Document 107352 metadata: date, title, venue, source and editorial delivery note"
+      },
+      "evidence_excerpt": "Venue: Conference Centre, Brighton",
+      "analyst_note": "The source metadata identifies the event date and venue and states that the transcript was checked against delivery.",
+      "passage_primary_status": "secondary",
+      "support_type": "direct",
+      "targets": [
+        {
+          "type": "json_pointer",
+          "value": "/source_events/0/event_date"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/source_events/0/venue_or_platform"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/source_events/0/delivery_status"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/entities/2"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/entities/3"
+        },
+        {
+          "type": "json_pointer",
+          "value": "/editorial_guidance/historical_accuracy_requirements/0"
+        }
+      ]
+    }
+  ],
+  "confidence": {
+    "quotation_wording": {
+      "label": "very_high",
+      "reason": "The exact sentence appears in a transcript checked against delivery.",
+      "evidence_ids": [
+        "E1",
+        "E3"
+      ]
+    },
+    "attribution": {
+      "label": "very_high",
+      "reason": "The Foundation record identifies Thatcher and reproduces her checked-delivery conference text.",
+      "evidence_ids": [
+        "E1",
+        "E3"
+      ]
+    },
+    "source_event": {
+      "label": "very_high",
+      "reason": "The date, event and venue are stated in provenance-rich source metadata.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    "date": {
+      "label": "very_high",
+      "reason": "The source record gives the exact event date.",
+      "evidence_ids": [
+        "E3"
+      ]
+    },
+    "historical_context": {
+      "label": "high",
+      "reason": "The immediate argument is explicit in the surrounding checked-delivery passage.",
+      "evidence_ids": [
+        "E2"
+      ]
+    },
+    "editorial_interpretation": {
+      "label": "high",
+      "reason": "The preferred concept follows Thatcher's explicit metaphor and the surrounding individual/community argument; the no-specific-expedition rule is clearly labelled as editorial inference.",
+      "evidence_ids": [
+        "E1",
+        "E2"
+      ]
+    }
+  },
+  "field_status": [
+    {
+      "field_path": "/verification/related_quotes",
+      "status": "none",
+      "reason": "No material related quote record was established in the frozen manifest during this pilot."
+    },
+    {
+      "field_path": "/historical_context/current_event_reference",
+      "status": "none",
+      "reason": "The immediate passage makes a general political argument rather than identifying a separate current event."
+    },
+    {
+      "field_path": "/sources/0/publication_date",
+      "status": "unknown",
+      "reason": "The event date is known, but the Foundation webpage publication date was not established."
+    },
+    {
+      "field_path": "/sources/0/edition",
+      "status": "not_applicable",
+      "reason": "The source is a hosted transcript rather than a book edition."
+    },
+    {
+      "field_path": "/sources/0/isbn",
+      "status": "not_applicable",
+      "reason": "The source is not a book."
+    }
+  ],
+  "unresolved_work": {
+    "is_unresolved": false,
+    "questions": [],
+    "searches_attempted": [
+      "Exact phrase search",
+      "Margaret Thatcher Foundation document-body and metadata inspection",
+      "Surrounding transcript-context inspection"
+    ],
+    "next_actions": []
+  },
+  "researched_at": "2026-07-13T00:00:00Z",
+  "last_verified_at": "2026-07-13T00:00:00Z"
+}

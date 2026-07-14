@@ -1,0 +1,19 @@
+{
+  "required": [
+    "primary_subject",
+    "secondary_subjects",
+    "setting",
+    "camera_view",
+    "composition",
+    "scale_relationships",
+    "attention_hierarchy",
+    "must_include",
+    "must_avoid",
+    "forbidden_dominant_messages",
+    "desired_first_second_message",
+    "desired_tone",
+    "lighting",
+    "timeline_readability"
+  ],
+  "schema_version": 1
+}

@@ -1,0 +1,262 @@
+{
+  "batch_id": "gemini_grounded_pilot_002",
+  "excluded_batch_id": "pilot_001",
+  "excluded_quote_ids": [
+    "073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08",
+    "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+    "230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a",
+    "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2",
+    "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+    "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+    "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+    "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa",
+    "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018"
+  ],
+  "manifest_sha256": "1eb05c6074d46603cec268ff483c5ef0cdbb1b387484293a33946994cec66bdf",
+  "record_count": 20,
+  "records": [
+    {
+      "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "quote_id": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "quote_text": "During my lifetime most of the problems the world has faced have come, in one fashion or other, from mainland Europe, and the solutions from outside it.",
+      "research_status": "pending",
+      "selection_reason": "historically_complex_event",
+      "source_occurrences": [
+        {
+          "line_number": 16
+        }
+      ]
+    },
+    {
+      "quote_hash": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "quote_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "quote_text": "Look at a day when you are supremely satisfied at the end. It's not a day when you lounge around doing nothing; it's when you've had everything to do, and you've done it.",
+      "research_status": "pending",
+      "selection_reason": "general_speech_or_publication",
+      "source_occurrences": [
+        {
+          "line_number": 46
+        }
+      ]
+    },
+    {
+      "quote_hash": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_id": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_text": "What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have got to have hard work and a certain sense of purpose.",
+      "research_status": "pending",
+      "selection_reason": "interview_or_colloquial_wording",
+      "source_occurrences": [
+        {
+          "line_number": 84
+        }
+      ]
+    },
+    {
+      "quote_hash": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty.",
+      "research_status": "pending",
+      "selection_reason": "general_speech_or_publication",
+      "source_occurrences": [
+        {
+          "line_number": 99
+        }
+      ]
+    },
+    {
+      "quote_hash": "e0ec17fd0cdf45f02d1b9cedffa8bc626e10592203559baba18b7622feeee491",
+      "quote_id": "e0ec17fd0cdf45f02d1b9cedffa8bc626e10592203559baba18b7622feeee491",
+      "quote_text": "I believe we should judge people on merit and not on background.",
+      "research_status": "pending",
+      "selection_reason": "short_wording_attribution_risk",
+      "source_occurrences": [
+        {
+          "line_number": 104
+        }
+      ]
+    },
+    {
+      "quote_hash": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "quote_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member.",
+      "research_status": "pending",
+      "selection_reason": "hansard_or_parliamentary_cue",
+      "source_occurrences": [
+        {
+          "line_number": 143
+        }
+      ]
+    },
+    {
+      "quote_hash": "094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb",
+      "quote_id": "094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb",
+      "quote_text": "I do not believe that even the free and ordered society which as a party we are trying to foster can satisfy the deepest human needs. I do not think that even this society will be able to sustain itself unless it keeps its religious foundations in good repair.",
+      "research_status": "pending",
+      "selection_reason": "general_speech_or_publication",
+      "source_occurrences": [
+        {
+          "line_number": 198
+        }
+      ]
+    },
+    {
+      "quote_hash": "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+      "quote_id": "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+      "quote_text": "Too often trade unions are dominated by a tiny handful of extremists who do not reflect the common sense views of most union members. Wider use of secret ballots for decision-making throughout the trade union movement should be given every encouragement.",
+      "research_status": "pending",
+      "selection_reason": "deterministic_representative_fill",
+      "source_occurrences": [
+        {
+          "line_number": 209
+        }
+      ]
+    },
+    {
+      "quote_hash": "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee",
+      "quote_id": "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee",
+      "quote_text": "Today's Labour Party has, in fact, no discernible principles at all. It is rootless, empty and artificial. Its focus groups focused and its spin doctors spun - but its only real purpose was to leave the electorate in a daze.",
+      "research_status": "pending",
+      "selection_reason": "general_speech_or_publication",
+      "source_occurrences": [
+        {
+          "line_number": 226
+        }
+      ]
+    },
+    {
+      "quote_hash": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "quote_id": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "quote_text": "To young people, I say: \"when you visit Eastern Europe, learn from them about the socialist past that didn't work, & tell them about the Conservative future that will. And then come home & tell your friends of the excitement of people who are tasting freedom for the first time\".",
+      "research_status": "pending",
+      "selection_reason": "historically_complex_event",
+      "source_occurrences": [
+        {
+          "line_number": 383
+        }
+      ]
+    },
+    {
+      "quote_hash": "e6759ca3289e12a1dfe7eb002ef6fa58ce6dff45591e9ce22b97ccbfb31b96c7",
+      "quote_id": "e6759ca3289e12a1dfe7eb002ef6fa58ce6dff45591e9ce22b97ccbfb31b96c7",
+      "quote_text": "What marks out our Conservative vision is the insight that the State - government - only underpins the conditions for a prosperous and fulfilling life. It does not generate them. Moreover, the very existence of this State, with its huge capacity for evil, is a potential threat to all the moral, cultural, social and economic benefits of freedom.",
+      "research_status": "pending",
+      "selection_reason": "long_excerpt_or_composite_risk",
+      "source_occurrences": [
+        {
+          "line_number": 397
+        }
+      ]
+    },
+    {
+      "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "quote_id": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "quote_text": "To me the most significant lesson is: never appease an aggressor. If we do, he will only grow stronger and more confident, and to secure his ultimate defeat will require greater effort and greater sacrifice. The longer you put off the needed decision and action, the higher the price in blood which has to be paid.",
+      "research_status": "pending",
+      "selection_reason": "long_excerpt_or_composite_risk",
+      "source_occurrences": [
+        {
+          "line_number": 399
+        }
+      ]
+    },
+    {
+      "quote_hash": "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+      "quote_id": "4b53af75f4bf9c618f8705d104bebb7ea47088877fcf9f31e742299b411bf119",
+      "quote_text": "Freedom of discussion is something more than just freedom of speech. Discussion requires a willingness to listen as much as a capacity to debate. Through it we both teach and learn - and the wider it goes the more likely we are to increase the stock of human understanding.",
+      "research_status": "pending",
+      "selection_reason": "general_speech_or_publication",
+      "source_occurrences": [
+        {
+          "line_number": 411
+        }
+      ]
+    },
+    {
+      "quote_hash": "1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc",
+      "quote_id": "1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc",
+      "quote_text": "And really, you know, politicians, I think should sometimes just be a little bit more modest about their abilities than they are. We can't run everything - and we shouldn't try.",
+      "research_status": "pending",
+      "selection_reason": "interview_or_colloquial_wording",
+      "source_occurrences": [
+        {
+          "line_number": 442
+        }
+      ]
+    },
+    {
+      "quote_hash": "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+      "quote_id": "67aebf2698e84c3d0dfb1ba16237b57f11c1693c223f444de1134b3768693150",
+      "quote_text": "Without more jobs, the future's bleak.",
+      "research_status": "pending",
+      "selection_reason": "short_wording_attribution_risk",
+      "source_occurrences": [
+        {
+          "line_number": 447
+        }
+      ]
+    },
+    {
+      "quote_hash": "9189ef7d35fab34adace585f067caf959116285668919e18e4c2e84ec8ef9fb8",
+      "quote_id": "9189ef7d35fab34adace585f067caf959116285668919e18e4c2e84ec8ef9fb8",
+      "quote_text": "Crime grows where the pressure of established values and conventions is removed.",
+      "research_status": "pending",
+      "selection_reason": "short_wording_attribution_risk",
+      "source_occurrences": [
+        {
+          "line_number": 455
+        }
+      ]
+    },
+    {
+      "quote_hash": "d059a2285c945aa1a8d8cdf840be8695e87c7e0bd8500c9ad545984afd08d130",
+      "quote_id": "d059a2285c945aa1a8d8cdf840be8695e87c7e0bd8500c9ad545984afd08d130",
+      "quote_text": "There are those who say our nation no longer has the stomach for the fight. I think I know our people and I know they do.",
+      "research_status": "pending",
+      "selection_reason": "interview_or_colloquial_wording",
+      "source_occurrences": [
+        {
+          "line_number": 534
+        }
+      ]
+    },
+    {
+      "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+      "quote_id": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+      "quote_text": "It is Government's job to maximise the liberty of the people under a rule of law and therefore to make your Government systems serve the liberty of the people, and not to extinguish them. In other words, the Government is servant of the people and not their master.",
+      "research_status": "pending",
+      "selection_reason": "hansard_or_parliamentary_cue",
+      "source_occurrences": [
+        {
+          "line_number": 538
+        }
+      ]
+    },
+    {
+      "quote_hash": "27b9bc245abb7d5e022924fd6a02b346fc4a3dfb7837c974cb569461412be069",
+      "quote_id": "27b9bc245abb7d5e022924fd6a02b346fc4a3dfb7837c974cb569461412be069",
+      "quote_text": "We believe that individuals have a right to liberty that no state can take away. That Government is the servant of the people, not its master. That the role of Government is to strengthen our freedom, not deny it. That the economic role of Government is to establish a climate in which enterprise can flourish, not to elbow enterprise out of the way.",
+      "research_status": "pending",
+      "selection_reason": "long_excerpt_or_composite_risk",
+      "source_occurrences": [
+        {
+          "line_number": 588
+        }
+      ]
+    },
+    {
+      "quote_hash": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "quote_id": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "quote_text": "It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty.",
+      "research_status": "pending",
+      "selection_reason": "historically_complex_event",
+      "source_occurrences": [
+        {
+          "line_number": 631
+        }
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source_manifest_version": 1
+}

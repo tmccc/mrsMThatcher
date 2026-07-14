@@ -1,0 +1,126 @@
+{
+  "analysis_kind": "scene_grammar_human_review",
+  "items": {
+    "109aaa465585620fd084": {
+      "case_id": "109aaa465585620fd084",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:14:09.436230+00:00"
+    },
+    "26617c4249fd779dfd9d": {
+      "case_id": "26617c4249fd779dfd9d",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:08:38.058569+00:00"
+    },
+    "306a82edc7a8147b5f31": {
+      "case_id": "306a82edc7a8147b5f31",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:10:26.934421+00:00"
+    },
+    "38dcb6b5c297feab58e1": {
+      "case_id": "38dcb6b5c297feab58e1",
+      "decision": "revise",
+      "notes": "I think the euphoric population isn’t important. What’s more important is nato symbolism.",
+      "updated_at": "2026-07-13T07:15:11.435802+00:00"
+    },
+    "6735dd6f9451659687c3": {
+      "case_id": "6735dd6f9451659687c3",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:15:44.001000+00:00"
+    },
+    "6c62d1f0e7b813cc8b3c": {
+      "case_id": "6c62d1f0e7b813cc8b3c",
+      "decision": "revise",
+      "notes": "The speaker must be a recognisable photorealistic Enoch Powell.",
+      "updated_at": "2026-07-13T07:09:36.908671+00:00"
+    },
+    "7bef741d596d40b3379f": {
+      "case_id": "7bef741d596d40b3379f",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:17:12.355568+00:00"
+    },
+    "86346f7d038b654174d3": {
+      "case_id": "86346f7d038b654174d3",
+      "decision": "revise",
+      "notes": "Actually this was about the war in serbia/bosnia/croatia",
+      "updated_at": "2026-07-13T07:13:17.821694+00:00"
+    },
+    "9c0bd005a2cc4fc3a8fa": {
+      "case_id": "9c0bd005a2cc4fc3a8fa",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:17:23.609381+00:00"
+    },
+    "aa3c305e1fc88d9654e6": {
+      "case_id": "aa3c305e1fc88d9654e6",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:13:34.769600+00:00"
+    },
+    "aa9e75a35f39f9d73b2f": {
+      "case_id": "aa9e75a35f39f9d73b2f",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:16:28.067467+00:00"
+    },
+    "aaf00ee85b585eb3ff4a": {
+      "case_id": "aaf00ee85b585eb3ff4a",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:15:25.490396+00:00"
+    },
+    "b0ec09020e96b269e52d": {
+      "case_id": "b0ec09020e96b269e52d",
+      "decision": "revise",
+      "notes": "Audience must be multi-age and multi-ethnic.",
+      "updated_at": "2026-07-13T07:12:05.751041+00:00"
+    },
+    "b6f083595c5cbbd14e59": {
+      "case_id": "b6f083595c5cbbd14e59",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:17:05.422391+00:00"
+    },
+    "c4ab29f84aaaa7e47294": {
+      "case_id": "c4ab29f84aaaa7e47294",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:08:07.146397+00:00"
+    },
+    "c80b2ef409eadfd41ac9": {
+      "case_id": "c80b2ef409eadfd41ac9",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:12:24.355393+00:00"
+    },
+    "d536b4de87d7a7511a94": {
+      "case_id": "d536b4de87d7a7511a94",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:10:54.983870+00:00"
+    },
+    "e30b2c632c778eab5930": {
+      "case_id": "e30b2c632c778eab5930",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:11:16.591222+00:00"
+    },
+    "e98593e10072f6429099": {
+      "case_id": "e98593e10072f6429099",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:13:45.091651+00:00"
+    },
+    "fd1586f47da85b5a0b5e": {
+      "case_id": "fd1586f47da85b5a0b5e",
+      "decision": "approve",
+      "notes": "",
+      "updated_at": "2026-07-13T07:16:54.531556+00:00"
+    }
+  },
+  "schema_version": 1
+}
