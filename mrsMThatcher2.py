@@ -209,6 +209,16 @@ GENERATED_IDENTITY_AUDIT_FILE = str(BASE_DIR / "generated_image_identity_depende
 GENERATED_IDENTITY_SHADOW_SMALL_PENALTY = 6.0
 GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
+HISTORICAL_CONTEXT_RESEARCH_DIR = BASE_DIR / "semantic_alignment_research" / "quote_research_full_001"
+HISTORICAL_CONTEXT_REPLY_HISTORY_FILE = BASE_DIR / "historical_context_reply_history.json"
+HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE = BASE_DIR / "historical_context_reply_receipt.json"
+historical_context_reply = {
+    "enabled": False,
+    "maximum_length": 4000,
+    "include_meaning": True,
+    "include_source": True,
+    "include_verification": True,
+}
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
@@ -473,6 +483,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
 
     # Operational hardening
     "STATE_BACKUP_COUNT",
+    "historical_context_reply",
 }
 
 LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
@@ -615,6 +626,20 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
     expected to pass, and invalid local override sets are rejected atomically.
     """
     errors: list[str] = []
+
+    context_config = values.get("historical_context_reply", globals().get("historical_context_reply"))
+    context_keys = {"enabled", "maximum_length", "include_meaning", "include_source", "include_verification"}
+    if not isinstance(context_config, dict):
+        errors.append("historical_context_reply must be an object")
+    elif set(context_config) != context_keys:
+        errors.append("historical_context_reply fields mismatch")
+    else:
+        for key in ("enabled", "include_meaning", "include_source", "include_verification"):
+            if type(context_config.get(key)) is not bool:
+                errors.append(f"historical_context_reply.{key} must be boolean")
+        maximum = context_config.get("maximum_length")
+        if type(maximum) is not int or not 120 <= maximum <= 25_000:
+            errors.append("historical_context_reply.maximum_length must be an integer from 120 to 25000")
 
     def int_value(key: str) -> int:
         return int(values.get(key, globals().get(key, 0)))
@@ -805,6 +830,9 @@ def production_bootstrap(
     )
     if errors:
         raise LocalConfigError(f"Invalid runtime config after loading {LOCAL_CONFIG_FILE}: " + "; ".join(errors))
+    if historical_context_reply["enabled"]:
+        from historical_context_formatter import load_and_validate_corpus
+        load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
     if not SELF_TEST_REQUESTED and not INITIALISE_REQUESTED:
         validate_production_credentials()
     _PRODUCTION_BOOTSTRAPPED = True
@@ -4434,6 +4462,80 @@ def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, 
     return failures
 
 
+def maybe_post_historical_context_reply(
+    *,
+    quote_hash: str,
+    quote_text: str,
+    parent_post_id: str,
+    dry_run: bool = False,
+) -> dict:
+    """Post an optional canonical context reply without affecting the main post."""
+    if not historical_context_reply.get("enabled") and not dry_run:
+        return {"status": "disabled"}
+    try:
+        from historical_context_formatter import (
+            HistoricalContextReplyStore,
+            format_context_reply,
+            load_and_validate_corpus,
+            packet_for_posted_quote,
+        )
+
+        packets, unresolved = load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
+        packet = packet_for_posted_quote(packets, unresolved, quote_hash, quote_text)
+        if packet is None:
+            log.warning("No completed canonical research packet for quote_hash=%s; context reply skipped", quote_hash)
+            return {"status": "skipped_no_completed_packet"}
+        formatted = format_context_reply(
+            packet,
+            maximum_length=int(historical_context_reply["maximum_length"]),
+            include_meaning=bool(historical_context_reply["include_meaning"]),
+            include_source=bool(historical_context_reply["include_source"]),
+            include_verification=bool(historical_context_reply["include_verification"]),
+        )
+        if formatted is None:
+            log.warning("Canonical packet could not produce a safe context reply quote_id=%s", packet["quote_id"])
+            return {"status": "skipped_unformattable_packet"}
+        if dry_run:
+            print(formatted["text"])
+            print(
+                f"Character count: raw={formatted['raw_character_count']} "
+                f"x_weighted={formatted['character_count']}/{formatted['maximum_length']}"
+            )
+        store = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+        result = store.post(
+            parent_post_id=str(parent_post_id),
+            quote_id=str(packet["quote_id"]),
+            reply_text=str(formatted["text"]),
+            create_post=create_post,
+            now_epoch=now_epoch,
+            dry_run=dry_run,
+        )
+        log_event(
+            "historical_context_reply",
+            status=result.get("status"),
+            parent_post_id=str(parent_post_id),
+            quote_id=str(packet["quote_id"]),
+            character_count=formatted["character_count"],
+        )
+        return {**result, "formatted": formatted}
+    except Exception as exc:
+        if type(exc).__name__ == "AmbiguousContextReplyOutcome":
+            raise
+        # No independent context failure record is guaranteed for preparation or persistence
+        # errors. Propagate so the confirmed main-post receipt remains available for replay.
+        log.error(
+            "Historical context reply failed independently for parent_post_id=%s quote_hash=%s: %s",
+            parent_post_id,
+            quote_hash,
+            exc,
+            exc_info=True,
+        )
+        raise
+
+
 def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dict) -> bool:
     status, receipt = load_regular_post_receipt()
     if status == "absent":
@@ -4448,6 +4550,11 @@ def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dic
     )
     apply_regular_post_receipt(receipt, lines_used, images_used, state)
     save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+    maybe_post_historical_context_reply(
+        quote_hash=str(receipt["quote_hash"]),
+        quote_text=str(receipt.get("text") or ""),
+        parent_post_id=str(receipt["post_id"]),
+    )
     remove_regular_post_receipt()
     return True
 
@@ -6358,6 +6465,11 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         record_recent_own_post(state, str(posted_id))
         save_regular_post_protected_state(lines_used, images_used, state, durable=True)
+        maybe_post_historical_context_reply(
+            quote_hash=quote_hash,
+            quote_text=tweet,
+            parent_post_id=str(posted_id),
+        )
         remove_regular_post_receipt()
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)

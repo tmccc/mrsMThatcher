@@ -2605,9 +2605,16 @@ def test_valid_receipt_reconciles_idempotently(
     }
     bot.atomic_write_json(receipt_file, receipt)
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
+    context_calls = []
+    def context(**kwargs):
+        assert receipt_file.exists(), "startup reconciliation must retain the receipt through context dispatch"
+        context_calls.append(kwargs)
+        return {"status": "completed"}
+    monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is False
+    assert len(context_calls) == 1
     assert lines_used == {bot.quote_text_hash("Good quote.")}
     assert images_used == {"t01.jpg"}
 
@@ -3121,6 +3128,110 @@ def test_regular_post_commits_future_quote_schedule_and_receipt_epoch(
 
     assert state["next_quote_post_epoch"] == 1_800_007_200
     assert receipts[0]["next_quote_post_epoch"] == 1_800_007_200
+
+
+def test_regular_post_context_stage_runs_only_after_durable_main_post(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    saved = {"done": False}; context_calls = []
+    original_save = bot.save_regular_post_protected_state
+    def tracked_save(*args, **kwargs):
+        original_save(*args, **kwargs); saved["done"] = True
+    def context(**kwargs):
+        assert saved["done"] is True
+        assert bot.REGULAR_POST_RECEIPT_FILE.exists(), "receipt must bridge a crash before context dispatch"
+        context_calls.append(kwargs)
+        return {"status": "completed"}
+    monkeypatch.setattr(bot, "save_regular_post_protected_state", tracked_save)
+    monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
+    bot.post_random_quote(lines_used, images_used, state)
+    assert len(context_calls) == 1 and context_calls[0]["parent_post_id"] == "950001"
+
+
+def test_context_failure_does_not_undo_confirmed_regular_post(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(bot, "maybe_post_historical_context_reply", lambda **kwargs: {"status": "failed"})
+    bot.post_random_quote(lines_used, images_used, state)
+    assert bot.quote_text_hash("Good quote.") in lines_used and state["last_main_post_id"] == "950001"
+
+
+def test_unpersisted_context_failure_retains_main_receipt_for_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("context preparation failed")),
+    )
+
+    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
+        bot.post_random_quote(lines_used, images_used, state)
+
+    assert bot.REGULAR_POST_RECEIPT_FILE.exists()
+    assert bot.quote_text_hash("Good quote.") in lines_used
+    assert state["last_main_post_id"] == "950001"
+
+
+def test_context_reply_disabled_configuration_makes_no_post(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": False})
+    monkeypatch.setattr(bot, "create_post", lambda **kwargs: pytest.fail("disabled context must not post"))
+    assert bot.maybe_post_historical_context_reply(
+        quote_hash="a" * 64, quote_text="Quote", parent_post_id="123"
+    ) == {"status": "disabled"}
+
+
+def test_ambiguous_context_outcome_propagates_for_manual_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from historical_context_formatter import AmbiguousContextReplyOutcome, HistoricalContextReplyStore
+
+    research = Path(__file__).resolve().parents[1] / "semantic_alignment_research" / "quote_research_full_001"
+    packets = json.loads((research / "research_packets.json").read_text())["items"]
+    packet = next(iter(packets.values()))
+    monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", research)
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "receipt.json")
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: (_ for _ in ()).throw(AmbiguousContextReplyOutcome("ambiguous")),
+    )
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        bot.maybe_post_historical_context_reply(
+            quote_hash=packet["quote_id"],
+            quote_text=packet["quote_text"],
+            parent_post_id="123",
+        )
+
+
+def test_unpersisted_context_preparation_failure_propagates_for_main_receipt_replay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import historical_context_formatter as context_module
+
+    monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
+    monkeypatch.setattr(
+        context_module,
+        "load_and_validate_corpus",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("corpus temporarily unreadable")),
+    )
+
+    with pytest.raises(RuntimeError, match="corpus temporarily unreadable"):
+        bot.maybe_post_historical_context_reply(
+            quote_hash="a" * 64,
+            quote_text="Quote",
+            parent_post_id="123",
+        )
 
 
 def test_regular_post_uses_confirmed_time_for_noon_meme_schedule(
@@ -3882,6 +3993,23 @@ def test_create_post_accepts_valid_numeric_ids(monkeypatch: pytest.MonkeyPatch, 
     assert bot.create_post("hello") == {"data": {"id": post_id}}
 
 
+def test_create_post_passes_long_text_without_280_character_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
+    text = "Historically grounded context. " * 20
+    assert len(text) > 280
+    requests = []
+    monkeypatch.setattr(
+        bot,
+        "x_request",
+        lambda *args, **kwargs: requests.append((args, kwargs)) or {"data": {"id": "123456"}},
+    )
+
+    bot.create_post(text, reply_to_id="654321")
+
+    assert requests[0][0] == ("POST", "/2/tweets")
+    assert requests[0][1]["json"]["text"] == text
+    assert requests[0][1]["json"]["reply"] == {"in_reply_to_tweet_id": "654321"}
+
+
 @pytest.mark.parametrize("response", [{"data": {"id": "banana"}}, {"data": {"id": ""}}, {"data": {}}, {}])
 def test_create_post_rejects_invalid_or_missing_ids(monkeypatch: pytest.MonkeyPatch, response: dict) -> None:
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: response)
@@ -3926,6 +4054,53 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     assert state["replied_to_ids"] == []
     assert state["own_auto_reply_ids"] == []
     assert state["tweet_cache"] == {}
+
+
+@pytest.mark.parametrize("candidate_source", ["mention", "hot_post_reply"])
+def test_own_historical_context_reply_is_never_processed_as_incoming_reply(
+    monkeypatch: pytest.MonkeyPatch,
+    candidate_source: str,
+) -> None:
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    own_context_reply = {
+        "id": "123456",
+        "author_id": str(bot.MY_USER_ID),
+        "text": "Context\nSpoken during: A speech.\n\nVerification: Exact wording",
+        "conversation_id": "654321",
+        "referenced_tweets": [{"type": "replied_to", "id": "654321"}],
+        "_source": candidate_source,
+        "_hot_original_post_id": "654321",
+    }
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda state: [own_context_reply] if candidate_source == "mention" else [])
+    monkeypatch.setattr(
+        bot,
+        "get_hot_post_reply_candidates",
+        lambda state: [own_context_reply] if candidate_source == "hot_post_reply" else [],
+    )
+    monkeypatch.setattr(
+        bot,
+        "build_context_for_grok",
+        lambda *args, **kwargs: pytest.fail("own context reply must not be sent to xAI"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *args, **kwargs: pytest.fail("own context reply must not receive another X reply"),
+    )
+    monkeypatch.setattr(bot, "save_state", lambda *args, **kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert state["daily_reply_count"] == 0
+    assert state["replied_to_ids"] == []
 
 
 def test_confirmed_mention_reply_save_failure_replays_after_restart(

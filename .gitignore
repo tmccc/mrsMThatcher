@@ -1,6 +1,8 @@
 bot_state.json*
 lines_used.json
 images_used.json
+historical_context_reply_history.json
+historical_context_reply_receipt.json
 *.log
 *.log.*
 nohup.out

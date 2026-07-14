@@ -1,0 +1,15 @@
+{
+  "character_count": 404,
+  "maximum_length": 4000,
+  "meaning_included": true,
+  "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+  "quote_text": "Conservatives have excellent credentials to speak about human rights. By our efforts, and with precious little help from self-styled liberals, we were largely responsible for securing liberty for a substantial share of the world's population and defending it for most of the rest.",
+  "raw_character_count": 596,
+  "source": {
+    "source_type": "grounded_web_source",
+    "title": "keepinspiring.me",
+    "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGjmRfxaUyX_DimufLzybugckU_17MPDl9eJI0qIIc2uKpfVCjpwBg3JOmXDXdioRGGGsXvPK2OehpEcHRFgwEJk3IzMTXzVbqskkO431VnehdrthFu42kzrLpJmbjBmm_UsgtgclcRWHxK3uM="
+  },
+  "text": "Context\nSource event: Source event not established.\nDate: Unknown\nImmediate context: The historical record of conservatives in defending human rights and global liberty.\n\nMeaning\nConservatives, rather than self-proclaimed liberals, have been the true defenders and expanders of human rights and freedom worldwide.\n\nVerification: Exact wording not verified\n\nSource\nkeepinspiring.me\nhttps://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGjmRfxaUyX_DimufLzybugckU_17MPDl9eJI0qIIc2uKpfVCjpwBg3JOmXDXdioRGGGsXvPK2OehpEcHRFgwEJk3IzMTXzVbqskkO431VnehdrthFu42kzrLpJmbjBmm_UsgtgclcRWHxK3uM=",
+  "verification_label": "Exact wording not verified"
+}
