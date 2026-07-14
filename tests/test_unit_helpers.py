@@ -4836,6 +4836,149 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
     assert state["last_seen_mention_id"] == "100"
 
 
+def test_confirmed_reply_receipt_preserves_strategy_metadata_after_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    state = bot.default_state()
+    state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+    metadata = {
+        "mode": "historical_context", "humour_tone": "dry",
+        "evidence_confidence": "medium", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "A grounded summary.", "factual_claim_made": True,
+        "grounded": True, "reply_text": "A grounded reply.", "no_reply_reason": "",
+    }
+    receipt = {
+        "schema_version": 1, "target_id": "100", "reply_post_id": "900000",
+        "author_id": "200", "reply_epoch": fixed_epoch,
+        "daily_reply_date": state["daily_reply_date"], "candidate_source": "mention",
+        "conversation_id": "100", "reply_text": "A grounded reply.",
+        "strategy_metadata": metadata,
+    }
+
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+    bot.write_confirmed_reply_receipt(receipt)
+    assert bot.reconcile_confirmed_reply_receipt(state) is True
+
+    assert state["reply_strategy_history"] == [{
+        "target_id": "100", "reply_post_id": "900000", "candidate_source": "mention",
+        "reply_epoch": fixed_epoch, **metadata,
+    }]
+
+
+def test_confirmed_reply_receipt_rejects_malformed_strategy_strings() -> None:
+    receipt = {
+        "schema_version": 1, "target_id": "100", "reply_post_id": "900000",
+        "author_id": "200", "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18", "candidate_source": "mention",
+        "conversation_id": "100", "reply_text": "A grounded reply.",
+        "strategy_metadata": {
+            "mode": "historical_context", "humour_tone": "dry",
+            "evidence_confidence": "medium", "retrieved_quote_ids": ["a" * 64],
+            "evidence_summary": {"not": "a string"}, "factual_claim_made": True,
+            "grounded": True, "reply_text": "A grounded reply.", "no_reply_reason": [],
+        },
+    }
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+
+def test_confirmed_reply_receipt_rejects_contradictory_strategy_metadata() -> None:
+    receipt = {
+        "schema_version": 1, "target_id": "100", "reply_post_id": "900000",
+        "author_id": "200", "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18", "candidate_source": "mention",
+        "conversation_id": "100", "reply_text": "An alleged correction.",
+        "strategy_metadata": {
+            "mode": "historical_correction", "humour_tone": "dry",
+            "evidence_confidence": "high", "retrieved_quote_ids": [],
+            "evidence_summary": "", "factual_claim_made": False,
+            "grounded": False, "reply_text": "An alleged correction.", "no_reply_reason": "",
+        },
+    }
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+
+def test_pending_strategy_reply_survives_state_round_trip_and_is_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    state = bot.default_state()
+    metadata = {
+        "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": "The first draft remains the first draft.",
+        "no_reply_reason": "",
+    }
+    reply = bot.ReplyDecision("The first draft remains the first draft.", metadata) if hasattr(bot, "ReplyDecision") else None
+    if reply is None:
+        from reply_strategy import ReplyDecision
+        reply = ReplyDecision("The first draft remains the first draft.", metadata)
+    bot.store_pending_strategy_reply(state, "100", "mention", reply)
+    bot.save_state(state, durable=True)
+    loaded = bot.load_state()
+    reused = bot.pending_strategy_reply(loaded, "100", "mention")
+    assert reused == reply
+    assert reused.strategy_metadata == metadata
+
+
+def test_confirmed_reply_reconciliation_clears_pending_strategy_draft() -> None:
+    state = bot.default_state()
+    metadata = {
+        "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": "A stable draft.", "no_reply_reason": "",
+    }
+    from reply_strategy import ReplyDecision
+    bot.store_pending_strategy_reply(state, "100", "mention", ReplyDecision("A stable draft.", metadata))
+    receipt = {
+        "schema_version": 1, "target_id": "100", "reply_post_id": "900000",
+        "author_id": "200", "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18", "candidate_source": "mention",
+        "conversation_id": "100", "reply_text": "A stable draft.",
+        "strategy_metadata": metadata,
+    }
+    bot.apply_confirmed_reply_receipt(state, receipt)
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_malformed_pending_strategy_draft_is_not_reused() -> None:
+    state = {
+        "pending_reply_drafts": {
+            "mention:100": {
+                "target_id": "different", "candidate_source": "mention",
+                "reply_text": "Unsafe stale draft.",
+                "strategy_metadata": {"mode": "wry_reply", "reply_text": "Unsafe stale draft."},
+            }
+        }
+    }
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_strategy_drafts_are_bounded() -> None:
+    from reply_strategy import ReplyDecision
+    state = bot.default_state()
+    metadata = {
+        "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": "Stable draft.", "no_reply_reason": "",
+    }
+    reply = ReplyDecision("Stable draft.", metadata)
+    for target in range(101, 202):
+        bot.store_pending_strategy_reply(state, str(target), "mention", reply)
+    assert len(state["pending_reply_drafts"]) == 100
+    assert "mention:101" not in state["pending_reply_drafts"]
+    assert "mention:201" in state["pending_reply_drafts"]
+
+
 def test_confirmed_quote_tweet_reply_receipt_reconciliation_is_idempotent(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

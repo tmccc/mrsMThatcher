@@ -8,6 +8,21 @@
     "include_source": true,
     "include_verification": true
   },
+  "reply_strategy": {
+    "enabled": false,
+    "accuracy_first": true,
+    "research_corpus_enabled": true,
+    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
+    "completed_packets_only": true,
+    "allow_historical_correction": true,
+    "allow_historical_context": true,
+    "allow_researched_principle": true,
+    "allow_humour": true,
+    "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
+    "maximum_retrieved_packets": 5,
+    "minimum_grounded_confidence": "medium",
+    "no_hashtags": true
+  },
   "MAX_AUTO_REPLIES_PER_DAY": 24,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,
   "MIN_SECONDS_BETWEEN_REPLIES": 3600,

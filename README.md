@@ -181,6 +181,56 @@ The posting path supports X long posts and does not impose an application-level
 280-character limit. `maximum_length` is an explicit safety ceiling measured using X's
 weighted-length rules. The current canonical corpus fits below 650 weighted characters.
 
+## Accuracy-First Conversational Replies
+
+Mention and quote-tweet replies can optionally use the completed historical
+research corpus. The feature is disabled by default and does not affect main
+quote posts or historical context-thread replies. When enabled, the model must
+return a structured decision using one of the historical, humour, warm, or
+`no_reply` modes. Local validation rejects unsupported factual claims,
+unverified quotations in quotation marks, disabled modes, weakly grounded
+historical claims, hashtags, repetitive stock lines, and replies over the
+existing conversational-reply limit.
+
+Enable it through the ignored local configuration after review:
+
+```json
+{
+  "reply_strategy": {
+    "enabled": true,
+    "accuracy_first": true,
+    "research_corpus_enabled": true,
+    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
+    "completed_packets_only": true,
+    "allow_historical_correction": true,
+    "allow_historical_context": true,
+    "allow_researched_principle": true,
+    "allow_humour": true,
+    "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
+    "maximum_retrieved_packets": 5,
+    "minimum_grounded_confidence": "medium",
+    "no_hashtags": true
+  }
+}
+```
+
+The corpus is validated as 626 completed and six unresolved records before an
+enabled production run starts. Strategy metadata is attached to the confirmed
+reply receipt and retained in `reply_strategy_history` after reconciliation.
+`mrs_log_digest.py` reports decision mode, confidence, evidence count, and
+grounding status without publishing internal quote IDs.
+
+Audit a digest without credentials, posting, or network access:
+
+```bash
+python3 mrsMThatcher2.py audit-replies \
+  --digest /home/tonym/Dropbox/digest014.md \
+  --research-run semantic_alignment_research/quote_research_full_001 \
+  --json
+```
+
+## Historical Context Reply Persistence
+
 Context replies use independent ignored runtime files:
 
 - `historical_context_reply_receipt.json` records an in-flight or confirmed reply;

@@ -1751,6 +1751,18 @@ def analyse(
                     character_count=event_obj.get("character_count"),
                 )
                 stats[f"historical_context_reply_status_{status}"] += 1
+            elif event_obj and event_obj.get("event") == "reply_strategy_decision":
+                add_event(
+                    "reply_strategy_decision",
+                    r.ts,
+                    mode=event_obj.get("mode"),
+                    humour_tone=event_obj.get("humour_tone"),
+                    evidence_confidence=event_obj.get("evidence_confidence"),
+                    retrieved_count=len(event_obj.get("retrieved_quote_ids") or []),
+                    factual_claim=event_obj.get("factual_claim_made"),
+                    grounded=event_obj.get("grounded"),
+                    no_reply_reason=event_obj.get("no_reply_reason"),
+                )
             continue
 
         if "Wrote confirmed regular-post receipt pending local reconciliation" in msg:
@@ -3599,6 +3611,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "historical_context_reply",
         "Historical context replies",
         ["time", "status", "parent_post_id", "quote_id", "character_count"],
+    )
+    section(
+        "reply_strategy_decision",
+        "Reply strategy decisions",
+        ["time", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "no_reply_reason"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
     section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])

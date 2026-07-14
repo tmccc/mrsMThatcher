@@ -5851,6 +5851,17 @@ def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
     assert "mention reply/replies" in digest.stdout
 
 
+def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
+    base = tmp_path / "digest-reply-strategy"
+    write_digest_log(base, [
+        '2026-07-14 12:00:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","mode":"historical_context","humour_tone":"dry","evidence_confidence":"medium","retrieved_quote_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],"factual_claim_made":true,"grounded":true,"no_reply_reason":""}',
+    ])
+    digest = run_digest(base)
+    assert digest.returncode == 0, digest.stderr
+    assert "## Reply strategy decisions" in digest.stdout
+    assert "| 2026-07-14 12:00:00 | historical_context | dry | medium | 1 | True | True |  |" in digest.stdout
+
+
 def test_digest_reports_xai_usage_unknown_context_and_malformed_records(tmp_path: Path) -> None:
     base = tmp_path / "digest-xai-usage-unknown-malformed"
     write_digest_log(

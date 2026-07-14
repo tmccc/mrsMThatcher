@@ -33,6 +33,7 @@ TEST_MAIN_TICK_REQUESTED = "--test-main-tick" in sys.argv
 TEST_POST_QUOTE_REQUESTED = "--test-post-quote" in sys.argv
 TEST_POST_MEME_REQUESTED = "--test-post-meme" in sys.argv
 INITIALISE_REQUESTED = "--initialise" in sys.argv
+AUDIT_REPLIES_REQUESTED = "audit-replies" in sys.argv
 TEST_MODE = os.getenv("MRS_TEST_MODE") == "1"
 
 
@@ -219,6 +220,21 @@ historical_context_reply = {
     "include_source": True,
     "include_verification": True,
 }
+reply_strategy = {
+    "enabled": False,
+    "accuracy_first": True,
+    "research_corpus_enabled": True,
+    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
+    "completed_packets_only": True,
+    "allow_historical_correction": True,
+    "allow_historical_context": True,
+    "allow_researched_principle": True,
+    "allow_humour": True,
+    "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
+    "maximum_retrieved_packets": 5,
+    "minimum_grounded_confidence": "medium",
+    "no_hashtags": True,
+}
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
@@ -339,7 +355,10 @@ _IMPORT_LOG_LEVEL = getattr(logging, os.getenv("LOG_LEVEL", "DEBUG").upper(), lo
 log.setLevel(_IMPORT_LOG_LEVEL)
 log.propagate = False
 remove_managed_log_handlers(log)
-_IMPORT_CONSOLE_HANDLER = mark_managed_log_handler(logging.StreamHandler(sys.stdout), "import_console")
+_IMPORT_CONSOLE_HANDLER = mark_managed_log_handler(
+    logging.StreamHandler(sys.stderr if AUDIT_REPLIES_REQUESTED else sys.stdout),
+    "import_console",
+)
 _IMPORT_CONSOLE_HANDLER.setLevel(_IMPORT_LOG_LEVEL)
 _IMPORT_CONSOLE_HANDLER.setFormatter(logging.Formatter(
     fmt="%(asctime)s %(levelname)-8s %(funcName)s:%(lineno)d - %(message)s",
@@ -484,6 +503,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     # Operational hardening
     "STATE_BACKUP_COUNT",
     "historical_context_reply",
+    "reply_strategy",
 }
 
 LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
@@ -640,6 +660,45 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         maximum = context_config.get("maximum_length")
         if type(maximum) is not int or not 120 <= maximum <= 25_000:
             errors.append("historical_context_reply.maximum_length must be an integer from 120 to 25000")
+
+    strategy_config = values.get("reply_strategy", globals().get("reply_strategy"))
+    strategy_keys = {
+        "enabled", "accuracy_first", "research_corpus_enabled", "research_corpus_path",
+        "completed_packets_only", "allow_historical_correction", "allow_historical_context",
+        "allow_researched_principle", "allow_humour", "preferred_humour_tones",
+        "maximum_retrieved_packets", "minimum_grounded_confidence", "no_hashtags",
+    }
+    if not isinstance(strategy_config, dict):
+        errors.append("reply_strategy must be an object")
+    elif set(strategy_config) != strategy_keys:
+        errors.append("reply_strategy fields mismatch")
+    else:
+        bool_keys = {
+            "enabled", "accuracy_first", "research_corpus_enabled", "completed_packets_only",
+            "allow_historical_correction", "allow_historical_context",
+            "allow_researched_principle", "allow_humour", "no_hashtags",
+        }
+        for key in bool_keys:
+            if type(strategy_config.get(key)) is not bool:
+                errors.append(f"reply_strategy.{key} must be boolean")
+        if not isinstance(strategy_config.get("research_corpus_path"), str) or not strategy_config["research_corpus_path"].strip():
+            errors.append("reply_strategy.research_corpus_path must be a non-empty string")
+        maximum = strategy_config.get("maximum_retrieved_packets")
+        if type(maximum) is not int or not 1 <= maximum <= 10:
+            errors.append("reply_strategy.maximum_retrieved_packets must be an integer from 1 to 10")
+        tones = strategy_config.get("preferred_humour_tones")
+        supported_tones = {"dry", "wry", "playful", "deadpan", "warm"}
+        if not isinstance(tones, list) or not tones or any(tone not in supported_tones for tone in tones):
+            errors.append("reply_strategy.preferred_humour_tones contains unsupported values")
+        if strategy_config.get("minimum_grounded_confidence") not in {"medium", "high"}:
+            errors.append("reply_strategy.minimum_grounded_confidence must be medium or high")
+        if strategy_config.get("enabled"):
+            if strategy_config.get("accuracy_first") is not True:
+                errors.append("reply_strategy.accuracy_first must remain true when enabled")
+            if strategy_config.get("completed_packets_only") is not True:
+                errors.append("reply_strategy.completed_packets_only must remain true when enabled")
+            if strategy_config.get("no_hashtags") is not True:
+                errors.append("reply_strategy.no_hashtags must remain true when enabled")
 
     def int_value(key: str) -> int:
         return int(values.get(key, globals().get(key, 0)))
@@ -833,6 +892,12 @@ def production_bootstrap(
     if historical_context_reply["enabled"]:
         from historical_context_formatter import load_and_validate_corpus
         load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
+    if reply_strategy["enabled"] and reply_strategy["research_corpus_enabled"]:
+        from historical_context_formatter import load_and_validate_corpus
+        strategy_path = Path(reply_strategy["research_corpus_path"])
+        if not strategy_path.is_absolute():
+            strategy_path = BASE_DIR / strategy_path
+        load_and_validate_corpus(strategy_path)
     if not SELF_TEST_REQUESTED and not INITIALISE_REQUESTED:
         validate_production_credentials()
     _PRODUCTION_BOOTSTRAPPED = True
@@ -1703,7 +1768,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "quote_lookup_pagination_tokens",
     }
     int_map_keys = {"hot_post_reply_check_counts", "daily_replied_author_counts"}
-    record_map_keys = {"skipped_hot_reply_records"}
+    record_map_keys = {"skipped_hot_reply_records", "pending_reply_drafts"}
     optional_scalar_keys = {
         "daily_reply_date",
         "daily_quote_reply_date",
@@ -1782,6 +1847,12 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         if value is None:
             return None
         normalised["tweet_cache"] = value
+    if "reply_strategy_history" in state:
+        history = state["reply_strategy_history"]
+        if not isinstance(history, list) or any(not isinstance(item, dict) for item in history):
+            log.error("State candidate %s has invalid reply_strategy_history; ignoring", path)
+            return None
+        normalised["reply_strategy_history"] = history[-1000:]
     if "mention_pagination" in state:
         value = normalise_mention_pagination(state["mention_pagination"], path=path)
         if value is None:
@@ -7191,8 +7262,107 @@ def xai_error_is_multimodal_input_rejection(response: requests.Response) -> bool
     )
 
 
-def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> str | None:
+def recent_auto_reply_texts(state: dict, limit: int = 20) -> list[str]:
+    cache = state.get("tweet_cache", {})
+    if not isinstance(cache, dict):
+        return []
+    rows = [
+        value for value in cache.values()
+        if isinstance(value, dict)
+        and value.get("post_type") == "auto_reply"
+        and str(value.get("author_id") or "") == str(MY_USER_ID)
+        and str(value.get("text") or "").strip()
+    ]
+    rows.sort(key=lambda value: (int(value.get("cached_epoch", 0) or 0), str(value.get("id") or "")), reverse=True)
+    return [str(value["text"]) for value in rows[:limit]]
+
+
+def pending_reply_draft_key(target_id: object, candidate_source: object) -> str:
+    return f"{str(candidate_source or 'mention')}:{str(target_id)}"
+
+
+def store_pending_strategy_reply(state: dict, target_id: str, candidate_source: str, reply: str) -> None:
+    metadata = getattr(reply, "strategy_metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    drafts = state.setdefault("pending_reply_drafts", {})
+    drafts[pending_reply_draft_key(target_id, candidate_source)] = {
+        "target_id": str(target_id),
+        "candidate_source": str(candidate_source),
+        "reply_text": str(reply),
+        "strategy_metadata": metadata,
+    }
+    while len(drafts) > 100:
+        drafts.pop(next(iter(drafts)))
+
+
+def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> str | None:
+    record = state.get("pending_reply_drafts", {}).get(
+        pending_reply_draft_key(target_id, candidate_source)
+    )
+    if (
+        not isinstance(record, dict)
+        or str(record.get("target_id") or "") != str(target_id)
+        or str(record.get("candidate_source") or "") != str(candidate_source)
+    ):
+        return None
+    text = record.get("reply_text")
+    metadata = record.get("strategy_metadata")
+    if not strategy_metadata_is_semantically_valid(metadata, text):
+        return None
+    from reply_strategy import ReplyDecision
+    return ReplyDecision(text, metadata)
+
+
+def clear_pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> None:
+    drafts = state.get("pending_reply_drafts")
+    if not isinstance(drafts, dict):
+        return
+    drafts.pop(pending_reply_draft_key(target_id, candidate_source), None)
+    if not drafts:
+        state.pop("pending_reply_drafts", None)
+
+
+def log_reply_strategy_dry_run(*, incoming: str, reply: str, lane: str, target_id: str) -> None:
+    metadata = getattr(reply, "strategy_metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    log_event(
+        "reply_strategy_dry_run",
+        lane=lane,
+        target_id=target_id,
+        incoming=incoming,
+        selected_mode=metadata.get("mode"),
+        humour_tone=metadata.get("humour_tone"),
+        evidence_confidence=metadata.get("evidence_confidence"),
+        retrieved_quote_ids=metadata.get("retrieved_quote_ids", []),
+        evidence_summary=metadata.get("evidence_summary", ""),
+        draft_reply=reply,
+        final_reply=reply,
+        no_reply_reason=metadata.get("no_reply_reason", ""),
+    )
+
+
+def ask_grok_for_reply(
+    context_text: str,
+    media_context: dict | None = None,
+    *,
+    recent_replies: list[str] | None = None,
+) -> str | None:
     log.info("Asking Grok for reply. context_text=%r", context_text)
+
+    strategy_enabled = bool(reply_strategy.get("enabled"))
+    evidence = []
+    if strategy_enabled and reply_strategy.get("research_corpus_enabled"):
+        from reply_strategy import retrieve_research_packets
+        research_path = Path(str(reply_strategy["research_corpus_path"]))
+        if not research_path.is_absolute():
+            research_path = BASE_DIR / research_path
+        evidence = retrieve_research_packets(
+            context_text,
+            research_path,
+            maximum=int(reply_strategy["maximum_retrieved_packets"]),
+        )
 
     system_prompt = (
         "You write replies for a Margaret Thatcher quotation account on X. "
@@ -7205,6 +7375,23 @@ def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> 
         "Maximum 270 characters. Prefer one or two crisp sentences. "
         "Return only the reply text, or exactly SKIP."
     )
+
+    if strategy_enabled:
+        from reply_strategy import decision_schema_instruction, strategy_mode_guidance
+        system_prompt = (
+            "You select and write concise replies for a Margaret Thatcher quotation account on X. "
+            "Accuracy comes before relevance. Relevance comes before wit. Wit should sharpen a correct reply, not replace one. "
+            "If history supplies the stronger response, use history. Otherwise use wit. "
+            "Never sacrifice factual accuracy for a clever line. Never invent a quotation or put paraphrased ideas in quotation marks. "
+            "Do not sound like a footnote unless the user asks for evidence. Do not expose quote IDs, citations, URLs, or research metadata. "
+            "Historical correction requires high-confidence supplied evidence. Historical context and researched principle require at least medium confidence. "
+            "Use no_reply when evidence is weak or a reply would add little. Humour remains welcome when it makes no unsupported factual claim. "
+            "Prefer one or two sentences and 40-220 characters; never exceed 270 characters. No hashtags or emojis. "
+            "Avoid canned slogans, repetitive socialism punchlines, cruelty, abuse, and invented Thatcher quotations. "
+            + strategy_mode_guidance()
+            + " "
+            + decision_schema_instruction()
+        )
 
     user_prompt = (
         "Use only the supplied limited context. "
@@ -7232,6 +7419,15 @@ def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> 
         f"{context_text}"
     )
 
+    if strategy_enabled:
+        from reply_strategy import build_strategy_prompt_context
+        user_prompt += (
+            "\n\nAPPROVED COMPLETED-CORPUS EVIDENCE (may be empty; use only when relevant):\n"
+            + build_strategy_prompt_context(evidence)
+            + "\nRecent reply text to avoid repeating:\n"
+            + json.dumps(list(recent_replies or [])[:20], ensure_ascii=False)
+        )
+
     payload = {
         "model": XAI_MODEL,
         "messages": [
@@ -7245,7 +7441,7 @@ def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> 
             },
         ],
         "temperature": 0.7,
-        "max_tokens": MAX_GROK_OUTPUT_TOKENS,
+        "max_tokens": max(MAX_GROK_OUTPUT_TOKENS, 400) if strategy_enabled else MAX_GROK_OUTPUT_TOKENS,
     }
 
     log_json_debug("xAI request payload", redact_xai_payload_for_log(payload))
@@ -7284,7 +7480,7 @@ def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> 
             retry_context = dict(media_context)
             retry_context["status"] = "unavailable"
             retry_context["photos"] = []
-            return ask_grok_for_reply(context_text, retry_context)
+            return ask_grok_for_reply(context_text, retry_context, recent_replies=recent_replies)
 
         log.error("xAI error %s: %s", response.status_code, response.text)
 
@@ -7312,7 +7508,57 @@ def ask_grok_for_reply(context_text: str, media_context: dict | None = None) -> 
         log.exception("Could not parse xAI response")
         raise ApiError(f"Could not parse xAI response: {json.dumps(data)[:1000]}", service="xai") from e
 
-    reply = clean_generated_reply(reply)
+    if strategy_enabled:
+        from reply_strategy import (
+            ReplyDecision,
+            allowed_modes_from_config,
+            parse_decision_json,
+            validate_reply_decision,
+        )
+        try:
+            parsed = parse_decision_json(reply)
+            validated = validate_reply_decision(
+                parsed,
+                evidence,
+                allowed_quote_ids={item.quote_id for item in evidence},
+                recent_replies=recent_replies or [],
+                maximum_length=MAX_REPLY_CHARS,
+                allowed_modes=allowed_modes_from_config(reply_strategy),
+                allowed_humour_tones=set(reply_strategy["preferred_humour_tones"]),
+                minimum_grounded_confidence=str(reply_strategy["minimum_grounded_confidence"]),
+            )
+        except (ValueError, json.JSONDecodeError) as exc:
+            log.warning("Rejected structured reply decision: %s", exc)
+            return None
+        log_event(
+            "reply_strategy_decision",
+            mode=validated["mode"],
+            humour_tone=validated["humour_tone"],
+            evidence_confidence=validated["evidence_confidence"],
+            retrieved_quote_ids=validated["retrieved_quote_ids"],
+            factual_claim_made=validated["factual_claim_made"],
+            grounded=validated["grounded"],
+            no_reply_reason=validated["no_reply_reason"],
+        )
+        if validated["mode"] == "no_reply":
+            if DRY_RUN_REPLIES:
+                log_event(
+                    "reply_strategy_dry_run",
+                    incoming=context_text,
+                    selected_mode="no_reply",
+                    humour_tone=validated["humour_tone"],
+                    evidence_confidence=validated["evidence_confidence"],
+                    retrieved_quote_ids=validated["retrieved_quote_ids"],
+                    evidence_summary=validated["evidence_summary"],
+                    draft_reply="",
+                    final_reply="",
+                    no_reply_reason=validated["no_reply_reason"],
+                )
+            log.info("Reply strategy chose no_reply: %s", validated["no_reply_reason"])
+            return None
+        reply = ReplyDecision(validated["reply_text"], validated)
+    else:
+        reply = clean_generated_reply(reply)
 
     if reply.strip().upper() == "SKIP":
         log.info("Grok chose to skip")
@@ -7355,6 +7601,46 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
         update_last_seen_mention_id(state, str(candidate.get("id", "")))
 
 
+def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: object) -> bool:
+    from reply_strategy import CONFIDENCE_LEVELS, HUMOUR_TONES, MODES
+    required = {
+        "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
+        "evidence_summary", "factual_claim_made", "grounded", "reply_text", "no_reply_reason",
+    }
+    structurally_valid = bool(
+        isinstance(strategy_metadata, dict)
+        and set(strategy_metadata) == required
+        and strategy_metadata.get("mode") in MODES - {"no_reply"}
+        and strategy_metadata.get("humour_tone") in HUMOUR_TONES
+        and strategy_metadata.get("evidence_confidence") in CONFIDENCE_LEVELS
+        and isinstance(strategy_metadata.get("retrieved_quote_ids"), list)
+        and not any(
+            not re.fullmatch(r"[0-9a-f]{64}", str(item or ""))
+            for item in strategy_metadata.get("retrieved_quote_ids", [])
+        )
+        and type(strategy_metadata.get("factual_claim_made")) is bool
+        and type(strategy_metadata.get("grounded")) is bool
+        and isinstance(strategy_metadata.get("evidence_summary"), str)
+        and isinstance(strategy_metadata.get("no_reply_reason"), str)
+        and isinstance(strategy_metadata.get("reply_text"), str)
+        and strategy_metadata.get("reply_text") == text
+    )
+    if not structurally_valid:
+        return False
+    mode = str(strategy_metadata["mode"])
+    ids = strategy_metadata["retrieved_quote_ids"]
+    factual = strategy_metadata["factual_claim_made"]
+    grounded = strategy_metadata["grounded"]
+    if mode in {"historical_correction", "historical_context", "researched_principle"}:
+        if not factual or not grounded or not ids or not strategy_metadata["evidence_summary"].strip():
+            return False
+    if factual and (not grounded or not ids or not strategy_metadata["evidence_summary"].strip()):
+        return False
+    if mode == "historical_correction" and strategy_metadata["evidence_confidence"] != "high":
+        return False
+    return True
+
+
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     if not isinstance(data, dict):
         return False
@@ -7386,6 +7672,9 @@ def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
         return False
     original_post_id = data.get("original_post_id")
     if original_post_id is not None and isinstance(original_post_id, (dict, list)):
+        return False
+    strategy_metadata = data.get("strategy_metadata")
+    if strategy_metadata is not None and not strategy_metadata_is_semantically_valid(strategy_metadata, text):
         return False
     return True
 
@@ -7462,6 +7751,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     reply_text = str(receipt.get("reply_text") or "")
     receipt_reply_date = str(receipt.get("daily_reply_date") or epoch_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
+    clear_pending_strategy_reply(state, target_id, candidate_source)
 
     if candidate_source == "quote_tweet":
         replied_to_ids = set(str(x) for x in state.get("replied_to_quote_post_ids", []))
@@ -7515,6 +7805,21 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         ],
         post_type="auto_reply",
     )
+    strategy_metadata = receipt.get("strategy_metadata")
+    if isinstance(strategy_metadata, dict):
+        record = {
+            "target_id": target_id,
+            "reply_post_id": reply_post_id,
+            "candidate_source": candidate_source,
+            "reply_epoch": reply_epoch,
+            **strategy_metadata,
+        }
+        history = [
+            item for item in state.get("reply_strategy_history", [])
+            if isinstance(item, dict) and str(item.get("reply_post_id") or "") != reply_post_id
+        ]
+        history.append(record)
+        state["reply_strategy_history"] = history[-1000:]
 
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
@@ -7723,8 +8028,19 @@ def maybe_reply_to_mentions(state: dict) -> str:
             target_id=mention_id,
         )
 
+        reply_text = (
+            pending_strategy_reply(state, mention_id, str(candidate_source))
+            if reply_strategy.get("enabled") else None
+        )
         try:
-            reply_text = ask_grok_for_reply(context_text, media_context)
+            if reply_text is None:
+                reply_text = ask_grok_for_reply(
+                    context_text,
+                    media_context,
+                    recent_replies=recent_auto_reply_texts(state),
+                )
+            else:
+                log.info("Reusing persisted reply strategy draft target_id=%s source=%s", mention_id, candidate_source)
         except ApiError as e:
             log.exception("Failed to ask Grok for reply")
             record_api_error(state, e, "xai")
@@ -7746,8 +8062,18 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
         log.info("Generated reply to mention %s: %r", mention_id, reply_text)
 
+        if not DRY_RUN_REPLIES and getattr(reply_text, "strategy_metadata", None) is not None:
+            store_pending_strategy_reply(state, mention_id, str(candidate_source), reply_text)
+            save_state(state, durable=True)
+
         if DRY_RUN_REPLIES:
             log.warning("DRY_RUN_REPLIES=True, not posting generated reply")
+            log_reply_strategy_dry_run(
+                incoming=context_text,
+                reply=reply_text,
+                lane=str(candidate_source),
+                target_id=mention_id,
+            )
 
             state["daily_reply_count"] += 1
             state["last_reply_epoch"] = current
@@ -7795,6 +8121,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     mention_id,
                 )
                 replied_to_ids.add(mention_id)
+                clear_pending_strategy_reply(state, mention_id, str(candidate_source))
                 state["replied_to_ids"] = append_unique_capped(
                     state.get("replied_to_ids", []),
                     mention_id,
@@ -7826,6 +8153,9 @@ def maybe_reply_to_mentions(state: dict) -> str:
             "conversation_id": str(mention.get("conversation_id", mention_id)),
             "reply_text": reply_text,
         }
+        strategy_metadata = getattr(reply_text, "strategy_metadata", None)
+        if strategy_metadata is not None:
+            receipt["strategy_metadata"] = strategy_metadata
         try:
             write_confirmed_reply_receipt(receipt)
         except Exception as exc:
@@ -8405,8 +8735,19 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 target_id=quote_id,
             )
 
+            reply_text = (
+                pending_strategy_reply(state, quote_id, "quote_tweet")
+                if reply_strategy.get("enabled") else None
+            )
             try:
-                reply_text = ask_grok_for_reply(context_text, media_context)
+                if reply_text is None:
+                    reply_text = ask_grok_for_reply(
+                        context_text,
+                        media_context,
+                        recent_replies=recent_auto_reply_texts(state),
+                    )
+                else:
+                    log.info("Reusing persisted reply strategy draft target_id=%s source=quote_tweet", quote_id)
             except ApiError as e:
                 log.exception("Failed to ask Grok for quote-tweet reply")
                 record_api_error(state, e, "xai")
@@ -8426,8 +8767,18 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 
             log.info("Generated reply to quote tweet %s: %r", quote_id, reply_text)
 
+            if not DRY_RUN_REPLIES and getattr(reply_text, "strategy_metadata", None) is not None:
+                store_pending_strategy_reply(state, quote_id, "quote_tweet", reply_text)
+                save_state(state, durable=True)
+
             if DRY_RUN_REPLIES:
                 log.warning("DRY_RUN_REPLIES=True, not posting generated quote-tweet reply")
+                log_reply_strategy_dry_run(
+                    incoming=context_text,
+                    reply=reply_text,
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                )
 
                 state["daily_reply_count"] = int(state.get("daily_reply_count", 0) or 0) + 1
                 state["daily_quote_reply_count"] = int(state.get("daily_quote_reply_count", 0) or 0) + 1
@@ -8468,6 +8819,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         quote_id,
                     )
                     mark_quote_tweet_skipped(state, quote_id)
+                    clear_pending_strategy_reply(state, quote_id, "quote_tweet")
                     save_state(state)
                     return QUOTE_CHECK_STATUS_CHECKED
 
@@ -8495,6 +8847,9 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 "reply_text": reply_text,
                 "original_post_id": str(original_post_id),
             }
+            strategy_metadata = getattr(reply_text, "strategy_metadata", None)
+            if strategy_metadata is not None:
+                receipt["strategy_metadata"] = strategy_metadata
             try:
                 write_confirmed_reply_receipt(receipt)
             except Exception as exc:
@@ -9102,6 +9457,13 @@ def run_test_cycle() -> int:
     return 0
 
 
+def run_reply_audit() -> int:
+    """Run the reply audit without production bootstrap, credentials, or network access."""
+    from reply_strategy import audit_cli
+    command_index = sys.argv.index("audit-replies")
+    return audit_cli(sys.argv[command_index + 1:])
+
+
 def run_test_main_tick() -> int:
     """Run the production reply-lane tick once for local integration tests."""
     require_production_bootstrap()
@@ -9245,6 +9607,8 @@ def run_test_post_meme() -> int:
 
 if __name__ == "__main__":
     try:
+        if AUDIT_REPLIES_REQUESTED:
+            sys.exit(run_reply_audit())
         production_bootstrap()
         if INITIALISE_REQUESTED:
             sys.exit(initialise_installation())
