@@ -1,0 +1,31 @@
+quote_id,category,choice,winner,quality_a,quality_b,reasons,note
+9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223,domestic_economic_policy,neither,neither,high,medium,,These are too literal.
+5846d1f5edc27201f80031ef49263e6d7299b74267da9b7c77ba34cf6b4e0e46,domestic_economic_policy,equal,equal,high,medium,,B is slighty better
+61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2,domestic_economic_policy,equal,equal,medium,high,,
+37e7a04cad7f1ec91e4204814d7e05be4c31cfc0440a43fa616e11d5c9832d99,socialism_and_free_enterprise,neither,neither,high,medium,,
+2a50d19f02e311797bac4b1b6945ca1d5348acf92a35cd079676deca68d475f4,socialism_and_free_enterprise,neither,neither,high,medium,,
+c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434,socialism_and_free_enterprise,B,medium,high,medium,better likeness,
+f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8,liberty_and_responsibility,neither,neither,high,medium,,Both confusing. A has a $ sign. B has a graph but doesn’t define what that means.70
+08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82,liberty_and_responsibility,neither,neither,high,medium,,
+178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df,liberty_and_responsibility,B,high,medium,high,less misleading,
+b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085,patriotism_and_national_identity,B,medium,high,medium,better representation of meaning; better composition,Accurate image.
+bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be,patriotism_and_national_identity,B,high,medium,high,better likeness,
+1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b,patriotism_and_national_identity,B,high,medium,high,better composition; better likeness,
+6934c3253a9b77e82c91387bdb4afe242b58c05b21f5bb6ca2295b34419153fa,foreign_affairs,A,medium,medium,high,better representation of meaning; better composition; better likeness,
+042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c,foreign_affairs,neither,neither,medium,high,,FFS. currency should be gbp
+1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192,foreign_affairs,neither,neither,medium,high,,At a stretch A is better.
+f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7,leadership,neither,neither,high,medium,,Crap. They imply conservatism leads to strikes.
+8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906,leadership,B,medium,high,medium,better composition,
+4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747,leadership,A,high,high,medium,better representation of meaning; better composition,
+fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919,humour_or_rhetorical_attack,neither,neither,medium,high,,Might be delivered in New York but the flag and symbolism should be the uk
+0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448,humour_or_rhetorical_attack,neither,neither,high,medium,,Not great. The robber is supposed to be unseen for a start.better off with a hidden pipe leaking uk money tbh
+34372b4bc6ba46c34b4943069658ff7c1a605a71f095e2d4386dff93cf072152,humour_or_rhetorical_attack,neither,neither,medium,high,,I know it’s a quote issued by the ussr. But ussr symbolism should not be in the image.
+a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd,abstract_political_principle,A,medium,medium,high,better composition,
+d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859,abstract_political_principle,A,high,high,medium,better composition,It’s only better as it doesn’t have a US flag
+03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68,abstract_political_principle,neither,neither,high,medium,,
+49f8640fda9f890389e594dfdda488f012367be1bb0e61c5bcb06556f2d49a5f,historically_specific,neither,neither,medium,high,,
+283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b,historically_specific,A,medium,medium,high,,
+9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef,historically_specific,neither,neither,high,medium,,A ninority of people rioting in front a sign saying democracy is a poor way of describing itt
+54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789,difficult_visualisation,A,high,high,medium,better composition,
+f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e,difficult_visualisation,B,high,medium,high,better representation of meaning,
+8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16,difficult_visualisation,neither,neither,medium,high,,I’m wondering whether sometimes whether a quote like thiis is just not visually representable.

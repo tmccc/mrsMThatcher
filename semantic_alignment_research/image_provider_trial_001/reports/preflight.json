@@ -1,0 +1,52 @@
+{
+  "conservative_maximum_cost_usd": 2.26,
+  "expected_cost_usd": 1.13,
+  "expected_images": 20,
+  "maximum_attempts_per_provider_quote": 2,
+  "network_calls_made": false,
+  "output_directory": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/image_provider_trial_001",
+  "paid_execution_allowed": true,
+  "planned_calls": 20,
+  "prompt_hashes": {
+    "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015": "61a5eada83e1745050d38057ce0768738f821d4dc73010e1962b9c3beaf96d97",
+    "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7": "b33c125d0bfa703c3806413a35511144b071f723ff560c3785683ef2e6327f21",
+    "3b79f3b3c58a0f499bfaca4dc4ac8f3bdb603dd4a2fe71cfcf44335d230cb2f6": "5187df7a711ac9f2ca2be984442a6de432ce885a502c36c07edb99cf446e7edc",
+    "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939": "8f9e3f0707a6c618e5e521caec765b678a4bdc74a69fb07f608ade757d409a5c",
+    "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649": "90c965cab572b072ad45d3c163d601d36156ce3fc101ee1eb0b8736ffafe0b88",
+    "73d3b3857ab477953abcd53028a6010ce012b3f9c781aba6077a0b5233ebc1ab": "5a0e7cb4b148df569ff56214e74f227873459702bf9291ae0433e47ecd81856d",
+    "9835e15e662d305f5ad51ea4bfb4a4951af60cf8303fda7380c8b41b70885cd2": "8335c87f86aa45467bd2e9b1201aaf1ec4b01992c6c32f0e2075f9a0e508c4f7",
+    "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d": "2e500fd4ea24382a4a897ed3ddb11a9e58f9b874f6d666896f687394379eb9de",
+    "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3": "7b15a8abddfcf26d484690420abe7f10122cfbe385c8a0272eac0abc7ed91679",
+    "fc54ab7da4cdb6a19fff71c1c126f5af2113f29fba35916e24e1ec5daa9f5c82": "73226177a206e944c1f0adfd1a9d9b093305f376a646eaa2ad3ee2dfed3ee21e"
+  },
+  "prompt_parity_verified": true,
+  "providers": {
+    "grok": {
+      "calls": 10,
+      "expected_cost_usd": 1.0,
+      "maximum_cost_usd": 2.0,
+      "model": "grok-imagine-image-quality",
+      "pricing_basis": "prior project API-reported cost ticks",
+      "settings": {
+        "aspect_ratio": "1:1",
+        "n": 1,
+        "resolution": "1k"
+      }
+    },
+    "openai": {
+      "calls": 10,
+      "expected_cost_usd": 0.13,
+      "maximum_cost_usd": 0.26,
+      "model": "gpt-image-1.5",
+      "pricing_basis": "prior project observed request cost",
+      "settings": {
+        "n": 1,
+        "output_format": "png",
+        "quality": "low",
+        "size": "1024x1024"
+      }
+    }
+  },
+  "required_exact_confirmation_usd": 2.26,
+  "schema_version": 1
+}

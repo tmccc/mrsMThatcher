@@ -1,0 +1,130 @@
+{
+  "counts": {
+    "equal": 0,
+    "high": 4,
+    "medium": 3,
+    "neither": 3
+  },
+  "economics": {
+    "cost_per_win": {
+      "high": 0.42708875,
+      "medium": 0.15278433333333333
+    },
+    "cost_ratio_high_to_medium": 3.727160070949683
+  },
+  "items": [
+    {
+      "category": "domestic_economic_policy",
+      "choice": "A",
+      "note": "",
+      "quality_a": "high",
+      "quality_b": "medium",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "reasons": "better representation of meaning; better composition",
+      "winner": "high"
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "choice": "B",
+      "note": "",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "reasons": "better representation of meaning; better composition; better likeness",
+      "winner": "high"
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "choice": "neither",
+      "note": "Likeness is terrible. There is a flag of the united states and also the statue of liberty appears. Thatcher was the prime minister of the uk.",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "reasons": "",
+      "winner": "neither"
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "choice": "neither",
+      "note": "There\u2019s no point in picturing keith joseph. The orwell likeness is acceptable though.",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "reasons": "",
+      "winner": "neither"
+    },
+    {
+      "category": "foreign_affairs",
+      "choice": "A",
+      "note": "",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "reasons": "better composition; better likeness",
+      "winner": "medium"
+    },
+    {
+      "category": "leadership",
+      "choice": "A",
+      "note": "",
+      "quality_a": "high",
+      "quality_b": "medium",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "reasons": "better composition; better likeness",
+      "winner": "high"
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "choice": "B",
+      "note": "",
+      "quality_a": "high",
+      "quality_b": "medium",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "reasons": "better composition",
+      "winner": "medium"
+    },
+    {
+      "category": "abstract_political_principle",
+      "choice": "neither",
+      "note": "For a start, although the speech was given in new york, any buildings and symbolism ought to be uk only.",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "reasons": "",
+      "winner": "neither"
+    },
+    {
+      "category": "historically_specific",
+      "choice": "A",
+      "note": "",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "reasons": "stronger immediate impact; better representation of meaning; better composition",
+      "winner": "medium"
+    },
+    {
+      "category": "difficult_visualisation",
+      "choice": "B",
+      "note": "",
+      "quality_a": "medium",
+      "quality_b": "high",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "reasons": "better representation of meaning",
+      "winner": "high"
+    }
+  ],
+  "reason_tag_counts": {
+    "better composition": 6,
+    "better historical fit": 0,
+    "better likeness": 3,
+    "better representation of meaning": 4,
+    "fewer artefacts": 0,
+    "less generic": 0,
+    "less misleading": 0,
+    "other": 0,
+    "stronger immediate impact": 1
+  },
+  "recommendation": "High quality is not economically justified by this ten-case pilot; retain Medium as the default research candidate pending a larger independent comparison.",
+  "schema_version": 1
+}

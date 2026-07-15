@@ -1,0 +1,444 @@
+{
+  "case_count": 30,
+  "created_at": "2026-07-14T14:55:22.604459Z",
+  "eligible_corpus_size": 626,
+  "eligible_quote_id_set_sha256": "905c8d41a36381c232ed55ceaf42b645ce6aaf6f5aff1427ad9b14f61e8e7e7b",
+  "items": [
+    {
+      "category": "domestic_economic_policy",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered while Thatcher was Leader of the Opposition during a period of severe economic stagnation, high inflation, and industrial unrest in 1970s Britain. She used this address in Switzerland to argue that the post-war collectivist consensus was failing and to herald a 'New Renaissance' of free enterprise.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "b7fdc6bafef3444eae96d69309ddf79ac412752fe6855baf36fea5b4c8c90e06",
+      "quote_id": "9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223",
+      "quote_text": "Socialism whetted appetites for more, but has resulted in less being available.",
+      "selection_rationale": "Deterministic eligible representative for domestic economic policy; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "domestic_economic_policy",
+      "completed_packet_proof": true,
+      "historical_context_summary": "In 1978, the UK was experiencing high inflation and unemployment under James Callaghan's Labour government. As Leader of the Opposition, Thatcher was outlining Conservative economic principles ahead of the upcoming general election.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "1526240ef261c34805d387e7b39d2e6ab42299a2bf2ef90f5f4cab6e0cf8ce59",
+      "quote_id": "5846d1f5edc27201f80031ef49263e6d7299b74267da9b7c77ba34cf6b4e0e46",
+      "quote_text": "The Socialist myth is that government spending creates jobs. The truth is that the only permanent job creation scheme is a healthy economy.",
+      "selection_rationale": "Deterministic eligible representative for domestic economic policy; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "domestic_economic_policy",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered her first speech as Leader of the Conservative Party at the 1975 party conference. The UK was facing severe economic difficulties under the Labour government, including high inflation, low production, and record public spending.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "fb90e3ce6d98bf677b0941802c70e21dfab1f7917e53a0645cd10f519a99148d",
+      "quote_id": "61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2",
+      "quote_text": "They've got the usual Socialist disease - they've run out of other people's money.",
+      "selection_rationale": "Deterministic eligible representative for domestic economic policy; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered during the 1989 Conservative Party Conference in Blackpool, against the backdrop of collapsing communist regimes in Eastern Europe. Thatcher used the speech to contrast the freedom of capitalist societies with the state control inherent in socialism.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "98650d5221ab8c8913fd6d6a82a27a7e09b2eec428a65c72ad3b872fbebd3393",
+      "quote_id": "37e7a04cad7f1ec91e4204814d7e05be4c31cfc0440a43fa616e11d5c9832d99",
+      "quote_text": "Socialists don't like ordinary people choosing, for they might not choose Socialism.",
+      "selection_rationale": "Deterministic eligible representative for socialism and free enterprise; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher delivered this speech during a motion of no confidence brought by the Labour opposition. It was her final major speech in the House of Commons as Prime Minister, having announced her resignation earlier that day.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "388c5253dd354f3f0e0bc293def4c2a07f8e9454629d2433c4d1c6bc84a169e5",
+      "quote_id": "2a50d19f02e311797bac4b1b6945ca1d5348acf92a35cd079676deca68d475f4",
+      "quote_text": "Labour's policies are a vote of no confidence in the ability of British people to manage their own affairs. We have that confidence. Confidence in freedom and confidence in enterprise. That is what divides Conservatives from socialists.",
+      "selection_rationale": "Deterministic eligible representative for socialism and free enterprise; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered during the Cold War, Thatcher contrasted the prosperity and freedom of Western capitalist democracies with the failures of communist states. She specifically referenced the Berlin Wall as a physical manifestation of authoritarian coercion.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "9e4341468fe9660ee144ed5ff22da925b2ce9ed036e8da76b1562c1478d1edf1",
+      "quote_id": "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+      "quote_text": "Isn't it time we spoke up for our way of life? After all, no Western nation has to build a wall round itself to keep its people in.",
+      "selection_rationale": "Deterministic eligible representative for socialism and free enterprise; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered while she was Leader of the Opposition, Thatcher used this speech to articulate the Conservative Party's philosophical and moral objections to the Labour government's policies.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "4452da85057b672b73c71a6c0383d1217fd908e8de87ae38c69b93633cec5637",
+      "quote_id": "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8",
+      "quote_text": "The real case against socialism is not its economic inefficiency, though on all sides there is evidence of that. Much more fundamental is its basic immorality.",
+      "selection_rationale": "Deterministic eligible representative for liberty and responsibility; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher had recently become Leader of the Conservative Party in 1975. She was addressing her first party conference as leader, outlining her philosophy of individual freedom against the Labour government's socialist policies.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "a76fff205f025cc7d3a98adf06c39e256699d9b66989ca4019611286e64ed48d",
+      "quote_id": "08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82",
+      "quote_text": "Every family should have the right to spend their money, after tax, as they wish, and not as the government dictates. Let us extend choice, extend the will to choose and the chance to choose.",
+      "selection_rationale": "Deterministic eligible representative for liberty and responsibility; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered shortly after Thatcher became Prime Minister in 1979, this speech outlined her philosophy on rolling back the state and restoring individual responsibility. It marked a clear ideological break from the post-war consensus and collectivism.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "28f391c29777f158d4cc35542472ad81e93ac599e15936eb59b69de21d0855de",
+      "quote_id": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "quote_text": "If the State usurps or denies the right of the individual to make, where he is able to do so, the important decisions in his life and to provide the essentials for himself and his family, then he is demeaned and diminished as a moral being.",
+      "selection_rationale": "Deterministic eligible representative for liberty and responsibility; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered shortly after Thatcher's election as Prime Minister in May 1979, following the 'Winter of Discontent'. The UK was experiencing severe economic stagnation, industrial unrest, and a perceived loss of national prestige.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "8a2f941bd7348054a909423126254954b2dd931f21882613dea8805c54800226",
+      "quote_id": "b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085",
+      "quote_text": "In the last few years, British patriots have, once again, had cause, as John of Gaunt did, to feel ashamed of the way that the nation was being directed. We know that Britain has been in dire straits before, and that she has recovered. She will recover again.",
+      "selection_rationale": "Deterministic eligible representative for patriotism and national identity; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered just days before the 1987 UK General Election, Thatcher used this speech to contrast Conservative defence policies with the Labour Party's commitment to unilateral nuclear disarmament.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "f31a1aa102ef60555a3e372654b6dcced82702262d758967dd8d967644765eda",
+      "quote_id": "bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be",
+      "quote_text": "Britain is not just another country. We are the country which has always stood at the forefront in defence of freedom. We are the country which stood alone when Europe fell. And we are the country which, for over nine hundred years, has held out against foreign occupation.",
+      "selection_rationale": "Deterministic eligible representative for patriotism and national identity; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered shortly after her victory in the May 1979 general election, Thatcher sought to outline a vision for restoring British national confidence and conservative principles.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "65d026ed412755f8b35c2408b865a3aa6e0663f93dbd54b4b9649bf79b34d0ed",
+      "quote_id": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "quote_text": "We rejoice that Britain is still respected in all free countries as the Mother of Parliaments and the custodian of the principle of the rule of law.",
+      "selection_rationale": "Deterministic eligible representative for patriotism and national identity; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "foreign_affairs",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered shortly after Thatcher became Prime Minister in May 1979, during the Cold War. She was addressing a European youth rally, emphasizing the need for a strong Western defense against the Soviet Union.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "fa7a5f7d347f09a6c6957130b11a6113dc7667d3a11c0a83f5217a0712937e22",
+      "quote_id": "6934c3253a9b77e82c91387bdb4afe242b58c05b21f5bb6ca2295b34419153fa",
+      "quote_text": "Communism never sleeps, never changes its objectives, nor must we. Our first duty to freedom is to defend our own. Then one day we might export a little to those peoples who have to live without it.",
+      "selection_rationale": "Deterministic eligible representative for foreign affairs; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "foreign_affairs",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered this speech at the Hoover Institution in 2000, reflecting on the post-Cold War era and the dominance of American and British political-economic models. She was arguing against British integration into a European superstate and advocating for the global promotion of Western values.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "977bdfd99f18f5c4a2c46515477ce3117b8f9471a69f9de1bf570138961d1346",
+      "quote_id": "042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c",
+      "quote_text": "We know what works - the Anglo-Saxon model of liberty, property, law and capitalism. And we know where it works - everywhere it's actually applied.",
+      "selection_rationale": "Deterministic eligible representative for foreign affairs; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "foreign_affairs",
+      "completed_packet_proof": true,
+      "historical_context_summary": "During the 1980s, the Labour Party adopted a policy of unilateral nuclear disarmament, promising to cancel the Trident programme. This occurred during a tense period of the Cold War, making nuclear deterrence a central issue in British general elections.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "035238d2c286bccc16f702ef2df1c723fccfd47bd4fcf275b86c581a0e1879c7",
+      "quote_id": "1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192",
+      "quote_text": "A Labour Britain would be a neutralist Britain. It would be the greatest gain for the Soviet Union in forty years. And they would have got it without firing a shot.",
+      "selection_rationale": "Deterministic eligible representative for foreign affairs; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "leadership",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Following the 'Winter of Discontent' (1978-1979), characterized by widespread strikes, the Conservative Party campaigned heavily on a platform of trade union reform. Thatcher delivered this message the day before the 1979 General Election, which brought her to power as Prime Minister.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "845781338a715ea66586bc3df86641214cd5bf789fd5e908bfd00c821210b4fd",
+      "quote_id": "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+      "quote_text": "Too often trade unions are dominated by a tiny handful of extremists who do not reflect the common sense views of most union members. Wider use of secret ballots for decision-making throughout the trade union movement should be given every encouragement.",
+      "selection_rationale": "Deterministic eligible representative for leadership; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "leadership",
+      "completed_packet_proof": true,
+      "historical_context_summary": "During her first term as Prime Minister, Thatcher faced significant opposition both from within her own cabinet (the 'wets') and from the Labour opposition. She cultivated a reputation as the 'Iron Lady', known for her combative and conviction-driven leadership style.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "e7f1b112ab20b14aaad16bf8989b39a1911ee00d8cc24ef8c1c400e993b6319f",
+      "quote_id": "8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906",
+      "quote_text": "I love argument, I love debate. I don't expect anyone just to sit there and agree with me, that's not their job.",
+      "selection_rationale": "Deterministic eligible representative for leadership; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "leadership",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher had just won the 1979 general election, becoming the UK's first female Prime Minister following the turbulent Winter of Discontent.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "140bc044004abb5d0925481114c40d1cd63e8bb8369ee1328fcfd26878fe269d",
+      "quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "quote_text": "Where there is discord, may we bring harmony. Where there is error, may we bring truth. Where there is doubt, may we bring faith. And where there is despair, may we bring hope.",
+      "selection_rationale": "Deterministic eligible representative for leadership; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered in New York City shortly after the 2003 invasion of Iraq and in the shadow of the September 11 attacks. Thatcher was emphasizing the enduring necessity of the US-UK alliance in combating global terrorism and dictatorships.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "fea758c8da6fd5f95a8b5c914738e905a6af5e9f540b8954a42266e5861a1710",
+      "quote_id": "fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919",
+      "quote_text": "My friends, every generation has to fight anew the battle for liberty. In my generation, Nazism and then Communism were the enemy, and they very nearly prevailed. Then, as now, strong arms and stout hearts were called upon to sustain the struggle for truth and right.",
+      "selection_rationale": "Deterministic eligible representative for humour or rhetorical attack; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered during Thatcher's first term as Prime Minister amidst rising unemployment and economic recession. The speech, famous for the phrase 'the lady's not for turning', defended her strict monetarist policies against calls for a 'U-turn'.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "b532fe83ca13b156e6e7d687d0f3994d5e1578344f467938052df8d78f8db4e7",
+      "quote_id": "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
+      "quote_text": "Inflation is the parent of unemployment and the unseen robber of those who have saved.",
+      "selection_rationale": "Deterministic eligible representative for humour or rhetorical attack; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "completed_packet_proof": true,
+      "historical_context_summary": "In January 1976, the Soviet newspaper Red Star dubbed Thatcher the 'Iron Lady' after her 'Britain Awake' speech warning of Soviet military expansion. She embraced the moniker a week later in her constituency.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "d57ec0abd73962ae6abbc744e31195c7e255efa8add59d111ba0df7b19d44c08",
+      "quote_id": "34372b4bc6ba46c34b4943069658ff7c1a605a71f095e2d4386dff93cf072152",
+      "quote_text": "What Britain needs is an iron lady.",
+      "selection_rationale": "Deterministic eligible representative for humour or rhetorical attack; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "abstract_political_principle",
+      "completed_packet_proof": true,
+      "historical_context_summary": "In 1977, Britain was experiencing significant social and economic turmoil, with rising inflation, industrial disputes, and a perceived decline in traditional moral standards. Thatcher, as Leader of the Opposition, frequently argued that economic freedom and moral values were inextricably linked and under threat from socialism and cultural permissiveness.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "efb0c3027c5e8a9705bde5e094717ecd4d18142477100ae1cf2fe042e53fe247",
+      "quote_id": "a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd",
+      "quote_text": "Never have our basic values, the Christian values which rest on Hebrew and Hellenic foundations, been so menaced as they are today. Family life, the innocence of children, public decency, respect for the law, pride in good work, patriotism, democracy - all are under attack.",
+      "selection_rationale": "Deterministic eligible representative for abstract political principle; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "abstract_political_principle",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher frequently emphasised that democracy alone is insufficient without the foundational pillars of liberty and the rule of law, particularly when contrasting Western democracies with totalitarian regimes or discussing the transition of post-communist states.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "03c15c445de7e7842c7f97ba83e3db46fe339bf1c0feafc444cee3a334173ed5",
+      "quote_id": "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+      "quote_text": "Being democratic is not enough, a majority cannot turn what is wrong into right. In order to be considered truly free, countries must also have a deep love of liberty and an abiding respect for the rule of law.",
+      "selection_rationale": "Deterministic eligible representative for abstract political principle; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "abstract_political_principle",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered this speech during the 1984-1985 miners' strike, framing the conflict as a battle between democratic freedom and coercive minority power. She sought to articulate the philosophical link between free markets and political democracy.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "66eca60403916e9ffcae523a6acce1372da9746a5b16d4702a40170c914ef582",
+      "quote_id": "03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68",
+      "quote_text": "Great political economists, the greatest of them Adam Smith, have shown how a market economy, by devolving the power of consumer choice to customers, runs with the grain of democracy, which disperses the power of political choice to voters.",
+      "selection_rationale": "Deterministic eligible representative for abstract political principle; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "historically_specific",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Following the 1986 West Berlin discotheque bombing, the United States launched airstrikes against Libya, with the UK granting permission for US planes to fly from British bases. Thatcher faced significant domestic and parliamentary opposition for supporting the military action.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "cd8b177e068bb4941f4122b324133007951fbf7abe488b863c5fc31f14c52894",
+      "quote_id": "49f8640fda9f890389e594dfdda488f012367be1bb0e61c5bcb06556f2d49a5f",
+      "quote_text": "Terrorism thrives on a free society. The terrorist uses the feelings in a free society to sap the will of civilisation to resist. If the terrorist succeeds, he has won and the whole of free society has lost.",
+      "selection_rationale": "Deterministic eligible representative for historically specific; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "historically_specific",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered this speech during the 1984-1985 UK miners' strike, a period of intense industrial action and political conflict. She was addressing the broader threat posed by militant trade unions and pressure groups to democratic governance.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "e50882140d1ecdb718da46e1813779f937fb75ee84a2b01c0a97d8c9285b626a",
+      "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
+      "selection_rationale": "Deterministic eligible representative for historically specific; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "historically_specific",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered this lecture during the 1984\u20131985 UK miners' strike. She was addressing the broader threat of militant trade unions and pressure groups attempting to bypass democratic processes through intimidation.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "4a1777f71b55438fcac71eaf349fcc638523a50b9324be9b34d29520d0186bb6",
+      "quote_id": "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+      "quote_text": "We must never give in to the oldest and least democratic trick of all - the coercion of many by the ruthless, manipulating few.",
+      "selection_rationale": "Deterministic eligible representative for historically specific; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "difficult_visualisation",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered while Thatcher was Leader of the Opposition, this speech aimed to articulate the philosophical and moral foundations of Conservatism in contrast to socialism. It was part of her broader effort to reorient the Conservative Party towards free-market principles underpinned by individual moral responsibility.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "f610defa3b8918fdab84723c376935bc87ae4af845c059c419d0d52a62fe6ddd",
+      "quote_id": "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789",
+      "quote_text": "Religion teaches us that every human being is unique & must play his part in working out his own salvation. So whereas socialists begin with society, and how people can be fitted in, we start with Man, whose social and economic relationships are just part of his wider existence.",
+      "selection_rationale": "Deterministic eligible representative for difficult visualisation; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "difficult_visualisation",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher delivered this speech to an organisation that had recently changed its name from 'Aims of Industry' to 'Aims for Freedom and Enterprise'. She was arguing against the socialist policies of the Labour government, warning that increasing state control over the economy would inevitably erode personal liberties.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "05c934fa0f20955c8d7c5620e4a655c6f9207b7c77e34e03c3f50e36898984c0",
+      "quote_id": "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+      "quote_text": "Once the State controls the means of production, distribution and exchange, all of us become dependent upon it.",
+      "selection_rationale": "Deterministic eligible representative for difficult visualisation; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "difficult_visualisation",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher frequently used this phrase to describe her government's approach to reversing Britain's economic decline and challenging the Soviet Union, rejecting the pragmatic consensus politics of the post-war era.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "ec71164905b0efe3a9440d4281fd7867e9ca13ebb814c9ed2f832c44c6194501",
+      "quote_id": "8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16",
+      "quote_text": "Politics is the art of making the impossible happen.",
+      "selection_rationale": "Deterministic eligible representative for difficult visualisation; complete context; excluded from earlier image and quality trials.",
+      "unresolved_exclusion_proof": true
+    }
+  ],
+  "manifest_sha256": "52080e8bdbaecfa997d51c41ebf9d8171ffbe98ded8fd10e3360df81cf6c9e05",
+  "planned_calls": 60,
+  "schema_version": 1,
+  "seed": 20260714,
+  "selected_quote_list_sha256": "262ea296a89331e1cb1c314005439c2072eeeb81471df5b95eb6b18240b18f20",
+  "source_research_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001",
+  "trial_id": "openai_quality_trial_002",
+  "unresolved_count": 6,
+  "unresolved_quote_ids": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+    "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+    "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+    "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
+  ]
+}

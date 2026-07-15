@@ -1,0 +1,39 @@
+{
+  "analysis_kind": "openai_quality_combined_40_case_validation",
+  "case_count": 40,
+  "independent_trials": [
+    {
+      "trial": "openai_quality_trial_001",
+      "cases": 10,
+      "medium_wins": 3,
+      "high_wins": 4,
+      "equal": 0,
+      "neither": 3
+    },
+    {
+      "trial": "openai_quality_trial_002",
+      "cases": 30,
+      "medium_wins": 6,
+      "high_wins": 7,
+      "equal": 2,
+      "neither": 15
+    }
+  ],
+  "combined": {
+    "medium_wins": 9,
+    "high_wins": 11,
+    "equal": 2,
+    "neither": 18,
+    "decisive_cases": 20,
+    "high_decisive_win_rate": 0.55,
+    "neither_rate": 0.45
+  },
+  "costs_usd": {
+    "medium": 1.836986,
+    "high": 6.836987,
+    "total_completed_images": 8.673973,
+    "high_to_medium_ratio": 3.72185,
+    "possible_timeout_exposure": 0.171
+  },
+  "conclusion": "High quality is not economically justified by the combined 40-case evidence. Medium should remain the research default; image concept and prompt effectiveness are the larger limitation."
+}

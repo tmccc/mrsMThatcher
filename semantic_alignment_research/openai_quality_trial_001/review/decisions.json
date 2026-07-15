@@ -1,0 +1,96 @@
+{
+  "items": {
+    "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "reasons": [
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:48:09.793307Z"
+    },
+    "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "reasons": [
+        "better composition",
+        "better likeness"
+      ],
+      "saved_at": "2026-07-14T14:46:50.699234Z"
+    },
+    "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "reasons": [
+        "better composition",
+        "better likeness"
+      ],
+      "saved_at": "2026-07-14T14:47:10.528808Z"
+    },
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "reasons": [
+        "stronger immediate impact",
+        "better representation of meaning",
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:50:34.078533Z"
+    },
+    "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "reasons": [
+        "better representation of meaning",
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:41:45.225180Z"
+    },
+    "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840": {
+      "choice": "neither",
+      "note": "For a start, although the speech was given in new york, any buildings and symbolism ought to be uk only.",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "reasons": [],
+      "saved_at": "2026-07-14T14:49:58.469322Z"
+    },
+    "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "reasons": [
+        "better representation of meaning",
+        "better composition",
+        "better likeness"
+      ],
+      "saved_at": "2026-07-14T14:42:38.774819Z"
+    },
+    "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "reasons": [
+        "better representation of meaning"
+      ],
+      "saved_at": "2026-07-14T14:50:56.419944Z"
+    },
+    "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": {
+      "choice": "neither",
+      "note": "Likeness is terrible. There is a flag of the united states and also the statue of liberty appears. Thatcher was the prime minister of the uk.",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "reasons": [],
+      "saved_at": "2026-07-14T14:44:55.828658Z"
+    },
+    "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0": {
+      "choice": "neither",
+      "note": "There\u2019s no point in picturing keith joseph. The orwell likeness is acceptable though.",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "reasons": [],
+      "saved_at": "2026-07-14T14:46:13.084168Z"
+    }
+  },
+  "schema_version": 1
+}

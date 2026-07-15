@@ -1,0 +1,164 @@
+{
+  "case_count": 10,
+  "created_at": "2026-07-14T14:26:19.121330Z",
+  "eligible_corpus_size": 626,
+  "eligible_quote_id_set_sha256": "905c8d41a36381c232ed55ceaf42b645ce6aaf6f5aff1427ad9b14f61e8e7e7b",
+  "items": [
+    {
+      "category": "domestic_economic_policy",
+      "completed_packet_proof": true,
+      "historical_context_summary": "In 1977, Britain was experiencing severe economic difficulties under a Labour government, including high inflation, heavy taxation, and industrial decline. Thatcher was Leader of the Opposition, arguing against socialist economic policies and state intervention.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "ca4cf61c24807aa0ae7a831fcd50d0db3c6081f5fefc917b08ccbde19417ba63",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "quote_text": "The Government treats industry like a beast of burden. They put more & more weight on the animal, starve it of nutritious food, harness it ever more tightly and then shout at it to go faster. The regeneration of British industry will begin only when Government get off its back.",
+      "selection_rationale": "Strongest deterministic eligible match for domestic economic policy; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered just two days before the 1979 United Kingdom general election, which brought the Conservative Party to power and made Thatcher the first female Prime Minister.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "32865fc4749a16fbbbc70e069001f9122893dc1b1496c3c4720cf8a6ff6757cf",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "quote_text": "Change is coming, the slither and slide to the socialist state is going to be stopped in this United Kingdom of Great Britain and Northern Ireland. Stopped and turned back. It can be done and it will be done and we shall start on the 3rd May 1979.",
+      "selection_rationale": "Strongest deterministic eligible match for socialism and free enterprise; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Following her premiership and the end of the Cold War, Thatcher frequently spoke internationally to cement her ideological legacy. She emphasized that the victory of the West was not just economic, but fundamentally moral.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "94d1fba151746eb7397efd2dfb806c8d1617b096a80257bd9f715329fa6346f6",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "quote_text": "Capitalism is the moral way of running an economy.",
+      "selection_rationale": "Strongest deterministic eligible match for liberty and responsibility; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Sir Keith Joseph delivered this highly controversial speech in Edgbaston shortly after the October 1974 general election, addressing the moral state of Britain and criticizing socialist intellectuals.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "608310ab48ef90b0b4c00233c56bd7f231240f6dfc024a1b7ddf53879bb4ba98",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "quote_text": "It was the radical Socialist writer and patriot, the late George Orwell, who described the left-wing intellectuals as men motivated primarily by hatred of their own country. Socialists who spoke most about brotherhood of man could not bear their fellow-Englishmen, he complained.",
+      "selection_rationale": "Strongest deterministic eligible match for patriotism and national identity; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "foreign_affairs",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Following the fall of the Berlin Wall and the collapse of communist regimes across Eastern Europe in 1989, NATO leaders met to discuss the future of the alliance. The Cold War was effectively ending, and the Soviet Union was undergoing significant internal changes.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "aa6869bb24a7362a6d3b2ef4be163a645f916b6dd1d5d6e714e22c56966c0764",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "quote_text": "Communism has crumbled, it has lost all credibility, even among nominal believers.",
+      "selection_rationale": "Strongest deterministic eligible match for foreign affairs; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "leadership",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher had been Prime Minister for less than a year, establishing her famously dominant and uncompromising leadership style over her Cabinet.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "464e590ee03a3cf65e34f6c35f3b4cd0e576d7cf7487a8b06edb7cd9ef3e325b",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "quote_text": "I don't mind how much my Ministers talk, so long as they do what I say.",
+      "selection_rationale": "Strongest deterministic eligible match for leadership; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "completed_packet_proof": true,
+      "historical_context_summary": "In 1980, Britain faced a severe recession and rising unemployment, leading commentators to predict Thatcher would abandon her monetarist policies. This speculation referenced former Prime Minister Edward Heath's famous 1972 policy U-turn.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "1b3a26097c60b0fd7f78f78de8d3c1a8a72b911248be263309f08b148f3c5026",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "quote_text": "To those waiting with bated breath for that favourite media catchphrase, the U-turn, I have only this to say, You turn if you want; the lady's not for turning.",
+      "selection_rationale": "Strongest deterministic eligible match for humour or rhetorical attack; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "abstract_political_principle",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Thatcher delivered this speech in New York to inaugurate a lecture series for the English-Speaking Union. She focused on the shared values of the English-speaking peoples, particularly the rule of law, representative democracy, and individual liberty.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "d59260f65cfc1b0aca08578b11cc2e4563f01eae061645eba3c3b75d9d77610a",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "quote_text": "The idea that men must govern themselves not by the arbitrary commands of a ruler but by their own considered judgement is the means whereby chaos is replaced by order, violence by the peaceful resolution of differences, and tyranny by freedom.",
+      "selection_rationale": "Strongest deterministic eligible match for abstract political principle; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "historically_specific",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Margaret Thatcher gave this interview to the Financial Times during the 1984-1985 miners' strike. She was discussing her views on the Labour Party, the Social Democratic-Liberal Alliance, and the necessity of resolute government leadership.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "d4c81e996b2833c05190a5f5a7096ed510cf7cf3c5648550719564c76a62e187",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+      "selection_rationale": "Strongest deterministic eligible match for historically specific; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    },
+    {
+      "category": "difficult_visualisation",
+      "completed_packet_proof": true,
+      "historical_context_summary": "Delivered on the eve of the 1979 United Kingdom general election, which brought Thatcher to power and ended the Labour government.",
+      "payload_difference": [
+        "quality"
+      ],
+      "prompt_parity": true,
+      "prompt_sha256": "bb34cc270aff6fa053c36f0b4598030b7b679bc6c298b6fbb526828836de0bfa",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "quote_text": "Unless we change our ways and our direction, our greatness as a nation will soon be a footnote in the history books, a distant memory of an offshore island, lost in the mists of time like Camelot, remembered kindly for its noble past.",
+      "selection_rationale": "Strongest deterministic eligible match for difficult visualisation; complete historical and editorial guidance; not used in scanned prior generation studies.",
+      "unresolved_exclusion_proof": true
+    }
+  ],
+  "manifest_sha256": "4cc16ffe4391f7a4bda2234eacdccd179777d1aedf22bbfd71b93b5618f4950e",
+  "planned_calls": 20,
+  "schema_version": 1,
+  "seed": 20260714,
+  "selected_quote_list_sha256": "39001eedb29d3b2f56076e11ce217ecfb6724d806e6ebdeb21b0b25ee3fd069b",
+  "source_research_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001",
+  "trial_id": "openai_quality_trial_001",
+  "unresolved_count": 6,
+  "unresolved_quote_ids": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+    "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+    "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+    "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "endpoint": "https://api.openai.com/v1/images/generations",
+  "payload": {
+    "model": "gpt-image-1",
+    "n": 1,
+    "output_format": "png",
+    "prompt": "Create one editorial image to accompany this Margaret Thatcher quotation on X.\n\nQUOTATION (do not render this text in the image):\nI don't mind how much my Ministers talk, so long as they do what I say.\n\nHISTORICAL AND SEMANTIC BRIEF\n- Verification: exact. Verified wording, if materially relevant: I don't mind how much my Ministers talk, so long as they do what I say.\n- Event and date: The Observer; 27 January 1980.\n- Historical setting: Margaret Thatcher had been Prime Minister for less than a year, establishing her famously dominant and uncompromising leadership style over her Cabinet.\n- Immediate subject: Her relationship with her Cabinet ministers and her approach to executive decision-making.\n- Intended argument: She values debate and discussion but ultimately expects her decisions and authority to be strictly followed.\n- Literal meaning: Ministers are free to speak their minds, provided they ultimately obey her commands.\n- Broader principle: Strong executive leadership requires final authority, even if it allows for preliminary consultation.\n- Mechanism: By asserting absolute final authority, the leader can afford to permit open discussion without risking loss of control.\n- Claimed consequence: A government where debate is tolerated but the Prime Minister's will is ultimately executed.\n- Relevant people, places, organisations, or events: Margaret Thatcher, The Observer, Cabinet of the United Kingdom\n- Desired first impression: Authoritative and uncompromising.\n- Historical requirements: Depict Thatcher in her early prime ministerial years (circa 1980).; Show a formal, professional setting.\n- What should dominate: Margaret Thatcher in a position of authority.\n- What must not dominate: Other ministers, who should appear subordinate or listening.\n- Common misleading visual interpretations to avoid: Showing her in her later, older years.; Depicting a chaotic or rebellious cabinet.\n- Research confidence: high\n\nIMAGE DIRECTION\nCommunicate the intended meaning immediately at social-media size through one strong, coherent visual concept. Use a realistic, historically credible editorial aesthetic rather than advertising. Margaret Thatcher may appear only when naturally appropriate. Avoid generic Westminster imagery unless the history requires it, unfocused collages, excessive written text, invented quotation text, misleading symbols, and anachronisms. Keep a clear focal hierarchy and strong thumbnail readability. Produce a square 1:1 composition with no border or caption.",
+    "quality": "high",
+    "size": "1024x1024"
+  },
+  "prepared_only": true,
+  "quality": "high",
+  "substantive_prompt_sha256": "464e590ee03a3cf65e34f6c35f3b4cd0e576d7cf7487a8b06edb7cd9ef3e325b"
+}

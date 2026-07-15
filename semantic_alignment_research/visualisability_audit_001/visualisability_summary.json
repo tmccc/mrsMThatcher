@@ -1,0 +1,28 @@
+{
+  "actions": {
+    "concept_development_required": 44,
+    "generate": 15,
+    "refine_then_generate": 558,
+    "skip": 9
+  },
+  "best_50_count": 50,
+  "calibration_neither": 18,
+  "common_prompt_issues": {
+    "available guidance is overloaded": 7,
+    "generic-image risk is high": 11,
+    "multiple misleading interpretations are plausible": 16,
+    "no concrete visual concept in prior quote analysis": 16
+  },
+  "eligible_count": 626,
+  "grades": {
+    "A": 15,
+    "B": 558,
+    "C": 44,
+    "D": 9
+  },
+  "historically_specific": 60,
+  "manual_review_queue_size": 72,
+  "portrait_dependent": 11,
+  "skipped": 9,
+  "strong_quote_weak_prompt": 18
+}

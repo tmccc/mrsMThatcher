@@ -1,0 +1,21 @@
+{
+  "items": {
+    "b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085": {
+      "human_action": "generate",
+      "human_decision": "Excellent candidate",
+      "human_grade": "A",
+      "human_note": "",
+      "migrated_from_legacy_override": true,
+      "new_value": {
+        "human_action": "generate",
+        "human_grade": "A",
+        "human_note": ""
+      },
+      "previous_value": null,
+      "quote_id": "b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085",
+      "review_revision": 1,
+      "reviewer_timestamp": "2026-07-14T17:21:57.010931Z"
+    }
+  },
+  "schema_version": 1
+}

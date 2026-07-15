@@ -1,0 +1,126 @@
+{
+  "assignments": {
+    "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448": {
+      "A": "high",
+      "B": "medium"
+    },
+    "03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68": {
+      "A": "high",
+      "B": "medium"
+    },
+    "042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c": {
+      "A": "medium",
+      "B": "high"
+    },
+    "08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82": {
+      "A": "high",
+      "B": "medium"
+    },
+    "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df": {
+      "A": "medium",
+      "B": "high"
+    },
+    "1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192": {
+      "A": "medium",
+      "B": "high"
+    },
+    "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b": {
+      "A": "medium",
+      "B": "high"
+    },
+    "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b": {
+      "A": "medium",
+      "B": "high"
+    },
+    "2a50d19f02e311797bac4b1b6945ca1d5348acf92a35cd079676deca68d475f4": {
+      "A": "high",
+      "B": "medium"
+    },
+    "34372b4bc6ba46c34b4943069658ff7c1a605a71f095e2d4386dff93cf072152": {
+      "A": "medium",
+      "B": "high"
+    },
+    "37e7a04cad7f1ec91e4204814d7e05be4c31cfc0440a43fa616e11d5c9832d99": {
+      "A": "high",
+      "B": "medium"
+    },
+    "49f8640fda9f890389e594dfdda488f012367be1bb0e61c5bcb06556f2d49a5f": {
+      "A": "medium",
+      "B": "high"
+    },
+    "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747": {
+      "A": "high",
+      "B": "medium"
+    },
+    "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789": {
+      "A": "high",
+      "B": "medium"
+    },
+    "5846d1f5edc27201f80031ef49263e6d7299b74267da9b7c77ba34cf6b4e0e46": {
+      "A": "high",
+      "B": "medium"
+    },
+    "61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2": {
+      "A": "medium",
+      "B": "high"
+    },
+    "6934c3253a9b77e82c91387bdb4afe242b58c05b21f5bb6ca2295b34419153fa": {
+      "A": "medium",
+      "B": "high"
+    },
+    "8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16": {
+      "A": "medium",
+      "B": "high"
+    },
+    "8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906": {
+      "A": "high",
+      "B": "medium"
+    },
+    "9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223": {
+      "A": "high",
+      "B": "medium"
+    },
+    "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef": {
+      "A": "high",
+      "B": "medium"
+    },
+    "a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd": {
+      "A": "medium",
+      "B": "high"
+    },
+    "b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085": {
+      "A": "high",
+      "B": "medium"
+    },
+    "bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be": {
+      "A": "medium",
+      "B": "high"
+    },
+    "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434": {
+      "A": "high",
+      "B": "medium"
+    },
+    "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859": {
+      "A": "high",
+      "B": "medium"
+    },
+    "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8": {
+      "A": "high",
+      "B": "medium"
+    },
+    "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e": {
+      "A": "medium",
+      "B": "high"
+    },
+    "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7": {
+      "A": "high",
+      "B": "medium"
+    },
+    "fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919": {
+      "A": "medium",
+      "B": "high"
+    }
+  },
+  "schema_version": 1,
+  "seed": 20260714
+}

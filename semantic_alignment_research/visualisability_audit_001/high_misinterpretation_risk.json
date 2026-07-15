@@ -1,0 +1,990 @@
+{
+  "count": 16,
+  "items": [
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By harnessing natural human urges through free enterprise, society as a whole prospers..",
+      "category": "socialism_and_free_enterprise",
+      "confidence": "medium",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 55,
+      "grade": "B",
+      "historical_context_summary": "During the late 20th century, Margaret Thatcher championed free-market economics, privatization, and deregulation in the UK, frequently arguing that capitalism was intrinsically linked to personal and political freedom.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 65,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "A strong, ideological defense of capitalism as a moral force.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996",
+      "quote_text": "Free enterprise has enabled the creative and the acquisitive urges of man to be given expression in a way which benefits all members of society. Let free enterprise fight back now, not for itself, but for all those who believe in freedom.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 1,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 55/100; 4 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "business activity",
+          "entrepreneurial endeavour",
+          "economic freedom",
+          "societal benefit"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By reducing state dependency, individuals are encouraged to take personal responsibility, which fosters a stronger, more resilient community..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 55,
+      "current_prompt": null,
+      "generation_priority_score": 59,
+      "grade": "B",
+      "historical_context_summary": "During her third term as Prime Minister, Thatcher sought to challenge the 'dependency culture' of the welfare state. She emphasized individual and family responsibility over reliance on government entitlements.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 72,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "A firm, principled leader challenging the prevailing consensus on the welfare state.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "2b6aa4dc33fc5e8ff1c9e1a4e90464d18bbd18c323bc525dd05f99b1a77d6594",
+      "quote_text": "We must recognise certain groups of people who need help, but the rest of us must take responsibility for ourselves, and we must stop being such a subsidised-minded society.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 4,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 70/100; 4 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "people needing help",
+          "individuals taking responsibility",
+          "welfare recipients",
+          "self-sufficient citizens"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 70.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By replacing voluntary private action with compulsory state provision, the state removes the opportunity and expectation for individuals to exercise moral choice and charity..",
+      "category": "difficult_visualisation",
+      "confidence": "high",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 55,
+      "grade": "B",
+      "historical_context_summary": "As Leader of the Opposition in 1978, Thatcher sought to articulate the moral and philosophical foundations of her conservative vision, challenging the post-war consensus on the welfare state. She delivered this speech to explain how her political philosophy was informed by Christian principles, emphasizing individual responsibility over collectivism.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 65,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "A principled, philosophically grounded leader articulating a moral vision of conservatism.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "3b79f3b3c58a0f499bfaca4dc4ac8f3bdb603dd4a2fe71cfcf44335d230cb2f6",
+      "quote_text": "Once you give people the idea that all this can be done by the State, and that it is somehow second-best or even degrading to leave it to private people then you will begin to deprive human beings of one of the essential ingredients of humanity - personal moral responsibility.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 55/100; 3 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "state authority",
+          "private individuals",
+          "moral responsibility"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By concentrating wealth, initiative, and authority in the hands of the government, socialism eliminates the diffusion of power necessary for freedom..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 52,
+      "current_prompt": null,
+      "generation_priority_score": 54,
+      "grade": "B",
+      "historical_context_summary": "Margaret Thatcher delivered this speech to her hometown conservative association while serving as Leader of the Opposition. She was critiquing the Labour government's economic policies and outlining her vision of free enterprise.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 62,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "A definitive ideological statement linking economic systems to political liberty.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "3fca53c7e514fc68ab6ce08d5ea1ce0be2ce03bafc1df3663f0677d1121cebe2",
+      "quote_text": "Socialism and freedom cannot long co-exist in the same society.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 2,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 3,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 55/100; 2 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "ideological opposition",
+          "social structure"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: The state expands its reach by promising comprehensive welfare, which requires confiscatory taxation and bureaucratic control, systematically stripping citizens of independence..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 56,
+      "current_prompt": null,
+      "generation_priority_score": 61,
+      "grade": "B",
+      "historical_context_summary": "In 1978, the UK was experiencing severe economic difficulties under a Labour government, leading up to the 'Winter of Discontent'. As Leader of the Opposition, Thatcher was articulating her core conservative philosophy against state expansion and socialism.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 75,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Authoritative, philosophically grounded, and starkly cautionary.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58",
+      "quote_text": "The Socialist myth is that governments can promise more & more, and take more & more, but that we can still keep our freedom. The truth is that if government does everything for you, it will take everything from you - first your money, then your dignity, & finally your freedom.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 4,
+        "concept_immediacy": 5,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 2,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 70/100; 4 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "government promises",
+          "taking money",
+          "loss of dignity",
+          "loss of freedom"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 70.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By controlling the means of production and distribution, the state eliminates independent sources of wealth and employment, forcing universal dependence on bureaucracy..",
+      "category": "domestic_economic_policy",
+      "confidence": "high",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 55,
+      "grade": "B",
+      "historical_context_summary": "Thatcher delivered this speech shortly after becoming Leader of the Conservative Party in 1975, amidst high inflation and increasing state intervention under the Labour government. She was addressing a pro-free-market group, arguing against the socialist policies of the era.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 65,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Resolute, principled, and warning of creeping authoritarianism.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e",
+      "quote_text": "There is an increasing belief that freedom is divisible. No myth is more dangerous. Freedom is indivisible.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 4,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 4,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 55/100; 4 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "freedom",
+          "division",
+          "myth",
+          "belief"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By linking personal virtues with a historical institution, the quote frames British imperialism as an extension of conservative moral values..",
+      "category": "liberty_and_responsibility",
+      "confidence": "medium",
+      "current_concept_quality_score": 57,
+      "current_prompt": null,
+      "generation_priority_score": 62,
+      "grade": "B",
+      "historical_context_summary": "During her political career, Margaret Thatcher frequently defended the legacy of the British Empire and emphasized core conservative values like personal responsibility and the rule of law.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 72,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "A staunch, unapologetic defense of British imperialism and conservative individualism.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
+      "quote_text": "I believe in the acceptance of personal responsibility, freedom of choice, and the British Empire, which took freedom and the rule of law to countries which would never have known it otherwise.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 3,
+        "generic_image_risk": 2,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 1,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 5,
+        "text_dependency": 1,
+        "visual_distinctiveness": 4
+      },
+      "short_rationale": "Existing visual matchability 65/100; 5 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 2/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "personal responsibility",
+          "freedom of choice",
+          "british empire",
+          "rule of law",
+          "freedom"
+        ],
+        "preferred_symbols": [
+          "union jack",
+          "formal attire"
+        ],
+        "quote_analysis_available": true,
+        "visual_matchability": 65.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: Framing political and social conflict as a unified democratic majority standing against isolated extremists..",
+      "category": "leadership",
+      "confidence": "high",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 54,
+      "grade": "B",
+      "historical_context_summary": "The interview occurred during the 1984-1985 miners' strike and shortly after the IRA bombing of the Conservative Party Conference in Brighton.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 62,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Resolute, unifying, and steadfast.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "81c14e48d945dfadbcc2e54d5e0b2da6194abdafe88511a6c40aeeef05ff384d",
+      "quote_text": "I do not regard society as polarised. Indeed, it is not. The commentators like to try to make it so, but it is not. The greater part of society is ... believes in orderly freedom. It totally and utterly rejects extremes.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 3,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 1,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 65/100; 4 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "polarized society",
+          "commentators",
+          "orderly freedom",
+          "moderate majority"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 65.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By fostering personal independence and self-reliance, society allows individuals to freely develop their talents, which drives overall human progress..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 52,
+      "current_prompt": null,
+      "generation_priority_score": 54,
+      "grade": "B",
+      "historical_context_summary": "Margaret Thatcher delivered this speech shortly after being elected Leader of the Conservative Party in February 1975. It served as an early articulation of her political philosophy, contrasting Conservative individualism with the socialist policies of the incumbent Labour government.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 62,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Resolute, principled, and foundational.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "893d33ddc59977611c2c195ba41afb787f27c954484bc9dea4ba28652921e8ce",
+      "quote_text": "I place a profound belief - indeed a fervent faith - in the virtues of self reliance and personal independence. On these is founded the whole case for the free society.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 4,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 3,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 55/100; 2 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "individual standing alone",
+          "personal freedom"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By defining integrity as an intellectual and moral commitment to truth, Thatcher elevates ideological conviction above political expediency..",
+      "category": "leadership",
+      "confidence": "high",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 54,
+      "grade": "B",
+      "historical_context_summary": "Margaret Thatcher delivered the inaugural Keith Joseph Memorial Lecture in 1996 to honour her close political ally and intellectual mentor, Sir Keith Joseph. The speech reflected on his legacy and the foundational principles of modern conservatism.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 62,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Principled and resolute.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "quote_text": "In politics, integrity really lies in the conviction that it's only on the basis of truth that power should be won - or indeed can be worth winning. It lies in an unswerving belief that you have to be right.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 3,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 2,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 2,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 65/100; 3 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "political integrity",
+          "truth as foundation",
+          "conviction of rightness"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 65.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By contrasting the structural economic aspects of socialism with its insidious psychological and moral consequences on the populace..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 57,
+      "current_prompt": null,
+      "generation_priority_score": 64,
+      "grade": "B",
+      "historical_context_summary": "Following the collapse of the Soviet bloc, Margaret Thatcher delivered this speech in Poland to encourage the transition to democratic capitalism. She sought to warn newly liberated nations about the lingering cultural and psychological damage caused by collectivist systems.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 75,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Authoritative, philosophical, and cautionary.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "8ada29b44bd8d9d972323e94e70d9e116d16af0fc1f820e60ee848701087c1d8",
+      "quote_text": "Socialism is a dangerous, but undeclared, enemy of freedom - and I do not just mean the socialist command economy but all those attitudes which socialism fosters: dependence, passivity, conformity, envy, lack of personal responsibility and lack of initiative.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 2,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 5,
+        "text_dependency": 1,
+        "visual_distinctiveness": 4
+      },
+      "short_rationale": "Existing visual matchability 55/100; 3 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 2/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "ideological critique",
+          "political enemy",
+          "social attitudes"
+        ],
+        "preferred_symbols": [
+          "parliamentary setting",
+          "formal attire"
+        ],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By relying on the considered judgment of the governed rather than arbitrary commands, societies establish institutions that resolve conflicts peacefully..",
+      "category": "abstract_political_principle",
+      "confidence": "high",
+      "current_concept_quality_score": 45,
+      "current_prompt": "Create one editorial image to accompany this Margaret Thatcher quotation on X.\n\nQUOTATION (do not render this text in the image):\nThe idea that men must govern themselves not by the arbitrary commands of a ruler but by their own considered judgement is the means whereby chaos is replaced by order, violence by the peaceful resolution of differences, and tyranny by freedom.\n\nHISTORICAL AND SEMANTIC BRIEF\n- Verification: exact. Verified wording, if materially relevant: The idea that men must govern themselves not by the arbitrary commands of a ruler but by their own considered judgement is the means whereby chaos is replaced by order, violence by the peaceful resolution of differences, and tyranny by freedom.\n- Event and date: The Inauguration of The Thatcher Lecture Series, English-Speaking Union; December 7, 1999.\n- Historical setting: Thatcher delivered this speech in New York to inaugurate a lecture series for the English-Speaking Union. She focused on the shared values of the English-speaking peoples, particularly the rule of law, representative democracy, and individual liberty.\n- Immediate subject: The foundational importance of the rule of law and self-government.\n- Intended argument: Self-government based on considered judgment, rather than arbitrary rule, is the essential mechanism that sustains civilization and prevents a descent into barbarism.\n- Literal meaning: Replacing a dictator's whims with the reasoned self-rule of citizens transforms a chaotic, violent, and tyrannical society into an orderly, peaceful, and free one.\n- Broader principle: The rule of law and democratic self-determination are the bedrock of civilized society and human progress.\n- Mechanism: By relying on the considered judgment of the governed rather than arbitrary commands, societies establish institutions that resolve conflicts peacefully.\n- Claimed consequence: Chaos is replaced by order, violence by peaceful resolution, and tyranny by freedom.\n- Relevant people, places, organisations, or events: Margaret Thatcher, English-Speaking Union, New York\n- Desired first impression: Authoritative, principled, and historically grounded.\n- Historical requirements: Attribute to Margaret Thatcher's post-premiership period.; Contextualize within her views on the English-speaking peoples' legal traditions.\n- What should dominate: The contrast between 'arbitrary commands' and 'considered judgement'.; The tripartite progression: chaos to order, violence to peace, tyranny to freedom.\n- What must not dominate: Imagery of specific modern political conflicts.; Overly partisan contemporary symbols.\n- Common misleading visual interpretations to avoid: Using imagery from her time as Prime Minister (1979-1990) rather than her later years.; Depicting anarchy rather than the structured transition to the rule of law.\n- Research confidence: high\n\nIMAGE DIRECTION\nCommunicate the intended meaning immediately at social-media size through one strong, coherent visual concept. Use a realistic, historically credible editorial aesthetic rather than advertising. Margaret Thatcher may appear only when naturally appropriate. Avoid generic Westminster imagery unless the history requires it, unfocused collages, excessive written text, invented quotation text, misleading symbols, and anachronisms. Keep a clear focal hierarchy and strong thumbnail readability. Produce a square 1:1 composition with no border or caption.",
+      "generation_priority_score": 58,
+      "grade": "C",
+      "historical_context_summary": "Thatcher delivered this speech in New York to inaugurate a lecture series for the English-Speaking Union. She focused on the shared values of the English-speaking peoples, particularly the rule of law, representative democracy, and individual liberty.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 72,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Authoritative, principled, and historically grounded.",
+      "prior_review": {
+        "images": {
+          "high": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840.png",
+          "medium": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840.png"
+        },
+        "outcome": "neither",
+        "trial": "openai_quality_trial_001"
+      },
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "quote_text": "The idea that men must govern themselves not by the arbitrary commands of a ruler but by their own considered judgement is the means whereby chaos is replaced by order, violence by the peaceful resolution of differences, and tyranny by freedom.",
+      "recommended_action": "concept_development_required",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 3,
+        "generic_image_risk": 2,
+        "historical_knowledge_dependency": 2,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 5,
+        "text_dependency": 1,
+        "visual_distinctiveness": 4
+      },
+      "short_rationale": "Existing visual matchability 55/100; 3 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 2/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": true,
+        "literal_visual_concepts": [
+          "self-governance",
+          "peaceful resolution of differences",
+          "order replacing chaos"
+        ],
+        "preferred_symbols": [
+          "parliamentary setting",
+          "formal attire"
+        ],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By framing the opposition's policies as 'dark, divisive clouds of Marxist socialism', Thatcher uses emotive, polarizing language to unite voters around a shared defense of freedom..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 60,
+      "current_prompt": null,
+      "generation_priority_score": 68,
+      "grade": "B",
+      "historical_context_summary": "Thatcher delivered this speech in Perth shortly after calling the 1983 General Election. She sought to draw a stark contrast between her Conservative platform and the Labour Party, which under Michael Foot had adopted a heavily left-wing manifesto.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 82,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Resolute, ideological, and historically significant.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "9e66d045369a9ef049c406343e8f49f0fdd664d39121e6e9bd118b967befa3cb",
+      "quote_text": "The choice facing the nation is between two totally different ways of life: no less than the chance to banish from our land the dark, divisive clouds of Marxist socialism and bring together men and women from all walks of life who share a belief in freedom.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 4,
+        "concept_immediacy": 5,
+        "emotional_impact": 4,
+        "generic_image_risk": 2,
+        "historical_knowledge_dependency": 4,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 1,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 5,
+        "text_dependency": 1,
+        "visual_distinctiveness": 4
+      },
+      "short_rationale": "Existing visual matchability 70/100; 4 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 2/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "dark divisive clouds",
+          "banish from our land",
+          "men and women from all walks of life",
+          "choice between two ways"
+        ],
+        "preferred_symbols": [
+          "union jack",
+          "parliamentary setting"
+        ],
+        "quote_analysis_available": true,
+        "visual_matchability": 70.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By transferring power from the state (e.g., socialist councils) to individuals (e.g., right-to-buy, school choice), citizens become more invested in their communities..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 53,
+      "current_prompt": null,
+      "generation_priority_score": 55,
+      "grade": "B",
+      "historical_context_summary": "Thatcher was addressing the 1988 Conservative Party Conference in Brighton, defending her policies against accusations that they promoted selfish individualism at the expense of society.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 65,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Resolute, principled, and focused on community empowerment.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "a38b8765f977125345317f7c0be62a39d47525f3b1698119ec62c65bad229936",
+      "quote_text": "Greater responsibility gives more dignity to the individual and more strength to the community. That belief is at the heart of Conservatism. We must make it live.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 3,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 65/100; 3 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "individual dignity",
+          "community cohesion",
+          "personal responsibility"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 65.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By declaring certain principles off-limits to questioning, tyrants prevent individuals from exercising their own reason and judgment..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 56,
+      "current_prompt": null,
+      "generation_priority_score": 60,
+      "grade": "B",
+      "historical_context_summary": "Thatcher delivered this address at Westminster College, the site of Winston Churchill's 1946 'Iron Curtain' speech. Speaking in the post-Cold War era, she warned against political correctness, moral relativism, and the erosion of Western civilizational values.",
+      "historical_setting_required": true,
+      "inherent_visualisability_score": 68,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": true,
+      "preferred_treatment": "historical_scene",
+      "primary_visual_concept": "Authoritative, intellectual, and resolute.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "bb5ce4d8d92606299d573ba473fcec7c2a1756d2d79c1aa87b74d69a3019c1bc",
+      "quote_text": "The idea that one can become, as Locke said, \"the dictator of principles\" and establish as the most basic principle \"that principles must not be questioned,\" is the essence of tyranny.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 4,
+        "composition_potential": 3,
+        "concept_immediacy": 4,
+        "emotional_impact": 4,
+        "generic_image_risk": 2,
+        "historical_knowledge_dependency": 4,
+        "historical_specificity": 5,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 3,
+        "symbolic_clarity": 4,
+        "text_dependency": 2,
+        "visual_distinctiveness": 4
+      },
+      "short_rationale": "Existing visual matchability 55/100; 3 concrete concept(s); static suitability 3/5; generic and misinterpretation risks 2/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "philosopher",
+          "tyrant",
+          "unquestioned authority"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 55.0
+      },
+      "thatcher_should_appear": true,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    },
+    {
+      "alternative_visual_concept": "Show the mechanism directly: By taking a larger portion of a person's earnings through taxation, the government restricts their ability to make personal economic choices..",
+      "category": "liberty_and_responsibility",
+      "confidence": "high",
+      "current_concept_quality_score": 56,
+      "current_prompt": null,
+      "generation_priority_score": 61,
+      "grade": "B",
+      "historical_context_summary": "In early 1976, the Labour government released a White Paper on Public Expenditure indicating that the tax burden would increase, prompting Thatcher, as Leader of the Opposition, to argue against high taxation.",
+      "historical_setting_required": false,
+      "inherent_visualisability_score": 75,
+      "likely_failure_mode": "multiple misleading interpretations are plausible",
+      "likeness_required": false,
+      "preferred_treatment": "object_or_metaphor",
+      "primary_visual_concept": "Authoritative and principled, emphasizing the core conservative philosophy of economic freedom.",
+      "prior_review": null,
+      "prompt_issues": [
+        "multiple misleading interpretations are plausible"
+      ],
+      "quote_id": "d6ba4775ac47ca6aef09ec4913e591d30ad298af12dfacaa5c18fc235d53eb9d",
+      "quote_text": "Freedom of choice is the essence of a free society, and that includes the right to choose how you spend your earnings. Every time the Government takes a bigger slice of your pay-packet, it is taking a bigger slice of your freedom.",
+      "recommended_action": "refine_then_generate",
+      "recommended_prompt_changes": [
+        "state the forbidden dominant message and visual hierarchy explicitly"
+      ],
+      "rubric_version": 1,
+      "scores": {
+        "anachronism_risk": 3,
+        "composition_potential": 4,
+        "concept_immediacy": 5,
+        "emotional_impact": 4,
+        "generic_image_risk": 3,
+        "historical_knowledge_dependency": 2,
+        "historical_specificity": 4,
+        "misinterpretation_risk": 4,
+        "portrait_dependency": 2,
+        "prompt_overload": 2,
+        "static_image_suitability": 4,
+        "symbolic_clarity": 4,
+        "text_dependency": 1,
+        "visual_distinctiveness": 3
+      },
+      "short_rationale": "Existing visual matchability 75/100; 3 concrete concept(s); static suitability 4/5; generic and misinterpretation risks 3/5 and 4/5.",
+      "skip_reason": null,
+      "source_metadata": {
+        "current_prompt_available": false,
+        "literal_visual_concepts": [
+          "pay packet",
+          "earnings",
+          "government taking slice"
+        ],
+        "preferred_symbols": [],
+        "quote_analysis_available": true,
+        "visual_matchability": 75.0
+      },
+      "thatcher_should_appear": false,
+      "understandable_without_quote_text": true,
+      "visible_text_required": false,
+      "why_concept_works_or_fails": "The concept is concrete enough for a static composition."
+    }
+  ]
+}

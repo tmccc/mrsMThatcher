@@ -1,0 +1,791 @@
+{
+  "attempts": [
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:27:47.530826Z",
+      "elapsed_seconds": 25.448,
+      "prompt_sha256": "ca4cf61c24807aa0ae7a831fcd50d0db3c6081f5fefc917b08ccbde19417ba63",
+      "quality": "medium",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "started_at": "2026-07-14T14:27:22.082058Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:28:37.179116Z",
+      "elapsed_seconds": 49.643,
+      "prompt_sha256": "ca4cf61c24807aa0ae7a831fcd50d0db3c6081f5fefc917b08ccbde19417ba63",
+      "quality": "high",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "started_at": "2026-07-14T14:27:47.535427Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:28:55.968611Z",
+      "elapsed_seconds": 18.783,
+      "prompt_sha256": "32865fc4749a16fbbbc70e069001f9122893dc1b1496c3c4720cf8a6ff6757cf",
+      "quality": "medium",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "started_at": "2026-07-14T14:28:37.184784Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:29:40.129360Z",
+      "elapsed_seconds": 44.154,
+      "prompt_sha256": "32865fc4749a16fbbbc70e069001f9122893dc1b1496c3c4720cf8a6ff6757cf",
+      "quality": "high",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "started_at": "2026-07-14T14:28:55.974458Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:30:00.277137Z",
+      "elapsed_seconds": 20.141,
+      "prompt_sha256": "94d1fba151746eb7397efd2dfb806c8d1617b096a80257bd9f715329fa6346f6",
+      "quality": "medium",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "started_at": "2026-07-14T14:29:40.135496Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:30:42.696820Z",
+      "elapsed_seconds": 42.404,
+      "prompt_sha256": "94d1fba151746eb7397efd2dfb806c8d1617b096a80257bd9f715329fa6346f6",
+      "quality": "high",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "started_at": "2026-07-14T14:30:00.291201Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:31:03.483285Z",
+      "elapsed_seconds": 20.78,
+      "prompt_sha256": "608310ab48ef90b0b4c00233c56bd7f231240f6dfc024a1b7ddf53879bb4ba98",
+      "quality": "medium",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "started_at": "2026-07-14T14:30:42.702504Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:32:18.187494Z",
+      "elapsed_seconds": 74.699,
+      "prompt_sha256": "608310ab48ef90b0b4c00233c56bd7f231240f6dfc024a1b7ddf53879bb4ba98",
+      "quality": "high",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "started_at": "2026-07-14T14:31:03.487764Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:32:40.841745Z",
+      "elapsed_seconds": 22.646,
+      "prompt_sha256": "aa6869bb24a7362a6d3b2ef4be163a645f916b6dd1d5d6e714e22c56966c0764",
+      "quality": "medium",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "started_at": "2026-07-14T14:32:18.194652Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:33:20.017673Z",
+      "elapsed_seconds": 39.17,
+      "prompt_sha256": "aa6869bb24a7362a6d3b2ef4be163a645f916b6dd1d5d6e714e22c56966c0764",
+      "quality": "high",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "started_at": "2026-07-14T14:32:40.846793Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:33:39.579164Z",
+      "elapsed_seconds": 19.554,
+      "prompt_sha256": "464e590ee03a3cf65e34f6c35f3b4cd0e576d7cf7487a8b06edb7cd9ef3e325b",
+      "quality": "medium",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "started_at": "2026-07-14T14:33:20.023737Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:34:20.291340Z",
+      "elapsed_seconds": 40.706,
+      "prompt_sha256": "464e590ee03a3cf65e34f6c35f3b4cd0e576d7cf7487a8b06edb7cd9ef3e325b",
+      "quality": "high",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "started_at": "2026-07-14T14:33:39.584037Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:34:41.262800Z",
+      "elapsed_seconds": 20.964,
+      "prompt_sha256": "1b3a26097c60b0fd7f78f78de8d3c1a8a72b911248be263309f08b148f3c5026",
+      "quality": "medium",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "started_at": "2026-07-14T14:34:20.297481Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:35:22.019174Z",
+      "elapsed_seconds": 40.75,
+      "prompt_sha256": "1b3a26097c60b0fd7f78f78de8d3c1a8a72b911248be263309f08b148f3c5026",
+      "quality": "high",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "started_at": "2026-07-14T14:34:41.267975Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:35:42.383367Z",
+      "elapsed_seconds": 20.355,
+      "prompt_sha256": "d59260f65cfc1b0aca08578b11cc2e4563f01eae061645eba3c3b75d9d77610a",
+      "quality": "medium",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "started_at": "2026-07-14T14:35:22.025179Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:36:31.595882Z",
+      "elapsed_seconds": 49.205,
+      "prompt_sha256": "d59260f65cfc1b0aca08578b11cc2e4563f01eae061645eba3c3b75d9d77610a",
+      "quality": "high",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "started_at": "2026-07-14T14:35:42.389453Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:37:35.924105Z",
+      "elapsed_seconds": 64.32,
+      "prompt_sha256": "d4c81e996b2833c05190a5f5a7096ed510cf7cf3c5648550719564c76a62e187",
+      "quality": "medium",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "started_at": "2026-07-14T14:36:31.602566Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:38:14.485052Z",
+      "elapsed_seconds": 38.554,
+      "prompt_sha256": "d4c81e996b2833c05190a5f5a7096ed510cf7cf3c5648550719564c76a62e187",
+      "quality": "high",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "started_at": "2026-07-14T14:37:35.929470Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:38:32.128482Z",
+      "elapsed_seconds": 17.635,
+      "prompt_sha256": "bb34cc270aff6fa053c36f0b4598030b7b679bc6c298b6fbb526828836de0bfa",
+      "quality": "medium",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "started_at": "2026-07-14T14:38:14.492616Z",
+      "status": "completed"
+    },
+    {
+      "attempt": 1,
+      "completed_at": "2026-07-14T14:39:16.447422Z",
+      "elapsed_seconds": 44.311,
+      "prompt_sha256": "bb34cc270aff6fa053c36f0b4598030b7b679bc6c298b6fbb526828836de0bfa",
+      "quality": "high",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "started_at": "2026-07-14T14:38:32.134991Z",
+      "status": "completed"
+    }
+  ],
+  "items": {
+    "high:08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170548,
+      "generated_at": "2026-07-14T14:35:22.023636Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "request_id": null,
+      "sha256": "4277e54b12a0eb5c399c415f632f4a3ed6f630a4a9b49964bd090082aeb3f221",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 559,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 559
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4719
+      }
+    },
+    "high:115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170666,
+      "generated_at": "2026-07-14T14:33:20.022577Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "request_id": null,
+      "sha256": "dbac986cf97fee35d34cb6644a22e7ed0a13429bf75199e2392c37f1ab222112",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 561,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 561
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4721
+      }
+    },
+    "high:1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.17014,
+      "generated_at": "2026-07-14T14:34:20.296145Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "request_id": null,
+      "sha256": "9d3dc9f62675e21296d5ac86d858eb88b35ff3661034f46a84d105dbbf95a2c4",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 483,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 483
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4643
+      }
+    },
+    "high:38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170975,
+      "generated_at": "2026-07-14T14:38:14.491142Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "request_id": null,
+      "sha256": "8a997c84cc369c8f8fb3ac9866d25d3caf8d0c46adbc7426130e3cfb5dbff6b5",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 610,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 610
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4770
+      }
+    },
+    "high:6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.171139,
+      "generated_at": "2026-07-14T14:28:37.183878Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "request_id": null,
+      "sha256": "2755b823e320765152ca8594665e18827c9323dba7107db3571da8b23b571cd4",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 636,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 636
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4796
+      }
+    },
+    "high:9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.171277,
+      "generated_at": "2026-07-14T14:36:31.601040Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "request_id": null,
+      "sha256": "8e9c9179d40453c26d1096eb1f0340edd98a4972b76de6ac2284b01688688d3b",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 658,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 658
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4818
+      }
+    },
+    "high:9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.171306,
+      "generated_at": "2026-07-14T14:29:40.134601Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "request_id": null,
+      "sha256": "b0f81aea9babbc9cf8e7f1ddd58db5f3ad1f352fec48f9ff9194b449b34a5cb0",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 663,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 663
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4823
+      }
+    },
+    "high:b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170908,
+      "generated_at": "2026-07-14T14:39:16.452245Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "request_id": null,
+      "sha256": "5c16740fbdb5b7d982ffcc906a0d048cdfbae5557e4c2acec26ed294cbdcd4ae",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 613,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 613
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4773
+      }
+    },
+    "high:e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170578,
+      "generated_at": "2026-07-14T14:30:42.701416Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "request_id": null,
+      "sha256": "29b22d3f65556e9dcbe7db6dd239dc1ce93f89450661ea0afca14bc2ea1fd356",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 542,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 542
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4702
+      }
+    },
+    "high:f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.170819,
+      "generated_at": "2026-07-14T14:32:18.193435Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/high/f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0.png",
+      "model": "gpt-image-1",
+      "quality": "high",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "request_id": null,
+      "sha256": "c204e1606263b6219635f057e49e118ee8a4912ab9c5124df93fa4c4d2a96aac",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 585,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 585
+        },
+        "output_tokens": 4160,
+        "output_tokens_details": {
+          "image_tokens": 4160,
+          "text_tokens": 0
+        },
+        "total_tokens": 4745
+      }
+    },
+    "medium:08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045548,
+      "generated_at": "2026-07-14T14:34:41.266721Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "request_id": null,
+      "sha256": "16b539d2fb2786979c392d049762d2bac8692de6b33e3700ef6d0300062eeca4",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 559,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 559
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1615
+      }
+    },
+    "medium:115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045666,
+      "generated_at": "2026-07-14T14:32:40.845643Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "request_id": null,
+      "sha256": "02a690a1bcfab16661f848657fa10704941fa7a8601aae13923aadc87a0002f7",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 561,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 561
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1617
+      }
+    },
+    "medium:1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.04514,
+      "generated_at": "2026-07-14T14:33:39.582858Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "request_id": null,
+      "sha256": "3e5d5977f1cb4ee5d9e7f7231497eb684ba717aa11d988cca5370135d6e88075",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 483,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 483
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1539
+      }
+    },
+    "medium:38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045975,
+      "generated_at": "2026-07-14T14:37:35.928061Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "request_id": null,
+      "sha256": "0ac497538b39a3594f7b58862c43c54b74045a16d929a079af324daaaecd7d01",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 610,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 610
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1666
+      }
+    },
+    "medium:6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.046139,
+      "generated_at": "2026-07-14T14:27:47.534710Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "request_id": null,
+      "sha256": "3847dc4ccaba3d9f0ce9014d812cf55cd07ce7a0bb071407490e286c6c4251dd",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 636,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 636
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1692
+      }
+    },
+    "medium:9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.046277,
+      "generated_at": "2026-07-14T14:35:42.388120Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "request_id": null,
+      "sha256": "58f91f5b5cde4b6092066167b14e8f218fd00c4aa0f67c29327e10e1e71dcdf0",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 658,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 658
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1714
+      }
+    },
+    "medium:9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.046306,
+      "generated_at": "2026-07-14T14:28:55.973718Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "request_id": null,
+      "sha256": "8ff3b7266fed376db6ef6e2c1926f33ce8cc68d6863ada39a851e6508e515c13",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 663,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 663
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1719
+      }
+    },
+    "medium:b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045908,
+      "generated_at": "2026-07-14T14:38:32.133403Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "request_id": null,
+      "sha256": "3288b7571cd4ebbf5c710c2de44c2ff4f1679803f216b7fad5ff50afceffa56b",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 613,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 613
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1669
+      }
+    },
+    "medium:e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045577,
+      "generated_at": "2026-07-14T14:30:00.287581Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "request_id": null,
+      "sha256": "6f83ae91d2561028e356dd013d16d52d209c92c91b71c460163b1e0167b39ee2",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 542,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 542
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1598
+      }
+    },
+    "medium:f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0": {
+      "attempts": 1,
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "estimated_cost_usd": 0.045819,
+      "generated_at": "2026-07-14T14:31:03.486929Z",
+      "image_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001/images/medium/f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0.png",
+      "model": "gpt-image-1",
+      "quality": "medium",
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "request_id": null,
+      "sha256": "5d415264173aeea1d7798decb81f198a464b75aaa5ce52c50eb687c6a76afaba",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 585,
+        "input_tokens_details": {
+          "image_tokens": 0,
+          "text_tokens": 585
+        },
+        "output_tokens": 1056,
+        "output_tokens_details": {
+          "image_tokens": 1056,
+          "text_tokens": 0
+        },
+        "total_tokens": 1641
+      }
+    }
+  },
+  "known_cost_usd": {
+    "high": 1.708355,
+    "medium": 0.458353
+  },
+  "schema_version": 1
+}

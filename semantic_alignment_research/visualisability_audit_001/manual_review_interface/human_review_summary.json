@@ -1,0 +1,46 @@
+{
+  "agreement_count": 1,
+  "agreement_rate": 1.0,
+  "automated_to_human_matrix": {
+    "A": {
+      "A": 1
+    },
+    "B": {},
+    "C": {},
+    "D": {}
+  },
+  "disagreement_count": 0,
+  "do_not_generate_count": 0,
+  "excellent_count": 1,
+  "generated_at": "2026-07-14T17:44:38.490315Z",
+  "good_count": 0,
+  "needs_better_concept_count": 0,
+  "note_count": 0,
+  "override_rates_by_automated_grade": {
+    "A": {
+      "overridden": 0,
+      "override_rate": 0.0,
+      "reviewed": 1
+    },
+    "B": {
+      "overridden": 0,
+      "override_rate": null,
+      "reviewed": 0
+    },
+    "C": {
+      "overridden": 0,
+      "override_rate": null,
+      "reviewed": 0
+    },
+    "D": {
+      "overridden": 0,
+      "override_rate": null,
+      "reviewed": 0
+    }
+  },
+  "reviewed_count": 1,
+  "reviewed_percentage": 0.16,
+  "schema_version": 1,
+  "total": 626,
+  "unreviewed_count": 625
+}

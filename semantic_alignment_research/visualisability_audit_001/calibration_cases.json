@@ -1,0 +1,557 @@
+{
+  "case_count": 40,
+  "category_outcomes": {
+    "abstract_political_principle": {
+      "cases": 4,
+      "neither": 2,
+      "neither_rate": 0.5
+    },
+    "difficult_visualisation": {
+      "cases": 4,
+      "neither": 1,
+      "neither_rate": 0.25
+    },
+    "domestic_economic_policy": {
+      "cases": 4,
+      "neither": 1,
+      "neither_rate": 0.25
+    },
+    "foreign_affairs": {
+      "cases": 4,
+      "neither": 2,
+      "neither_rate": 0.5
+    },
+    "historically_specific": {
+      "cases": 4,
+      "neither": 2,
+      "neither_rate": 0.5
+    },
+    "humour_or_rhetorical_attack": {
+      "cases": 4,
+      "neither": 3,
+      "neither_rate": 0.75
+    },
+    "leadership": {
+      "cases": 4,
+      "neither": 1,
+      "neither_rate": 0.25
+    },
+    "liberty_and_responsibility": {
+      "cases": 4,
+      "neither": 3,
+      "neither_rate": 0.75
+    },
+    "patriotism_and_national_identity": {
+      "cases": 4,
+      "neither": 1,
+      "neither_rate": 0.25
+    },
+    "socialism_and_free_enterprise": {
+      "cases": 4,
+      "neither": 2,
+      "neither_rate": 0.5
+    }
+  },
+  "items": [
+    {
+      "category": "domestic_economic_policy",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 485,
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 75
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "historical_specific": true,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 525,
+      "quote_id": "9de4ca7d21925f4bb57ef9418d7b91b7ec5d791be1a7b90aeb0477486cf9a101",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 70
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "historical_specific": false,
+      "literal_concept_count": 0,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 403,
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 55
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "historical_specific": true,
+      "literal_concept_count": 4,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 423,
+      "quote_id": "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 55
+    },
+    {
+      "category": "foreign_affairs",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 422,
+      "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 65
+    },
+    {
+      "category": "leadership",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 365,
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 65
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 406,
+      "quote_id": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 80
+    },
+    {
+      "category": "abstract_political_principle",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 483,
+      "quote_id": "9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 55
+    },
+    {
+      "category": "historically_specific",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 458,
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 75
+    },
+    {
+      "category": "difficult_visualisation",
+      "historical_specific": false,
+      "literal_concept_count": 6,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 465,
+      "quote_id": "b4032d4fe1a7888a28691fb97a1a303361a2d320cac2d55841bfc88d325abd1b",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_001",
+      "visual_matchability": 65
+    },
+    {
+      "category": "domestic_economic_policy",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 440,
+      "quote_id": "9238f8fd1375c7adf1ba8b92c4f2330383a6faeaa5210fa20e858032be1e2223",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "domestic_economic_policy",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "equal",
+      "prompt_word_count": 427,
+      "quote_id": "5846d1f5edc27201f80031ef49263e6d7299b74267da9b7c77ba34cf6b4e0e46",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    },
+    {
+      "category": "domestic_economic_policy",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "equal",
+      "prompt_word_count": 387,
+      "quote_id": "61a9371a23ddbb958d63bdc98006bcb3eb7780f7468b67a87d8ab40a4db873e2",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "historical_specific": false,
+      "literal_concept_count": 2,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 421,
+      "quote_id": "37e7a04cad7f1ec91e4204814d7e05be4c31cfc0440a43fa616e11d5c9832d99",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 476,
+      "quote_id": "2a50d19f02e311797bac4b1b6945ca1d5348acf92a35cd079676deca68d475f4",
+      "standalone_clarity": 92,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 68
+    },
+    {
+      "category": "socialism_and_free_enterprise",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 485,
+      "quote_id": "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+      "standalone_clarity": 88,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 72
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "historical_specific": false,
+      "literal_concept_count": 2,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 434,
+      "quote_id": "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 427,
+      "quote_id": "08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "liberty_and_responsibility",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 514,
+      "quote_id": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "historical_specific": true,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 490,
+      "quote_id": "b7e266358af9c18ccdbebc5447987c8b52755f2446ecfe81c94c1440f7c4b085",
+      "standalone_clarity": 85,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "historical_specific": true,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 439,
+      "quote_id": "bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be",
+      "standalone_clarity": 85,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "patriotism_and_national_identity",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 414,
+      "quote_id": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "foreign_affairs",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 465,
+      "quote_id": "6934c3253a9b77e82c91387bdb4afe242b58c05b21f5bb6ca2295b34419153fa",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "foreign_affairs",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 430,
+      "quote_id": "042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "foreign_affairs",
+      "historical_specific": true,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 483,
+      "quote_id": "1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "leadership",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 456,
+      "quote_id": "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "leadership",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 447,
+      "quote_id": "8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "leadership",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 399,
+      "quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "historical_specific": true,
+      "literal_concept_count": 6,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 468,
+      "quote_id": "fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919",
+      "standalone_clarity": 85,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 402,
+      "quote_id": "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 60
+    },
+    {
+      "category": "humour_or_rhetorical_attack",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 405,
+      "quote_id": "34372b4bc6ba46c34b4943069658ff7c1a605a71f095e2d4386dff93cf072152",
+      "standalone_clarity": 85,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "abstract_political_principle",
+      "historical_specific": false,
+      "literal_concept_count": 6,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 511,
+      "quote_id": "a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    },
+    {
+      "category": "abstract_political_principle",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 467,
+      "quote_id": "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 45
+    },
+    {
+      "category": "abstract_political_principle",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 471,
+      "quote_id": "03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    },
+    {
+      "category": "historically_specific",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 533,
+      "quote_id": "49f8640fda9f890389e594dfdda488f012367be1bb0e61c5bcb06556f2d49a5f",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "historically_specific",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "medium",
+      "prompt_word_count": 492,
+      "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 70
+    },
+    {
+      "category": "historically_specific",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 433,
+      "quote_id": "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "difficult_visualisation",
+      "historical_specific": false,
+      "literal_concept_count": 4,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 589,
+      "quote_id": "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789",
+      "standalone_clarity": 92,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 65
+    },
+    {
+      "category": "difficult_visualisation",
+      "historical_specific": false,
+      "literal_concept_count": 5,
+      "neither": false,
+      "outcome": "high",
+      "prompt_word_count": 490,
+      "quote_id": "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+      "standalone_clarity": 95,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 75
+    },
+    {
+      "category": "difficult_visualisation",
+      "historical_specific": false,
+      "literal_concept_count": 3,
+      "neither": true,
+      "outcome": "neither",
+      "prompt_word_count": 358,
+      "quote_id": "8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16",
+      "standalone_clarity": 90,
+      "trial": "openai_quality_trial_002",
+      "visual_matchability": 55
+    }
+  ],
+  "metadata_concept_reliability": 0.3045,
+  "neither_count": 18,
+  "neither_rate": 0.45,
+  "observed_features": {
+    "neither": {
+      "literal_concept_count_mean": 3.5,
+      "prompt_word_count_mean": 441.444,
+      "standalone_clarity_mean": 90.111,
+      "visual_matchability_mean": 64.056
+    },
+    "successful": {
+      "literal_concept_count_mean": 3.955,
+      "prompt_word_count_mean": 461.0,
+      "standalone_clarity_mean": 90.455,
+      "visual_matchability_mean": 67.136
+    }
+  },
+  "reliability_formula": "mean(abs visual-matchability gap / 20, abs concrete-concept-count gap), capped at 1",
+  "schema_version": 1,
+  "successful_pair_count": 22
+}

@@ -1,0 +1,41 @@
+{
+  "aggregate_formula": {
+    "current_concept_quality_calibration": "unreviewed raw estimates are shrunk toward 50 by observed metadata reliability; reviewed neither cases are capped at 45; reviewed successes retain raw estimates",
+    "current_concept_quality_raw": "observable concept dimensions minus generic, overload, and misinterpretation penalties",
+    "generation_priority": "45% inherent + 35% calibrated current concept + 20% inverse generic/misinterpretation risk",
+    "inherent_visualisability": "mean(concept_immediacy, symbolic_clarity, emotional_impact, composition_potential, static_image_suitability, visual_distinctiveness) scaled to 0-100, minus text-dependency and misinterpretation penalties"
+  },
+  "basis": [
+    "canonical packet fields",
+    "existing quote-analysis visual_matchability and standalone_clarity",
+    "observable concept/symbol/event counts",
+    "40 blinded Medium/High reviews including 18 neither cases"
+  ],
+  "calibration_summary": {
+    "cases": 40,
+    "metadata_concept_reliability": 0.3045,
+    "neither": 18,
+    "neither_rate": 0.45
+  },
+  "dimension_scale": {
+    "1": "very weak/low; for risks, minimal",
+    "2": "weak/limited",
+    "3": "mixed/moderate",
+    "4": "strong/high",
+    "5": "very strong; for risks, severe"
+  },
+  "grades": {
+    "A": "inherent >=75, concept >=68, static suitability >=4, generic and misinterpretation risks <=3",
+    "B": "inherent >=60 and concept >=50",
+    "C": "inherent >=40 or a viable historical/symbolic treatment exists",
+    "D": "otherwise; also forced when static suitability <=1, text dependency >=4, and concept immediacy <=2"
+  },
+  "observable_mappings": {
+    "concept_count_to_symbolic_clarity": "0/1/2/3+ concrete concepts map to 1/2/3/4, with a fifth point for named visible symbols",
+    "emotional_intensity_to_1_5": "existing 0-100 score binned at 20/40/60/80",
+    "historical_specificity": "date/event/entity and prior specific-history flags",
+    "risks": "counts of explicit mistakes/avoidances, abstraction terms, portrait-only preferences, and historical constraints",
+    "visual_matchability_to_1_5": "existing 0-100 score binned at 20/40/60/80"
+  },
+  "rubric_version": 1
+}

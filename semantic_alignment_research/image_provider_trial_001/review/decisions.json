@@ -1,0 +1,99 @@
+{
+  "items": {
+    "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015",
+      "reasons": [
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:04:30.645811Z"
+    },
+    "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "reasons": [
+        "better likeness"
+      ],
+      "saved_at": "2026-07-14T14:07:07.487616Z"
+    },
+    "3b79f3b3c58a0f499bfaca4dc4ac8f3bdb603dd4a2fe71cfcf44335d230cb2f6": {
+      "choice": "neither",
+      "note": "The generated image is confusing ",
+      "quote_id": "3b79f3b3c58a0f499bfaca4dc4ac8f3bdb603dd4a2fe71cfcf44335d230cb2f6",
+      "reasons": [],
+      "saved_at": "2026-07-14T14:09:39.409518Z"
+    },
+    "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939": {
+      "choice": "A",
+      "note": "Why is there a united states flag?",
+      "quote_id": "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939",
+      "reasons": [
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:08:32.229804Z"
+    },
+    "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649",
+      "reasons": [
+        "stronger immediate impact",
+        "better representation of meaning"
+      ],
+      "saved_at": "2026-07-14T14:08:49.285241Z"
+    },
+    "73d3b3857ab477953abcd53028a6010ce012b3f9c781aba6077a0b5233ebc1ab": {
+      "choice": "B",
+      "note": "Likeness isn\u2019t great",
+      "quote_id": "73d3b3857ab477953abcd53028a6010ce012b3f9c781aba6077a0b5233ebc1ab",
+      "reasons": [
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:05:09.081788Z"
+    },
+    "9835e15e662d305f5ad51ea4bfb4a4951af60cf8303fda7380c8b41b70885cd2": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "9835e15e662d305f5ad51ea4bfb4a4951af60cf8303fda7380c8b41b70885cd2",
+      "reasons": [
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:03:54.659347Z"
+    },
+    "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "ae7bbee968417c001b510b96936b28dc3c1aa1ce05e42c0a6e2424bf1030ab2d",
+      "reasons": [
+        "stronger immediate impact",
+        "better representation of meaning",
+        "better likeness"
+      ],
+      "saved_at": "2026-07-14T14:02:23.000394Z"
+    },
+    "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3": {
+      "choice": "A",
+      "note": "",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "reasons": [
+        "better historical fit",
+        "better representation of meaning",
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:07:34.046746Z"
+    },
+    "fc54ab7da4cdb6a19fff71c1c126f5af2113f29fba35916e24e1ec5daa9f5c82": {
+      "choice": "B",
+      "note": "",
+      "quote_id": "fc54ab7da4cdb6a19fff71c1c126f5af2113f29fba35916e24e1ec5daa9f5c82",
+      "reasons": [
+        "better representation of meaning",
+        "better composition"
+      ],
+      "saved_at": "2026-07-14T14:06:15.505765Z"
+    }
+  },
+  "schema_version": 1
+}

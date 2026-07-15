@@ -46,3 +46,40 @@ meme_analysis*.json
 .generated-image-review.env
 .generated_image_review_app/
 generated_image_quarantine/
+
+# Large/reproducible research payloads and local recovery artefacts.
+semantic_alignment_research/**/raw_responses/
+semantic_alignment_research/**/responses/
+semantic_alignment_research/**/images/
+semantic_alignment_research/**/apply_backups/
+semantic_alignment_research/**/backups/
+semantic_alignment_research/**/pricing/
+semantic_alignment_research/image_provider_trial_*/images/
+semantic_alignment_research/image_provider_trial_*/thumbnails/
+semantic_alignment_research/openai_quality_trial_*/images/
+semantic_alignment_research/openai_quality_trial_*/thumbnails/
+semantic_alignment_research/visualisability_audit_*/manual_review_interface/*.backup*
+semantic_alignment_research/**/review/*.backup*
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/adapter_incident_*/
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_review_attempts.jsonl
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_review_cost_ledger.json
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_review_offline_recovery.json
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_review_state.json
+semantic_alignment_research/quote_research_full_001/retry_analysis/retry_validation_20/
+semantic_alignment_research/quote_research_full_001/retry_batches/*_run/
+semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/
+simulation_runs/
+
+# Local image-generation trials and reproducible large outputs.
+grok_image_test_first10/
+openai_image_test_first10/
+openai_generated_quote_images/
+images.tar
+original_editorial_matching_backtest.json
+
+# Deployment and migration snapshots are retained locally, not versioned.
+*.before_*
+*.pre-*
+mrsMThatcher.local.json.*
+pre_*deployment*/
+pre_generated*/

@@ -1,0 +1,22 @@
+{
+  "prompt_sha256": "73226177a206e944c1f0adfd1a9d9b093305f376a646eaa2ad3ee2dfed3ee21e",
+  "prompt_version": "canonical-historical-image-v1",
+  "quote_id": "fc54ab7da4cdb6a19fff71c1c126f5af2113f29fba35916e24e1ec5daa9f5c82",
+  "source_packet_fields": [
+    "quote_text",
+    "verified_text",
+    "verification_status",
+    "source_event",
+    "date",
+    "historical_context",
+    "immediate_subject",
+    "intended_argument",
+    "literal_meaning",
+    "broader_principle",
+    "mechanism",
+    "claimed_consequence",
+    "entities",
+    "editorial_guidance",
+    "research_confidence"
+  ]
+}

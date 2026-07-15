@@ -1,0 +1,24 @@
+{
+  "calls": 20,
+  "conservative_maximum_cost_usd": 4.3334,
+  "estimated_prompt_input_cost_usd": 0.07671,
+  "expected_minimum_output_cost_usd": 2.09,
+  "expected_total_cost_usd": 2.1667,
+  "high_output_cost_usd": 1.6700000000000002,
+  "images": 20,
+  "maximum_attempts": 2,
+  "medium_output_cost_usd": 0.42000000000000004,
+  "model": "gpt-image-1",
+  "network_generation_calls_made": false,
+  "output_directory": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/openai_quality_trial_001",
+  "pricing_source": "OpenAI official gpt-image-1 model documentation, 2026-07-14",
+  "prompt_parity_verified": true,
+  "qualities": [
+    "medium",
+    "high"
+  ],
+  "quality_only_difference_verified": true,
+  "required_exact_confirmation_usd": 4.35,
+  "schema_version": 1,
+  "size": "1024x1024"
+}
