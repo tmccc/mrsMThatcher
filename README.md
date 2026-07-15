@@ -179,7 +179,10 @@ Enable it in the ignored `mrsMThatcher.local.json` file:
 
 The posting path supports X long posts and does not impose an application-level
 280-character limit. `maximum_length` is an explicit safety ceiling measured using X's
-weighted-length rules. The current canonical corpus fits below 650 weighted characters.
+weighted-length rules. The production formatter is `historical_context_reply_schema_v2`:
+it uses compact `Context —`, optional `Meaning —`, `Verification —`, and `Source —`
+sections. Its deterministic Meaning rule omits only redundant explanation; provenance is
+never shortened away. The reviewed corpus fits below 650 weighted characters.
 
 ## Accuracy-First Conversational Replies
 
@@ -240,6 +243,10 @@ The main quote remains successful if context delivery fails. A confirmed context
 is reconciled on resume without reposting either the quote or reply. An ambiguous sending
 receipt requires operator reconciliation and is not automatically duplicated. The bot's
 own context replies are excluded from mention and hot-post reply processing.
+
+Receipts and history retain formatter version, template variant, Meaning decision, length,
+verification, source class, and historical confidence. Legacy records without this metadata
+remain valid and are treated as formatter v1 by offline analytics.
 
 `mrs_log_digest.py` reports structured context outcomes by status, including completed,
 already-completed, failed, skipped and dry-run events.
@@ -376,3 +383,15 @@ grep -E "Bot starting|Base dir=|State file=|Log file=|X base=|X upload base=|xAI
 
 The deployment smoke test should not use `MRS_TEST_MODE=1`; that mode is only
 for isolated local harness runs.
+
+## Read-Only Engagement Analytics
+
+`mrs_engagement_analytics.py` is an optional standalone collector for fixed-age
+metrics on quotation posts and their historical-context replies. It uses an
+isolated SQLite database under `engagement_analytics/`, has no X write method,
+and never imports or changes the posting loop, receipts, histories, schedules,
+or production cooldowns. Live metric reads require an explicit `--execute-read`.
+
+See [`engagement_analytics/README.md`](engagement_analytics/README.md) for the
+initialisation, discovery, dry-run, collection, report, export, bounded
+backfill, and optional user-level systemd timer commands.

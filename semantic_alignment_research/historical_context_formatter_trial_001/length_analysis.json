@@ -1,0 +1,72 @@
+{
+  "mean_percentage_reduction": 11.72,
+  "meaning_included_count": 610,
+  "meaning_omitted_count": 16,
+  "median_percentage_reduction": 9.01,
+  "records": 626,
+  "reduction_bands": {
+    "20_to_39_percent": 64,
+    "40_percent_or_more": 15,
+    "5_to_19_percent": 546,
+    "little_or_none": 1
+  },
+  "schema_version": 1,
+  "v1_raw": {
+    "average": 454.34,
+    "bands": {
+      "301_to_450": 309,
+      "451_to_600": 307,
+      "601_to_1000": 6,
+      "up_to_300": 4
+    },
+    "maximum": 645,
+    "median": 450.5,
+    "minimum": 154,
+    "over_1000": 0,
+    "over_450": 313,
+    "over_600": 6
+  },
+  "v1_weighted": {
+    "average": 453.88,
+    "bands": {
+      "301_to_450": 312,
+      "451_to_600": 304,
+      "601_to_1000": 6,
+      "up_to_300": 4
+    },
+    "maximum": 645,
+    "median": 450.0,
+    "minimum": 154,
+    "over_1000": 0,
+    "over_450": 310,
+    "over_600": 6
+  },
+  "v2_raw": {
+    "average": 401.01,
+    "bands": {
+      "301_to_450": 464,
+      "451_to_600": 127,
+      "up_to_300": 35
+    },
+    "maximum": 577,
+    "median": 404.0,
+    "minimum": 181,
+    "over_1000": 0,
+    "over_450": 127,
+    "over_600": 0
+  },
+  "v2_weighted": {
+    "average": 400.55,
+    "bands": {
+      "301_to_450": 465,
+      "451_to_600": 125,
+      "up_to_300": 36
+    },
+    "maximum": 577,
+    "median": 404.0,
+    "minimum": 181,
+    "over_1000": 0,
+    "over_450": 125,
+    "over_600": 0
+  }
+}

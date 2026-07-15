@@ -3284,6 +3284,109 @@ def test_unpersisted_context_preparation_failure_propagates_for_main_receipt_rep
         )
 
 
+def test_main_context_reply_path_uses_promoted_v2_and_persists_version_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import historical_context_formatter as context_module
+
+    quote_id = "a" * 64
+    packet = {"quote_id": quote_id, "quote_text": "Quote"}
+    formatted = {
+        "quote_id": quote_id,
+        "text": "Context — Compact historical context.",
+        "character_count": 38,
+        "weighted_character_count": 38,
+        "raw_character_count": 38,
+        "maximum_length": 4000,
+        "historical_confidence": "high",
+        "meaning_included": False,
+        "meaning_omitted": True,
+        "meaning_decision_reason": "Meaning is redundant.",
+        "shortening_applied": False,
+        "verification_label": "Exact wording",
+        "verification_omitted": False,
+        "source": {"title": "Source", "url": "", "source_type": "official"},
+        "source_class": "original speech transcript",
+        "source_omitted": False,
+        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V2,
+        "template_variant": "compact_without_redundant_meaning",
+    }
+    calls = []
+    events = []
+    monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "receipt.json")
+    monkeypatch.setattr(context_module, "load_and_validate_corpus", lambda _path: ({quote_id: packet}, set()))
+    monkeypatch.setattr(context_module, "packet_for_posted_quote", lambda *_args: packet)
+    monkeypatch.setattr(context_module, "format_context_reply", lambda *_args, **_kwargs: pytest.fail("v1 must not be used"))
+    monkeypatch.setattr(context_module, "format_context_reply_v2", lambda *_args, **_kwargs: formatted)
+    monkeypatch.setattr(
+        context_module.HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: calls.append(kwargs) or {"status": "completed", "reply_post_id": "456"},
+    )
+    monkeypatch.setattr(bot, "log_event", lambda event, **fields: events.append({"event": event, **fields}))
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id,
+        quote_text="Quote",
+        parent_post_id="123",
+    )
+
+    assert result["status"] == "completed"
+    assert calls[0]["reply_text"] == formatted["text"]
+    assert calls[0]["formatter_metadata"]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V2
+    assert calls[0]["formatter_metadata"]["template_variant"] == formatted["template_variant"]
+    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V2
+
+
+def test_already_completed_legacy_context_reply_is_not_relabelled_as_v2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import historical_context_formatter as context_module
+
+    quote_id = "a" * 64
+    packet = {"quote_id": quote_id, "quote_text": "Quote"}
+    v2 = {
+        "quote_id": quote_id, "text": "Context — New v2 text.", "character_count": 22,
+        "weighted_character_count": 22, "raw_character_count": 22, "maximum_length": 4000,
+        "historical_confidence": "high", "meaning_included": False, "meaning_omitted": True,
+        "meaning_decision_reason": "Redundant.", "shortening_applied": False,
+        "verification_label": "Exact wording", "verification_omitted": False,
+        "source": {"title": "Source", "url": "", "source_type": "official"},
+        "source_class": "original speech transcript", "source_omitted": False,
+        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V2,
+        "template_variant": "compact_without_redundant_meaning",
+    }
+    legacy_text = "Historical context\nOccasion: Legacy event.\n\nVerification: Exact wording\nSource: Legacy"
+    events = []
+    monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
+    monkeypatch.setattr(context_module, "load_and_validate_corpus", lambda _path: ({quote_id: packet}, set()))
+    monkeypatch.setattr(context_module, "packet_for_posted_quote", lambda *_args: packet)
+    monkeypatch.setattr(context_module, "format_context_reply_v2", lambda *_args, **_kwargs: v2)
+    monkeypatch.setattr(
+        context_module.HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: {
+            "status": "already_completed", "quote_id": quote_id,
+            "parent_post_id": "123", "reply_text": legacy_text,
+        },
+    )
+    monkeypatch.setattr(bot, "log_event", lambda event, **fields: events.append({"event": event, **fields}))
+
+    bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id, quote_text="Quote", parent_post_id="123",
+    )
+
+    assert events[-1]["formatter_version"] == "historical_context_reply_schema_v1"
+    assert events[-1]["raw_character_count"] == len(legacy_text)
+    assert events[-1]["character_count"] == context_module.x_weighted_length(legacy_text)
+
+
 def test_regular_post_uses_confirmed_time_for_noon_meme_schedule(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

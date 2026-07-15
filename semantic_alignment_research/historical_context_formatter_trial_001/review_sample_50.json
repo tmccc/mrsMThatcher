@@ -1,0 +1,1205 @@
+{
+  "items": [
+    {
+      "quote_id": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+      "quote_text": "The problem with socialism is that you eventually run out of other people's money.",
+      "review_order": 1,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "economy",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "paraphrase"
+      }
+    },
+    {
+      "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "quote_text": "Don't follow the crowd, let the crowd follow you.",
+      "review_order": 2,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "canonical locator only",
+        "topic": "leadership",
+        "v1_length": "up_to_300",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c",
+      "quote_text": "If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to do, within sensible limits, what you want. And freedom to spend your own money in the way you think fit.",
+      "review_order": 3,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "article",
+        "meaning": "omitted",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "economy",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "normalised"
+      }
+    },
+    {
+      "quote_id": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "quote_text": "Oh, I have lots of human weaknesses, who hasn't?",
+      "review_order": 4,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "no public URL",
+        "topic": "foreign affairs",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55",
+      "quote_text": "What makes good neighbours is often good fences.",
+      "review_order": 5,
+      "selection_rationale": [
+        "public source URL"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "True",
+        "reduction": "5_to_19_percent",
+        "source": "other authoritative source",
+        "topic": "foreign affairs",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "quote_text": "Look at a day when you are supremely satisfied at the end. It's not a day when you lounge around doing nothing; it's when you've had everything to do, and you've done it.",
+      "review_order": 6,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Thatcher-authored publication",
+        "topic": "liberty",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+      "quote_text": "I just owe almost everything to my father and it's passionately interesting for me that the things that I learned in a small town, in a very modest home, are just the things that I believe have won the election.",
+      "review_order": 7,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "nation",
+        "v1_length": "601_to_1000",
+        "v2_length": "451_to_600",
+        "verification": "composite"
+      }
+    },
+    {
+      "quote_id": "a215345a00a2314d7d8e44dfaaf0e35c72821efe79ef85c0afef7da7a81ea34a",
+      "quote_text": "We want a society where people are free to make choices, to make mistakes, to be generous and compassionate. This is what we mean by a moral society; not a society where the state is responsible for everything, and no one is responsible for the state.",
+      "review_order": 8,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "601_to_1000",
+        "v2_length": "301_to_450",
+        "verification": "normalised"
+      }
+    },
+    {
+      "quote_id": "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+      "quote_text": "It used to be about trying to do something. Now it's about trying to be someone.",
+      "review_order": 9,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "general political principle",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "misattributed"
+      }
+    },
+    {
+      "quote_id": "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
+      "quote_text": "I believe in the acceptance of personal responsibility, freedom of choice, and the British Empire, which took freedom and the rule of law to countries which would never have known it otherwise.",
+      "review_order": 10,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "True",
+        "reduction": "20_to_39_percent",
+        "source": "other authoritative source",
+        "topic": "liberty",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "d6ce2b7b10e28e0b801ad84890f229365fea41a8b494bfdf41adb9cc360373fd",
+      "quote_text": "It takes struggles in life to make strength. It takes fight for principles to make fortitude. It takes crises to give courage. And it takes singleness of purpose to reach an objective.",
+      "review_order": 11,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "Europe",
+        "v1_length": "up_to_300",
+        "v2_length": "up_to_300",
+        "verification": "misattributed"
+      }
+    },
+    {
+      "quote_id": "f9810bed41c49a9cb47f3b68f4a12ab1eca5405258e28d1426447dd2d5b85f3e",
+      "quote_text": "Once the State controls the means of production, distribution and exchange, all of us become dependent upon it.",
+      "review_order": 12,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "451_to_600",
+        "v2_length": "301_to_450",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "456fc17b3dd9d2fea708f67ee16f70d10ea092484c43403006087beca8e71c62",
+      "quote_text": "When you stop selecting by ability you have to select according to some other inevitably less satisfactory criterion.",
+      "review_order": 13,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "society",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+      "quote_text": "We have not successfully rolled back the frontiers of the State in Britain only to see them reimposed at European level, with a European super-State exercising a new dominance from Brussels.",
+      "review_order": 14,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "b593a0ec642d5ab87e1bacd8d0f5d26f6ee48d48c41b0fd410e02c68e062c7df",
+      "quote_text": "The woman's mission is not to enhance the masculine spirit, but to express the feminine; hers is not to preserve a man-made world, but to create a human world by the infusion of the feminine element into all of its activities.",
+      "review_order": 15,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "society",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "misattributed"
+      }
+    },
+    {
+      "quote_id": "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+      "quote_text": "Platitudes? Yes, there are platitudes. Platitudes are there because they are true.",
+      "review_order": 16,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "no public URL",
+        "topic": "nation",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+      "quote_text": "We cannot conceivably accept that a country can simply march into a neighbour, which is an independent country and a full member of the UN, and annex it.",
+      "review_order": 17,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "True",
+        "reduction": "5_to_19_percent",
+        "source": "other authoritative source",
+        "topic": "nation",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "quote_text": "One of the things being in politics has taught me is that men are not a reasoned or reasonable sex.",
+      "review_order": 18,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "no public URL",
+        "topic": "leadership",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "quote_text": "I don't want a Cabinet of yes-men or yes-women. It's not healthy. I can't stand sycophants.",
+      "review_order": 19,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "contemporary interview",
+        "topic": "leadership",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "normalised"
+      }
+    },
+    {
+      "quote_id": "c47e16f9df9a49c7d0a6b632004dbed8e4fd4bfc2f313e23668ccfe30328fdc2",
+      "quote_text": "As one former Socialist MP (Woodrow Wyatt) wrote: \"Productivity was never of any interest to the extremists. They would rather control men's lives in uniform misery, according to their definition of the public good, than allow them to flourish freely.\"",
+      "review_order": 20,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "debate",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Hansard",
+        "topic": "economy",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "variant"
+      }
+    },
+    {
+      "quote_id": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "quote_text": "The only way to do the best you can is to work as hard as you can.",
+      "review_order": 21,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "no public URL",
+        "topic": "Europe",
+        "v1_length": "up_to_300",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_text": "What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have got to have hard work and a certain sense of purpose.",
+      "review_order": 22,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "high",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "no public URL",
+        "topic": "liberty",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
+      "quote_text": "To be free is better than to be unfree always. Any politician who suggests the opposite should be treated as suspect.",
+      "review_order": 23,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "omitted",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "canonical locator only",
+        "topic": "foreign affairs",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "normalised"
+      }
+    },
+    {
+      "quote_id": "49f8640fda9f890389e594dfdda488f012367be1bb0e61c5bcb06556f2d49a5f",
+      "quote_text": "Terrorism thrives on a free society. The terrorist uses the feelings in a free society to sap the will of civilisation to resist. If the terrorist succeeds, he has won and the whole of free society has lost.",
+      "review_order": 24,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "debate",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Hansard",
+        "topic": "liberty",
+        "v1_length": "451_to_600",
+        "v2_length": "301_to_450",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766",
+      "quote_text": "I don't believe they [the voters] want a Government to be so flexible it becomes invertebrate. You don't want a Government full of flexi-toys.",
+      "review_order": 25,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "leadership",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "composite"
+      }
+    },
+    {
+      "quote_id": "b316430b4f3e47f2816d0d7b44c211301234c9521bfa2417864b17be11ea9b32",
+      "quote_text": "Politicians mustn't promise more than the people can produce and the people mustn't be taken in by those who do.",
+      "review_order": 26,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "True",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "601_to_1000",
+        "v2_length": "451_to_600",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "54d5a420549526c6b9bc6af7665519325c278239549273303ffede952b729789",
+      "quote_text": "Religion teaches us that every human being is unique & must play his part in working out his own salvation. So whereas socialists begin with society, and how people can be fitted in, we start with Man, whose social and economic relationships are just part of his wider existence.",
+      "review_order": 27,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "601_to_1000",
+        "v2_length": "451_to_600",
+        "verification": "variant"
+      }
+    },
+    {
+      "quote_id": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "quote_text": "If you want something said, ask a man; if you want something done, ask a woman.",
+      "review_order": 28,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "True",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "contemporary interview",
+        "topic": "leadership",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "36b2a8c67d50ee96a66e498fee99e582249046518a8a106b9f45a7252a04c250",
+      "quote_text": "Terrorism has to be defeated; it cannot be tolerated or side-stepped.",
+      "review_order": 29,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "debate",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Hansard",
+        "topic": "nation",
+        "v1_length": "451_to_600",
+        "v2_length": "301_to_450",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+      "quote_text": "To accuse me of being inflexible is absolute poppycock.",
+      "review_order": 30,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "canonical locator only",
+        "topic": "general political principle",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "697ca41825ed6037eac03257d9e7940e826ce6bdb988c583c0e3e1c423701e1c",
+      "quote_text": "If the State appropriates the better part - or even a very large part - of the national wealth and the national income for its own purposes, however admirable, then the light of individual freedom will begin to flicker; and will in time be snuffed out.",
+      "review_order": 31,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "omitted",
+        "overlap": "high",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "economy",
+        "v1_length": "301_to_450",
+        "v2_length": "up_to_300",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "8868d3b5b60f2860eeacadc90620dd160196466d2d5d21013aa277f8aef51c01",
+      "quote_text": "Being in power is like being a lady... if you have to tell people you are, you aren't.",
+      "review_order": 32,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "general political principle",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "misattributed"
+      }
+    },
+    {
+      "quote_id": "272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996",
+      "quote_text": "Free enterprise has enabled the creative and the acquisitive urges of man to be given expression in a way which benefits all members of society. Let free enterprise fight back now, not for itself, but for all those who believe in freedom.",
+      "review_order": 33,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "official Conservative publication",
+        "topic": "economy",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "f0209c9a0effe2f5cd4b95e03d5de956dfafeaaf34174599188690fa7cced1df",
+      "quote_text": "Either you believe in capitalism, or you believe in socialism. Capitalism, as we know, creates wealth. Socialism, as we also know, creates poverty.",
+      "review_order": 34,
+      "selection_rationale": [
+        "Meaning judged redundant by v2 rule"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "omitted",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "451_to_600",
+        "v2_length": "up_to_300",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "9c43feed102e8c7aa5aa9cc3e21593bfeab1a80461d49b983d15f33319874591",
+      "quote_text": "GULAG was the consequence of socialism. It was not the work of one man. It only happened because socialism demoralised the whole nation, replaced the individual conscience by the party, right and wrong by what was good for the revolution.",
+      "review_order": 35,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "601_to_1000",
+        "v2_length": "451_to_600",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "review_order": 36,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "True",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "high",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "Europe",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "6fa3eaaeb0a2c38a2a6f9a3b9e336ca96c269ec3c01b4a613427da70b4b5e649",
+      "quote_text": "We had to fight the enemy without in the Falklands. We always have to be aware of the enemy within, which is much more difficult to fight and more dangerous to liberty.",
+      "review_order": 37,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "high",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "foreign affairs",
+        "v1_length": "601_to_1000",
+        "v2_length": "451_to_600",
+        "verification": "variant"
+      }
+    },
+    {
+      "quote_id": "2f5df9185bdf06e8ffe184a0e65edfe238a7dcea2a3b482103f763947aa05467",
+      "quote_text": "I owe nothing to Women's Lib.",
+      "review_order": 38,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "socialism",
+        "v1_length": "451_to_600",
+        "v2_length": "301_to_450",
+        "verification": "paraphrase"
+      }
+    },
+    {
+      "quote_id": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "quote_text": "It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty.",
+      "review_order": 39,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "True",
+        "reduction": "5_to_19_percent",
+        "source": "other authoritative source",
+        "topic": "Europe",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "c4e5bf571902e31862464389cb724bcb6c429b965edc3d37b89e389db3fd84fa",
+      "quote_text": "I don't like strident women.",
+      "review_order": 40,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "True",
+        "event": "interview",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "contemporary interview",
+        "topic": "socialism",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "variant"
+      }
+    },
+    {
+      "quote_id": "094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb",
+      "quote_text": "I do not believe that even the free and ordered society which as a party we are trying to foster can satisfy the deepest human needs. I do not think that even this society will be able to sustain itself unless it keeps its religious foundations in good repair.",
+      "review_order": 41,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "article",
+        "meaning": "included",
+        "overlap": "high",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "economy",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "c2633f930597a6a5281672a0525268067de6b21081ba014381622f9757e21919",
+      "quote_text": "You will have noted too how socialists consider themselves qualified to lay down what is good for all countries and societies, for the Chinese and the Chileans, Uruguayans and Paraguay - and never does a shadow of self-doubt cross their closed little minds.",
+      "review_order": 42,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "official Conservative publication",
+        "topic": "socialism",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "variant"
+      }
+    },
+    {
+      "quote_id": "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+      "quote_text": "Creating the practical circumstances in which freedom can flourish requires more than the mere parroting of empty phrases like 'human rights'.",
+      "review_order": 43,
+      "selection_rationale": [
+        "one of the ten longest v1 replies"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Margaret Thatcher Foundation",
+        "topic": "economy",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "quote_text": "I seem to smell the stench of appeasement in the air.",
+      "review_order": 44,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "debate",
+        "meaning": "included",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "Hansard",
+        "topic": "foreign affairs",
+        "v1_length": "451_to_600",
+        "v2_length": "451_to_600",
+        "verification": "excerpt"
+      }
+    },
+    {
+      "quote_id": "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+      "quote_text": "Being democratic is not enough, a majority cannot turn what is wrong into right. In order to be considered truly free, countries must also have a deep love of liberty and an abiding respect for the rule of law.",
+      "review_order": 45,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "medium",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "omitted",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "Thatcher-authored publication",
+        "topic": "socialism",
+        "v1_length": "451_to_600",
+        "v2_length": "up_to_300",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da",
+      "quote_text": "We must take care to distinguish between the reality of Socialism and the language of Socialism, because they are completely different.",
+      "review_order": 46,
+      "selection_rationale": [
+        "little or no v2 length reduction"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "omitted",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "little_or_none",
+        "source": "no public URL",
+        "topic": "socialism",
+        "v1_length": "up_to_300",
+        "v2_length": "up_to_300",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "d9acc52446c0e8c7b1ba16c04ffd21a9cf2329f8b64078f531aa132547445dba",
+      "quote_text": "I've seen and heard so many things on the BBC that infuriate me almost every day of the week - tendentious reporting, unfair comment, unbearable violence and vulgarity - that I hesitate to say yes when any part of the BBC asks me to do anything.",
+      "review_order": 47,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "True",
+        "complexity": "simple",
+        "confidence": "low",
+        "difficult_source_title": "False",
+        "event": "other",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "20_to_39_percent",
+        "source": "Thatcher-authored publication",
+        "topic": "foreign affairs",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "unverified"
+      }
+    },
+    {
+      "quote_id": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "quote_text": "I have enormous admiration for the Jewish people, inside or outside Israel. There have always been Jewish members of my staff and indeed my Cabinet. In fact I just wanted a Cabinet of clever, energetic people - and frequently that turned out to be the same thing.",
+      "review_order": 48,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "included",
+        "overlap": "medium",
+        "public_url": "False",
+        "reduction": "5_to_19_percent",
+        "source": "canonical locator only",
+        "topic": "general political principle",
+        "v1_length": "301_to_450",
+        "v2_length": "301_to_450",
+        "verification": "normalised"
+      }
+    },
+    {
+      "quote_id": "aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142",
+      "quote_text": "By the end of my time as Prime Minister I was also becoming seriously concerned about the anti-capitalist arguments which the campaigners against global warming were deploying.",
+      "review_order": 49,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "complex",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "book",
+        "meaning": "omitted",
+        "overlap": "low",
+        "public_url": "False",
+        "reduction": "40_percent_or_more",
+        "source": "canonical locator only",
+        "topic": "foreign affairs",
+        "v1_length": "451_to_600",
+        "v2_length": "up_to_300",
+        "verification": "exact"
+      }
+    },
+    {
+      "quote_id": "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+      "quote_text": "The Russians put guns before butter. We put just about everything before guns.",
+      "review_order": 50,
+      "selection_rationale": [
+        "deterministic stratification across verification, source, confidence, topic, event, length and Meaning"
+      ],
+      "strata": {
+        "ambiguous_event": "False",
+        "complexity": "simple",
+        "confidence": "high",
+        "difficult_source_title": "False",
+        "event": "speech",
+        "meaning": "included",
+        "overlap": "high",
+        "public_url": "True",
+        "reduction": "5_to_19_percent",
+        "source": "other authoritative source",
+        "topic": "foreign affairs",
+        "v1_length": "451_to_600",
+        "v2_length": "301_to_450",
+        "verification": "variant"
+      }
+    }
+  ],
+  "schema_version": 1
+}

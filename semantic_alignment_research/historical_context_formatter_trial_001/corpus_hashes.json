@@ -1,0 +1,13 @@
+{
+  "canonical_corpus_hash": "2f7ca624a8c9afafccd939a0cd98d58fb2ba5b395e544e2cd6423b84b92351e8",
+  "eligible_count": 626,
+  "eligible_quote_id_set_hash": "e5f608947aa41ae11b1eb557a7632b9b85727dc269774a3d4c39c56ff2cae794",
+  "formatter_source_hashes": {
+    "historical_context_reply_schema_v1": "d0c5d64e94c1253037bd5fa0e7b298e910b6c6a297ad0abff64968471451360a",
+    "historical_context_reply_schema_v2_candidate": "6519eae597e033dc9e21b7e6cf5356eb4f8a2ce5c865e7773732965642ee0068"
+  },
+  "generated_at": "2026-07-15T12:39:35.403799Z",
+  "research_packet_schema_version": "quote_research_packet_v1",
+  "schema_version": 1,
+  "unresolved_count": 6
+}

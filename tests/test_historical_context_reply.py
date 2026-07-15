@@ -13,6 +13,7 @@ from historical_context_formatter import (
     HistoricalContextReplyStore,
     VERIFICATION_LABELS,
     format_context_reply,
+    format_context_reply_v2,
     load_and_validate_corpus,
     packet_for_posted_quote,
     quote_text_hash,
@@ -91,6 +92,17 @@ def test_formatter_output_matches_published_schema_with_optional_sections(corpus
         include_source=False,
         include_verification=False,
     ), schema)
+    validate_json_schema(format_context_reply_v2(packet), schema)
+
+
+def test_standalone_formatter_cli_uses_production_v2(corpus, capsys):
+    packet = next(iter(corpus[0].values()))
+    assert context_module.main([
+        "--research-dir", str(RESEARCH), "--quote-id", packet["quote_id"],
+    ]) == 0
+    output = capsys.readouterr().out
+    assert output.startswith("Context — ")
+    assert "Historical context\n" not in output
 
 
 @pytest.mark.parametrize("status,label", sorted(VERIFICATION_LABELS.items()))
@@ -332,6 +344,48 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
         "reply_to_id": "111",
         "made_with_ai": False,
     }]
+
+
+def test_formatter_v2_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
+    packet = next(iter(corpus[0].values()))
+    formatted = format_context_reply_v2(packet)
+    assert formatted is not None
+    metadata = {
+        "formatter_version": formatted["formatter_version"],
+        "template_variant": formatted["template_variant"],
+        "meaning_included": formatted["meaning_included"],
+        "meaning_decision_reason": formatted["meaning_decision_reason"],
+        "raw_character_count": formatted["raw_character_count"],
+        "weighted_character_count": formatted["weighted_character_count"],
+        "verification_label": formatted["verification_label"],
+        "source_class": formatted["source_class"],
+        "historical_confidence": formatted["historical_confidence"],
+        "shortening_applied": formatted["shortening_applied"],
+    }
+    calls = []
+    store = HistoricalContextReplyStore(tmp_path / "history.json", tmp_path / "receipt.json")
+    result = store.post(
+        parent_post_id="111",
+        quote_id=packet["quote_id"],
+        reply_text=formatted["text"],
+        formatter_metadata=metadata,
+        create_post=lambda **kwargs: calls.append(kwargs) or {"data": {"id": "222"}},
+        now_epoch=lambda: 123,
+    )
+    assert result["status"] == "completed"
+    assert store.history()["items"]["111"]["formatter_metadata"] == metadata
+
+    restarted = HistoricalContextReplyStore(store.history_path, store.receipt_path)
+    duplicate = restarted.post(
+        parent_post_id="111",
+        quote_id=packet["quote_id"],
+        reply_text=formatted["text"],
+        formatter_metadata=metadata,
+        create_post=lambda **kwargs: pytest.fail("completed v2 reply must not be duplicated"),
+        now_epoch=lambda: 124,
+    )
+    assert duplicate["status"] == "already_completed"
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(

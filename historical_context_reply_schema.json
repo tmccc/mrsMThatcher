@@ -5,7 +5,10 @@
     "character_count": {"minimum": 1, "type": "integer"},
     "maximum_length": {"minimum": 120, "maximum": 25000, "type": "integer"},
     "historical_confidence": {"enum": ["high", "medium", "low", "unavailable"]},
+    "formatter_version": {"pattern": "^historical_context_reply_schema_v[0-9]+$", "type": "string"},
     "meaning_included": {"type": "boolean"},
+    "meaning_decision_reason": {"minLength": 1, "type": "string"},
+    "meaning_rule_outputs": {"type": "object"},
     "meaning_omitted": {"type": "boolean"},
     "quote_id": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
     "raw_character_count": {"minimum": 1, "type": "integer"},
@@ -27,9 +30,11 @@
     },
     "source_class": {"type": "string"},
     "source_omitted": {"type": "boolean"},
+    "template_variant": {"minLength": 1, "type": "string"},
     "text": {"minLength": 1, "type": "string"},
     "verification_label": {"type": ["string", "null"]},
-    "verification_omitted": {"type": "boolean"}
+    "verification_omitted": {"type": "boolean"},
+    "weighted_character_count": {"minimum": 1, "type": "integer"}
   },
   "required": [
     "quote_id",

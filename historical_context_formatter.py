@@ -39,6 +39,25 @@ QUOTATION_AGGREGATORS = (
 )
 URL_WEIGHT = 23
 UNKNOWN_VALUES = {"", "n/a", "n.a.", "none", "not available", "unknown", "unavailable"}
+HISTORICAL_CONTEXT_FORMATTER_V2 = "historical_context_reply_schema_v2"
+_V2_UNCERTAIN_STATUSES = {"paraphrase", "composite", "misattributed", "unverified"}
+_V2_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "for", "from",
+    "had", "has", "have", "he", "her", "hers", "him", "his", "i", "if", "in", "into", "is",
+    "it", "its", "not", "of", "on", "or", "our", "she", "that", "the", "their", "them", "there",
+    "they", "this", "to", "was", "we", "were", "what", "when", "where", "which", "who", "will",
+    "with", "would", "you", "your", "must", "should", "can", "could", "may", "than", "then",
+}
+_V2_MONTHS = {
+    "january": "January", "february": "February", "march": "March", "april": "April",
+    "may": "May", "june": "June", "july": "July", "august": "August",
+    "september": "September", "october": "October", "november": "November", "december": "December",
+}
+_FORMATTER_METADATA_KEYS = {
+    "formatter_version", "template_variant", "meaning_included", "meaning_decision_reason",
+    "raw_character_count", "weighted_character_count", "verification_label", "source_class",
+    "historical_confidence", "shortening_applied",
+}
 
 
 class AmbiguousContextReplyOutcome(RuntimeError):
@@ -339,6 +358,238 @@ def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAUL
             "quote_id": packet["quote_id"]}
 
 
+def _v2_clean(value: Any) -> str:
+    text = " ".join(str(value or "").split()).strip()
+    return "" if text.lower() in UNKNOWN_VALUES else text
+
+
+def _v2_one_sentence(value: Any) -> str:
+    text = _v2_clean(value)
+    if not text:
+        return ""
+    match = re.match(r"(.+?[.!?])(?:\s|$)", text)
+    sentence = match.group(1) if match else text
+    return sentence if sentence.endswith((".", "?", "!")) else sentence + "."
+
+
+def _v2_british_dates_in_text(value: str) -> str:
+    pattern = re.compile(
+        r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+"
+        r"(\d{1,2}),\s*(\d{4})\b",
+        re.I,
+    )
+    return pattern.sub(
+        lambda match: f"{int(match.group(2))} {_V2_MONTHS[match.group(1).lower()]} {match.group(3)}",
+        value,
+    )
+
+
+def _v2_british_date(value: Any) -> str:
+    text = _v2_clean(value)
+    if not text:
+        return ""
+    published = re.fullmatch(r"unknown\s*\(published\s+(\d{4})\)", text, re.I)
+    if published:
+        return f"published in {published.group(1)}"
+    decade = re.fullmatch(r"(\d{4}s)\s*\(exact date unknown\)", text, re.I)
+    if decade:
+        return decade.group(1)
+    iso = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text)
+    if iso:
+        year, month, day = iso.groups()
+        names = tuple(_V2_MONTHS.values())
+        if 1 <= int(month) <= 12 and 1 <= int(day) <= 31:
+            return f"{int(day)} {names[int(month)-1]} {year}"
+    american = re.fullmatch(r"([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})", text)
+    if american and american.group(1).lower() in _V2_MONTHS:
+        return f"{int(american.group(2))} {_V2_MONTHS[american.group(1).lower()]} {american.group(3)}"
+    british = re.fullmatch(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", text)
+    if british and british.group(2).lower() in _V2_MONTHS:
+        return f"{int(british.group(1))} {_V2_MONTHS[british.group(2).lower()]} {british.group(3)}"
+    return text if re.fullmatch(r"\d{4}", text) else _v2_british_dates_in_text(text)
+
+
+def _v2_tokens(value: Any) -> set[str]:
+    return {
+        word for word in re.findall(r"[a-z0-9]+", _v2_clean(value).lower())
+        if len(word) > 2 and word not in _V2_STOPWORDS
+    }
+
+
+def _v2_overlap(left: Any, right: Any) -> dict[str, float]:
+    a, b = _v2_tokens(left), _v2_tokens(right)
+    intersection = len(a & b)
+    return {
+        "jaccard": round(intersection / len(a | b), 4) if a | b else 0.0,
+        "left_coverage": round(intersection / len(a), 4) if a else 0.0,
+        "right_coverage": round(intersection / len(b), 4) if b else 0.0,
+    }
+
+
+def _v2_distinct_count(value: Any, *against: Any) -> int:
+    used: set[str] = set()
+    for item in against:
+        used |= _v2_tokens(item)
+    return len(_v2_tokens(value) - used)
+
+
+def _v2_meaning_decision(packet: dict[str, Any], context: str) -> dict[str, Any]:
+    meaning = _v2_one_sentence(packet.get("intended_argument")) or _v2_one_sentence(packet.get("literal_meaning"))
+    quote = packet["quote_text"]
+    mechanism = _v2_clean(packet.get("mechanism"))
+    consequence = _v2_clean(packet.get("claimed_consequence"))
+    quote_overlap = _v2_overlap(meaning, quote)
+    context_overlap = _v2_overlap(meaning, context)
+    mechanism_distinct = _v2_distinct_count(mechanism, quote, context, meaning)
+    consequence_distinct = _v2_distinct_count(consequence, quote, context, meaning)
+    obscure_reference = bool(re.search(
+        r"\b(?:this|that|these|those|here|there|he|she|they|them|it|such|former|latter)\b",
+        quote.lower(),
+    ))
+    counter_intuitive = bool(re.search(
+        r"\b(?:paradox|contrary|although|despite|not .* but|rather than|unless|only if)\b",
+        " ".join((quote, meaning, mechanism)).lower(),
+    ))
+    uncertain = packet.get("verification_status") in _V2_UNCERTAIN_STATUSES
+    explicit_ambiguity = bool(packet.get("unresolved_questions")) or bool(_v2_clean(packet.get("text_variation_notes")))
+    rhetorical_wrapper = meaning.lower().startswith((
+        "that ", "to argue that ", "to assert that ", "to emphasise that ", "to emphasize that ",
+        "to demonstrate that ", "to highlight that ",
+    ))
+    quote_states_mechanism = bool(re.search(
+        r"\b(?:because|by|if|then|means?|results?|so that|cannot|requires?|depends?|leads?|creates?|"
+        r"destroys?|without|when|where|better than|worse than)\b", quote, re.I,
+    ))
+    redundant_direct_proposition = (
+        rhetorical_wrapper and not obscure_reference and "?" not in quote
+        and (quote_states_mechanism or quote_overlap["left_coverage"] >= 0.35)
+    )
+    rule_outputs = {
+        "meaning_quote_overlap": quote_overlap,
+        "meaning_context_overlap": context_overlap,
+        "mechanism_distinct_token_count": mechanism_distinct,
+        "consequence_distinct_token_count": consequence_distinct,
+        "obscure_reference_marker": obscure_reference,
+        "counter_intuitive_marker": counter_intuitive,
+        "uncertain_wording": uncertain,
+        "explicit_ambiguity": explicit_ambiguity,
+        "rhetorical_wrapper": rhetorical_wrapper,
+        "quote_states_mechanism": quote_states_mechanism,
+        "redundant_direct_proposition": redundant_direct_proposition,
+    }
+    if not meaning:
+        included, reason = False, "No usable intended-argument or literal-meaning field."
+    elif uncertain:
+        included, reason = True, "Meaning retained because the wording is non-exact or uncertain."
+    elif obscure_reference:
+        included, reason = True, "Meaning retained because the quotation contains a context-dependent reference."
+    elif counter_intuitive:
+        included, reason = True, "Meaning retained because the argument is counter-intuitive or contrastive."
+    elif redundant_direct_proposition:
+        included, reason = False, "Meaning omitted because it restates a direct, self-contained proposition whose mechanism or substantive terms are already visible."
+    elif mechanism_distinct >= 3:
+        included, reason = True, "Meaning retained because the packet records a distinct explanatory mechanism."
+    elif consequence_distinct >= 3:
+        included, reason = True, "Meaning retained because the packet records a distinct claimed consequence."
+    elif explicit_ambiguity and quote_overlap["right_coverage"] < 0.80:
+        included, reason = True, "Meaning retained because the packet records ambiguity not resolved by the quotation alone."
+    elif max(quote_overlap["left_coverage"], context_overlap["left_coverage"]) >= 0.78:
+        included, reason = False, "Meaning omitted because its substantive terms are already present in the quotation or Context."
+    else:
+        included, reason = True, "Meaning retained because it adds substantive terms not supplied by the quotation or Context."
+    return {"meaning": meaning, "meaning_included": included,
+            "meaning_decision_reason": reason, "rule_outputs": rule_outputs}
+
+
+def _v2_context_sentence(packet: dict[str, Any]) -> str:
+    event = _v2_clean(packet.get("source_event"))
+    uncertain_event = re.fullmatch(r"unknown\s*\((.+)\)", event, re.I)
+    if uncertain_event:
+        qualifier = uncertain_event.group(1).strip()
+        event = "" if qualifier.lower() == "attributed" else qualifier[0].upper() + qualifier[1:]
+    elif re.match(r"unknown\s+", event, re.I):
+        remainder = re.sub(r"^unknown\s+", "", event, flags=re.I).strip()
+        event = f"Attributed to a {remainder}" if remainder else ""
+    event = _v2_british_dates_in_text(event).rstrip(". :;-")
+    date = _v2_british_date(packet.get("date"))
+    immediate = _v2_one_sentence(packet.get("immediate_subject")) or _v2_one_sentence(packet.get("historical_context"))
+    immediate = _v2_british_dates_in_text(immediate.rstrip("."))
+    if event and immediate and date: return f"{event}, {date}: {immediate}."
+    if event and immediate: return f"{event}: {immediate}."
+    if immediate and date: return f"{date}: {immediate}."
+    if immediate: return immediate if immediate.endswith((".", "?", "!")) else immediate + "."
+    if event and date: return f"{event}, {date}."
+    if event: return event if event.endswith((".", "?", "!")) else event + "."
+    if date: return f"The surviving record dates this wording to {date}, but does not establish its occasion."
+    return "The surviving attribution does not establish an occasion, date or immediate historical issue."
+
+
+def _v2_forbidden_style(text: str) -> bool:
+    return bool(
+        re.search(r"(?:^|\s)#[A-Za-z0-9_]", text)
+        or re.search("[\U0001F000-\U0001FAFF\u2600-\u27BF]", text)
+        or "vertexaisearch.cloud.google.com/grounding-api-redirect/" in text
+        or re.search(r"(?:^|[—:\s])(N/A|None|unknown|unavailable)(?:$|[.\s])", text, re.I)
+        or re.search(r"\b(?:did you know|interesting fact|click here|learn more)\b", text, re.I)
+    )
+
+
+def format_context_reply_v2(
+    packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
+    include_meaning: bool = True, include_source: bool = True,
+    include_verification: bool = True,
+) -> dict[str, Any] | None:
+    """Render the human-validated compact archive-entry formatter."""
+    if type(maximum_length) is not int or not 120 <= maximum_length <= MAXIMUM_SUPPORTED_LENGTH:
+        raise ValueError(f"maximum_length must be from 120 to {MAXIMUM_SUPPORTED_LENGTH}")
+    source = select_primary_source(packet) if include_source else None
+    if include_source and (not source or not _v2_clean(source.get("title"))):
+        return None
+    context = _v2_context_sentence(packet)
+    decision = _v2_meaning_decision(packet, context)
+    if not include_meaning:
+        decision = {**decision, "meaning_included": False,
+                    "meaning_decision_reason": "Meaning disabled by explicit formatter configuration."}
+    verification = VERIFICATION_LABELS[packet["verification_status"]]
+    sections = [f"Context — {context}"]
+    if decision["meaning_included"]:
+        sections.append(f"Meaning — {decision['meaning']}")
+    if include_verification:
+        sections.append(f"Verification — {verification}")
+    if source:
+        source_line = f"Source — {source['title']}"
+        if source.get("url"):
+            source_line += f"\n{source['url']}"
+        sections.append(source_line)
+    text = "\n\n".join(sections)
+    weighted = x_weighted_length(text)
+    if weighted > maximum_length or _v2_forbidden_style(text):
+        return None
+    if packet["verification_status"] in _V2_UNCERTAIN_STATUSES:
+        variant = "compact_uncertain_wording"
+    elif not decision["meaning_included"]:
+        variant = "compact_without_redundant_meaning"
+    elif not source or not source.get("url"):
+        variant = "compact_no_public_url"
+    else:
+        variant = "compact_with_meaning"
+    return {
+        "quote_id": packet["quote_id"], "text": text, "character_count": weighted,
+        "raw_character_count": len(text), "maximum_length": maximum_length,
+        "historical_confidence": packet.get("research_confidence") or "unavailable",
+        "meaning_included": bool(decision["meaning_included"]),
+        "meaning_omitted": not bool(decision["meaning_included"]),
+        "meaning_decision_reason": decision["meaning_decision_reason"],
+        "meaning_rule_outputs": decision["rule_outputs"],
+        "shortening_applied": False,
+        "verification_label": verification if include_verification else None,
+        "verification_omitted": not include_verification,
+        "source": source, "source_class": classify_source(source), "source_omitted": not bool(source),
+        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V2, "template_variant": variant,
+        "weighted_character_count": weighted,
+    }
+
+
 class HistoricalContextReplyStore:
     """Independent transactional state for confirmed context replies."""
     def __init__(self, history_path: Path, receipt_path: Path):
@@ -366,6 +617,7 @@ class HistoricalContextReplyStore:
                     or type(item.get("attempt_count")) is not int
                     or item["attempt_count"] < 1
                     or not isinstance(item.get("failure"), str)
+                    or ("formatter_metadata" in item and not self._valid_formatter_metadata(item["formatter_metadata"]))
                 ):
                     raise RuntimeError("invalid failed context reply history")
             else:
@@ -373,6 +625,28 @@ class HistoricalContextReplyStore:
         return value
 
     def _save_history(self, value: dict[str, Any]) -> None: atomic_write_json(self.history_path, value)
+
+    @staticmethod
+    def _valid_formatter_metadata(value: Any) -> bool:
+        return bool(
+            isinstance(value, dict)
+            and set(value) == _FORMATTER_METADATA_KEYS
+            and isinstance(value.get("formatter_version"), str)
+            and value["formatter_version"].startswith("historical_context_reply_schema_v")
+            and isinstance(value.get("template_variant"), str)
+            and bool(value["template_variant"])
+            and type(value.get("meaning_included")) is bool
+            and isinstance(value.get("meaning_decision_reason"), str)
+            and bool(value["meaning_decision_reason"])
+            and type(value.get("raw_character_count")) is int
+            and value["raw_character_count"] >= 1
+            and type(value.get("weighted_character_count")) is int
+            and value["weighted_character_count"] >= 1
+            and (value.get("verification_label") is None or isinstance(value["verification_label"], str))
+            and isinstance(value.get("source_class"), str)
+            and value.get("historical_confidence") in {"high", "medium", "low", "unavailable"}
+            and type(value.get("shortening_applied")) is bool
+        )
 
     @staticmethod
     def _valid_receipt(receipt: Any) -> bool:
@@ -383,8 +657,9 @@ class HistoricalContextReplyStore:
             "schema_version", "parent_post_id", "reply_post_id", "quote_id",
             "reply_text", "reply_epoch", "confirmed_at",
         }
-        allowed = required | {"lifecycle_state", "started_at", "attempt_number"}
-        if set(receipt) not in (required, allowed):
+        lifecycle = required | {"lifecycle_state", "started_at", "attempt_number"}
+        with_metadata = lifecycle | {"formatter_metadata"}
+        if set(receipt) not in (required, lifecycle, with_metadata):
             return False
         if "lifecycle_state" in receipt and receipt.get("lifecycle_state") != "confirmed":
             return False
@@ -393,6 +668,8 @@ class HistoricalContextReplyStore:
         if "attempt_number" in receipt and (
             type(receipt["attempt_number"]) is not int or receipt["attempt_number"] < 1
         ):
+            return False
+        if "formatter_metadata" in receipt and not HistoricalContextReplyStore._valid_formatter_metadata(receipt["formatter_metadata"]):
             return False
         if not re.fullmatch(r"\d{1,30}", str(receipt.get("parent_post_id") or "")):
             return False
@@ -412,9 +689,10 @@ class HistoricalContextReplyStore:
             "schema_version", "lifecycle_state", "parent_post_id", "quote_id",
             "reply_text", "reply_epoch", "started_at", "attempt_number",
         }
+        allowed = required | {"formatter_metadata"}
         return bool(
             isinstance(receipt, dict)
-            and set(receipt) == required
+            and set(receipt) in (required, allowed)
             and type(receipt.get("schema_version")) is int
             and receipt.get("schema_version") == 1
             and receipt.get("lifecycle_state") == "sending"
@@ -428,6 +706,7 @@ class HistoricalContextReplyStore:
             and receipt["started_at"].strip()
             and type(receipt.get("attempt_number")) is int
             and receipt["attempt_number"] >= 1
+            and ("formatter_metadata" not in receipt or HistoricalContextReplyStore._valid_formatter_metadata(receipt["formatter_metadata"]))
         )
 
     def reconcile_receipt(self) -> bool:
@@ -460,15 +739,18 @@ class HistoricalContextReplyStore:
         history["items"][parent_post_id] = {**receipt, "status": "completed"}
         self._save_history(history); durable_unlink(self.receipt_path); return True
 
-    def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException) -> None:
+    def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException,
+                       formatter_metadata: dict[str, Any] | None = None) -> None:
         history = self.history(); previous = history["items"].get(str(parent_post_id), {})
         history["items"][str(parent_post_id)] = {"parent_post_id": str(parent_post_id), "quote_id": quote_id,
             "reply_text": text, "status": "failed", "failure": f"{type(error).__name__}: {error}",
-            "attempt_count": int(previous.get("attempt_count", 0)) + 1, "updated_at": utc_now()}
+            "attempt_count": int(previous.get("attempt_count", 0)) + 1, "updated_at": utc_now(),
+            **({"formatter_metadata": formatter_metadata} if formatter_metadata else {})}
         self._save_history(history)
 
     def post(self, *, parent_post_id: str, quote_id: str, reply_text: str,
-             create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False) -> dict[str, Any]:
+             create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False,
+             formatter_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         if (
             not re.fullmatch(r"\d{1,30}", str(parent_post_id or ""))
             or not re.fullmatch(r"[0-9a-f]{64}", str(quote_id or ""))
@@ -476,6 +758,8 @@ class HistoricalContextReplyStore:
             or not reply_text.strip()
         ):
             raise ValueError("invalid historical context reply request")
+        if formatter_metadata is not None and not self._valid_formatter_metadata(formatter_metadata):
+            raise ValueError("invalid historical context formatter metadata")
         self.reconcile_receipt(); history = self.history(); previous = history["items"].get(str(parent_post_id))
         if previous and previous.get("quote_id") != quote_id:
             raise RuntimeError("historical context reply quote identity conflicts with parent history")
@@ -493,12 +777,13 @@ class HistoricalContextReplyStore:
             "reply_epoch": reply_epoch,
             "started_at": started_at,
             "attempt_number": int(previous.get("attempt_count", 0) if previous else 0) + 1,
+            **({"formatter_metadata": formatter_metadata} if formatter_metadata else {}),
         }
         atomic_write_json(self.receipt_path, sending)
 
         def finish_confirmed_failure(error: Exception) -> dict[str, str]:
             try:
-                self.record_failure(parent_post_id, quote_id, reply_text, error)
+                self.record_failure(parent_post_id, quote_id, reply_text, error, formatter_metadata)
             except Exception as persistence_error:
                 raise AmbiguousContextReplyOutcome(
                     "could not persist context reply failure history; manual reconciliation required"
@@ -553,7 +838,7 @@ def main(argv: list[str] | None = None) -> int:
     if not quote_id: parser.error("--quote-id or --quote-text is required")
     packet = packets.get(quote_id) if args.quote_id else packet_for_posted_quote(packets, unresolved, quote_id, args.quote_text)
     if quote_id in unresolved or packet is None: raise SystemExit("no completed canonical research packet; no reply")
-    result = format_context_reply(packet, maximum_length=args.maximum_length)
+    result = format_context_reply_v2(packet, maximum_length=args.maximum_length)
     if result is None: raise SystemExit("canonical packet cannot produce a supported reply")
     print(result["text"])
     print(f"\nCharacter count: raw={result['raw_character_count']} x_weighted={result['character_count']}/{result['maximum_length']}")

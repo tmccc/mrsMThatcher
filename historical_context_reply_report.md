@@ -8,8 +8,10 @@ the immutable manifest wording. Runtime lookup uses the bot's existing quote has
 and an exact whitespace-normalised text match for legacy records whose canonical hash retained
 repeated spaces.
 
-Replies use one stable structure: Context, Meaning, Verification, and Source. The formatter uses
-only canonical packet fields. Source ranking prefers Margaret Thatcher Foundation material,
+Production replies now use the human-reviewed v2 compact archive structure: a fluent
+`Context —` sentence, an optional `Meaning —` sentence, then `Verification —` and `Source —`.
+The v1 renderer remains available for historical compatibility and golden regression tests.
+The formatter uses only canonical packet fields. Source ranking prefers Margaret Thatcher Foundation material,
 Hansard, original transcripts, authored publications, and contemporary interviews. Quotation
 aggregation sources are excluded except when documenting explicitly unverified or misattributed
 wording. A canonical stable locator is used when a packet has no suitable authoritative URL.
@@ -30,8 +32,8 @@ The optional stage is default-disabled and accepts this local configuration:
 }
 ```
 
-The allowed maximum is 120 to 25,000 characters. The current 626 replies average 453.88
-X-weighted characters and 454.34 raw characters; the maximum is 645 weighted characters.
+The allowed maximum is 120 to 25,000 characters. Across the current 626 packets, v2 averages
+400.55 X-weighted characters with a median of 404; the maximum remains below 650.
 Consequently, the 4,000-character default preserves every current section without shortening.
 
 The posting path does not impose a 280-character application limit. It passes reply text unchanged
@@ -64,10 +66,23 @@ receipts and completed history are validated strictly and conflicting identities
 
 ## Verification And Shortening
 
-Each canonical verification status maps to one explicit editorial label. The formatter preserves
-Context, Verification, and Source ahead of Meaning. If an operator configures a materially lower
-limit, Meaning is shortened and then removed before provenance is compressed. Both raw and
-X-weighted counts are reported in dry runs.
+Each canonical verification status maps to one explicit editorial label. V2 deterministically
+omits Meaning only where the intended argument repeats a direct, self-contained quotation or its
+substantive terms are already present in Context. It retains Meaning for uncertain wording,
+context-dependent references, contrastive claims, distinct mechanisms or consequences, and
+recorded ambiguity. Context, Verification, and Source remain mandatory under the production
+configuration. Both raw and X-weighted counts are reported in dry runs.
+
+## Formatter v2 Promotion
+
+The blind 50-record comparison selected v2 in all 50 cases, with no v1 wins, ties, or
+`neither acceptable` decisions. The assignment was balanced and hidden: 26 records showed v1 as
+A and 24 showed v2 as A. A corpus-backed promotion regression verifies that production v2 text,
+template variant, and Meaning decisions match all 626 reviewed candidate renderings exactly.
+
+Production receipts and history now preserve `formatter_version`, `template_variant`, Meaning
+decision, weighted and raw lengths, verification label, source class, confidence, and shortening
+state. Existing v1 receipts remain valid and continue to prevent duplicate replies on resume.
 
 ## Samples
 

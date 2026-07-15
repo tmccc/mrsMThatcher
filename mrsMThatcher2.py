@@ -4608,9 +4608,10 @@ def maybe_post_historical_context_reply(
     try:
         from historical_context_formatter import (
             HistoricalContextReplyStore,
-            format_context_reply,
+            format_context_reply_v2,
             load_and_validate_corpus,
             packet_for_posted_quote,
+            x_weighted_length,
         )
 
         packets, unresolved = load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
@@ -4623,7 +4624,7 @@ def maybe_post_historical_context_reply(
                 reason="no_completed_canonical_packet",
             )
             return {"status": "skipped_no_completed_packet"}
-        formatted = format_context_reply(
+        formatted = format_context_reply_v2(
             packet,
             maximum_length=int(historical_context_reply["maximum_length"]),
             include_meaning=bool(historical_context_reply["include_meaning"]),
@@ -4648,6 +4649,18 @@ def maybe_post_historical_context_reply(
             HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
             HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         )
+        formatter_metadata = {
+            "formatter_version": formatted["formatter_version"],
+            "template_variant": formatted["template_variant"],
+            "meaning_included": formatted["meaning_included"],
+            "meaning_decision_reason": formatted["meaning_decision_reason"],
+            "raw_character_count": formatted["raw_character_count"],
+            "weighted_character_count": formatted["weighted_character_count"],
+            "verification_label": formatted["verification_label"],
+            "source_class": formatted["source_class"],
+            "historical_confidence": formatted["historical_confidence"],
+            "shortening_applied": formatted["shortening_applied"],
+        }
         result = store.post(
             parent_post_id=str(parent_post_id),
             quote_id=str(packet["quote_id"]),
@@ -4655,22 +4668,48 @@ def maybe_post_historical_context_reply(
             create_post=create_post,
             now_epoch=now_epoch,
             dry_run=dry_run,
+            formatter_metadata=formatter_metadata,
         )
+        event_text = str(result.get("reply_text") or formatted["text"])
+        event_metadata = formatter_metadata
+        if result.get("status") == "already_completed":
+            stored_metadata = result.get("formatter_metadata")
+            if isinstance(stored_metadata, dict):
+                event_metadata = stored_metadata
+            else:
+                # Receipts created before formatter metadata was introduced are v1. The
+                # existing reply remains authoritative and must not be relabelled as v2.
+                event_metadata = {
+                    "formatter_version": "historical_context_reply_schema_v1",
+                    "template_variant": "legacy_v1",
+                    "meaning_included": "\n\nMeaning:" in event_text,
+                    "meaning_decision_reason": "Legacy formatter metadata unavailable.",
+                    "raw_character_count": len(event_text),
+                    "weighted_character_count": x_weighted_length(event_text),
+                    "verification_label": formatted["verification_label"],
+                    "source_class": formatted["source_class"],
+                    "historical_confidence": formatted["historical_confidence"],
+                    "shortening_applied": False,
+                }
         log_event(
             "historical_context_reply",
             status=result.get("status"),
             parent_post_id=str(parent_post_id),
             quote_id=str(packet["quote_id"]),
-            character_count=formatted["character_count"],
-            raw_character_count=formatted["raw_character_count"],
-            verification_label=formatted["verification_label"],
-            source_class=formatted["source_class"],
-            historical_confidence=formatted["historical_confidence"],
-            shortening_applied=formatted["shortening_applied"],
-            meaning_omitted=formatted["meaning_omitted"],
-            source_omitted=formatted["source_omitted"],
-            verification_omitted=formatted["verification_omitted"],
-            reply_preview=str(formatted["text"])[:160],
+            character_count=event_metadata["weighted_character_count"],
+            raw_character_count=event_metadata["raw_character_count"],
+            verification_label=event_metadata["verification_label"],
+            source_class=event_metadata["source_class"],
+            historical_confidence=event_metadata["historical_confidence"],
+            shortening_applied=event_metadata["shortening_applied"],
+            meaning_omitted=not event_metadata["meaning_included"],
+            meaning_included=event_metadata["meaning_included"],
+            meaning_decision_reason=event_metadata["meaning_decision_reason"],
+            source_omitted="Source:" not in event_text and "Source —" not in event_text,
+            verification_omitted="Verification:" not in event_text and "Verification —" not in event_text,
+            formatter_version=event_metadata["formatter_version"],
+            template_variant=event_metadata["template_variant"],
+            reply_preview=event_text[:160],
             reason="post_failed" if result.get("status") == "failed" else "",
         )
         return {**result, "formatted": formatted}
