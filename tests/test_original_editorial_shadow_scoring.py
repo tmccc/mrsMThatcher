@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import copy
-import math
 import random
 from datetime import datetime
 from pathlib import Path
@@ -118,6 +117,27 @@ def test_original_editorial_metadata_validation_rejects_bad_inputs(tmp_path: Pat
     editorial_file.write_text(json.dumps(data), encoding="utf-8")
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
     with pytest.raises(RuntimeError, match="generated-style basename"):
+        bot.load_original_editorial_analysis()
+
+
+def test_original_editorial_metadata_rejects_boolean_schema_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    image_path = image_dir / "t01.jpg"
+    image_path.write_bytes(b"image")
+    editorial_file = tmp_path / "editorial.json"
+    _write_editorial_file(editorial_file, [image_path])
+    data = json.loads(editorial_file.read_text(encoding="utf-8"))
+    data["schema_version"] = True
+    editorial_file.write_text(json.dumps(data), encoding="utf-8")
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
+    monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(editorial_file))
+    monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
+
+    with pytest.raises(RuntimeError, match="schema_version"):
         bot.load_original_editorial_analysis()
 
 

@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import mrsMThatcher2 as bot
 from reply_strategy import (
     DEFAULT_REPLY_STRATEGY,
     RetrievedEvidence,
@@ -33,6 +34,76 @@ def decision(**overrides):
     }
     value.update(overrides)
     return value
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        (json.dumps(decision()), decision()["reply_text"]),
+        ("not structured JSON", None),
+        (json.dumps(decision(mode=[])), None),
+    ],
+)
+def test_strategy_reply_handles_omitted_media_context(
+    monkeypatch: pytest.MonkeyPatch,
+    content: str,
+    expected: str | None,
+) -> None:
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": content}}],
+    }).encode("utf-8")
+    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {
+            **bot.reply_strategy,
+            "enabled": True,
+            "research_corpus_enabled": False,
+        },
+    )
+
+    result = bot.ask_grok_for_reply("Incoming post: A concise observation.")
+
+    assert result == expected
+
+
+def test_strategy_reply_classifies_non_object_provider_json_as_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = b"[]"
+    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {
+            **bot.reply_strategy,
+            "enabled": True,
+            "research_corpus_enabled": False,
+        },
+    )
+
+    with pytest.raises(bot.ApiError, match="JSON object"):
+        bot.ask_grok_for_reply("Incoming post: A concise observation.")
+
+
+def test_reply_classifies_non_string_provider_content_as_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": 123}}],
+    }).encode("utf-8")
+    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
+    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": False})
+
+    with pytest.raises(bot.ApiError, match="content must be a string"):
+        bot.ask_grok_for_reply("Incoming post: A concise observation.")
 
 
 def test_retrieval_uses_only_completed_packets_and_is_deterministic():
@@ -150,12 +221,28 @@ def test_reply_decision_is_string_compatible_and_carries_private_metadata():
     assert value == "Dry, but accurate." and value.strategy_metadata["mode"] == "deadpan_reply"
 
 
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"mode": []},
+        {"humour_tone": {}},
+        {"evidence_confidence": 1},
+        {"reply_text": 1234567890123},
+    ],
+)
+def test_reply_decision_rejects_wrong_scalar_types_as_validation_errors(patch):
+    with pytest.raises(ValueError, match="must be strings"):
+        validate_reply_decision(decision(**patch), [], allowed_quote_ids=set())
+
+
 def test_json_parser_accepts_fenced_object():
     assert parse_decision_json('```json\n{"mode":"no_reply"}\n```')["mode"] == "no_reply"
 
 
-def test_digest_audit_reports_no_rows_for_supplied_digest():
-    result = audit_digest(Path("/home/tonym/Dropbox/digest014.md"))
+def test_digest_audit_reports_no_rows_for_supplied_digest(tmp_path: Path):
+    digest = tmp_path / "digest.md"
+    digest.write_text("# Digest\n\nNo conversational reply tables.\n", encoding="utf-8")
+    result = audit_digest(digest)
     assert result["auditable_reply_count"] == 0
     assert result["finding"] == "no auditable replies in digest"
     assert result["network_calls"] == 0
@@ -244,6 +331,11 @@ def test_configured_humour_tones_and_emoji_are_enforced():
             decision(humour_tone="playful"), [], allowed_quote_ids=set(),
             allowed_humour_tones={"dry", "wry"},
         )
+    with pytest.raises(ValueError, match="emoji"):
+        validate_reply_decision(
+            decision(reply_text="A tidy theory. Reality may disagree. 🙂"),
+            [], allowed_quote_ids=set(),
+        )
 
 
 def test_digest_table_parser_preserves_escaped_pipes(tmp_path: Path):
@@ -269,11 +361,13 @@ def test_mode_guidance_defines_accuracy_first_classification_hierarchy():
     assert "Do not force humour" in guidance
 
 
-def test_audit_json_stdout_is_machine_readable():
+def test_audit_json_stdout_is_machine_readable(tmp_path: Path):
+    digest = tmp_path / "digest.md"
+    digest.write_text("# Digest\n\nNo conversational reply tables.\n", encoding="utf-8")
     result = subprocess.run(
         [
             sys.executable, "mrsMThatcher2.py", "audit-replies",
-            "--digest", "/home/tonym/Dropbox/digest014.md",
+            "--digest", str(digest),
             "--research-run", str(RESEARCH), "--json",
         ],
         text=True, capture_output=True, check=False,
@@ -282,8 +376,3 @@ def test_audit_json_stdout_is_machine_readable():
     payload = json.loads(result.stdout)
     assert payload["auditable_reply_count"] == 0
     assert payload["network_calls"] == 0
-    with pytest.raises(ValueError, match="emoji"):
-        validate_reply_decision(
-            decision(reply_text="A tidy theory. Reality may disagree. 🙂"),
-            [], allowed_quote_ids=set(),
-        )

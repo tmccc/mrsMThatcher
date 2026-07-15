@@ -399,6 +399,30 @@ def test_malformed_context_receipt_is_blocked_without_mutating_history(tmp_path,
     assert not store.history_path.exists()
 
 
+def test_context_store_rejects_boolean_schema_versions(tmp_path):
+    history_path = tmp_path / "history.json"
+    receipt_path = tmp_path / "receipt.json"
+    history_path.write_text(json.dumps({"schema_version": True, "items": {}}))
+    store = HistoricalContextReplyStore(history_path, receipt_path)
+
+    with pytest.raises(RuntimeError, match="invalid context reply history"):
+        store.history()
+
+    history_path.unlink()
+    receipt_path.write_text(json.dumps({
+        "schema_version": True,
+        "lifecycle_state": "sending",
+        "parent_post_id": "111",
+        "quote_id": "a" * 64,
+        "reply_text": "Context",
+        "reply_epoch": 123,
+        "started_at": "now",
+        "attempt_number": 1,
+    }))
+    with pytest.raises(RuntimeError, match="invalid historical context reply receipt"):
+        store.reconcile_receipt()
+
+
 def test_conflicting_completed_receipt_is_blocked_without_overwrite(tmp_path):
     history_path = tmp_path / "history.json"
     receipt_path = tmp_path / "receipt.json"

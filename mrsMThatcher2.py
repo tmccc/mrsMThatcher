@@ -242,6 +242,7 @@ REGULAR_POST_RECEIPT_FILE = BASE_DIR / "regular_post_receipt.json"
 MEME_POST_RECEIPT_FILE = BASE_DIR / "meme_post_receipt.json"
 CONFIRMED_REPLY_RECEIPT_FILE = BASE_DIR / "confirmed_reply_receipt.json"
 AMBIGUOUS_POST_OUTCOME_FILE = BASE_DIR / "ambiguous_post_outcome.json"
+_AMBIGUOUS_REMOTE_POST_SEEN = False
 MEME_SCHEDULE_MODES = {
     "",
     "fallback",
@@ -1477,9 +1478,12 @@ def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
     if isinstance(value, bool):
         log.error("State candidate %s has invalid %s boolean value %r; ignoring", path, key, value)
         return None
+    if isinstance(value, float) and (not math.isfinite(value) or not value.is_integer()):
+        log.error("State candidate %s has invalid %s numeric value %r; ignoring", path, key, value)
+        return None
     try:
         number = int(value or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         log.error("State candidate %s has invalid %s value %r; ignoring", path, key, value)
         return None
     if number < 0:
@@ -2360,7 +2364,20 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
         data = response.json()
     except json.JSONDecodeError as e:
         log.error("X API returned non-JSON response: %s", response.text[:1000])
+        if ambiguous_write:
+            raise AmbiguousRemotePostOutcome(
+                f"X may have accepted the write but returned a non-JSON response: {response.text[:500]}",
+                service="x",
+            ) from e
         raise ApiError(f"X API returned non-JSON response: {response.text[:500]}", service="x") from e
+    if not isinstance(data, dict):
+        message = f"X API response must be a JSON object, got {type(data).__name__}"
+        if ambiguous_write:
+            raise AmbiguousRemotePostOutcome(
+                f"X may have accepted the write but its response was not a JSON object: {type(data).__name__}",
+                service="x",
+            )
+        raise ApiError(message, service="x")
 
     log_json_debug("X response json", data)
     return data
@@ -2421,6 +2438,11 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
             f"X bearer API returned non-JSON response: {response.text[:500]}",
             service="x",
         ) from e
+    if not isinstance(data, dict):
+        raise ApiError(
+            f"X bearer API response must be a JSON object, got {type(data).__name__}",
+            service="x",
+        )
 
     log_json_debug("X bearer response json", data)
     return data
@@ -2453,21 +2475,36 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
             page_params["pagination_token"] = next_token
 
         result = request_func(path, page_params)
+        if not isinstance(result, dict):
+            raise ApiError(f"X {label} returned a malformed paginated response object", service="x")
         page_data = result.get("data", [])
-        if isinstance(page_data, list):
-            combined["data"].extend(page_data)
+        includes = result.get("includes", {})
+        meta = result.get("meta", {})
+        if not isinstance(page_data, list):
+            raise ApiError(f"X {label} returned malformed paginated response data", service="x")
+        if not isinstance(includes, dict):
+            raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
+        users = includes.get("users", [])
+        media_items = includes.get("media", [])
+        if not isinstance(users, list) or any(not isinstance(user, dict) for user in users):
+            raise ApiError(f"X {label} returned malformed paginated response users", service="x")
+        if not isinstance(media_items, list) or any(not isinstance(media, dict) for media in media_items):
+            raise ApiError(f"X {label} returned malformed paginated response media", service="x")
+        if not isinstance(meta, dict):
+            raise ApiError(f"X {label} returned malformed paginated response meta", service="x")
+        combined["data"].extend(page_data)
 
-        for user in result.get("includes", {}).get("users", []) or []:
+        for user in users:
             user_id = str(user.get("id", ""))
             if user_id:
                 users_by_id[user_id] = user
 
-        for media in result.get("includes", {}).get("media", []) or []:
+        for media in media_items:
             media_key = str(media.get("media_key", ""))
             if media_key:
                 media_by_key[media_key] = media
 
-        next_token = str((result.get("meta", {}) or {}).get("next_token", "") or "")
+        next_token = str(meta.get("next_token", "") or "")
         log.info(
             "Fetched %s page %d/%d items=%d next_token=%s",
             label,
@@ -3555,6 +3592,11 @@ def upload_media(image_path: str) -> str:
 
 
 def block_if_ambiguous_remote_post() -> None:
+    if _AMBIGUOUS_REMOTE_POST_SEEN and not AMBIGUOUS_POST_OUTCOME_FILE.exists():
+        raise AmbiguousRemotePostOutcome(
+            "Unreconciled in-process ambiguity latch blocks further posting after the durable marker could not be confirmed",
+            service="x",
+        )
     if AMBIGUOUS_POST_OUTCOME_FILE.exists():
         raise AmbiguousRemotePostOutcome(
             f"Unreconciled ambiguous remote POST outcome blocks further posting: {AMBIGUOUS_POST_OUTCOME_FILE}",
@@ -3564,6 +3606,8 @@ def block_if_ambiguous_remote_post() -> None:
 
 def record_ambiguous_remote_post(payload: dict) -> None:
     """Persist a manual-reconciliation barrier without claiming success or failure."""
+    global _AMBIGUOUS_REMOTE_POST_SEEN
+    _AMBIGUOUS_REMOTE_POST_SEEN = True
     if AMBIGUOUS_POST_OUTCOME_FILE.exists():
         return
     text = str(payload.get("text") or "")
@@ -3581,7 +3625,7 @@ def record_ambiguous_remote_post(payload: dict) -> None:
         durable=True,
     )
     log.critical(
-        "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, but no response was received. "
+        "AMBIGUOUS REMOTE X POST OUTCOME: X may have accepted the write, but a usable confirmation was not received. "
         "Automatic posting is blocked pending manual reconciliation: %s",
         AMBIGUOUS_POST_OUTCOME_FILE,
     )
@@ -3624,9 +3668,13 @@ def create_post(
         raise ValueError("Cannot create X post without text or media")
 
     def validate_created_post_response(result: dict) -> dict:
-        post_id = result.get("data", {}).get("id") if isinstance(result, dict) else None
+        response_data = result.get("data") if isinstance(result, dict) else None
+        post_id = response_data.get("id") if isinstance(response_data, dict) else None
         if not valid_post_id(post_id):
-            raise ApiError(f"X post creation response did not include a valid numeric data.id: {result}", service="x")
+            raise AmbiguousRemotePostOutcome(
+                f"X may have accepted the post but its response did not include a valid numeric data.id: {result}",
+                service="x",
+            )
         return result
 
     def made_with_ai_field_rejected(error: ApiError) -> bool:
@@ -3651,10 +3699,10 @@ def create_post(
             payload.pop("made_with_ai", None)
             try:
                 result = x_request("POST", "/2/tweets", json=payload, ambiguous_write=True)
+                validate_created_post_response(result)
             except AmbiguousRemotePostOutcome:
                 record_ambiguous_remote_post(payload)
                 raise
-            validate_created_post_response(result)
             log.info("Created X post successfully after removing made_with_ai. response=%s", result)
             return result
         raise
@@ -4183,20 +4231,16 @@ def valid_post_id(value: object) -> bool:
 
 
 def valid_receipt_epoch(value: object) -> bool:
-    try:
-        epoch = int(value)
-    except Exception:
+    if type(value) is not int:
         return False
+    epoch = value
     return 1_500_000_000 <= epoch <= 4_102_444_800
 
 
 def receipt_int(value: object, default: int | None = None) -> int | None:
     if value in (None, "") and default is not None:
         return default
-    try:
-        return int(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
+    return value if type(value) is int else None
 
 
 def receipt_bool(value: object) -> bool | None:
@@ -4229,7 +4273,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
-    if data.get("schema_version") != 1:
+    if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
         return False
     post_id = str(data.get("post_id") or "")
     quote_hash = str(data.get("quote_hash") or "")
@@ -4344,7 +4388,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
 
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
-    if data.get("schema_version") != 1:
+    if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
         return False
     if not valid_post_id(data.get("post_id")):
         return False
@@ -5219,7 +5263,8 @@ def load_original_editorial_analysis() -> dict[str, dict]:
         raise RuntimeError(f"Original editorial analysis file is not a JSON object: {path}")
     if data.get("analysis_kind") != ORIGINAL_EDITORIAL_ANALYSIS_KIND:
         raise RuntimeError(f"Original editorial analysis has unexpected analysis_kind={data.get('analysis_kind')!r}")
-    if int(data.get("schema_version", 0) or 0) != ORIGINAL_EDITORIAL_SCHEMA_VERSION:
+    if (type(data.get("schema_version")) is not int
+            or data.get("schema_version") != ORIGINAL_EDITORIAL_SCHEMA_VERSION):
         raise RuntimeError(f"Original editorial analysis has unsupported schema_version={data.get('schema_version')!r}")
     items = data.get("items")
     if not isinstance(items, dict):
@@ -5331,7 +5376,8 @@ def load_generated_identity_audit() -> dict[str, dict]:
         payload = json.load(handle)
     if not isinstance(payload, dict):
         raise RuntimeError(f"Generated identity audit is not a JSON object: {path}")
-    if payload.get("schema_version") != GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION:
+    if (type(payload.get("schema_version")) is not int
+            or payload.get("schema_version") != GENERATED_IDENTITY_AUDIT_SCHEMA_VERSION):
         raise RuntimeError(f"Generated identity audit has unsupported schema_version={payload.get('schema_version')!r}")
     if payload.get("analysis_kind") != GENERATED_IDENTITY_AUDIT_KIND:
         raise RuntimeError(f"Generated identity audit has unexpected analysis_kind={payload.get('analysis_kind')!r}")
@@ -7120,7 +7166,13 @@ def clean_generated_reply(text: str) -> str:
 
     if len(text) > MAX_REPLY_CHARS:
         log.debug("Truncating reply from %d chars to %d chars", len(text), MAX_REPLY_CHARS)
-        text = text[:MAX_REPLY_CHARS].rsplit(" ", 1)[0].rstrip(".,;:") + "."
+        if MAX_REPLY_CHARS <= 1:
+            text = text[:MAX_REPLY_CHARS]
+        else:
+            prefix = text[:MAX_REPLY_CHARS - 1].rstrip()
+            if " " in prefix:
+                prefix = prefix.rsplit(" ", 1)[0]
+            text = prefix.rstrip(".,;:") + "."
 
     log.debug("Cleaned Grok reply: %r", text)
     return text
@@ -7381,6 +7433,7 @@ def ask_grok_for_reply(
 ) -> str | None:
     log.info("Asking Grok for reply. context_text=%r", context_text)
 
+    media_metadata = media_context if isinstance(media_context, dict) else {}
     strategy_enabled = bool(reply_strategy.get("enabled"))
     evidence = []
     if strategy_enabled and reply_strategy.get("research_corpus_enabled"):
@@ -7525,6 +7578,12 @@ def ask_grok_for_reply(
     except json.JSONDecodeError as e:
         log.error("xAI returned non-JSON response: %s", response.text[:1000])
         raise ApiError(f"xAI returned non-JSON response: {response.text[:500]}", service="xai") from e
+    if not isinstance(data, dict):
+        log.error("xAI returned JSON with unexpected top-level type: %s", type(data).__name__)
+        raise ApiError(
+            f"xAI response must be a JSON object, got {type(data).__name__}",
+            service="xai",
+        )
 
     log_json_debug("xAI response json", data)
 
@@ -7537,6 +7596,11 @@ def ask_grok_for_reply(
     except Exception as e:
         log.exception("Could not parse xAI response")
         raise ApiError(f"Could not parse xAI response: {json.dumps(data)[:1000]}", service="xai") from e
+    if not isinstance(reply, str):
+        raise ApiError(
+            f"xAI response message content must be a string, got {type(reply).__name__}",
+            service="xai",
+        )
 
     if strategy_enabled:
         from reply_strategy import (
@@ -7573,14 +7637,14 @@ def ask_grok_for_reply(
                 reason = "insufficient_confidence"
             log_event(
                 "reply_strategy_rejection",
-                lane=media_context.get("lane") or media_context.get("source") or "unavailable",
+                lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
                 reason=reason,
             )
             return None
         log_event(
             "reply_strategy_decision",
-            lane=media_context.get("lane") or media_context.get("source") or "unavailable",
-            target_id=media_context.get("target_id") or "",
+            lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
+            target_id=media_metadata.get("target_id") or "",
             mode=validated["mode"],
             humour_tone=validated["humour_tone"],
             evidence_confidence=validated["evidence_confidence"],
@@ -7618,7 +7682,7 @@ def ask_grok_for_reply(
         if strategy_enabled:
             log_event(
                 "reply_strategy_rejection",
-                lane=media_context.get("lane") or media_context.get("source") or "unavailable",
+                lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
                 reason="local_validator_rejection",
             )
         return None
@@ -7662,12 +7726,18 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
         "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
         "evidence_summary", "factual_claim_made", "grounded", "reply_text", "no_reply_reason",
     }
+    mode = strategy_metadata.get("mode") if isinstance(strategy_metadata, dict) else None
+    humour_tone = strategy_metadata.get("humour_tone") if isinstance(strategy_metadata, dict) else None
+    evidence_confidence = strategy_metadata.get("evidence_confidence") if isinstance(strategy_metadata, dict) else None
     structurally_valid = bool(
         isinstance(strategy_metadata, dict)
         and set(strategy_metadata) == required
-        and strategy_metadata.get("mode") in MODES - {"no_reply"}
-        and strategy_metadata.get("humour_tone") in HUMOUR_TONES
-        and strategy_metadata.get("evidence_confidence") in CONFIDENCE_LEVELS
+        and isinstance(mode, str)
+        and mode in MODES - {"no_reply"}
+        and isinstance(humour_tone, str)
+        and humour_tone in HUMOUR_TONES
+        and isinstance(evidence_confidence, str)
+        and evidence_confidence in CONFIDENCE_LEVELS
         and isinstance(strategy_metadata.get("retrieved_quote_ids"), list)
         and not any(
             not re.fullmatch(r"[0-9a-f]{64}", str(item or ""))
@@ -7682,7 +7752,7 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
     )
     if not structurally_valid:
         return False
-    mode = str(strategy_metadata["mode"])
+    mode = strategy_metadata["mode"]
     ids = strategy_metadata["retrieved_quote_ids"]
     factual = strategy_metadata["factual_claim_made"]
     grounded = strategy_metadata["grounded"]
@@ -7699,7 +7769,7 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     if not isinstance(data, dict):
         return False
-    if data.get("schema_version") != 1:
+    if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
         return False
     if not valid_post_id(data.get("target_id")):
         return False

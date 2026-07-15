@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -279,7 +278,9 @@ def validate_reply_decision(
     tone = value["humour_tone"]
     confidence = value["evidence_confidence"]
     ids = value["retrieved_quote_ids"]
-    reply = str(value["reply_text"] or "").strip()
+    if not all(isinstance(item, str) for item in (mode, tone, confidence, value["reply_text"])):
+        raise ValueError("reply mode, tone, confidence, and text must be strings")
+    reply = value["reply_text"].strip()
     if mode not in MODES or tone not in HUMOUR_TONES or confidence not in CONFIDENCE_LEVELS:
         raise ValueError("unsupported reply mode, tone, or confidence")
     if allowed_modes is not None and mode not in allowed_modes:

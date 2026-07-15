@@ -6048,7 +6048,7 @@ def test_digest_carries_active_xai_context_across_resume_boundary(tmp_path: Path
         "2026-07-08 06:39:45 INFO ask_grok_for_reply:5784 - xAI usage={'prompt_tokens': 529, 'completion_tokens': 29, 'total_tokens': 1194, 'prompt_tokens_details': {'cached_tokens': 128}, 'completion_tokens_details': {'reasoning_tokens': 636}, 'num_sources_used': 0, 'cost_in_usd_ticks': 21893500}",
         f"2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6224 - Generated reply to mention {mention_id}: 'Poverty is the absence of wealth.'",
         f"2026-07-08 06:39:45 INFO create_post:3236 - Created X post successfully. response={{'data': {{'text': 'Poverty is the absence of wealth.', 'id': '{reply_id}'}}}}",
-        f"2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6357 - Reply posted successfully",
+        "2026-07-08 06:39:45 INFO maybe_reply_to_mentions:6357 - Reply posted successfully",
     ]
 
     write_digest_log(base, first_window)

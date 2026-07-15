@@ -102,6 +102,7 @@ def test_enabled_mode_loads_valid_complete_audit(tmp_path: Path, monkeypatch: py
     "mutation,match",
     [
         (lambda data: data.update(schema_version=2), "schema_version"),
+        (lambda data: data.update(schema_version=True), "schema_version"),
         (lambda data: data.update(analysis_kind="wrong"), "analysis_kind"),
     ],
 )

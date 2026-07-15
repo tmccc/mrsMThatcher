@@ -347,7 +347,8 @@ class HistoricalContextReplyStore:
     def history(self) -> dict[str, Any]:
         if not self.history_path.exists(): return {"schema_version": 1, "items": {}}
         value = json.loads(self.history_path.read_text())
-        if not isinstance(value, dict) or value.get("schema_version") != 1 or not isinstance(value.get("items"), dict):
+        if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
+                or value.get("schema_version") != 1 or not isinstance(value.get("items"), dict)):
             raise RuntimeError("invalid context reply history")
         for parent_post_id, item in value["items"].items():
             if not isinstance(item, dict) or str(item.get("parent_post_id") or "") != str(parent_post_id):
@@ -375,7 +376,8 @@ class HistoricalContextReplyStore:
 
     @staticmethod
     def _valid_receipt(receipt: Any) -> bool:
-        if not isinstance(receipt, dict) or receipt.get("schema_version") != 1:
+        if (not isinstance(receipt, dict) or type(receipt.get("schema_version")) is not int
+                or receipt.get("schema_version") != 1):
             return False
         required = {
             "schema_version", "parent_post_id", "reply_post_id", "quote_id",
@@ -413,6 +415,7 @@ class HistoricalContextReplyStore:
         return bool(
             isinstance(receipt, dict)
             and set(receipt) == required
+            and type(receipt.get("schema_version")) is int
             and receipt.get("schema_version") == 1
             and receipt.get("lifecycle_state") == "sending"
             and re.fullmatch(r"\d{1,30}", str(receipt.get("parent_post_id") or ""))

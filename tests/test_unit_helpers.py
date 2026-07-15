@@ -52,6 +52,8 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", tmp_path / "regular_post_receipt.json")
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme_post_receipt.json")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
+    monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
 
 
 def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None = None) -> dict:
@@ -749,6 +751,25 @@ def test_legacy_state_initialises_generated_spacing_from_last_regular_image(
 def test_state_rejects_boolean_generated_spacing_counter(tmp_path: Path) -> None:
     state = bot.default_state()
     state["original_regular_posts_since_generated_image"] = True
+
+    assert bot.normalise_state_candidate(state, path=tmp_path / "state.json") is None
+
+
+@pytest.mark.parametrize(
+    ("key", "bad_value"),
+    [
+        ("daily_reply_count", 1.9),
+        ("last_reply_epoch", 1_800_000_000.5),
+        ("daily_reply_count", float("inf")),
+    ],
+)
+def test_state_rejects_fractional_and_non_finite_numbers(
+    tmp_path: Path,
+    key: str,
+    bad_value: float,
+) -> None:
+    state = bot.default_state()
+    state[key] = bad_value
 
     assert bot.normalise_state_candidate(state, path=tmp_path / "state.json") is None
 
@@ -2425,6 +2446,35 @@ def test_regular_receipt_accepts_all_runtime_meme_schedule_modes() -> None:
         assert bot.regular_post_receipt_is_semantically_valid(receipt), mode
 
 
+def test_receipt_validators_reject_boolean_schema_versions_and_fractional_epochs() -> None:
+    regular = valid_regular_receipt()
+    assert bot.regular_post_receipt_is_semantically_valid({**regular, "schema_version": True}) is False
+    assert bot.regular_post_receipt_is_semantically_valid({**regular, "quote_post_epoch": 1_800_000_000.5}) is False
+
+    meme = {
+        "schema_version": 1,
+        "post_id": "950001",
+        "meme_basename": "meme.png",
+        "meme_post_epoch": 1_800_000_000,
+        "next_meme_post_epoch": 1_800_086_400,
+        "next_meme_schedule_mode": "fallback",
+    }
+    assert bot.meme_post_receipt_is_semantically_valid({**meme, "schema_version": True}) is False
+    assert bot.meme_post_receipt_is_semantically_valid({**meme, "meme_post_epoch": 1_800_000_000.5}) is False
+
+    reply = {
+        "schema_version": 1,
+        "target_id": "100",
+        "reply_post_id": "900000",
+        "author_id": "200",
+        "reply_epoch": 1_800_000_000,
+        "candidate_source": "mention",
+        "reply_text": "A reply.",
+    }
+    assert bot.confirmed_reply_receipt_is_semantically_valid({**reply, "schema_version": True}) is False
+    assert bot.confirmed_reply_receipt_is_semantically_valid({**reply, "reply_epoch": 1_800_000_000.5}) is False
+
+
 def test_regular_receipt_distinguishes_quote_created_and_preserved_meme_schedules() -> None:
     quote_epoch = 1_800_000_000
     quote_created = valid_regular_receipt(
@@ -3410,13 +3460,21 @@ def test_regular_post_invalid_non_numeric_post_id_restores_histories(
 
 
 @pytest.mark.parametrize(
-    "failure",
-    ["global_image", "unsafe_image_migration", "unexpected_image", "upload", "create", "invalid_post_id"],
+    ("failure", "expected_exception"),
+    [
+        ("global_image", bot.GlobalImageUnavailable),
+        ("unsafe_image_migration", bot.UnsafeImageHistoryMigration),
+        ("unexpected_image", ValueError),
+        ("upload", OSError),
+        ("create", OSError),
+        ("invalid_post_id", RuntimeError),
+    ],
 )
 def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failure: str,
+    expected_exception: type[Exception],
 ) -> None:
     lines_used = {"old-line"}
     images_used = {"old-image"}
@@ -3451,7 +3509,7 @@ def test_pre_confirmation_failures_restore_histories_after_quote_cycle_reset(
             elif failure == "invalid_post_id":
                 monkeypatch.setattr(bot, "create_post", lambda **kwargs: {"data": {"id": "banana"}})
 
-    with pytest.raises(Exception):
+    with pytest.raises(expected_exception):
         bot.post_random_quote(lines_used, images_used, state)
 
     assert lines_used == {"old-line"}
@@ -4010,12 +4068,30 @@ def test_create_post_passes_long_text_without_280_character_truncation(monkeypat
     assert requests[0][1]["json"]["reply"] == {"in_reply_to_tweet_id": "654321"}
 
 
-@pytest.mark.parametrize("response", [{"data": {"id": "banana"}}, {"data": {"id": ""}}, {"data": {}}, {}])
-def test_create_post_rejects_invalid_or_missing_ids(monkeypatch: pytest.MonkeyPatch, response: dict) -> None:
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"data": {"id": "banana"}},
+        {"data": {"id": ""}},
+        {"data": {}},
+        {"data": []},
+        {"data": "not an object"},
+        {},
+    ],
+)
+def test_create_post_rejects_invalid_or_missing_ids(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response: dict,
+) -> None:
+    marker = tmp_path / "ambiguous_post.json"
+    monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", marker)
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: response)
 
-    with pytest.raises(bot.ApiError):
+    with pytest.raises(bot.AmbiguousRemotePostOutcome):
         bot.create_post("hello")
+
+    assert json.loads(marker.read_text(encoding="utf-8"))["outcome"] == "ambiguous_remote_post"
 
 
 def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -4885,6 +4961,14 @@ def test_confirmed_reply_receipt_rejects_malformed_strategy_strings() -> None:
             "evidence_summary": {"not": "a string"}, "factual_claim_made": True,
             "grounded": True, "reply_text": "A grounded reply.", "no_reply_reason": [],
         },
+    }
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+    receipt["strategy_metadata"] = {
+        **receipt["strategy_metadata"],
+        "mode": [],
+        "evidence_summary": "A summary.",
+        "no_reply_reason": "",
     }
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
@@ -5919,6 +6003,15 @@ def test_append_unique_capped_discards_oldest_items() -> None:
 )
 def test_generated_reply_is_safe_enough(reply: str, expected: bool) -> None:
     assert bot.generated_reply_is_safe_enough(reply) is expected
+
+
+def test_clean_generated_reply_never_exceeds_configured_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "MAX_REPLY_CHARS", 20)
+
+    assert len(bot.clean_generated_reply("x" * 100)) <= 20
+    assert len(bot.clean_generated_reply("several ordinary words " * 10)) <= 20
 
 
 @pytest.mark.parametrize("lane", ["mention", "quote_tweet"])

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import math
 import os
@@ -22,6 +21,7 @@ def install_paths(monkeypatch: pytest.MonkeyPatch, base: Path) -> None:
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", base / "meme_post_receipt.json")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", base / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", base / "ambiguous_post_outcome.json")
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 2)
 
 
@@ -163,3 +163,71 @@ def test_ambiguous_remote_post_creates_durable_blocker(tmp_path, monkeypatch):
     assert marker["outcome"] == "ambiguous_remote_post"
     with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled ambiguous"):
         bot.block_if_ambiguous_remote_post()
+
+
+def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, monkeypatch):
+    install_paths(monkeypatch, tmp_path)
+    monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    calls = 0
+
+    def ambiguous_request(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        raise bot.AmbiguousRemotePostOutcome("timeout", service="x")
+
+    monkeypatch.setattr(bot, "x_request", ambiguous_request)
+    monkeypatch.setattr(
+        bot,
+        "atomic_write_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("storage unavailable")),
+    )
+
+    with pytest.raises(OSError, match="storage unavailable"):
+        bot.create_post("first")
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="in-process ambiguity latch"):
+        bot.create_post("second")
+
+    assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("body", "message"),
+    [(b"not json", "non-JSON"), (b"[]", "JSON object")],
+)
+def test_success_status_malformed_body_is_ambiguous_only_for_writes(monkeypatch, body, message):
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = body
+    monkeypatch.setattr(bot.requests, "request", lambda *args, **kwargs: response)
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match=message):
+        bot.x_request("POST", "/2/tweets", ambiguous_write=True, json={"text": "test"})
+    with pytest.raises(bot.ApiError, match=message) as exc_info:
+        bot.x_request("GET", "/2/users/me")
+    monkeypatch.setattr(bot, "X_BEARER_TOKEN", "test-token")
+    with pytest.raises(bot.ApiError, match=message) as bearer_exc_info:
+        bot.x_bearer_request("GET", "/2/users/me")
+
+    assert type(exc_info.value) is bot.ApiError
+    assert type(bearer_exc_info.value) is bot.ApiError
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        {"data": {}},
+        {"includes": []},
+        {"includes": {"users": {"id": "1"}}},
+        {"includes": {"media": "bad"}},
+        {"meta": []},
+    ],
+)
+def test_paginated_get_rejects_malformed_page_sections(page):
+    with pytest.raises(bot.ApiError, match="malformed paginated response"):
+        bot.x_paginated_get(
+            lambda _path, _params: page,
+            "/2/test",
+            {},
+            max_pages=1,
+            label="test",
+        )
