@@ -13,6 +13,14 @@ __pycache__/
 .generated_image_analysis.lock
 .mrs_asset_analysis.lock
 .mrs_log_digest_state.json.lock
+engagement_analytics/*.sqlite3
+engagement_analytics/*.sqlite3-*
+engagement_analytics/collector_state.json
+engagement_analytics/collector.log
+engagement_analytics/.collector.lock
+engagement_analytics/raw_responses/
+engagement_analytics/exports/
+engagement_analytics/reports/
 digest*.md
 .DS_Store
 ._*

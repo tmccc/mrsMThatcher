@@ -3884,6 +3884,40 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([reason, count]))
     out.append("")
 
+    engagement = report.get("historical_context_engagement") or {}
+    out.append("## Historical context engagement")
+    if not engagement.get("available"):
+        out.append(f"Unavailable: **{engagement.get('reason') or 'analytics database not initialised'}**.")
+    else:
+        def engagement_percent(value: Any) -> str:
+            return "metric unavailable" if value is None else f"{float(value) * 100:.2f}%"
+
+        out.append(
+            f"Trailing window: **{engagement.get('window_days', 28)} days**; "
+            f"tracked post pairs: **{engagement.get('tracked_post_pairs', 0)}**; "
+            f"with context replies: **{engagement.get('posts_with_context_replies', 0)}**; "
+            f"snapshot coverage: **{engagement_percent(engagement.get('latest_snapshot_coverage'))}**."
+        )
+        out.append(
+            "Medians (context view ratio / main engagement / context engagement / "
+            "context bookmark / source-link click): "
+            f"**{engagement_percent(engagement.get('median_context_view_ratio'))} / "
+            f"{engagement_percent(engagement.get('median_main_post_engagement_rate'))} / "
+            f"{engagement_percent(engagement.get('median_context_engagement_rate'))} / "
+            f"{engagement_percent(engagement.get('median_context_bookmark_rate'))} / "
+            f"{engagement_percent(engagement.get('median_source_link_click_rate'))}**."
+        )
+        out.append(
+            f"Unavailable impressions/click metrics: "
+            f"**{engagement.get('unavailable_impressions_count', 0)} / "
+            f"{engagement.get('unavailable_click_metrics_count', 0)}**."
+        )
+        warnings = engagement.get("sample_size_warnings") or []
+        if warnings:
+            out.append("Sample-size warnings: " + ", ".join(str(value) for value in warnings) + ".")
+        out.append("All associations are observational; the digest does not attribute causation.")
+    out.append("")
+
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
     out.append("Modes: " + compact_counts(strategy.get("mode_counts") or {}))
@@ -4377,6 +4411,18 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
     report["generated_image_pool_health"] = generated_pool_health_snapshot(project_dir)
+    try:
+        from mrs_engagement_analytics import read_digest_summary
+
+        report["historical_context_engagement"] = read_digest_summary(project_dir, window_days=28)
+    except Exception as exc:
+        # Analytics is optional. A missing dependency or malformed runtime database
+        # must not prevent an otherwise valid production digest.
+        report["historical_context_engagement"] = {
+            "available": False,
+            "reason": f"analytics summary unavailable: {type(exc).__name__}",
+            "tracked_post_pairs": 0,
+        }
 
     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
     if (

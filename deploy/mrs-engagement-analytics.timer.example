@@ -1,0 +1,13 @@
+[Unit]
+Description=Run MrsMThatcher engagement analytics every 15 minutes
+
+[Timer]
+OnCalendar=*:0/15
+Persistent=true
+RandomizedDelaySec=30
+Unit=mrs-engagement-analytics.service
+
+[Install]
+WantedBy=timers.target
+
+# User-unit example. Install as ~/.config/systemd/user/mrs-engagement-analytics.timer.

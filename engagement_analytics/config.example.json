@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "x_api_base_url": "https://api.x.com",
+  "request_timeout_seconds": 60,
+  "maximum_batch_size": 100,
+  "retry_backoff_seconds": 2,
+  "default_max_api_requests": 2,
+  "snapshot_target_ages_seconds": [
+    3600,
+    21600,
+    86400,
+    259200,
+    604800
+  ],
+  "on_time_tolerance_seconds": 1200,
+  "report_minimum_sample": 5
+}
