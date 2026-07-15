@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import semantic_alignment.quote_research_closure as closure
 from semantic_alignment.quote_research_closure import (
     EXPECTED_UNRESOLVED, build_unresolved_dossier, corpus_closure_audit, offline_only,
 )
@@ -12,6 +13,28 @@ from semantic_alignment.quote_research_closure import (
 
 ROOT = Path(__file__).resolve().parents[1]
 RUN = ROOT / "semantic_alignment_research/quote_research_full_001"
+
+
+@pytest.fixture(autouse=True)
+def isolate_generated_closure_outputs(tmp_path, monkeypatch):
+    """Closure tests may read the canonical run but must never rewrite it."""
+    output = RUN / "final_unresolved"
+    before = {path: path.read_bytes() for path in output.iterdir() if path.is_file()}
+    real_write_json = closure.atomic_write_json
+    real_write_text = closure.atomic_write_text
+
+    monkeypatch.setattr(
+        closure,
+        "atomic_write_json",
+        lambda path, value: real_write_json(tmp_path / Path(path).name, value),
+    )
+    monkeypatch.setattr(
+        closure,
+        "atomic_write_text",
+        lambda path, value: real_write_text(tmp_path / Path(path).name, value),
+    )
+    yield
+    assert {path: path.read_bytes() for path in output.iterdir() if path.is_file()} == before
 
 
 def test_exactly_six_unresolved_and_complete_partition():

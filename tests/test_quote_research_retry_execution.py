@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import semantic_alignment.quote_research_retry_execution as retry_execution
 from semantic_alignment.io import read_json
 from semantic_alignment.quote_research_retry_execution import (
     RETRY_PACKET_SCHEMA, RetryValidationRunner, bind_immutable_identity, build_remaining_failed_recovery,
@@ -132,11 +133,31 @@ def test_remaining_recovery_excludes_repeatedly_exhausted_cases():
     assert result["hard_combined_ceiling_usd"] == 5.0
 
 
-def test_recovery_meta_report_accounts_for_all_candidates():
+def test_recovery_meta_report_accounts_for_all_candidates(tmp_path, monkeypatch):
+    output_hashes = {
+        path: path.read_bytes()
+        for path in (
+            PARENT / "retry_batches/recovery_stage_meta_report.json",
+            PARENT / "retry_batches/recovery_stage_meta_report.md",
+        )
+    }
+    real_write_json = retry_execution.atomic_write_json
+    real_write_text = retry_execution.atomic_write_text
+    monkeypatch.setattr(
+        retry_execution,
+        "atomic_write_json",
+        lambda path, value: real_write_json(tmp_path / Path(path).name, value),
+    )
+    monkeypatch.setattr(
+        retry_execution,
+        "atomic_write_text",
+        lambda path, value: real_write_text(tmp_path / Path(path).name, value),
+    )
     result = write_recovery_stage_meta_report(PARENT)
     assert result["unique_candidates_targeted"] == 170
     assert result["unique_candidates_recovered"] + result["unique_candidates_unresolved"] == 170
     assert result["final_packet_count"] + result["final_unresolved_count"] == 632
+    assert all(path.read_bytes() == contents for path, contents in output_hashes.items())
 
 
 def test_30_item_batch_requires_exact_seven_fifty_ceiling():

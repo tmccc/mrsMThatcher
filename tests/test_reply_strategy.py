@@ -163,7 +163,17 @@ def test_weak_factual_evidence_requires_no_reply():
         validate_reply_decision(decision(factual_claim_made=True), [], allowed_quote_ids=set())
 
 
-def test_paraphrase_cannot_be_presented_as_exact_quotation():
+@pytest.mark.parametrize(
+    "reply_text",
+    [
+        'Thatcher said “Women succeed without collective action.”',
+        "Thatcher said 'Women succeed without collective action.'",
+        "Thatcher said ‘Women succeed without collective action.’",
+        "Thatcher said 'Britain's women succeed without collective action.'",
+        "Thatcher said ‘Britain’s women succeed without collective action.’",
+    ],
+)
+def test_paraphrase_cannot_be_presented_as_exact_quotation(reply_text: str):
     evidence = retrieve_research_packets("women's liberation", RESEARCH, maximum=5)
     paraphrase = next(item for item in evidence if item.verification_status == "paraphrase")
     with pytest.raises(ValueError, match="quotation marks require"):
@@ -171,7 +181,7 @@ def test_paraphrase_cannot_be_presented_as_exact_quotation():
             mode="researched_principle", evidence_confidence="medium", grounded=True,
             retrieved_quote_ids=[paraphrase.quote_id], evidence_summary="A paraphrased principle.",
             factual_claim_made=True,
-            reply_text='Thatcher said “Women succeed without collective action.”',
+            reply_text=reply_text,
         ), evidence, allowed_quote_ids={item.quote_id for item in evidence})
 
 
@@ -188,6 +198,53 @@ def test_normalised_wording_cannot_be_presented_as_exact_quotation():
             factual_claim_made=True,
             reply_text='Thatcher said “A normalised sentence.”',
         ), evidence, allowed_quote_ids={item.quote_id for item in evidence})
+
+
+@pytest.mark.parametrize(
+    "reply_text, verified_text",
+    [
+        ("Thatcher said 'Exact words.'", "Exact words."),
+        ("Thatcher said 'Britain's exact words.'", "Britain's exact words."),
+        ("Thatcher said ‘Britain’s exact words.’", "Britain’s exact words."),
+    ],
+)
+def test_verified_exact_wording_may_use_single_quotation_marks(
+    reply_text: str,
+    verified_text: str,
+):
+    exact = RetrievedEvidence(
+        "e" * 64,
+        1.0,
+        "exact",
+        "Exact evidence.",
+        {"verified_text": verified_text, "research_confidence": "high"},
+    )
+
+    result = validate_reply_decision(
+        decision(
+            mode="researched_principle",
+            evidence_confidence="high",
+            grounded=True,
+            retrieved_quote_ids=[exact.quote_id],
+            evidence_summary="Exact evidence.",
+            factual_claim_made=True,
+            reply_text=reply_text,
+        ),
+        [exact],
+        allowed_quote_ids={exact.quote_id},
+    )
+
+    assert result["reply_text"] == reply_text
+
+
+def test_apostrophe_in_contraction_is_not_treated_as_quotation():
+    result = validate_reply_decision(
+        decision(reply_text="Reality's reply remains concise."),
+        [],
+        allowed_quote_ids=set(),
+    )
+
+    assert result["reply_text"] == "Reality's reply remains concise."
 
 
 def test_no_hashtags_two_sentence_limit_and_repetition_controls():
@@ -284,6 +341,23 @@ def test_grounded_claim_requires_selected_evidence():
         )
 
 
+def test_grounded_claim_requires_evidence_object_for_every_selected_id():
+    qid = "d" * 64
+
+    with pytest.raises(ValueError, match="non-retrieved or unresolved quote ID"):
+        validate_reply_decision(
+            decision(
+                factual_claim_made=True,
+                grounded=True,
+                evidence_confidence="medium",
+                retrieved_quote_ids=[qid],
+                evidence_summary="A factual historical point.",
+            ),
+            [],
+            allowed_quote_ids={qid},
+        )
+
+
 def test_factual_humour_obeys_configured_grounded_confidence():
     evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=1)
     qid = evidence[0].quote_id
@@ -295,6 +369,30 @@ def test_factual_humour_obeys_configured_grounded_confidence():
                 grounded=True,
             ),
             evidence, allowed_quote_ids={qid}, minimum_grounded_confidence="medium",
+        )
+
+
+def test_factual_humour_rejects_low_confidence_packet():
+    low = RetrievedEvidence(
+        "c" * 64,
+        1.0,
+        "exact",
+        "Low-confidence evidence.",
+        {"verified_text": "Exact words.", "research_confidence": "low"},
+    )
+
+    with pytest.raises(ValueError, match="packet confidence"):
+        validate_reply_decision(
+            decision(
+                evidence_confidence="medium",
+                retrieved_quote_ids=[low.quote_id],
+                evidence_summary="A factual historical point.",
+                factual_claim_made=True,
+                grounded=True,
+            ),
+            [low],
+            allowed_quote_ids={low.quote_id},
+            minimum_grounded_confidence="medium",
         )
 
 

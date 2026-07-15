@@ -227,6 +227,8 @@ def _contains_emoji(text: str) -> bool:
 
 def _quotes_are_verified(text: str, evidence: Iterable[RetrievedEvidence]) -> bool:
     quoted = re.findall(r'[“"]([^”"]+)[”"]', text)
+    quoted.extend(re.findall(r"‘([^\n]+?)’(?![A-Za-z0-9])", text))
+    quoted.extend(re.findall(r"(?<![A-Za-z0-9])'([^\n]+?)'(?![A-Za-z0-9])", text))
     if not quoted:
         return True
     exact_texts = {
@@ -287,7 +289,11 @@ def validate_reply_decision(
         raise ValueError("reply mode is disabled by configuration")
     if allowed_humour_tones is not None and tone != "none" and tone not in allowed_humour_tones:
         raise ValueError("humour tone is disabled by configuration")
-    if not isinstance(ids, list) or any(not isinstance(item, str) or item not in allowed_quote_ids for item in ids):
+    evidence_ids = {item.quote_id for item in evidence}
+    if not isinstance(ids, list) or any(
+        not isinstance(item, str) or item not in allowed_quote_ids or item not in evidence_ids
+        for item in ids
+    ):
         raise ValueError("reply cites a non-retrieved or unresolved quote ID")
     selected_evidence = [item for item in evidence if item.quote_id in set(ids)]
     if type(value["factual_claim_made"]) is not bool or type(value["grounded"]) is not bool:
@@ -311,14 +317,14 @@ def validate_reply_decision(
         raise ValueError("historical reply modes require retrieved grounded evidence")
     if mode in HISTORICAL_MODES and CONFIDENCE_LEVELS[confidence] < CONFIDENCE_LEVELS[minimum_grounded_confidence]:
         raise ValueError("historical reply is below configured grounded confidence")
-    if mode in HISTORICAL_MODES:
+    if value["factual_claim_made"]:
         packet_floor = "high" if mode == "historical_correction" else minimum_grounded_confidence
         if any(
             CONFIDENCE_LEVELS.get(str(item.packet.get("research_confidence") or "low"), 0)
             < CONFIDENCE_LEVELS[packet_floor]
             for item in selected_evidence
         ):
-            raise ValueError("historical reply is below required packet confidence")
+            raise ValueError("factual reply is below required packet confidence")
     if value["factual_claim_made"] and not value["grounded"]:
         raise ValueError("factual claims require grounding")
     if value["grounded"] and not ids:

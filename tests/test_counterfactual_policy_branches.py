@@ -6,17 +6,24 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_simulate_regular_post_futures import SNAPSHOT, isolated_simulator_bot
+from tests.test_simulate_regular_post_futures import (
+    build_simulator_snapshot,
+    isolated_simulator_bot,
+    run_private_future,
+)
 from tests.test_unit_helpers import bot
 from tools import simulate_regular_post_futures as sim
 
 
-ROOT = Path(__file__).resolve().parents[1]
+@pytest.fixture(scope="module")
+def counterfactual_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return build_simulator_snapshot(tmp_path_factory)
 
 
 def run_counterfactual(
     private_bot,
     directory: Path,
+    snapshot: Path,
     *,
     posts: int,
     detail: str = "none",
@@ -29,7 +36,7 @@ def run_counterfactual(
         private_bot,
         sim.PrivateWriter(directory),
         directory,
-        SNAPSHOT,
+        snapshot,
         "counterfactual-equivalence",
         0,
         1000,
@@ -168,38 +175,75 @@ def test_generated_spacing_evolves_independently_by_branch(monkeypatch: pytest.M
     assert bot.generated_images_allowed_by_spacing(states["editorial"]) is True
 
 
-def test_production_branch_and_shared_quotes_match_observational_control(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
-        run_counterfactual(private_bot, tmp_path / "counter", posts=20)
+def test_production_branch_and_shared_quotes_match_observational_control(
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
+        run_counterfactual(private_bot, tmp_path / "counter", counterfactual_snapshot, posts=20)
+        run_private_future(
+            private_bot,
+            tmp_path / "control",
+            counterfactual_snapshot,
+            posts=20,
+            seed=1_000,
+            start_epoch=1_783_702_800,
+        )
     production = records(tmp_path / "counter", "production/selections.jsonl")
     shared = records(tmp_path / "counter", "shared_quotes.jsonl")
-    control = [json.loads(line) for line in (ROOT / "simulation_runs/audit_smoke_1x20_20260710/runs/run_0000/selections.jsonl").read_text().splitlines()]
+    control = [
+        json.loads(line)
+        for line in (tmp_path / "control/runs/run_0000/selections.jsonl").read_text().splitlines()
+    ]
     assert [row["winner"] for row in production] == [row["production_image"] for row in control]
     assert [row["quote_hash"] for row in shared] == [row["quote_hash"] for row in control]
     assert [row["virtual_timestamp"] for row in shared] == [row["virtual_timestamp"] for row in control]
 
 
-def test_shared_quote_branches_diverge_and_then_use_different_candidate_sets(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
-        run_counterfactual(private_bot, tmp_path / "counter", posts=20, detail="full")
+def test_shared_quote_branches_diverge_and_then_use_different_candidate_sets(
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
+        run_counterfactual(
+            private_bot, tmp_path / "counter", counterfactual_snapshot, posts=50, detail="full",
+        )
     comparisons = records(tmp_path / "counter", "branch_comparison.jsonl")
     shared = records(tmp_path / "counter", "shared_quotes.jsonl")
-    assert len({row["quote_hash"] for row in shared}) == 20
+    assert len({row["quote_hash"] for row in shared}) == 50
     first = next(row for row in comparisons if not row["production_editorial_same"])
     production = records(tmp_path / "counter", "production/selections.jsonl")
     editorial = records(tmp_path / "counter", "editorial/selections.jsonl")
-    assert first["post_index"] == 9
-    assert production[8]["winner"] != editorial[8]["winner"]
-    assert {row["basename"] for row in production[9]["candidate_detail"]} != {
-        row["basename"] for row in editorial[9]["candidate_detail"]
+    divergence_index = int(first["post_index"])
+    assert production[divergence_index - 1]["winner"] != editorial[divergence_index - 1]["winner"]
+    next_index = divergence_index
+    assert next_index < len(production)
+    assert {row["basename"] for row in production[next_index]["candidate_detail"]} != {
+        row["basename"] for row in editorial[next_index]["candidate_detail"]
     }
     checkpoint = json.loads((tmp_path / "counter/counterfactual/runs/run_0000/counterfactual_checkpoint.json").read_text())
     assert set(checkpoint["branches"]["production"]["images_used"]) != set(checkpoint["branches"]["editorial"]["images_used"])
 
 
-def test_branch_marks_only_its_own_divergent_winner_used(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
-        run_counterfactual(private_bot, tmp_path / "counter", posts=20, stop_after_post=9)
+def test_branch_marks_only_its_own_divergent_winner_used(
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
+        probe = tmp_path / "probe"
+        run_counterfactual(private_bot, probe, counterfactual_snapshot, posts=50)
+        first_divergence = next(
+            row for row in records(probe, "branch_comparison.jsonl")
+            if not row["production_editorial_same"]
+        )
+        divergence_index = int(first_divergence["post_index"])
+        run_counterfactual(
+            private_bot,
+            tmp_path / "counter",
+            counterfactual_snapshot,
+            posts=50,
+            stop_after_post=divergence_index,
+        )
     comparison = records(tmp_path / "counter", "branch_comparison.jsonl")[-1]
     assert comparison["production_editorial_same"] is False
     checkpoint = json.loads((tmp_path / "counter/counterfactual/runs/run_0000/counterfactual_checkpoint.json").read_text())
@@ -211,12 +255,17 @@ def test_branch_marks_only_its_own_divergent_winner_used(tmp_path: Path) -> None
     assert production_winner not in checkpoint["branches"]["editorial"]["images_used"]
 
 
-def test_counterfactual_candidate_detail_modes_do_not_change_future(tmp_path: Path) -> None:
+def test_counterfactual_candidate_detail_modes_do_not_change_future(
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
     outputs = {}
-    with isolated_simulator_bot(tmp_path) as private_bot:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
         for detail in ("none", "top10", "full"):
             directory = tmp_path / detail
-            run_counterfactual(private_bot, directory, posts=10, detail=detail)
+            run_counterfactual(
+                private_bot, directory, counterfactual_snapshot, posts=10, detail=detail,
+            )
             outputs[detail] = {
                 branch: [
                     {key: value for key, value in row.items() if key != "candidate_detail"}
@@ -228,19 +277,27 @@ def test_counterfactual_candidate_detail_modes_do_not_change_future(tmp_path: Pa
 
 
 @pytest.mark.parametrize("stage", ["after_editorial_selection", "after_comparison_append", "after_counterfactual_checkpoint"])
-def test_counterfactual_resume_matches_uninterrupted(stage: str, tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
+def test_counterfactual_resume_matches_uninterrupted(
+    stage: str,
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
         uninterrupted = tmp_path / "uninterrupted"
         interrupted = tmp_path / "interrupted"
-        run_counterfactual(private_bot, uninterrupted, posts=100)
+        run_counterfactual(private_bot, uninterrupted, counterfactual_snapshot, posts=100)
 
         def fail(current_stage: str, post_index: int) -> None:
             if current_stage == stage and post_index == 37:
                 raise RuntimeError("intentional counterfactual interruption")
 
         with pytest.raises(RuntimeError, match="intentional counterfactual interruption"):
-            run_counterfactual(private_bot, interrupted, posts=100, failure_hook=fail)
-        run_counterfactual(private_bot, interrupted, posts=100, resume=True)
+            run_counterfactual(
+                private_bot, interrupted, counterfactual_snapshot, posts=100, failure_hook=fail,
+            )
+        run_counterfactual(
+            private_bot, interrupted, counterfactual_snapshot, posts=100, resume=True,
+        )
 
     for name in ("shared_quotes.jsonl", "branch_comparison.jsonl", *(f"{branch}/selections.jsonl" for branch in sim.BRANCHES)):
         assert (uninterrupted / "counterfactual/runs/run_0000" / name).read_bytes() == (
@@ -251,12 +308,19 @@ def test_counterfactual_resume_matches_uninterrupted(stage: str, tmp_path: Path)
     )
 
 
-def test_counterfactual_summary_uses_actual_branch_winners(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
-        run_counterfactual(private_bot, tmp_path / "counter", posts=20)
+def test_counterfactual_summary_uses_actual_branch_winners(
+    tmp_path: Path,
+    counterfactual_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, counterfactual_snapshot) as private_bot:
+        run_counterfactual(private_bot, tmp_path / "counter", counterfactual_snapshot, posts=20)
     branch_records, comparisons = sim.load_counterfactual_records(tmp_path / "counter")
     summary = sim.summarize_counterfactual(branch_records, comparisons, 1.0)
     assert summary["total_post_indices"] == 20
     assert summary["total_branch_selections"] == 60
-    assert summary["editorial"]["divergences_from_production"] == 3
-    assert summary["branches"]["editorial"]["diversity"]["unique_images"] == 20
+    assert summary["editorial"]["divergences_from_production"] == sum(
+        not row["production_editorial_same"] for row in comparisons
+    )
+    assert summary["branches"]["editorial"]["diversity"]["unique_images"] == len({
+        row["winner"] for row in branch_records["editorial"]
+    })

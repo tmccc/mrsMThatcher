@@ -216,6 +216,7 @@ def test_success_status_malformed_body_is_ambiguous_only_for_writes(monkeypatch,
     "page",
     [
         {"data": {}},
+        {"data": ["not-an-object"]},
         {"includes": []},
         {"includes": {"users": {"id": "1"}}},
         {"includes": {"media": "bad"}},
@@ -231,3 +232,11 @@ def test_paginated_get_rejects_malformed_page_sections(page):
             max_pages=1,
             label="test",
         )
+
+
+@pytest.mark.parametrize("data", [[], "not-an-object", 7])
+def test_get_tweet_by_id_rejects_malformed_data(monkeypatch, data):
+    monkeypatch.setattr(bot, "x_request", lambda *_args, **_kwargs: {"data": data})
+
+    with pytest.raises(bot.ApiError, match="malformed tweet data"):
+        bot.get_tweet_by_id("123")

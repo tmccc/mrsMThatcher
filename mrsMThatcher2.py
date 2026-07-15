@@ -1252,7 +1252,7 @@ def parse_request_timeout_seconds() -> float:
         log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
         return 60.0
 
-    if value <= 0:
+    if not math.isfinite(value) or value <= 0:
         log.error("Invalid MRS_REQUEST_TIMEOUT_SECONDS=%r; using default 60", raw)
         return 60.0
 
@@ -1932,11 +1932,17 @@ def load_state() -> dict:
 
 def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = None) -> tuple[int, bool]:
     raw_value = state.get(key, 0)
+    malformed = isinstance(raw_value, bool) or (
+        isinstance(raw_value, float)
+        and (not math.isfinite(raw_value) or not raw_value.is_integer())
+    )
     try:
-        value = int(raw_value or 0)
-    except (TypeError, ValueError):
-        log.warning("Ignoring malformed scheduler epoch %s=%r", key, raw_value)
+        value = 0 if malformed else int(raw_value or 0)
+    except (TypeError, ValueError, OverflowError):
+        malformed = True
         value = 0
+    if malformed:
+        log.warning("Ignoring malformed scheduler epoch %s=%r", key, raw_value)
 
     if value < 0:
         log.warning("Ignoring negative scheduler epoch %s=%r", key, raw_value)
@@ -1946,7 +1952,7 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
         log.warning("Ignoring future scheduler epoch %s=%r current=%s", key, raw_value, current)
         value = 0
 
-    if raw_value != value:
+    if malformed or type(raw_value) is not int or raw_value != value:
         state[key] = value
         return value, True
 
@@ -2112,7 +2118,7 @@ def parse_x_datetime_to_epoch(value: str | None) -> int | None:
 
 def parse_tweet_id(value: object, *, context: str) -> int | None:
     value_str = str(value or "")
-    if not value_str.isdigit():
+    if not re.fullmatch(r"\d{1,30}", value_str):
         log.warning("Skipping %s with invalid tweet id=%r", context, value)
         return None
     return int(value_str)
@@ -2480,7 +2486,7 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
         page_data = result.get("data", [])
         includes = result.get("includes", {})
         meta = result.get("meta", {})
-        if not isinstance(page_data, list):
+        if not isinstance(page_data, list) or any(not isinstance(item, dict) for item in page_data):
             raise ApiError(f"X {label} returned malformed paginated response data", service="x")
         if not isinstance(includes, dict):
             raise ApiError(f"X {label} returned malformed paginated response includes", service="x")
@@ -2657,11 +2663,20 @@ def cache_tweet(
 
 
 def get_immediate_parent_id(tweet: dict) -> str | None:
-    for ref in tweet.get("referenced_tweets", []):
+    referenced_tweets = tweet.get("referenced_tweets", [])
+    if referenced_tweets is None:
+        return None
+    if not isinstance(referenced_tweets, list):
+        raise ApiError("X tweet returned malformed referenced_tweets", service="x")
+
+    for ref in referenced_tweets:
+        if not isinstance(ref, dict):
+            raise ApiError("X tweet returned malformed referenced_tweets", service="x")
         if ref.get("type") == "replied_to":
-            parent_id = ref.get("id")
-            if parent_id:
-                return str(parent_id)
+            parent_id = parse_tweet_id(ref.get("id"), context="parent reference")
+            if parent_id is None:
+                raise ApiError("X tweet returned malformed referenced_tweets", service="x")
+            return str(parent_id)
 
     return None
 
@@ -2680,6 +2695,8 @@ def get_tweet_by_id(tweet_id: str) -> dict | None:
     )
 
     tweet = result.get("data")
+    if tweet is not None and not isinstance(tweet, dict):
+        raise ApiError("X tweet lookup returned malformed tweet data", service="x")
     log_json_debug("Fetched tweet", tweet)
 
     return tweet
@@ -3235,11 +3252,12 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         log.info("Fetched %d hot-post conversation candidate(s) for post_id=%s", len(replies), original_post_id)
         log_json_debug("Hot-post reply candidates returned", replies)
 
-        raw_ids = [int(str(reply.get("id", "0"))) for reply in replies if str(reply.get("id", "")).isdigit()]
+        valid_replies = valid_tweets_sorted_by_id(replies, context="hot-post reply candidate")
+        raw_ids = [int(str(reply["id"])) for reply in valid_replies]
         raw_highest_id = str(max(raw_ids)) if raw_ids else ""
         candidates_for_this_post = 0
 
-        for reply in valid_tweets_sorted_by_id(replies, context="hot-post reply candidate"):
+        for reply in valid_replies:
             reply_id = str(reply.get("id", ""))
             author_id = str(reply.get("author_id", ""))
 
@@ -7759,9 +7777,17 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
     if mode in {"historical_correction", "historical_context", "researched_principle"}:
         if not factual or not grounded or not ids or not strategy_metadata["evidence_summary"].strip():
             return False
+    if grounded and (not ids or not strategy_metadata["evidence_summary"].strip()):
+        return False
     if factual and (not grounded or not ids or not strategy_metadata["evidence_summary"].strip()):
         return False
+    if factual and CONFIDENCE_LEVELS[strategy_metadata["evidence_confidence"]] < CONFIDENCE_LEVELS["medium"]:
+        return False
     if mode == "historical_correction" and strategy_metadata["evidence_confidence"] != "high":
+        return False
+    if mode in {"historical_context", "researched_principle"} and (
+        CONFIDENCE_LEVELS[strategy_metadata["evidence_confidence"]] < CONFIDENCE_LEVELS["medium"]
+    ):
         return False
     return True
 

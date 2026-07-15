@@ -4989,6 +4989,79 @@ def test_confirmed_reply_receipt_rejects_contradictory_strategy_metadata() -> No
     assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
 
 
+@pytest.mark.parametrize(
+    "metadata_patch",
+    [
+        {"mode": "historical_context", "evidence_confidence": "low"},
+        {"mode": "researched_principle", "evidence_confidence": "none"},
+        {"mode": "wry_reply", "evidence_confidence": "low"},
+        {
+            "mode": "wry_reply",
+            "factual_claim_made": False,
+            "grounded": True,
+            "retrieved_quote_ids": [],
+            "evidence_summary": "",
+        },
+    ],
+)
+def test_confirmed_reply_receipt_rejects_weak_or_contradictory_grounding_metadata(
+    metadata_patch: dict,
+) -> None:
+    metadata = {
+        "mode": "historical_context",
+        "humour_tone": "dry",
+        "evidence_confidence": "medium",
+        "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "A grounded summary.",
+        "factual_claim_made": True,
+        "grounded": True,
+        "reply_text": "A grounded reply.",
+        "no_reply_reason": "",
+    }
+    metadata.update(metadata_patch)
+    receipt = {
+        "schema_version": 1,
+        "target_id": "100",
+        "reply_post_id": "900000",
+        "author_id": "200",
+        "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18",
+        "candidate_source": "mention",
+        "conversation_id": "100",
+        "reply_text": "A grounded reply.",
+        "strategy_metadata": metadata,
+    }
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+
+@pytest.mark.parametrize("bad_value", [float("inf"), float("-inf"), 1.5, True])
+def test_scheduler_epoch_rejects_non_integer_numeric_values(bad_value: object) -> None:
+    state = {"last_reply_check_epoch": bad_value}
+
+    assert bot.scheduler_epoch_from_state(
+        state,
+        "last_reply_check_epoch",
+        current=2_000_000_000,
+    ) == (0, True)
+    assert state["last_reply_check_epoch"] == 0
+    assert type(state["last_reply_check_epoch"]) is int
+
+
+@pytest.mark.parametrize("raw_value", ["nan", "inf", "-inf"])
+def test_request_timeout_rejects_non_finite_values(
+    monkeypatch: pytest.MonkeyPatch,
+    raw_value: str,
+) -> None:
+    monkeypatch.setenv("MRS_REQUEST_TIMEOUT_SECONDS", raw_value)
+
+    assert bot.parse_request_timeout_seconds() == 60.0
+
+
+def test_parse_tweet_id_rejects_oversized_numeric_value() -> None:
+    assert bot.parse_tweet_id("9" * 5_000, context="test tweet") is None
+
+
 def test_pending_strategy_reply_survives_state_round_trip_and_is_reused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5475,6 +5548,27 @@ def test_cache_tweet_rejects_malformed_referenced_tweets(referenced_tweets: obje
         )
 
     assert state["tweet_cache"] == {}
+
+
+def test_get_immediate_parent_id_accepts_absent_or_valid_references() -> None:
+    assert bot.get_immediate_parent_id({}) is None
+    assert bot.get_immediate_parent_id({"referenced_tweets": None}) is None
+    assert bot.get_immediate_parent_id({
+        "referenced_tweets": [{"type": "quoted", "id": "111"},
+                              {"type": "replied_to", "id": 222}],
+    }) == "222"
+
+
+@pytest.mark.parametrize(
+    "referenced_tweets",
+    ["banana", ["banana"], [{"type": "replied_to"}],
+     [{"type": "replied_to", "id": "not-a-tweet-id"}]],
+)
+def test_get_immediate_parent_id_rejects_malformed_api_references(
+    referenced_tweets: object,
+) -> None:
+    with pytest.raises(bot.ApiError, match="malformed referenced_tweets"):
+        bot.get_immediate_parent_id({"referenced_tweets": referenced_tweets})
 
 
 def test_load_state_rejects_malformed_last_seen_mention_id_and_recovers_backup(

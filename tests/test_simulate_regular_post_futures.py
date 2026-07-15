@@ -6,7 +6,6 @@ import random
 import socket
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -15,11 +14,58 @@ from tools import simulate_regular_post_futures as sim
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOT = ROOT / "simulation_runs" / "smoke_1x20_20260710" / "input_snapshot"
+DETERMINISTIC_FLAGS = {
+    "ENABLE_GENERATED_IMAGE_POOL": True,
+    "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
+    "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
+    "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True,
+    "ORIGINAL_EDITORIAL_SHADOW_WEIGHT": 0.32,
+    "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT": 4.0,
+    "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING": True,
+    "ENABLE_GENERATED_IDENTITY_POLICY_SCORING": False,
+    "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY": 6.0,
+    "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY": 15.0,
+}
+
+
+def build_simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    snapshot = tmp_path_factory.mktemp("regular-selector-snapshot")
+    static_files = (
+        "mrsMThatcher.txt",
+        "quote_analysis.json",
+        "image_analysis.json",
+        "generated_image_analysis.json",
+        "original_image_editorial_analysis_experiment_v1.json",
+        "generated_image_identity_dependence_audit.json",
+    )
+    for name in static_files:
+        (snapshot / name).symlink_to(ROOT / name)
+    (snapshot / "images").symlink_to(ROOT / "images", target_is_directory=True)
+    (snapshot / "generated_images").symlink_to(
+        ROOT / "generated_review_approved_images",
+        target_is_directory=True,
+    )
+    (snapshot / "mrsMThatcher.local.json").write_text(
+        json.dumps(DETERMINISTIC_FLAGS),
+        encoding="utf-8",
+    )
+    state = bot.default_state()
+    state["original_regular_posts_since_generated_image"] = (
+        DETERMINISTIC_FLAGS["GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN"]
+    )
+    (snapshot / "bot_state.json").write_text(json.dumps(state), encoding="utf-8")
+    (snapshot / "images_used.json").write_text("[]", encoding="utf-8")
+    (snapshot / "lines_used.json").write_text("[]", encoding="utf-8")
+    return snapshot
+
+
+@pytest.fixture(scope="module")
+def simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return build_simulator_snapshot(tmp_path_factory)
 
 
 @contextmanager
-def isolated_simulator_bot(tmp_path: Path):
+def isolated_simulator_bot(tmp_path: Path, snapshot: Path):
     touched = set(bot.LOCAL_CONFIG_ALLOWED_KEYS) | {
         "LINES_FILE", "QUOTE_ANALYSIS_FILE", "IMAGE_ANALYSIS_FILE", "GENERATED_IMAGE_ANALYSIS_FILE",
         "IMAGE_GLOB", "GENERATED_IMAGE_DIR", "GENERATED_IMAGE_GLOB", "ORIGINAL_EDITORIAL_ANALYSIS_FILE",
@@ -38,7 +84,7 @@ def isolated_simulator_bot(tmp_path: Path):
     original_requests = {name: getattr(bot.requests, name) for name in request_names}
     rng_state = bot.random.getstate()
     try:
-        sim.apply_snapshot_config(bot, SNAPSHOT)
+        sim.apply_snapshot_config(bot, snapshot)
         yield bot
     finally:
         for name, value in original.items():
@@ -51,11 +97,14 @@ def isolated_simulator_bot(tmp_path: Path):
 def run_private_future(
     private_bot,
     directory: Path,
+    snapshot: Path,
     *,
     posts: int,
     detail: str = "none",
     resume: bool = False,
     failure_hook=None,
+    seed: int = 77_123,
+    start_epoch: int = 1_788_453_600,
 ) -> list[dict]:
     directory.mkdir(parents=True, exist_ok=True)
     writer = sim.PrivateWriter(directory)
@@ -63,42 +112,34 @@ def run_private_future(
         private_bot,
         writer,
         directory,
-        SNAPSHOT,
+        snapshot,
         "equivalence-session",
         0,
-        77123,
+        seed,
         posts,
-        1_788_453_600,
+        start_epoch,
         detail,
         resume,
         failure_hook=failure_hook,
     )
 
 
-def configure_real_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[dict, set[str], set[str]]:
-    deterministic_flags = {
-        "ENABLE_GENERATED_IMAGE_POOL": True,
-        "GENERATED_IMAGE_ORIGIN_QUOTE_BOOST": 6,
-        "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 2,
-        "ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING": True,
-        "ORIGINAL_EDITORIAL_SHADOW_WEIGHT": 0.32,
-        "ORIGINAL_EDITORIAL_SHADOW_MAX_ABS_ADJUSTMENT": 4.0,
-        "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING": True,
-        "ENABLE_GENERATED_IDENTITY_POLICY_SCORING": False,
-        "GENERATED_IDENTITY_SHADOW_SMALL_PENALTY": 6.0,
-        "GENERATED_IDENTITY_SHADOW_STRONG_PENALTY": 15.0,
-    }
-    for key, value in deterministic_flags.items():
+def configure_real_selector(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    snapshot: Path,
+) -> tuple[dict, set[str], set[str]]:
+    for key, value in DETERMINISTIC_FLAGS.items():
         monkeypatch.setattr(bot, key, value)
-    monkeypatch.setattr(bot, "LINES_FILE", ROOT / "mrsMThatcher.txt")
-    monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", ROOT / "quote_analysis.json")
-    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", ROOT / "image_analysis.json")
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(ROOT / "generated_image_analysis.json"))
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(ROOT / "images" / "t*"))
-    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(ROOT / "generated_review_approved_images"))
+    monkeypatch.setattr(bot, "LINES_FILE", snapshot / "mrsMThatcher.txt")
+    monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", snapshot / "quote_analysis.json")
+    monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", snapshot / "image_analysis.json")
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
+    monkeypatch.setattr(bot, "IMAGE_GLOB", str(snapshot / "images" / "t*"))
+    monkeypatch.setattr(bot, "GENERATED_IMAGE_DIR", str(snapshot / "generated_images"))
     monkeypatch.setattr(bot, "GENERATED_IMAGE_GLOB", "*.png")
-    monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(ROOT / "original_image_editorial_analysis_experiment_v1.json"))
-    monkeypatch.setattr(bot, "GENERATED_IDENTITY_AUDIT_FILE", str(ROOT / "generated_image_identity_dependence_audit.json"))
+    monkeypatch.setattr(bot, "ORIGINAL_EDITORIAL_ANALYSIS_FILE", str(snapshot / "original_image_editorial_analysis_experiment_v1.json"))
+    monkeypatch.setattr(bot, "GENERATED_IDENTITY_AUDIT_FILE", str(snapshot / "generated_image_identity_dependence_audit.json"))
     monkeypatch.setattr(bot, "IMAGES_USED_FILE", tmp_path / "images_used.json")
     monkeypatch.setattr(bot, "LINES_USED_FILE", tmp_path / "lines_used.json")
     monkeypatch.setattr(bot, "_ORIGINAL_EDITORIAL_ANALYSIS_CACHE", {})
@@ -111,10 +152,10 @@ def configure_real_selector(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> 
         return sha_cache.setdefault(path, original_sha(path))
 
     monkeypatch.setattr(bot, "current_image_sha256", cached_sha)
-    state = json.loads((ROOT / "bot_state.json").read_text(encoding="utf-8"))
+    state = json.loads((snapshot / "bot_state.json").read_text(encoding="utf-8"))
     state["original_regular_posts_since_generated_image"] = bot.GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN
-    images_used = set(json.loads((ROOT / "images_used.json").read_text(encoding="utf-8")))
-    lines_used = set(json.loads((ROOT / "lines_used.json").read_text(encoding="utf-8")))
+    images_used = set(json.loads((snapshot / "images_used.json").read_text(encoding="utf-8")))
+    lines_used = set(json.loads((snapshot / "lines_used.json").read_text(encoding="utf-8")))
     return state, images_used, lines_used
 
 
@@ -199,8 +240,11 @@ def test_hard_guards_block_post_upload_reply_lock_and_network(tmp_path: Path) ->
 def test_real_selector_is_reproducible_and_shadows_receive_exact_candidate_object(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    simulator_snapshot: Path,
 ) -> None:
-    state, images_used, lines_used = configure_real_selector(monkeypatch, tmp_path)
+    state, images_used, lines_used = configure_real_selector(
+        monkeypatch, tmp_path, simulator_snapshot,
+    )
     first_state = copy.deepcopy(state)
     first_images = set(images_used)
     first_lines = set(lines_used)
@@ -228,8 +272,11 @@ def test_real_selector_is_reproducible_and_shadows_receive_exact_candidate_objec
 def test_shadow_evaluation_does_not_consume_production_rng(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    simulator_snapshot: Path,
 ) -> None:
-    state, images_used, lines_used = configure_real_selector(monkeypatch, tmp_path)
+    state, images_used, lines_used = configure_real_selector(
+        monkeypatch, tmp_path, simulator_snapshot,
+    )
     bot.random.seed(991)
     selection = sim.select_with_production_recovery(bot, set(lines_used), set(images_used), copy.deepcopy(state))
     after_shadow = bot.random.getstate()
@@ -360,19 +407,26 @@ def test_snapshot_relationship_validation_rejects_last_image_missing_from_histor
         sim.validate_mutable_snapshot(payload)
 
 
-def test_interrupted_resume_matches_uninterrupted_after_record_append(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
+def test_interrupted_resume_matches_uninterrupted_after_record_append(
+    tmp_path: Path,
+    simulator_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, simulator_snapshot) as private_bot:
         uninterrupted = tmp_path / "uninterrupted"
         interrupted = tmp_path / "interrupted"
-        run_private_future(private_bot, uninterrupted, posts=100)
+        run_private_future(private_bot, uninterrupted, simulator_snapshot, posts=100)
 
         def fail(stage: str, post_index: int) -> None:
             if stage == "after_record_append" and post_index == 37:
                 raise RuntimeError("intentional interruption")
 
         with pytest.raises(RuntimeError, match="intentional interruption"):
-            run_private_future(private_bot, interrupted, posts=100, failure_hook=fail)
-        run_private_future(private_bot, interrupted, posts=100, resume=True)
+            run_private_future(
+                private_bot, interrupted, simulator_snapshot, posts=100, failure_hook=fail,
+            )
+        run_private_future(
+            private_bot, interrupted, simulator_snapshot, posts=100, resume=True,
+        )
 
     assert (uninterrupted / "runs/run_0000/selections.jsonl").read_bytes() == (
         interrupted / "runs/run_0000/selections.jsonl"
@@ -382,19 +436,26 @@ def test_interrupted_resume_matches_uninterrupted_after_record_append(tmp_path: 
     )
 
 
-def test_interrupted_resume_matches_uninterrupted_after_checkpoint(tmp_path: Path) -> None:
-    with isolated_simulator_bot(tmp_path) as private_bot:
+def test_interrupted_resume_matches_uninterrupted_after_checkpoint(
+    tmp_path: Path,
+    simulator_snapshot: Path,
+) -> None:
+    with isolated_simulator_bot(tmp_path, simulator_snapshot) as private_bot:
         uninterrupted = tmp_path / "uninterrupted"
         interrupted = tmp_path / "interrupted"
-        run_private_future(private_bot, uninterrupted, posts=40)
+        run_private_future(private_bot, uninterrupted, simulator_snapshot, posts=40)
 
         def fail(stage: str, post_index: int) -> None:
             if stage == "after_checkpoint" and post_index == 17:
                 raise RuntimeError("intentional interruption")
 
         with pytest.raises(RuntimeError, match="intentional interruption"):
-            run_private_future(private_bot, interrupted, posts=40, failure_hook=fail)
-        run_private_future(private_bot, interrupted, posts=40, resume=True)
+            run_private_future(
+                private_bot, interrupted, simulator_snapshot, posts=40, failure_hook=fail,
+            )
+        run_private_future(
+            private_bot, interrupted, simulator_snapshot, posts=40, resume=True,
+        )
 
     assert (uninterrupted / "runs/run_0000/selections.jsonl").read_bytes() == (
         interrupted / "runs/run_0000/selections.jsonl"
@@ -403,12 +464,17 @@ def test_interrupted_resume_matches_uninterrupted_after_checkpoint(tmp_path: Pat
     assert indices == list(range(1, 41))
 
 
-def test_candidate_detail_modes_do_not_change_core_future(tmp_path: Path) -> None:
+def test_candidate_detail_modes_do_not_change_core_future(
+    tmp_path: Path,
+    simulator_snapshot: Path,
+) -> None:
     outputs = {}
-    with isolated_simulator_bot(tmp_path) as private_bot:
+    with isolated_simulator_bot(tmp_path, simulator_snapshot) as private_bot:
         for detail in ("none", "top10", "full"):
             directory = tmp_path / detail
-            run_private_future(private_bot, directory, posts=20, detail=detail)
+            run_private_future(
+                private_bot, directory, simulator_snapshot, posts=20, detail=detail,
+            )
             records = [json.loads(line) for line in (directory / "runs/run_0000/selections.jsonl").read_text().splitlines()]
             outputs[detail] = [
                 {key: value for key, value in record.items() if key != "candidate_detail"}
