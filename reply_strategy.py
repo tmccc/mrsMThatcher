@@ -238,19 +238,24 @@ def _quotes_are_verified(text: str, evidence: Iterable[RetrievedEvidence]) -> bo
     return all(" ".join(value.split()).lower() in exact_texts for value in quoted)
 
 
-def reply_is_repetitive(text: str, recent_replies: Iterable[str]) -> bool:
+def reply_repetition_reason(text: str, recent_replies: Iterable[str]) -> str | None:
     normalised = " ".join(text.lower().split())
+    previous_values = [" ".join(str(previous).lower().split()) for previous in recent_replies]
+    if normalised in previous_values:
+        return "exact duplicate reply"
     if any(pattern in normalised for pattern in CANNED_PATTERNS):
-        return True
+        return "canned formulation"
     tokens = _tokens(normalised)
-    for previous in recent_replies:
+    for previous in previous_values:
         previous_tokens = _tokens(previous)
-        if normalised == " ".join(str(previous).lower().split()):
-            return True
         union = tokens | previous_tokens
         if union and len(tokens & previous_tokens) / len(union) >= 0.8:
-            return True
-    return False
+            return "highly similar reply"
+    return None
+
+
+def reply_is_repetitive(text: str, recent_replies: Iterable[str]) -> bool:
+    return reply_repetition_reason(text, recent_replies) is not None
 
 
 def validate_reply_decision(
@@ -333,8 +338,9 @@ def validate_reply_decision(
             raise ValueError("emoji are not allowed")
         if not _quotes_are_verified(reply, selected_evidence):
             raise ValueError("quotation marks require verified exact text")
-        if reply_is_repetitive(reply, recent_replies):
-            raise ValueError("reply repeats a recent or canned pattern")
+        repetition_reason = reply_repetition_reason(reply, recent_replies)
+        if repetition_reason:
+            raise ValueError(repetition_reason)
     return {
         **value,
         "reply_text": reply,

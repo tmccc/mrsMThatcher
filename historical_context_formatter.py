@@ -208,6 +208,34 @@ def select_primary_source(packet: dict[str, Any]) -> dict[str, str] | None:
             "source_type": str(source.get("source_type") or "unknown")}
 
 
+def classify_source(source: dict[str, Any] | None) -> str:
+    """Map a selected canonical source to a stable, non-provider digest class."""
+    if not source:
+        return "unavailable"
+    title = str(source.get("title") or "").lower()
+    url = str(source.get("url") or "")
+    source_type = str(source.get("source_type") or "").lower()
+    host = urlsplit(url).netloc.lower()
+    text = f"{title} {host} {source_type}"
+    if "margaretthatcher.org" in text or "margaret thatcher foundation" in text:
+        return "Margaret Thatcher Foundation"
+    if "hansard" in text:
+        return "Hansard"
+    if any(term in text for term in ("thatcher-authored", "memoir", "book", "publication")):
+        return "Thatcher-authored publication"
+    if any(term in text for term in ("interview", "bbc", "newspaper", "the times", "guardian")):
+        return "contemporary interview"
+    if any(term in text for term in ("conservative", "conservatives.com", "conservative party")):
+        return "official Conservative publication"
+    if source_type == "canonical_stable_locator":
+        return "canonical locator only"
+    if not url or _is_grounding_redirect(url):
+        return "no public URL"
+    if any(term in text for term in ("speech", "transcript", "statement", "gov.uk")):
+        return "original speech transcript"
+    return "other authoritative source"
+
+
 def _sentence(value: Any) -> str:
     text = " ".join(str(value or "").split()).strip()
     if text.lower() in UNKNOWN_VALUES: return ""
@@ -271,6 +299,10 @@ def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAUL
         return "\n\n".join(sections)
 
     source_title = source["title"] if source else ""
+    original_meaning = meaning
+    original_immediate = immediate
+    original_event = event
+    original_source_title = source_title
     text = render(meaning, immediate, event, source_title)
     # Meaning is always compressed or removed before any provenance field.
     if x_weighted_length(text) > maximum_length and meaning:
@@ -293,9 +325,18 @@ def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAUL
         text = render("", immediate, event, source_title)
     weighted = x_weighted_length(text)
     if weighted > maximum_length or _has_forbidden_style(text): return None
+    shortened = any((meaning != original_meaning, immediate != original_immediate,
+                     event != original_event, source_title != original_source_title))
     return {"text": text, "character_count": weighted, "raw_character_count": len(text), "maximum_length": maximum_length,
             "verification_label": verification if include_verification else None, "source": source,
-            "meaning_included": bool(meaning), "quote_id": packet["quote_id"]}
+            "source_class": classify_source(source),
+            "historical_confidence": packet.get("research_confidence") or "unavailable",
+            "shortening_applied": shortened,
+            "meaning_included": bool(meaning),
+            "meaning_omitted": not bool(meaning),
+            "source_omitted": not bool(source),
+            "verification_omitted": not include_verification,
+            "quote_id": packet["quote_id"]}
 
 
 class HistoricalContextReplyStore:

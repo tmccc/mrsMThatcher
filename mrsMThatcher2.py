@@ -4555,6 +4555,11 @@ def maybe_post_historical_context_reply(
         packet = packet_for_posted_quote(packets, unresolved, quote_hash, quote_text)
         if packet is None:
             log.warning("No completed canonical research packet for quote_hash=%s; context reply skipped", quote_hash)
+            log_event(
+                "historical_context_reply", status="skipped_no_completed_packet",
+                parent_post_id=str(parent_post_id), quote_id=str(quote_hash),
+                reason="no_completed_canonical_packet",
+            )
             return {"status": "skipped_no_completed_packet"}
         formatted = format_context_reply(
             packet,
@@ -4565,6 +4570,11 @@ def maybe_post_historical_context_reply(
         )
         if formatted is None:
             log.warning("Canonical packet could not produce a safe context reply quote_id=%s", packet["quote_id"])
+            log_event(
+                "historical_context_reply", status="skipped_unformattable_packet",
+                parent_post_id=str(parent_post_id), quote_id=str(packet["quote_id"]),
+                reason="unformattable_canonical_packet",
+            )
             return {"status": "skipped_unformattable_packet"}
         if dry_run:
             print(formatted["text"])
@@ -4590,10 +4600,25 @@ def maybe_post_historical_context_reply(
             parent_post_id=str(parent_post_id),
             quote_id=str(packet["quote_id"]),
             character_count=formatted["character_count"],
+            raw_character_count=formatted["raw_character_count"],
+            verification_label=formatted["verification_label"],
+            source_class=formatted["source_class"],
+            historical_confidence=formatted["historical_confidence"],
+            shortening_applied=formatted["shortening_applied"],
+            meaning_omitted=formatted["meaning_omitted"],
+            source_omitted=formatted["source_omitted"],
+            verification_omitted=formatted["verification_omitted"],
+            reply_preview=str(formatted["text"])[:160],
+            reason="post_failed" if result.get("status") == "failed" else "",
         )
         return {**result, "formatted": formatted}
     except Exception as exc:
         if type(exc).__name__ == "AmbiguousContextReplyOutcome":
+            log_event(
+                "historical_context_reply", status="failed",
+                parent_post_id=str(parent_post_id), quote_id=str(quote_hash),
+                reason="ambiguous_outcome",
+            )
             raise
         # No independent context failure record is guaranteed for preparation or persistence
         # errors. Propagate so the confirmed main-post receipt remains available for replay.
@@ -4603,6 +4628,11 @@ def maybe_post_historical_context_reply(
             quote_hash,
             exc,
             exc_info=True,
+        )
+        log_event(
+            "historical_context_reply", status="failed",
+            parent_post_id=str(parent_post_id), quote_id=str(quote_hash),
+            reason=type(exc).__name__,
         )
         raise
 
@@ -7529,9 +7559,28 @@ def ask_grok_for_reply(
             )
         except (ValueError, json.JSONDecodeError) as exc:
             log.warning("Rejected structured reply decision: %s", exc)
+            message = str(exc).lower()
+            reason = "local_validator_rejection"
+            if "duplicate" in message:
+                reason = "exact_duplicate_rejected"
+            elif "similar" in message or "repet" in message:
+                reason = "highly_similar_reply_rejected"
+            elif "canned" in message:
+                reason = "canned_formulation_rejected"
+            elif "ground" in message:
+                reason = "unsafe_factual_claim"
+            elif "confidence" in message:
+                reason = "insufficient_confidence"
+            log_event(
+                "reply_strategy_rejection",
+                lane=media_context.get("lane") or media_context.get("source") or "unavailable",
+                reason=reason,
+            )
             return None
         log_event(
             "reply_strategy_decision",
+            lane=media_context.get("lane") or media_context.get("source") or "unavailable",
+            target_id=media_context.get("target_id") or "",
             mode=validated["mode"],
             humour_tone=validated["humour_tone"],
             evidence_confidence=validated["evidence_confidence"],
@@ -7566,6 +7615,12 @@ def ask_grok_for_reply(
 
     if not generated_reply_is_safe_enough(reply):
         log.warning("Rejected generated reply after safety checks: %r", reply)
+        if strategy_enabled:
+            log_event(
+                "reply_strategy_rejection",
+                lane=media_context.get("lane") or media_context.get("source") or "unavailable",
+                reason="local_validator_rejection",
+            )
         return None
 
     log.info("Grok generated usable reply: %r", reply)
@@ -7820,6 +7875,20 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
         ]
         history.append(record)
         state["reply_strategy_history"] = history[-1000:]
+        log_event(
+            "reply_strategy_outcome",
+            status="confirmed",
+            lane=candidate_source,
+            target_id=target_id,
+            reply_post_id=reply_post_id,
+            mode=strategy_metadata.get("mode"),
+            humour_tone=strategy_metadata.get("humour_tone"),
+            evidence_confidence=strategy_metadata.get("evidence_confidence"),
+            retrieved_quote_ids=strategy_metadata.get("retrieved_quote_ids", []),
+            factual_claim_made=strategy_metadata.get("factual_claim_made"),
+            grounded=strategy_metadata.get("grounded"),
+            no_reply_reason=strategy_metadata.get("no_reply_reason", ""),
+        )
 
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:

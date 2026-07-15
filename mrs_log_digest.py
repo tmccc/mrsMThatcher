@@ -36,7 +36,7 @@ import re
 import statistics
 import sys
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1475,6 +1475,206 @@ def generated_identity_policy_summary(events: List[Dict[str, Any]]) -> Dict[str,
     }
 
 
+def _count_optional(events: List[Dict[str, Any]], field: str, values: tuple[str, ...]) -> Dict[str, int]:
+    counts = Counter({value: 0 for value in values})
+    for event in events:
+        value = event.get(field)
+        key = str(value) if value not in (None, "") else "unavailable"
+        counts[key if not values or key in values else "unavailable"] += 1
+    return dict(sorted(counts.items()))
+
+
+def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    items = [event for event in events if event.get("kind") == "historical_context_reply"]
+    statuses = Counter({key: 0 for key in ("completed", "already_completed", "failed", "skipped", "dry_run", "unavailable")})
+    skip_reasons = Counter()
+    for event in items:
+        status = str(event.get("status") or "unavailable")
+        if status.startswith("skipped"):
+            statuses["skipped"] += 1
+            skip_reasons[str(event.get("reason") or status)] += 1
+        elif status in statuses:
+            statuses[status] += 1
+        else:
+            statuses["unavailable"] += 1
+    rendered_items = [event for event in items if event.get("status") in {"completed", "dry_run"}]
+    weighted = [int(event["character_count"]) for event in rendered_items
+                if type(event.get("character_count")) is int and event["character_count"] > 0]
+    raw = [int(event["raw_character_count"]) for event in rendered_items
+           if type(event.get("raw_character_count")) is int and event["raw_character_count"] > 0]
+    attempted = sum(str(event.get("status") or "") in {"completed", "failed", "dry_run"} for event in items)
+    return {
+        "attempted_count": attempted,
+        "status_counts": dict(sorted(statuses.items())),
+        "skip_reason_counts": dict(skip_reasons.most_common()),
+        "verification_counts": _count_optional(rendered_items, "verification_label", (
+            "Exact wording", "Normalised wording", "Verified excerpt", "Historically verified variant",
+            "Historical paraphrase", "Composite wording", "Commonly misattributed wording",
+            "Exact wording not verified", "unavailable",
+        )),
+        "source_class_counts": _count_optional(rendered_items, "source_class", (
+            "Margaret Thatcher Foundation", "Hansard", "original speech transcript",
+            "Thatcher-authored publication", "contemporary interview", "official Conservative publication",
+            "other authoritative source", "canonical locator only", "no public URL", "unavailable",
+        )),
+        "confidence_counts": _count_optional(rendered_items, "historical_confidence", ("high", "medium", "low", "unavailable")),
+        "average_raw_characters": (sum(raw) / len(raw)) if raw else None,
+        "average_weighted_characters": (sum(weighted) / len(weighted)) if weighted else None,
+        "raw_length_observation_count": len(raw),
+        "raw_length_metadata_unavailable_count": len(rendered_items) - len(raw),
+        "weighted_length_observation_count": len(weighted),
+        "weighted_length_metadata_unavailable_count": len(rendered_items) - len(weighted),
+        "minimum_weighted_characters": min(weighted) if weighted else None,
+        "maximum_weighted_characters": max(weighted) if weighted else None,
+        "shortened_count": sum(event.get("shortening_applied") is True for event in rendered_items),
+        "meaning_omitted_count": sum(event.get("meaning_omitted") is True for event in rendered_items),
+        "source_omitted_count": sum(event.get("source_omitted") is True for event in rendered_items),
+        "verification_omitted_count": sum(event.get("verification_omitted") is True for event in rendered_items),
+        "shortening_metadata_unavailable_count": sum(type(event.get("shortening_applied")) is not bool for event in rendered_items),
+        "meaning_omitted_metadata_unavailable_count": sum(type(event.get("meaning_omitted")) is not bool for event in rendered_items),
+        "source_omitted_metadata_unavailable_count": sum(type(event.get("source_omitted")) is not bool for event in rendered_items),
+        "verification_omitted_metadata_unavailable_count": sum(type(event.get("verification_omitted")) is not bool for event in rendered_items),
+        "omission_metadata_unavailable_count": sum(
+            any(type(event.get(field)) is not bool for field in ("meaning_omitted", "source_omitted", "verification_omitted"))
+            for event in rendered_items
+        ),
+        "metadata_unavailable_count": sum(event.get("verification_label") in (None, "", "unavailable") for event in rendered_items),
+    }
+
+
+def _normalise_lane(value: Any) -> str:
+    lane = str(value or "unavailable").replace("_reply", "").replace("_", "-")
+    return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
+
+
+def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
+    outcome_by_id: Dict[str, Dict[str, Any]] = {}
+    for index, event in enumerate(events):
+        if event.get("kind") != "reply_strategy_outcome":
+            continue
+        outcome_id = str(event.get("reply_post_id") or f"missing:{index}")
+        outcome_by_id.setdefault(outcome_id, event)
+    outcomes = list(outcome_by_id.values())
+
+    posted: list[tuple[str, str]] = []
+    for event in events:
+        kind = str(event.get("kind") or "")
+        lane = {"mention_reply_posted": "mention", "hot_post_reply_posted": "hot-post",
+                "quote_tweet_reply_posted": "quote-tweet"}.get(kind)
+        if lane:
+            target_field = {"mention": "mention_id", "hot-post": "hot_post_reply_id", "quote-tweet": "quote_tweet_id"}[lane]
+            posted.append((lane, str(event.get(target_field) or "")))
+
+    observations = list(outcomes)
+    observations.extend(event for event in decisions if event.get("mode") == "no_reply")
+    outcome_targets = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+        for event in outcomes
+        if event.get("target_id")
+    }
+    targeted_decisions: Dict[tuple[str, str], list[Dict[str, Any]]] = {}
+    anonymous_decisions: Dict[str, list[Dict[str, Any]]] = {}
+    for event in decisions:
+        if event.get("mode") == "no_reply":
+            continue
+        lane = _normalise_lane(event.get("lane"))
+        target = str(event.get("target_id") or "")
+        if target:
+            targeted_decisions.setdefault((lane, target), []).append(event)
+        else:
+            anonymous_decisions.setdefault(lane, []).append(event)
+    for lane, target in posted:
+        if target and (lane, target) in outcome_targets:
+            continue
+        candidates = targeted_decisions.get((lane, target), []) if target else []
+        if candidates:
+            observations.append(candidates.pop(0))
+            continue
+        anonymous = anonymous_decisions.get(lane, [])
+        if anonymous:
+            observations.append(anonymous.pop(0))
+            continue
+        observations.append({"kind": "reply_strategy_unavailable", "lane": lane, "target_id": target})
+
+    modes = Counter({key: 0 for key in (
+        "historical_correction", "historical_context", "researched_principle", "wry_reply",
+        "playful_reply", "deadpan_reply", "warm_reply", "no_reply", "strategy metadata unavailable",
+    )})
+    valid_modes = set(modes) - {"strategy metadata unavailable"}
+    modes.update(
+        mode if mode in valid_modes else "strategy metadata unavailable"
+        for mode in (str(event.get("mode") or "") for event in observations)
+    )
+    by_lane: Dict[str, Counter] = {lane: Counter() for lane in ("mention", "hot-post", "quote-tweet", "unavailable")}
+    for event in observations:
+        lane = _normalise_lane(event.get("lane"))
+        mode = str(event.get("mode") or "")
+        by_lane[lane][mode if mode in valid_modes else "strategy metadata unavailable"] += 1
+    retrieved = [int(event["retrieved_count"]) for event in observations if type(event.get("retrieved_count")) is int]
+    rejection_reasons = Counter()
+    routine_reasons = Counter()
+    repetition_controls = Counter({key: 0 for key in (
+        "exact_duplicate_rejected", "highly_similar_reply_rejected", "canned_formulation_rejected",
+        "regenerated_after_style_rejection", "no_acceptable_reply",
+    )})
+    routine = {"author_daily_cap", "daily_cap", "spacing", "already_replied", "dry_run_already_seen", "own_account"}
+    no_reply_targets = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+        for event in decisions
+        if event.get("mode") == "no_reply" and event.get("target_id")
+    }
+    seen_skips = set()
+    for event in events:
+        if event.get("kind") == "reply_strategy_rejection":
+            reason = str(event.get("reason") or "other")
+            rejection_reasons[reason] += 1
+            if reason in repetition_controls:
+                repetition_controls[reason] += 1
+        elif event.get("kind") == "candidate_skipped":
+            reason = str(event.get("reason") or "other")
+            if (
+                reason == "no_usable_reply_generated"
+                and (_normalise_lane(event.get("lane")), str(event.get("target_id") or "")) in no_reply_targets
+            ):
+                continue
+            identity = (event.get("time"), event.get("lane"), event.get("target_id"), reason)
+            if identity in seen_skips:
+                continue
+            seen_skips.add(identity)
+            if reason == "no_usable_reply_generated":
+                repetition_controls["no_acceptable_reply"] += 1
+            (routine_reasons if reason in routine else rejection_reasons)[reason] += 1
+    for event in decisions:
+        if event.get("mode") == "no_reply":
+            rejection_reasons[str(event.get("no_reply_reason") or "model-selected no_reply")] += 1
+    humour_counts = _count_optional(observations, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
+    confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
+    return {
+        "mode_counts": dict(sorted(modes.items())),
+        "mode_counts_by_lane": {lane: dict(sorted(counts.items())) for lane, counts in sorted(by_lane.items())},
+        "humour_tone_counts": humour_counts,
+        "confidence_counts": confidence_counts,
+        "confirmed_outcome_count": len(outcomes),
+        "grounded_count": sum(event.get("grounded") is True for event in observations),
+        "grounding_metadata_unavailable_count": sum(type(event.get("grounded")) is not bool for event in observations),
+        "ungrounded_humour_only_count": sum(event.get("grounded") is False and event.get("factual_claim") is False and event.get("mode") not in {"no_reply", None} for event in observations),
+        "factual_claim_count": sum(event.get("factual_claim") is True for event in observations),
+        "factual_claim_metadata_unavailable_count": sum(type(event.get("factual_claim")) is not bool for event in observations),
+        "factual_rejected_insufficient_grounding_count": sum(
+            "ground" in str(event.get("reason") or "").lower() or "confidence" in str(event.get("reason") or "").lower()
+            for event in events if event.get("kind") == "reply_strategy_rejection"
+        ),
+        "average_retrieved_packet_count": (sum(retrieved) / len(retrieved)) if retrieved else None,
+        "maximum_retrieved_packet_count": max(retrieved) if retrieved else None,
+        "no_retrieved_packets_count": sum(value == 0 for value in retrieved),
+        "retrieved_packet_metadata_unavailable_count": sum(type(event.get("retrieved_count")) is not int for event in observations),
+        "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "routine_skip_reason_counts": dict(routine_reasons.most_common()),
+        "repetition_control_counts": dict(repetition_controls),
+    }
+
+
 def analyse(
     records: List[Record],
     max_text: int = 280,
@@ -1749,19 +1949,62 @@ def analyse(
                     parent_post_id=event_obj.get("parent_post_id"),
                     quote_id=event_obj.get("quote_id"),
                     character_count=event_obj.get("character_count"),
+                    weighted_character_count=event_obj.get("character_count"),
+                    raw_character_count=event_obj.get("raw_character_count"),
+                    verification_label=event_obj.get("verification_label") or "unavailable",
+                    source_class=event_obj.get("source_class") or "unavailable",
+                    historical_confidence=event_obj.get("historical_confidence") or "unavailable",
+                    shortening_applied=event_obj.get("shortening_applied"),
+                    meaning_omitted=event_obj.get("meaning_omitted"),
+                    source_omitted=event_obj.get("source_omitted"),
+                    verification_omitted=event_obj.get("verification_omitted"),
+                    reason=event_obj.get("reason") or "",
+                    reply_preview=event_obj.get("reply_preview") or "",
                 )
                 stats[f"historical_context_reply_status_{status}"] += 1
             elif event_obj and event_obj.get("event") == "reply_strategy_decision":
+                retrieved_ids = event_obj.get("retrieved_quote_ids")
                 add_event(
                     "reply_strategy_decision",
                     r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
                     evidence_confidence=event_obj.get("evidence_confidence"),
-                    retrieved_count=len(event_obj.get("retrieved_quote_ids") or []),
+                    retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
                     factual_claim=event_obj.get("factual_claim_made"),
                     grounded=event_obj.get("grounded"),
                     no_reply_reason=event_obj.get("no_reply_reason"),
+                )
+            elif event_obj and event_obj.get("event") == "reply_strategy_outcome":
+                retrieved_ids = event_obj.get("retrieved_quote_ids")
+                add_event(
+                    "reply_strategy_outcome", r.ts,
+                    status=event_obj.get("status") or "confirmed",
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    reply_post_id=event_obj.get("reply_post_id") or "",
+                    mode=event_obj.get("mode"),
+                    humour_tone=event_obj.get("humour_tone"),
+                    evidence_confidence=event_obj.get("evidence_confidence"),
+                    retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
+                    factual_claim=event_obj.get("factual_claim_made"),
+                    grounded=event_obj.get("grounded"),
+                    no_reply_reason=event_obj.get("no_reply_reason"),
+                )
+            elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
+                add_event(
+                    "reply_strategy_rejection", r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    reason=event_obj.get("reason") or "other",
+                )
+            elif event_obj and event_obj.get("event") == "candidate_skipped":
+                add_event(
+                    "candidate_skipped", r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("id") or "",
+                    reason=event_obj.get("reason") or "other",
                 )
             continue
 
@@ -2615,6 +2858,23 @@ def analyse(
                 post_cooldown_errors.append(item)
                 break
 
+    context_quality = historical_context_quality_summary(events)
+    strategy_quality = reply_strategy_summary(events)
+    routine_reason_map = {
+        "Daily generated/replied cap reached": "daily_cap",
+        "Skipping mention check: minimum interval between replies not reached": "spacing",
+        "Skipping quote-tweet check: total daily reply cap reached": "daily_cap",
+        "Skipping quote-tweet check: daily quote-reply cap reached": "daily_cap",
+        "hot_post_reply_already_handled": "already_replied",
+        "quote_tweet_already_seen": "already_replied",
+        "quote_tweet_not_direct": "not_direct_quote",
+        "quote_tweet_self_authored": "own_account",
+    }
+    compact_routine = Counter(strategy_quality.get("routine_skip_reason_counts") or {})
+    for reason, count in routine_skip_counts.items():
+        compact_routine[routine_reason_map.get(reason, reason)] += count
+    strategy_quality["routine_skip_reason_counts"] = dict(compact_routine.most_common())
+
     return {
         "summary": {
             "record_count": len(records),
@@ -2650,6 +2910,8 @@ def analyse(
                 if key.startswith("historical_context_reply_status_")
             },
         },
+        "historical_context_quality": context_quality,
+        "reply_strategy": strategy_quality,
         "reply_media_context": reply_media_context,
         "asset_health": asset_health,
         "media_upload": {
@@ -3573,6 +3835,92 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     f"{item.get('shadow_winner', '')} ({item.get('shadow_winner_source', '')})", item.get("selection_phase", ""),
                 ]))
             out.append("")
+    def compact_counts(values: Dict[str, Any]) -> str:
+        visible = [(name, count) for name, count in values.items() if isinstance(count, int) and count > 0]
+        return ", ".join(f"{name}={count}" for name, count in visible) or "none observed"
+
+    context_quality = report.get("historical_context_quality") or {}
+    out.append("## Historical context reply quality")
+    status_counts = context_quality.get("status_counts") or {}
+    out.append(
+        f"Attempted: **{context_quality.get('attempted_count', 0)}**; "
+        f"completed: **{status_counts.get('completed', 0)}**; "
+        f"already completed: **{status_counts.get('already_completed', 0)}**; "
+        f"failed: **{status_counts.get('failed', 0)}**; "
+        f"skipped: **{status_counts.get('skipped', 0)}**; "
+        f"dry run: **{status_counts.get('dry_run', 0)}**."
+    )
+    out.append(
+        "Lengths (raw average / X-weighted average / weighted range): "
+        f"**{round(context_quality['average_raw_characters'], 1) if context_quality.get('average_raw_characters') is not None else 'unavailable'} / "
+        f"{round(context_quality['average_weighted_characters'], 1) if context_quality.get('average_weighted_characters') is not None else 'unavailable'} / "
+        f"{context_quality.get('minimum_weighted_characters') if context_quality.get('minimum_weighted_characters') is not None else 'unavailable'}–"
+        f"{context_quality.get('maximum_weighted_characters') if context_quality.get('maximum_weighted_characters') is not None else 'unavailable'}**."
+    )
+    out.append(
+        f"Length metadata (raw observed/unavailable; weighted observed/unavailable): "
+        f"**{context_quality.get('raw_length_observation_count', 0)}/{context_quality.get('raw_length_metadata_unavailable_count', 0)}; "
+        f"{context_quality.get('weighted_length_observation_count', 0)}/{context_quality.get('weighted_length_metadata_unavailable_count', 0)}**."
+    )
+    out.append(
+        f"Shortened: **{context_quality.get('shortened_count', 0)}** "
+        f"(metadata unavailable: {context_quality.get('shortening_metadata_unavailable_count', 0)}); "
+        f"meaning omitted: **{context_quality.get('meaning_omitted_count', 0)}** "
+        f"(metadata unavailable: {context_quality.get('meaning_omitted_metadata_unavailable_count', 0)}); "
+        f"source omitted: **{context_quality.get('source_omitted_count', 0)}** "
+        f"(metadata unavailable: {context_quality.get('source_omitted_metadata_unavailable_count', 0)}); "
+        f"verification omitted: **{context_quality.get('verification_omitted_count', 0)}** "
+        f"(metadata unavailable: {context_quality.get('verification_omitted_metadata_unavailable_count', 0)})."
+    )
+    for label, key in (("Verification labels", "verification_counts"), ("Source classes", "source_class_counts"),
+                       ("Historical confidence", "confidence_counts")):
+        values = context_quality.get(key) or {}
+        out.append(f"{label}: {compact_counts(values)}")
+    if context_quality.get("skip_reason_counts"):
+        out.append("Skip reasons:")
+        out.append(md_table_row(["reason", "count"]))
+        out.append(md_table_row(["---", "---"]))
+        for reason, count in context_quality["skip_reason_counts"].items():
+            out.append(md_table_row([reason, count]))
+    out.append("")
+
+    strategy = report.get("reply_strategy") or {}
+    out.append("## Conversational reply strategy")
+    out.append("Modes: " + compact_counts(strategy.get("mode_counts") or {}))
+    for lane, counts in (strategy.get("mode_counts_by_lane") or {}).items():
+        if counts:
+            out.append(f"{lane}: {compact_counts(counts)}")
+    out.append(
+        f"Grounded: **{strategy.get('grounded_count', 0)}** "
+        f"(metadata unavailable: {strategy.get('grounding_metadata_unavailable_count', 0)}); "
+        f"humour-only ungrounded: **{strategy.get('ungrounded_humour_only_count', 0)}**; "
+        f"factual claims: **{strategy.get('factual_claim_count', 0)}** "
+        f"(metadata unavailable: {strategy.get('factual_claim_metadata_unavailable_count', 0)}); "
+        f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
+    )
+    out.append(
+        f"Retrieved packets average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"{strategy.get('maximum_retrieved_packet_count') if strategy.get('maximum_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"{strategy.get('no_retrieved_packets_count', 0)}** "
+        f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
+    )
+    out.append("Evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
+    out.append("Humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
+    out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
+    if strategy.get("rejection_reason_counts"):
+        out.append("Editorial no-reply/rejections:")
+        out.append(md_table_row(["reason", "count"]))
+        out.append(md_table_row(["---", "---"]))
+        for reason, count in strategy["rejection_reason_counts"].items():
+            out.append(md_table_row([reason, count]))
+    if strategy.get("routine_skip_reason_counts"):
+        out.append("Routine scheduling skips (separate):")
+        out.append(md_table_row(["reason", "count"]))
+        out.append(md_table_row(["---", "---"]))
+        for reason, count in strategy["routine_skip_reason_counts"].items():
+            out.append(md_table_row([reason, count]))
+    out.append("")
+
     stats = report["summary"].get("stats", {})
     routine = report["summary"].get("routine_skip_counts", {})
     out.append("## Counts")
@@ -3610,12 +3958,18 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "historical_context_reply",
         "Historical context replies",
-        ["time", "status", "parent_post_id", "quote_id", "character_count"],
+        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "shortening_applied", "reason"]
+        + (["reply_preview"] if report.get("verbose_replies") else []),
     )
     section(
         "reply_strategy_decision",
         "Reply strategy decisions",
-        ["time", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "no_reply_reason"],
+        ["time", "lane", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "no_reply_reason"],
+    )
+    section(
+        "reply_strategy_outcome",
+        "Confirmed reply strategy outcomes",
+        ["time", "lane", "target_id", "reply_post_id", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
     section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])
@@ -3893,6 +4247,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--until", help="Only include records at/before this local timestamp.")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of Markdown.")
     ap.add_argument("--output", type=Path, help="Atomically write the report to this file instead of stdout.")
+    ap.add_argument("--markdown-output", type=Path, help="Also atomically write Markdown to this file.")
+    ap.add_argument("--json-output", type=Path, help="Also atomically write structured JSON to this file.")
+    ap.add_argument("--verbose-replies", action="store_true", help="Include truncated context-reply previews in Markdown event detail.")
     ap.add_argument("--max-text", type=int, default=280, help="Maximum text length per field in report. Default: 280.")
     ap.add_argument("--glob", default="mrsMThatcher*.log*", help="Log glob to use when no explicit log files are supplied. Default: mrsMThatcher*.log*")
     ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent, help="Project directory for config, metadata, history and auto-discovered logs.")
@@ -3902,22 +4259,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--no-update-state", action="store_true", help="Read resume state, but do not write the new end timestamp.")
     args = ap.parse_args(argv)
 
+    output_paths = [
+        path.expanduser().resolve()
+        for path in (args.output, args.markdown_output, args.json_output)
+        if path is not None
+    ]
+    if len(output_paths) != len(set(output_paths)):
+        ap.error("output paths must be distinct")
+
     project_dir = args.project_dir.expanduser().resolve()
     state_file = args.state_file.expanduser()
     if not state_file.is_absolute():
         state_file = project_dir / state_file
-    lock_path: Path | None = None
+    lock_paths: List[Path] = []
     if not args.no_state:
-        lock_path = state_file.with_suffix(state_file.suffix + ".lock")
-    elif args.output is not None:
-        output = args.output.expanduser()
-        if not output.is_absolute():
-            output = project_dir / output
-        lock_path = output.with_suffix(output.suffix + ".lock")
+        lock_paths.append(state_file.with_suffix(state_file.suffix + ".lock"))
+    else:
+        for output in output_paths:
+            lock_paths.append(output.with_suffix(output.suffix + ".lock"))
 
-    if lock_path is None:
+    if not lock_paths:
         return run_digest(args, project_dir=project_dir, state_file=state_file)
-    with digest_execution_lock(lock_path):
+    with ExitStack() as stack:
+        for lock_path in sorted(set(lock_paths), key=str):
+            stack.enter_context(digest_execution_lock(lock_path))
         return run_digest(args, project_dir=project_dir, state_file=state_file)
 
 
@@ -4052,6 +4417,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["generated_image_post_rates"] = generated_post_rate_history(logs)
     report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
     report["generated_image_utilisation"] = generated_image_utilisation(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"])
+    report["verbose_replies"] = bool(args.verbose_replies)
 
     if args.json:
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"
@@ -4061,6 +4427,10 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             rendered += "\n<!-- no matching records; resume state not advanced -->\n"
 
     deliver_report(rendered, args.output)
+    if args.markdown_output is not None:
+        deliver_report(render_markdown(report) + "\n", args.markdown_output)
+    if args.json_output is not None:
+        deliver_report(json.dumps(report, indent=2, ensure_ascii=False) + "\n", args.json_output)
 
     if records and not args.no_state and not args.no_update_state:
         last_ts = records[-1].ts

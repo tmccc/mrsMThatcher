@@ -125,8 +125,24 @@ def test_no_hashtags_two_sentence_limit_and_repetition_controls():
     with pytest.raises(ValueError, match="one or two sentences"):
         validate_reply_decision(decision(reply_text="One. Two. Three."), [], allowed_quote_ids=set())
     assert reply_is_repetitive("History has a habit of answering that.", [])
-    with pytest.raises(ValueError, match="repeats"):
+    with pytest.raises(ValueError, match="exact duplicate"):
         validate_reply_decision(decision(), [], allowed_quote_ids=set(), recent_replies=[decision()["reply_text"]])
+
+
+def test_repetition_rejections_identify_exact_similar_and_canned_causes():
+    with pytest.raises(ValueError, match="exact duplicate"):
+        validate_reply_decision(decision(), [], allowed_quote_ids=set(), recent_replies=[decision()["reply_text"]])
+    with pytest.raises(ValueError, match="canned formulation"):
+        validate_reply_decision(
+            decision(reply_text="History has a habit of answering that."),
+            [], allowed_quote_ids=set(), recent_replies=[],
+        )
+    with pytest.raises(ValueError, match="highly similar"):
+        validate_reply_decision(
+            decision(reply_text="A tidy theory; reality may request amendments."),
+            [], allowed_quote_ids=set(),
+            recent_replies=["A tidy theory. Reality may request amendments."],
+        )
 
 
 def test_reply_decision_is_string_compatible_and_carries_private_metadata():

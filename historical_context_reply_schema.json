@@ -4,9 +4,12 @@
   "properties": {
     "character_count": {"minimum": 1, "type": "integer"},
     "maximum_length": {"minimum": 120, "maximum": 25000, "type": "integer"},
+    "historical_confidence": {"enum": ["high", "medium", "low", "unavailable"]},
     "meaning_included": {"type": "boolean"},
+    "meaning_omitted": {"type": "boolean"},
     "quote_id": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
     "raw_character_count": {"minimum": 1, "type": "integer"},
+    "shortening_applied": {"type": "boolean"},
     "source": {
       "anyOf": [
         {
@@ -22,8 +25,11 @@
         {"type": "null"}
       ]
     },
+    "source_class": {"type": "string"},
+    "source_omitted": {"type": "boolean"},
     "text": {"minLength": 1, "type": "string"},
-    "verification_label": {"type": ["string", "null"]}
+    "verification_label": {"type": ["string", "null"]},
+    "verification_omitted": {"type": "boolean"}
   },
   "required": [
     "quote_id",
@@ -31,9 +37,15 @@
     "character_count",
     "raw_character_count",
     "maximum_length",
+    "historical_confidence",
     "meaning_included",
+    "meaning_omitted",
+    "shortening_applied",
     "verification_label",
-    "source"
+    "verification_omitted",
+    "source",
+    "source_class",
+    "source_omitted"
   ],
   "title": "Historical context reply",
   "type": "object"
