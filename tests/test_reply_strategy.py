@@ -70,6 +70,44 @@ def test_strategy_reply_handles_omitted_media_context(
     assert result == expected
 
 
+def test_strategy_prompt_never_instructs_provider_to_return_bare_skip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": json.dumps(decision(
+            mode="no_reply",
+            humour_tone="none",
+            reply_text="",
+            no_reply_reason="No useful response.",
+        ))}}],
+    }).encode("utf-8")
+    captured: dict = {}
+
+    def post(*_args, **kwargs):
+        captured.update(kwargs["json"])
+        return response
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
+    )
+
+    assert bot.ask_grok_for_reply("Incoming post: Nothing to add.") is None
+    prompt_text = json.dumps(captured["messages"], ensure_ascii=False)
+    assert "Return exactly SKIP" not in prompt_text
+    assert "never output bare SKIP" in prompt_text
+
+
+def test_strategy_schema_defines_factual_claim_flag_for_historical_modes() -> None:
+    guidance = strategy_mode_guidance()
+    assert "factual_claim_made=true" in guidance
+    assert "final reply states a historical or policy fact" in guidance
+
+
 def test_strategy_reply_classifies_non_object_provider_json_as_api_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

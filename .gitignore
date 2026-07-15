@@ -21,6 +21,11 @@ engagement_analytics/.collector.lock
 engagement_analytics/raw_responses/
 engagement_analytics/exports/
 engagement_analytics/reports/
+hybrid_reply_retrieval_runtime/
+production_state_recovery_*/
+semantic_alignment_research/hybrid_reply_retrieval_*/index_history/
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/backups/
+semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_raw_responses/
 digest*.md
 .DS_Store
 ._*

@@ -184,6 +184,12 @@ def path_is_same_or_child(path: Path, parent: Path) -> bool:
         return path_abs == parent_abs or parent_abs in path_abs.parents
 
 
+def test_process_production_state_write_blocked(path: Path) -> bool:
+    """Prevent tests and self-tests from ever persisting production bot state."""
+    test_process = bool(os.getenv("PYTEST_CURRENT_TEST")) or SELF_TEST_REQUESTED or TEST_MODE
+    return test_process and path_is_same_or_child(path, PRODUCTION_BASE_DIR)
+
+
 if TEST_MODE and path_is_same_or_child(BASE_DIR, PRODUCTION_BASE_DIR):
     print(
         f"Refusing to run in MRS_TEST_MODE with production BASE_DIR={BASE_DIR}",
@@ -234,6 +240,17 @@ reply_strategy = {
     "maximum_retrieved_packets": 5,
     "minimum_grounded_confidence": "medium",
     "no_hashtags": True,
+    "hybrid_retrieval": {
+        "enabled": False,
+        "mode": "shadow",
+        "index_path": "semantic_alignment_research/hybrid_reply_retrieval_001",
+        "maximum_results": 5,
+        "semantic_candidate_count": 20,
+        "lexical_candidate_count": 20,
+        "query_timeout_ms": 1000,
+        "maximum_shadow_history": 5000,
+        "fail_open": True,
+    },
 }
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
@@ -668,6 +685,7 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         "completed_packets_only", "allow_historical_correction", "allow_historical_context",
         "allow_researched_principle", "allow_humour", "preferred_humour_tones",
         "maximum_retrieved_packets", "minimum_grounded_confidence", "no_hashtags",
+        "hybrid_retrieval",
     }
     if not isinstance(strategy_config, dict):
         errors.append("reply_strategy must be an object")
@@ -693,6 +711,30 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
             errors.append("reply_strategy.preferred_humour_tones contains unsupported values")
         if strategy_config.get("minimum_grounded_confidence") not in {"medium", "high"}:
             errors.append("reply_strategy.minimum_grounded_confidence must be medium or high")
+        shadow = strategy_config.get("hybrid_retrieval")
+        shadow_keys = {
+            "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
+            "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
+        }
+        if not isinstance(shadow, dict) or set(shadow) != shadow_keys:
+            errors.append("reply_strategy.hybrid_retrieval fields mismatch")
+        else:
+            if type(shadow.get("enabled")) is not bool:
+                errors.append("reply_strategy.hybrid_retrieval.enabled must be boolean")
+            if shadow.get("mode") != "shadow":
+                errors.append("reply_strategy.hybrid_retrieval.mode must be shadow")
+            if not isinstance(shadow.get("index_path"), str) or not shadow["index_path"].strip():
+                errors.append("reply_strategy.hybrid_retrieval.index_path must be non-empty")
+            for key, low, high in (
+                ("maximum_results", 1, 5), ("semantic_candidate_count", 5, 100),
+                ("lexical_candidate_count", 5, 100), ("query_timeout_ms", 50, 10_000),
+                ("maximum_shadow_history", 100, 100_000),
+            ):
+                number = shadow.get(key)
+                if type(number) is not int or not low <= number <= high:
+                    errors.append(f"reply_strategy.hybrid_retrieval.{key} must be an integer from {low} to {high}")
+            if shadow.get("fail_open") is not True:
+                errors.append("reply_strategy.hybrid_retrieval.fail_open must remain true")
         if strategy_config.get("enabled"):
             if strategy_config.get("accuracy_first") is not True:
                 errors.append("reply_strategy.accuracy_first must remain true when enabled")
@@ -1772,7 +1814,11 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "quote_lookup_pagination_tokens",
     }
     int_map_keys = {"hot_post_reply_check_counts", "daily_replied_author_counts"}
-    record_map_keys = {"skipped_hot_reply_records", "pending_reply_drafts"}
+    record_map_keys = {
+        "skipped_hot_reply_records",
+        "pending_reply_drafts",
+        "reply_evaluation_records",
+    }
     optional_scalar_keys = {
         "daily_reply_date",
         "daily_quote_reply_date",
@@ -2003,6 +2049,8 @@ def write_latest_state_backup(*, durable: bool = False) -> None:
 
 
 def save_state(state: dict, *, durable: bool = False) -> None:
+    if test_process_production_state_write_blocked(STATE_FILE):
+        raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
     log.debug("Saving state to %s", STATE_FILE)
     log_json_debug("State being saved", state)
 
@@ -7487,6 +7535,11 @@ def ask_grok_for_reply(
     media_context: dict | None = None,
     *,
     recent_replies: list[str] | None = None,
+    shadow_incoming_text: str | None = None,
+    shadow_parent_context: str = "",
+    shadow_thread_context: str = "",
+    evaluation_outcome: dict | None = None,
+    _shadow_submitted: bool = False,
 ) -> str | None:
     log.info("Asking Grok for reply. context_text=%r", context_text)
 
@@ -7503,6 +7556,21 @@ def ask_grok_for_reply(
             research_path,
             maximum=int(reply_strategy["maximum_retrieved_packets"]),
         )
+        shadow_config = reply_strategy.get("hybrid_retrieval")
+        if isinstance(shadow_config, dict) and shadow_config.get("enabled") and not _shadow_submitted:
+            from semantic_alignment.hybrid_reply_retrieval import submit_shadow_comparison
+            submit_shadow_comparison(
+                config=shadow_config,
+                project_dir=BASE_DIR,
+                research_run=research_path,
+                incoming_text=shadow_incoming_text if shadow_incoming_text is not None else context_text,
+                parent_context=shadow_parent_context,
+                thread_context=shadow_thread_context,
+                lane=str(media_metadata.get("lane") or media_metadata.get("source") or "unavailable"),
+                target_id=str(media_metadata.get("target_id") or ""),
+                production_lexical=evidence,
+                event_logger=log_event,
+            )
 
     system_prompt = (
         "You write replies for a Margaret Thatcher quotation account on X. "
@@ -7533,11 +7601,18 @@ def ask_grok_for_reply(
             + decision_schema_instruction()
         )
 
+    skip_instruction = (
+        "Select no_reply in the required JSON object when the post is mostly handles or links, spam, abuse, "
+        "gibberish, requires missing context, would require inventing facts, or would prolong a needless exchange. "
+        "Return the required JSON object only; never output bare SKIP. "
+        if strategy_enabled else
+        "Return exactly SKIP when the post is mostly handles or links, spam, abuse, gibberish, "
+        "requires missing context, would require inventing facts, or would prolong a needless exchange. "
+    )
     user_prompt = (
         "Use only the supplied limited context. "
         "Default to replying when a civil, worthwhile reply is possible. "
-        "Return exactly SKIP when the post is mostly handles or links, spam, abuse, gibberish, "
-        "requires missing context, would require inventing facts, or would prolong a needless exchange. "
+        f"{skip_instruction}"
         "Do not skip merely because the post is short, complimentary, mildly vague, "
         "or in a language other than English if the meaning is clear. "
         "If the incoming post replies to or quotes this account's own previous auto-reply, "
@@ -7553,7 +7628,8 @@ def ask_grok_for_reply(
         "skip rather than force one. Example: after this account posts 'I know some of the images have been a bit "
         "odd of late. I'm working on it - bear with me...', the reply 'Not her most memorable quote' is teasing "
         "about the account's usual quotation format. 'This wasn't meant as a quote at all.' is an undesirable "
-        "literal correction; a natural response might be 'History may overlook that one.', or return SKIP. "
+        "literal correction; a natural response might be 'History may overlook that one.', or "
+        f"{'select no_reply.' if strategy_enabled else 'return SKIP.'} "
         "A little sarcasm is acceptable when the other person is being foolish, "
         "but keep it civil, crisp, and quotable.\n\n"
         f"{context_text}"
@@ -7620,7 +7696,16 @@ def ask_grok_for_reply(
             retry_context = dict(media_context)
             retry_context["status"] = "unavailable"
             retry_context["photos"] = []
-            return ask_grok_for_reply(context_text, retry_context, recent_replies=recent_replies)
+            return ask_grok_for_reply(
+                context_text,
+                retry_context,
+                recent_replies=recent_replies,
+                shadow_incoming_text=shadow_incoming_text,
+                shadow_parent_context=shadow_parent_context,
+                shadow_thread_context=shadow_thread_context,
+                evaluation_outcome=evaluation_outcome,
+                _shadow_submitted=True,
+            )
 
         log.error("xAI error %s: %s", response.status_code, response.text)
 
@@ -7697,6 +7782,8 @@ def ask_grok_for_reply(
                 lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
                 reason=reason,
             )
+            if evaluation_outcome is not None:
+                evaluation_outcome.update({"status": "rejected", "reason": reason})
             return None
         log_event(
             "reply_strategy_decision",
@@ -7725,6 +7812,11 @@ def ask_grok_for_reply(
                     no_reply_reason=validated["no_reply_reason"],
                 )
             log.info("Reply strategy chose no_reply: %s", validated["no_reply_reason"])
+            if evaluation_outcome is not None:
+                evaluation_outcome.update({
+                    "status": "no_reply",
+                    "reason": validated["no_reply_reason"] or "model_selected_no_reply",
+                })
             return None
         reply = ReplyDecision(validated["reply_text"], validated)
     else:
@@ -7732,6 +7824,8 @@ def ask_grok_for_reply(
 
     if reply.strip().upper() == "SKIP":
         log.info("Grok chose to skip")
+        if evaluation_outcome is not None:
+            evaluation_outcome.update({"status": "no_reply", "reason": "model_selected_skip"})
         return None
 
     if not generated_reply_is_safe_enough(reply):
@@ -7742,9 +7836,13 @@ def ask_grok_for_reply(
                 lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
                 reason="local_validator_rejection",
             )
+        if evaluation_outcome is not None:
+            evaluation_outcome.update({"status": "rejected", "reason": "local_validator_rejection"})
         return None
 
     log.info("Grok generated usable reply: %r", reply)
+    if evaluation_outcome is not None:
+        evaluation_outcome.update({"status": "reply", "reason": "usable_reply_generated"})
     return reply
 
 
@@ -7775,6 +7873,43 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
         return
     if candidate.get("_source", "mention") == "mention":
         update_last_seen_mention_id(state, str(candidate.get("id", "")))
+
+
+def terminal_reply_evaluation(state: dict, target_id: str) -> dict | None:
+    records = state.get("reply_evaluation_records", {})
+    if not isinstance(records, dict):
+        return None
+    record = records.get(str(target_id))
+    if isinstance(record, dict) and record.get("outcome") == "no_reply":
+        return record
+    return None
+
+
+def record_terminal_reply_evaluation(
+    state: dict,
+    *,
+    target_id: str,
+    lane: str,
+    reason: str,
+) -> None:
+    records = state.get("reply_evaluation_records", {})
+    if not isinstance(records, dict):
+        records = {}
+    records = dict(records)
+    records[str(target_id)] = {
+        "target_id": str(target_id),
+        "lane": str(lane),
+        "outcome": "no_reply",
+        "reason": str(reason or "model_selected_no_reply"),
+        "evaluated_epoch": now_epoch(),
+    }
+    if len(records) > 2000:
+        ordered = sorted(
+            records.items(),
+            key=lambda item: (int(item[1].get("evaluated_epoch", 0) or 0), item[0]),
+        )
+        records = dict(ordered[-2000:])
+    state["reply_evaluation_records"] = records
 
 
 def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: object) -> bool:
@@ -8183,6 +8318,25 @@ def maybe_reply_to_mentions(state: dict) -> str:
             mark_mention_seen_if_applicable(state, mention)
             continue
 
+        prior_evaluation = terminal_reply_evaluation(state, mention_id)
+        if prior_evaluation is not None:
+            log.info(
+                "Skipping %s %s: terminal no_reply evaluation already recorded reason=%s",
+                candidate_source,
+                mention_id,
+                prior_evaluation.get("reason", ""),
+            )
+            maybe_mark_hot_post_reply_skipped(state, mention, reason="already_evaluated_no_reply")
+            log_event(
+                "candidate_skipped",
+                lane=candidate_log_source,
+                id=mention_id,
+                reason="already_evaluated_no_reply",
+            )
+            mark_mention_seen_if_applicable(state, mention)
+            save_state(state)
+            continue
+
         if author_id == str(MY_USER_ID):
             log.info("Skipping %s %s: authored by our own account", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="own_account")
@@ -8236,12 +8390,16 @@ def maybe_reply_to_mentions(state: dict) -> str:
             pending_strategy_reply(state, mention_id, str(candidate_source))
             if reply_strategy.get("enabled") else None
         )
+        evaluation_outcome: dict[str, str] = {}
         try:
             if reply_text is None:
                 reply_text = ask_grok_for_reply(
                     context_text,
                     media_context,
                     recent_replies=recent_auto_reply_texts(state),
+                    shadow_incoming_text=incoming_text,
+                    shadow_parent_context=context_text,
+                    evaluation_outcome=evaluation_outcome,
                 )
             else:
                 log.info("Reusing persisted reply strategy draft target_id=%s source=%s", mention_id, candidate_source)
@@ -8257,6 +8415,16 @@ def maybe_reply_to_mentions(state: dict) -> str:
             return NORMAL_CHECK_STATUS_API_ERROR
 
         if not reply_text:
+            if (
+                not DRY_RUN_REPLIES
+                and evaluation_outcome.get("status") == "no_reply"
+            ):
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane=str(candidate_source),
+                    reason=evaluation_outcome.get("reason", "model_selected_no_reply"),
+                )
             log.info("No usable reply generated for %s %s", candidate_source, mention_id)
             maybe_mark_hot_post_reply_skipped(state, mention, reason="no_usable_reply_generated")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="no_usable_reply_generated")
@@ -8949,6 +9117,8 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         context_text,
                         media_context,
                         recent_replies=recent_auto_reply_texts(state),
+                        shadow_incoming_text=quote_text,
+                        shadow_parent_context=context_text,
                     )
                 else:
                     log.info("Reusing persisted reply strategy draft target_id=%s source=quote_tweet", quote_id)

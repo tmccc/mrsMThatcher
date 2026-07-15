@@ -324,6 +324,7 @@ def normalize_for_branch_parity(value):
                 "quote_api_cooldown_until_epoch",
                 "quote_lookup_pagination_tokens",
                 "quote_x_error_epochs",
+                "reply_evaluation_records",
                 "x_write_api_cooldown_reason",
                 "x_write_api_cooldown_until_epoch",
                 "x_write_error_epochs",

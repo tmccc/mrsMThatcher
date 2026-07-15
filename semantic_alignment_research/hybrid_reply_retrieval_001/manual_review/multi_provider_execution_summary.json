@@ -1,0 +1,104 @@
+{
+  "concurrent": true,
+  "generated_at": "2026-07-15T19:51:11.999268Z",
+  "maximum_active_per_provider": 1,
+  "providers": {
+    "anthropic": {
+      "calls": 20,
+      "choice_counts": {
+        "A_better": 3,
+        "B_better": 11,
+        "insufficient_context": 1,
+        "neither_useful": 3,
+        "no_historical_evidence": 60,
+        "roughly_equal": 22
+      },
+      "completed_reviews": 100,
+      "evidence_desirability_counts": {
+        "desirable": 25,
+        "not_desirable": 65,
+        "unclear": 10
+      },
+      "intervention_counts": {
+        "historical_context": 18,
+        "humour_preferable": 35,
+        "no_reply_preferable": 34,
+        "researched_principle": 13
+      },
+      "known_spend_usd": 5.33093,
+      "model": "claude-fable-5",
+      "provider": "anthropic",
+      "unresolved_batches": {},
+      "unresolved_reviews": 0
+    },
+    "grok": {
+      "calls": 31,
+      "choice_counts": {
+        "A_better": 2,
+        "B_better": 2,
+        "insufficient_context": 1,
+        "neither_useful": 8,
+        "no_historical_evidence": 39,
+        "roughly_equal": 13
+      },
+      "completed_reviews": 65,
+      "evidence_desirability_counts": {
+        "desirable": 17,
+        "not_desirable": 46,
+        "unclear": 2
+      },
+      "intervention_counts": {
+        "historical_context": 1,
+        "humour_preferable": 16,
+        "no_reply_preferable": 31,
+        "researched_principle": 17
+      },
+      "known_spend_usd": 1.00202,
+      "model": "grok-4.5",
+      "provider": "grok",
+      "unresolved_batches": {
+        "gemini-review-001": "response_rejected",
+        "gemini-review-003": "response_rejected",
+        "gemini-review-007": "response_rejected",
+        "gemini-review-013": "response_rejected",
+        "gemini-review-017": "response_rejected",
+        "gemini-review-018": "response_rejected",
+        "gemini-review-020": "response_rejected"
+      },
+      "unresolved_reviews": 35
+    },
+    "openai": {
+      "calls": 22,
+      "choice_counts": {
+        "A_better": 14,
+        "B_better": 12,
+        "insufficient_context": 10,
+        "neither_useful": 7,
+        "no_historical_evidence": 38,
+        "roughly_equal": 14
+      },
+      "completed_reviews": 95,
+      "evidence_desirability_counts": {
+        "desirable": 25,
+        "not_desirable": 58,
+        "unclear": 12
+      },
+      "intervention_counts": {
+        "historical_context": 7,
+        "historical_correction": 2,
+        "humour_preferable": 19,
+        "no_reply_preferable": 50,
+        "researched_principle": 17
+      },
+      "known_spend_usd": 2.462483,
+      "model": "gpt-5.6-sol",
+      "provider": "openai",
+      "unresolved_batches": {
+        "gemini-review-007": "response_rejected"
+      },
+      "unresolved_reviews": 5
+    }
+  },
+  "schema_version": 1,
+  "wall_clock_seconds": 1192.8839338950347
+}

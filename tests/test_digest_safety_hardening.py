@@ -105,6 +105,128 @@ def test_default_project_dir_is_script_directory(monkeypatch):
     assert captured["directory"] == Path(digest.__file__).resolve().parent
 
 
+def test_default_log_discovery_excludes_selftest_logs(tmp_path):
+    production = tmp_path / "mrsMThatcher.log"
+    rotation = tmp_path / "mrsMThatcher.log.1"
+    selftest = tmp_path / "mrsMThatcher.selftest.log"
+    for path in (production, rotation, selftest):
+        path.write_text("", encoding="utf-8")
+
+    discovered = digest.discover_logs(tmp_path, "mrsMThatcher*.log*")
+
+    assert production in discovered
+    assert rotation in discovered
+    assert selftest not in discovered
+
+
+def test_selftest_records_cannot_supply_production_state_or_config():
+    production = digest.Record(
+        datetime(2026, 7, 15, 17, 17),
+        "DEBUG",
+        "save_state",
+        1,
+        'State being saved: {"last_main_post_id":"2077427274274533828"}',
+        "/project/mrsMThatcher.log",
+        1,
+    )
+    selftest = digest.Record(
+        datetime(2026, 7, 15, 18, 28),
+        "DEBUG",
+        "save_state",
+        1,
+        'State being saved: {"last_main_post_id":"950001"}',
+        "/project/mrsMThatcher.selftest.log",
+        1,
+    )
+    selftest_config = digest.Record(
+        datetime(2026, 7, 15, 18, 28, 1),
+        "INFO",
+        "main",
+        1,
+        "Config: MAX_AUTO_REPLIES_PER_DAY=999",
+        "/project/mrsMThatcher.selftest.log",
+        2,
+    )
+
+    report = digest.analyse([production, selftest, selftest_config])
+
+    assert report["latest_state"]["last_main_post_id"] == "2077427274274533828"
+    assert "MAX_AUTO_REPLIES_PER_DAY" not in report["latest_config"]
+
+
+def test_explicit_selftest_log_cannot_load_neighbor_state_or_backscan_config(tmp_path):
+    selftest = tmp_path / "mrsMThatcher.log.selftest"
+    selftest.write_text(
+        "2026-07-15 18:28:00 INFO     main:1 - Config: MAX_AUTO_REPLIES_PER_DAY=999\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "bot_state.json").write_text(
+        '{"last_main_post_id":"950001"}\n',
+        encoding="utf-8",
+    )
+
+    state, source, timestamp = digest.load_authoritative_state_for_logs([selftest])
+    config, config_timestamp = digest.find_latest_config_before(
+        [selftest],
+        datetime(2026, 7, 15, 19, 0),
+    )
+
+    assert (state, source, timestamp) == (None, None, None)
+    assert config == {}
+    assert config_timestamp is None
+
+
+def test_latest_state_summary_includes_last_meme_post_epoch():
+    summary = digest.summarize_latest_state(
+        {"last_meme_post_epoch": 1_784_119_355},
+        datetime(2026, 7, 15, 18, 17, 20),
+    )
+
+    assert summary["last_meme_post_epoch"] == 1_784_119_355
+    assert summary["last_meme_post_human"] == "2026-07-15 13:42:35"
+
+
+def test_reset_resume_save_does_not_carry_forward_old_state(tmp_path):
+    state_file = tmp_path / ".resume.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "last_known_latest_state": {
+                    "last_main_post_id": "950001",
+                    "meme_anchor_quote_post_human": "2027-01-15 00:00:00",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    timestamp = datetime(2026, 7, 15, 22, 24, 56)
+    record = digest.Record(timestamp, "INFO", "main", 1, "Main loop tick", str(tmp_path / "bot.log"), 1)
+    report = {
+        "latest_state": {
+            "last_main_post_id": "2077504708474704163",
+            "meme_anchor_quote_post_human": None,
+        },
+        "latest_config": {},
+        "summary": {},
+        "generated_image_spacing": {},
+        "resume_context": {},
+    }
+
+    digest.save_resume_time(
+        state_file,
+        timestamp,
+        [record],
+        report,
+        [tmp_path / "bot.log"],
+        preserve_existing_context=False,
+    )
+
+    saved = json.loads(state_file.read_text(encoding="utf-8"))
+    assert saved["last_known_latest_state"]["last_main_post_id"] == "2077504708474704163"
+    assert saved["last_known_latest_state"]["meme_anchor_quote_post_human"] is None
+    assert "950001" not in json.dumps(saved)
+
+
 @pytest.mark.parametrize("value", [{}, "bad", None])
 def test_wrong_used_history_schema_is_invalid(tmp_path, value):
     base, _ = pool(tmp_path, 1)

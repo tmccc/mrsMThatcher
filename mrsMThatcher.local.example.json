@@ -21,7 +21,18 @@
     "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
     "maximum_retrieved_packets": 5,
     "minimum_grounded_confidence": "medium",
-    "no_hashtags": true
+    "no_hashtags": true,
+    "hybrid_retrieval": {
+      "enabled": false,
+      "mode": "shadow",
+      "index_path": "semantic_alignment_research/hybrid_reply_retrieval_001",
+      "maximum_results": 5,
+      "semantic_candidate_count": 20,
+      "lexical_candidate_count": 20,
+      "query_timeout_ms": 1000,
+      "maximum_shadow_history": 5000,
+      "fail_open": true
+    }
   },
   "MAX_AUTO_REPLIES_PER_DAY": 24,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,

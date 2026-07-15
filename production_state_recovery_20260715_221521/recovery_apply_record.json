@@ -1,0 +1,10 @@
+{
+  "applied_at": "2026-07-15T22:23:58.114135+01:00",
+  "atomic_replace": true,
+  "bot_child_pids_at_apply": [],
+  "candidate_sha256": "627146c7c7c92aabb6f03019a9a9b53b2ced5560f657c83d8dd955d06a222c69",
+  "directory_fsync": true,
+  "live_state_sha256_after": "627146c7c7c92aabb6f03019a9a9b53b2ced5560f657c83d8dd955d06a222c69",
+  "live_state_sha256_before": "3e08414b5a2adedcf47b7e5aaaee10493d1c1af9e503447dd614f5127c66526f",
+  "pre_apply_backup": "production_state_recovery_20260715_221521/bot_state.pre_recovery_apply.json"
+}

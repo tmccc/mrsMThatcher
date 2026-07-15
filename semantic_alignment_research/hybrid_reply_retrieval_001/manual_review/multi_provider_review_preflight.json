@@ -1,0 +1,52 @@
+{
+  "batch_count_per_provider": 20,
+  "case_count": 100,
+  "combined_conservative_base_cost_usd": 14.1823,
+  "combined_expected_cost_usd": 9.0223,
+  "combined_hard_limit_usd": 18.0,
+  "exact_prompt_parity_with_gemini": true,
+  "generated_at": "2026-07-15T19:31:19.113932Z",
+  "human_reviews_will_be_modified": false,
+  "planned_calls_without_retries": 60,
+  "providers": {
+    "anthropic": {
+      "batch_calls": 20,
+      "case_count": 100,
+      "conservative_base_cost_usd": 8.5105,
+      "estimated_input_tokens": 251054,
+      "expected_cost_usd": 5.5105,
+      "expected_output_tokens": 60000,
+      "hard_limit_usd": 10.0,
+      "maximum_output_tokens": 120000,
+      "model": "claude-fable-5",
+      "single_retry_reserve_usd": 0.4929
+    },
+    "grok": {
+      "batch_calls": 20,
+      "case_count": 100,
+      "conservative_base_cost_usd": 1.1062,
+      "estimated_input_tokens": 193113,
+      "expected_cost_usd": 0.7462,
+      "expected_output_tokens": 60000,
+      "hard_limit_usd": 2.0,
+      "maximum_output_tokens": 120000,
+      "model": "grok-4.5",
+      "single_retry_reserve_usd": 0.0657
+    },
+    "openai": {
+      "batch_calls": 20,
+      "case_count": 100,
+      "conservative_base_cost_usd": 4.5656,
+      "estimated_input_tokens": 193113,
+      "expected_cost_usd": 2.7656,
+      "expected_output_tokens": 60000,
+      "hard_limit_usd": 6.0,
+      "maximum_output_tokens": 120000,
+      "model": "gpt-5.6-sol",
+      "single_retry_reserve_usd": 0.2542
+    }
+  },
+  "schema_version": 1,
+  "search_grounding_enabled": false,
+  "tools_enabled": false
+}

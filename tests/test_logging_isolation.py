@@ -38,6 +38,15 @@ def test_plain_import_does_not_open_production_log():
     assert managed_file_handlers() == []
 
 
+def test_pytest_process_refuses_production_state_write():
+    assert bot.test_process_production_state_write_blocked(
+        Path("/disks/disk1/etc/mrsMThatcher/bot_state.json")
+    )
+    assert not bot.test_process_production_state_write_blocked(
+        Path("/tmp/mrsMThatcher-test/bot_state.json")
+    )
+
+
 def test_bootstrap_without_file_logging_does_not_open_production_log(tmp_path, monkeypatch):
     configure_bootstrap(tmp_path, monkeypatch)
     bot.production_bootstrap(configure_file_logging=False)

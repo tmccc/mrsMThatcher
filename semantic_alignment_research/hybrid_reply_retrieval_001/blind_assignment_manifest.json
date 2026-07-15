@@ -1,0 +1,408 @@
+{
+  "assignment_manifest_hash": "be945ed863675bb8f4d292eb13c34e970cc30c4247ab2ae0259c187d35108e5d",
+  "assignment_version": "hybrid-shadow-blind-v2",
+  "assignments": {
+    "shadow-review-001-2071845062179184658": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-002-2071964217347883162": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-003-2077394632489705521": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-004-2073226751308648763": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-005-2077374435078689197": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-006-2075522429074510038": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-007-2075134932746227734": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-008-2075634498604065278": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-009-2072611852001951841": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-010-2076355743566159875": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-011-2072416075711475779": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-012-2073937957896012049": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-013-2072348373181452376": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-014-2073778200711192847": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-015-2077261276850610377": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-016-2072677725626597643": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-017-2077391717389467952": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-018-2075932830983483670": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-019-2076817230201852209": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-020-2072596996494385570": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-021-2077079178847891937": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-022-2072372822609912129": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-023-2075661706290733251": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-024-2072042353121222832": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-025-2071906899256050015": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-026-2073017105578967158": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-027-2076536022096380098": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-028-2073819291862835380": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-029-2071942401271226685": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-030-2077128719504707904": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-031-2077373693160784280": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-032-2072851828882956321": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-033-2071943179494985853": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-034-2076139325687771232": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-035-2072383576255959126": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-036-2077156577958613207": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-037-2075481893659611489": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-038-2072355951957475520": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-039-2073935667520770507": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-040-2071778569098056048": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-041-2076282467204395249": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-042-2073833766905171987": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-043-2076338296053989604": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-044-1925397645738012799": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-045-2075708197575217660": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-046-2075729332878692788": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-047-2071867739409695037": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-048-2075254629089050837": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-049-2073583100819587388": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-050-2071877957899993561": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-051-2071824597884764388": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-052-2076991235798040616": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-053-2075445315700691374": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-054-2073826588899061883": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-055-2073335888994611372": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-056-2072988990756811241": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-057-2075209997462433858": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-058-2072363358611730652": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-059-2077361037599277246": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-060-2076995783354982779": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-061-2076770300306301133": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-062-2073062359728591054": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-063-2075722731731976345": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-064-2074913676675731762": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-065-2073002002343174253": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-066-2076546794746413390": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-067-2077367799458967991": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-068-2076961554881192216": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-069-2071636422910505207": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-070-2074012382213677523": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-071-2072369767134937465": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-072-2071750385182621727": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-073-2073630276475838785": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-074-2073616113594765661": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-075-2073112811622846819": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-076-2071803465207042202": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-077-2075196216871174347": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-078-2075969637611680229": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-079-2075983973532958822": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-080-2071754866477961644": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-081-2075445268577759459": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-082-2072854398426927352": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-083-2071811510377066832": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-084-2071750563172061445": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-085-2076770032613310588": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-086-2075572727453208857": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-087-2075482138325942555": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-088-2077136984901050499": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-089-2071746481263132842": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-090-2075882071621501249": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-091-2073622520780169243": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-092-2071697717382762915": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-093-2076961341865156984": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-094-2071850983345279315": {
+      "A": "lexical",
+      "B": "hybrid"
+    },
+    "shadow-review-095-2072959347898958333": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-096-2076285591075901750": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-097-2072443568828956991": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-098-2071705969256546707": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-099-2072172601724567987": {
+      "A": "hybrid",
+      "B": "lexical"
+    },
+    "shadow-review-100-2073425817179496527": {
+      "A": "hybrid",
+      "B": "lexical"
+    }
+  },
+  "generated_at": "2026-07-15T18:13:37.214197Z",
+  "schema_version": 2
+}

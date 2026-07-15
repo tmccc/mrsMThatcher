@@ -1,0 +1,221 @@
+{
+  "backup_directory": "semantic_alignment_research/hybrid_reply_retrieval_001/manual_review/backups/context-migration-decf309ff52c",
+  "generated_at": "2026-07-15T18:13:37.222388Z",
+  "migration_version": "hybrid-review-context-v2",
+  "new_assignment_manifest_hash": "be945ed863675bb8f4d292eb13c34e970cc30c4247ab2ae0259c187d35108e5d",
+  "new_sample_hash": "8dfc5eab7722feff7127b0d9180c366f5338061dc28c8591f0e81acbd51e9b3d",
+  "old_assignment_manifest_hash": "745ca24debbcb3e54c4dfa94684a4f7fb6a6840c49cc5e6fa6667664d2f3ff83",
+  "old_sample_hash": "decf309ff52c4b06489efbcd20c00d923ddb9e71cd87dd75ade31fb09503c2d9",
+  "replacements": [
+    {
+      "new_strata": [
+        "hot-post",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-001-2071868785946943509",
+      "old_strata": [
+        "hot-post",
+        "english_or_unknown",
+        "substantive",
+        "lexical_only_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071868785946943509",
+      "replacement_case_id": "shadow-review-001-2071845062179184658",
+      "replacement_reason": [
+        "incoming_text_ends_with_unresolved_truncation_marker"
+      ],
+      "replacement_target_id": "2071845062179184658",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-015-2073042712811462676",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2073042712811462676",
+      "replacement_case_id": "shadow-review-015-2077261276850610377",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2077261276850610377",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-053-2071521752987898034",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071521752987898034",
+      "replacement_case_id": "shadow-review-053-2075445315700691374",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2075445315700691374",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-069-2071495768603501030",
+      "old_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071495768603501030",
+      "replacement_case_id": "shadow-review-069-2071636422910505207",
+      "replacement_reason": [
+        "quoted_post_context_unavailable"
+      ],
+      "replacement_target_id": "2071636422910505207",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-074-2075756147743564069",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2075756147743564069",
+      "replacement_case_id": "shadow-review-074-2073616113594765661",
+      "replacement_reason": [
+        "source_record_unavailable_for_low_substance_post"
+      ],
+      "replacement_target_id": "2073616113594765661",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-091-2076446399139299486",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2076446399139299486",
+      "replacement_case_id": "shadow-review-091-2073622520780169243",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2073622520780169243",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-100-2073206842243580217",
+      "old_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "lexical_only_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2073206842243580217",
+      "replacement_case_id": "shadow-review-100-2073425817179496527",
+      "replacement_reason": [
+        "quoted_post_context_unavailable"
+      ],
+      "replacement_target_id": "2073425817179496527",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    }
+  ],
+  "reviews_invalidated": [],
+  "reviews_preserved": [],
+  "schema_version": 2
+}

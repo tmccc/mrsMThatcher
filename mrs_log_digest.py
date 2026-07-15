@@ -63,6 +63,40 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def hybrid_retrieval_shadow_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Read local shadow telemetry without importing or running the embedder."""
+    path = project_dir / "hybrid_reply_retrieval_runtime" / "shadow_status.json"
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("status root is not an object")
+        counts = {
+            key: int(value.get(key, 0) or 0)
+            for key in (
+                "events", "completed", "failures", "hybrid_changed_evidence_set",
+                "hybrid_only_evidence", "lexical_only_evidence", "no_evidence_disagreements",
+            )
+        }
+        measurements = {
+            key: None if value.get(key) is None else float(value[key])
+            for key in (
+                "top_5_overlap_percent", "latency_p50_ms", "latency_p95_ms", "latency_max_ms",
+            )
+        }
+    except FileNotFoundError:
+        return {"available": False, "reason": "shadow mode disabled or no events observed"}
+    except Exception as exc:
+        return {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"}
+    return {
+        "available": True,
+        **counts,
+        **measurements,
+        "index_version": str(value.get("index_version") or "unavailable"),
+        "model_revision": str(value.get("model_revision") or "unavailable"),
+        "updated_at": value.get("updated_at"),
+    }
+
+
 def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = None) -> Dict[str, Any]:
     """Read current generated-pool health without mutating project files."""
     base_dir = base_dir.resolve()
@@ -500,8 +534,16 @@ def read_resume_data(state_file: Path) -> Dict[str, Any]:
         return {}
 
 
-def save_resume_time(state_file: Path, last_ts: datetime, records: List["Record"], report: Dict[str, Any], logs: List[Path]) -> None:
-    old = read_resume_data(state_file)
+def save_resume_time(
+    state_file: Path,
+    last_ts: datetime,
+    records: List["Record"],
+    report: Dict[str, Any],
+    logs: List[Path],
+    *,
+    preserve_existing_context: bool = True,
+) -> None:
+    old = read_resume_data(state_file) if preserve_existing_context else {}
 
     latest_state = merge_context(
         report.get("latest_state") or {},
@@ -566,11 +608,22 @@ def discover_logs(directory: Path, pattern: str) -> List[Path]:
             continue
         # Avoid accidentally ingesting digest outputs or state files if a broad pattern is used.
         name = p.name.lower()
-        if name.endswith(".json") or name.endswith(".md") or "digest" in name:
+        if (
+            name.endswith(".json")
+            or name.endswith(".md")
+            or "digest" in name
+            or is_selftest_log_path(p)
+        ):
             continue
         paths.append(p)
     # Deterministic order; the records are later sorted by timestamp anyway.
     return sorted(paths, key=lambda p: p.name)
+
+
+def is_selftest_log_path(path: Path | str) -> bool:
+    """Return whether *path* is a self-test log, never production evidence."""
+    name = Path(path).name.lower()
+    return re.search(r"(?:^|[._-])self-?test(?:[._-]|$)", name) is not None
 
 
 def resolve_explicit_logs(paths: Iterable[Path], project_dir: Path) -> List[Path]:
@@ -871,6 +924,8 @@ def summarize_latest_state(
         "last_reply_human": epoch_to_human(latest_state.get("last_reply_epoch")),
         "last_quote_post_epoch": latest_state.get("last_quote_post_epoch"),
         "last_quote_post_human": epoch_to_human(latest_state.get("last_quote_post_epoch")),
+        "last_meme_post_epoch": latest_state.get("last_meme_post_epoch"),
+        "last_meme_post_human": epoch_to_human(latest_state.get("last_meme_post_epoch")),
         "next_quote_post_epoch": latest_state.get("next_quote_post_epoch"),
         "next_quote_post_human": epoch_to_human(latest_state.get("next_quote_post_epoch")),
         "next_meme_post_epoch": latest_state.get("next_meme_post_epoch"),
@@ -909,6 +964,8 @@ def summarize_latest_state(
 def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[str, Any]], Optional[Path], Optional[datetime]]:
     seen_dirs: set[Path] = set()
     for log in logs:
+        if is_selftest_log_path(log):
+            continue
         directory = log.parent.resolve()
         if directory in seen_dirs:
             continue
@@ -1056,6 +1113,8 @@ def find_latest_config_before(paths: List[Path], before: Optional[datetime]) -> 
     seen = set()
     candidates: List[Record] = []
     for path in paths:
+        if is_selftest_log_path(path):
+            continue
         if not path.exists():
             continue
         for r in iter_records(path):
@@ -1786,16 +1845,21 @@ def analyse(
 
     for record_index, r in enumerate(records):
         msg = r.msg
+        production_record = not is_selftest_log_path(r.path)
 
         # Lifecycle/config/state
-        if msg == "Bot starting" or msg == "Bot started successfully" or "Bot stopped by KeyboardInterrupt" in msg:
+        if production_record and (
+            msg == "Bot starting"
+            or msg == "Bot started successfully"
+            or "Bot stopped by KeyboardInterrupt" in msg
+        ):
             lifecycle.append({"time": r.ts.strftime("%Y-%m-%d %H:%M:%S"), "level": r.level, "message": msg.splitlines()[0]})
 
-        config_pairs = extract_config_pairs(msg)
+        config_pairs = extract_config_pairs(msg) if production_record else {}
         if config_pairs:
             configs.update(config_pairs)
 
-        if msg.startswith("State being saved:") or msg.startswith("Loaded state:"):
+        if production_record and (msg.startswith("State being saved:") or msg.startswith("Loaded state:")):
             state = try_parse_json_object_from_msg(msg) or parse_partial_state_from_msg(msg)
             if state is not None:
                 latest_state = state
@@ -3918,6 +3982,33 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("All associations are observational; the digest does not attribute causation.")
     out.append("")
 
+    hybrid_shadow = report.get("hybrid_retrieval_shadow") or {}
+    out.append("## Hybrid retrieval shadow")
+    if not hybrid_shadow.get("available"):
+        out.append(f"Unavailable: **{hybrid_shadow.get('reason') or 'shadow mode disabled'}**.")
+    else:
+        overlap = hybrid_shadow.get("top_5_overlap_percent")
+        out.append(
+            f"Events: **{hybrid_shadow.get('events', 0)}**; completed: **{hybrid_shadow.get('completed', 0)}**; "
+            f"failures: **{hybrid_shadow.get('failures', 0)}**; lexical/hybrid top-5 overlap: "
+            f"**{f'{float(overlap):.1f}%' if overlap is not None else 'unavailable'}**."
+        )
+        out.append(
+            f"Changed evidence sets: **{hybrid_shadow.get('hybrid_changed_evidence_set', 0)}**; "
+            f"hybrid-only: **{hybrid_shadow.get('hybrid_only_evidence', 0)}**; "
+            f"lexical-only: **{hybrid_shadow.get('lexical_only_evidence', 0)}**; "
+            f"no-evidence disagreements: **{hybrid_shadow.get('no_evidence_disagreements', 0)}**."
+        )
+        out.append(
+            "Latency p50/p95/max: "
+            f"**{hybrid_shadow.get('latency_p50_ms', 'unavailable')} / "
+            f"{hybrid_shadow.get('latency_p95_ms', 'unavailable')} / "
+            f"{hybrid_shadow.get('latency_max_ms', 'unavailable')} ms**; "
+            f"index/model: **{hybrid_shadow.get('index_version', 'unavailable')} / "
+            f"{hybrid_shadow.get('model_revision', 'unavailable')}**."
+        )
+    out.append("")
+
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
     out.append("Modes: " + compact_counts(strategy.get("mode_counts") or {}))
@@ -4423,6 +4514,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "reason": f"analytics summary unavailable: {type(exc).__name__}",
             "tracked_post_pairs": 0,
         }
+    report["hybrid_retrieval_shadow"] = hybrid_retrieval_shadow_snapshot(project_dir)
 
     authoritative_state, authoritative_state_path, authoritative_state_ts = load_authoritative_state_for_logs(logs)
     if (
@@ -4480,7 +4572,14 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
 
     if records and not args.no_state and not args.no_update_state:
         last_ts = records[-1].ts
-        save_resume_time(state_file, last_ts, records, report, logs)
+        save_resume_time(
+            state_file,
+            last_ts,
+            records,
+            report,
+            logs,
+            preserve_existing_context=not args.reset_state,
+        )
 
     return 0
 

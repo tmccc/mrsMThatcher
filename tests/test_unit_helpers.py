@@ -54,6 +54,8 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
 
 
 def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None = None) -> dict:
@@ -4222,7 +4224,7 @@ def test_malformed_reply_post_id_is_not_recorded(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda state: [])
     monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda text: False)
     monkeypatch.setattr(bot, "build_context_for_grok", lambda mention, state: ("context", True))
-    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda context: "A reply.")
+    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda context, **_kwargs: "A reply.")
     monkeypatch.setattr(bot, "x_request", lambda *args, **kwargs: {"data": {"id": "banana"}})
     monkeypatch.setattr(bot, "save_state", lambda state: None)
 
@@ -4280,6 +4282,89 @@ def test_own_historical_context_reply_is_never_processed_as_incoming_reply(
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["daily_reply_count"] == 0
     assert state["replied_to_ids"] == []
+
+
+def test_truncated_pagination_no_reply_is_not_evaluated_twice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher Yep",
+        "conversation_id": "100",
+        "referenced_tweets": [],
+        "_pagination_truncated": True,
+    }
+    calls: list[str] = []
+
+    def no_reply(_context: str, *_args: object, evaluation_outcome=None, **_kwargs: object):
+        calls.append("xai")
+        evaluation_outcome.update({"status": "no_reply", "reason": "no useful response"})
+        return None
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: ("context", True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(bot, "ask_grok_for_reply", no_reply)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    assert calls == ["xai"]
+    assert state["reply_evaluation_records"]["100"]["outcome"] == "no_reply"
+
+
+def test_truncated_pagination_rejected_model_output_remains_retryable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    mention = {
+        "id": "101",
+        "author_id": "201",
+        "text": "@MrsMThatcher A substantive claim",
+        "conversation_id": "101",
+        "referenced_tweets": [],
+        "_pagination_truncated": True,
+    }
+    calls: list[str] = []
+
+    def rejected(_context: str, *_args: object, evaluation_outcome=None, **_kwargs: object):
+        calls.append("xai")
+        evaluation_outcome.update({"status": "rejected", "reason": "local_validator_rejection"})
+        return None
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: ("context", True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(bot, "ask_grok_for_reply", rejected)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    assert calls == ["xai", "xai"]
+    assert "101" not in state.get("reply_evaluation_records", {})
 
 
 def test_confirmed_mention_reply_save_failure_replays_after_restart(

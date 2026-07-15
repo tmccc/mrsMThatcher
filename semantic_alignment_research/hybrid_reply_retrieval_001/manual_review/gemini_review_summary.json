@@ -1,0 +1,59 @@
+{
+  "choice_counts": {
+    "A_better": 2,
+    "B_better": 5,
+    "insufficient_context": 2,
+    "neither_useful": 19,
+    "no_historical_evidence": 42,
+    "roughly_equal": 30
+  },
+  "combined_known_spend_usd": 1.2038014,
+  "completed_reviews": 100,
+  "confidence_counts": {
+    "high": 90,
+    "medium": 10
+  },
+  "decisive_retriever_wins": {
+    "hybrid": 4,
+    "lexical": 3
+  },
+  "developer_known_spend_usd": 1.2038014,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "evidence_desirability_counts": {
+    "desirable": 20,
+    "not_desirable": 77,
+    "unclear": 3
+  },
+  "generated_at": "2026-07-15T19:13:51.879961Z",
+  "human_reviews_modified": false,
+  "intervention_counts": {
+    "historical_context": 5,
+    "historical_correction": 1,
+    "humour_preferable": 9,
+    "no_reply_preferable": 70,
+    "researched_principle": 15
+  },
+  "model": "gemini-3.1-pro-preview",
+  "normalised_missing_packet_reason_count": 69,
+  "offline_normalised_review_count": 10,
+  "packet_assessment_counts_by_retriever": {
+    "hybrid": {
+      "irrelevant": 149,
+      "partially_relevant": 28,
+      "relevant": 49
+    },
+    "lexical": {
+      "irrelevant": 219,
+      "partially_relevant": 42,
+      "relevant": 39
+    }
+  },
+  "reason_tag_counts": {},
+  "schema_version": 1,
+  "transport_counts": {
+    "developer_api": 100
+  },
+  "unresolved_reviews": 0,
+  "vertex_known_spend_usd": 0.0
+}

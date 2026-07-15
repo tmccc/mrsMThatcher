@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-07-15T17:32:10.947370Z",
+  "index_version": "1:298179def67b",
+  "live_mode": "shadow",
+  "live_shadow_enabled": true,
+  "model_id": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "production_retriever": "lexical",
+  "reviewed_count": 0,
+  "schema_version": 1,
+  "shadow_events": {
+    "completed": 5,
+    "disagreement_counts": {
+      "different_evidence_set": 3,
+      "lexical_only_evidence": 1,
+      "same_set_different_order": 1
+    },
+    "events": 5,
+    "failures": 0,
+    "hybrid_changed_evidence_set": 5,
+    "hybrid_only_evidence": 0,
+    "index_version": "1:298179def67b",
+    "latency_max_ms": 639.848,
+    "latency_p50_ms": 299.871,
+    "latency_p95_ms": 589.34,
+    "lexical_only_evidence": 1,
+    "model_revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+    "no_evidence_disagreements": 1,
+    "status_counts": {
+      "completed": 5
+    },
+    "top_5_overlap_percent": 56.0
+  }
+}

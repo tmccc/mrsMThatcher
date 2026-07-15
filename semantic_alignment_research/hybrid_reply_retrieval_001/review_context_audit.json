@@ -1,0 +1,306 @@
+{
+  "assignment_manifest_hash": "be945ed863675bb8f4d292eb13c34e970cc30c4247ab2ae0259c187d35108e5d",
+  "catalog_stats": {
+    "log_files": 6,
+    "logged_post_records": 138,
+    "malformed_structured_x_payloads": 1,
+    "state_cache_records_seen": 1508,
+    "state_snapshot_files": 13,
+    "structured_x_payloads": 1135,
+    "unique_local_post_records": 472
+  },
+  "context_version": "hybrid-review-context-v2",
+  "current_review_count": 0,
+  "existing_reviews_before": 0,
+  "existing_reviews_invalidated": 0,
+  "existing_reviews_preserved": 0,
+  "final_complete_incoming_text_cases": 100,
+  "final_context_unavailable_cases": 0,
+  "final_direct_parent_cases": 59,
+  "final_older_thread_cases": 11,
+  "final_quoted_post_cases": 37,
+  "generated_at": "2026-07-15T18:13:37.222388Z",
+  "last_verified_at": "2026-07-15T18:23:44.349231Z",
+  "new_sample_hash": "8dfc5eab7722feff7127b0d9180c366f5338061dc28c8591f0e81acbd51e9b3d",
+  "offline_only": true,
+  "old_sample_hash": "decf309ff52c4b06489efbcd20c00d923ddb9e71cd87dd75ade31fb09503c2d9",
+  "original_case_count": 100,
+  "original_complete_incoming_text_cases": 99,
+  "original_context_unavailable": [
+    {
+      "case_id": "shadow-review-001-2071868785946943509",
+      "reasons": [
+        "incoming_text_ends_with_unresolved_truncation_marker"
+      ],
+      "target_id": "2071868785946943509"
+    },
+    {
+      "case_id": "shadow-review-015-2073042712811462676",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2073042712811462676"
+    },
+    {
+      "case_id": "shadow-review-053-2071521752987898034",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2071521752987898034"
+    },
+    {
+      "case_id": "shadow-review-069-2071495768603501030",
+      "reasons": [
+        "quoted_post_context_unavailable"
+      ],
+      "target_id": "2071495768603501030"
+    },
+    {
+      "case_id": "shadow-review-074-2075756147743564069",
+      "reasons": [
+        "source_record_unavailable_for_low_substance_post"
+      ],
+      "target_id": "2075756147743564069"
+    },
+    {
+      "case_id": "shadow-review-091-2076446399139299486",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2076446399139299486"
+    },
+    {
+      "case_id": "shadow-review-100-2073206842243580217",
+      "reasons": [
+        "quoted_post_context_unavailable"
+      ],
+      "target_id": "2073206842243580217"
+    }
+  ],
+  "original_context_unavailable_cases": 7,
+  "original_truncated_cases": 1,
+  "production_retrieval_recalculated": false,
+  "repaired_in_place_cases": 41,
+  "replaced_cases": 7,
+  "replacements": [
+    {
+      "new_strata": [
+        "hot-post",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-001-2071868785946943509",
+      "old_strata": [
+        "hot-post",
+        "english_or_unknown",
+        "substantive",
+        "lexical_only_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071868785946943509",
+      "replacement_case_id": "shadow-review-001-2071845062179184658",
+      "replacement_reason": [
+        "incoming_text_ends_with_unresolved_truncation_marker"
+      ],
+      "replacement_target_id": "2071845062179184658",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-015-2073042712811462676",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2073042712811462676",
+      "replacement_case_id": "shadow-review-015-2077261276850610377",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2077261276850610377",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-053-2071521752987898034",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071521752987898034",
+      "replacement_case_id": "shadow-review-053-2075445315700691374",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2075445315700691374",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-069-2071495768603501030",
+      "old_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2071495768603501030",
+      "replacement_case_id": "shadow-review-069-2071636422910505207",
+      "replacement_reason": [
+        "quoted_post_context_unavailable"
+      ],
+      "replacement_target_id": "2071636422910505207",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-074-2075756147743564069",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2075756147743564069",
+      "replacement_case_id": "shadow-review-074-2073616113594765661",
+      "replacement_reason": [
+        "source_record_unavailable_for_low_substance_post"
+      ],
+      "replacement_target_id": "2073616113594765661",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-091-2076446399139299486",
+      "old_strata": [
+        "mention",
+        "english_or_unknown",
+        "low_substance",
+        "same_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2076446399139299486",
+      "replacement_case_id": "shadow-review-091-2073622520780169243",
+      "replacement_reason": [
+        "direct_parent_context_unavailable"
+      ],
+      "replacement_target_id": "2073622520780169243",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "disagreement",
+        "historical_use"
+      ]
+    },
+    {
+      "new_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "different_evidence_set",
+        "humour_or_unreplied"
+      ],
+      "old_case_id": "shadow-review-100-2073206842243580217",
+      "old_strata": [
+        "quote_tweet",
+        "english_or_unknown",
+        "substantive",
+        "lexical_only_evidence",
+        "humour_or_unreplied"
+      ],
+      "old_target_id": "2073206842243580217",
+      "replacement_case_id": "shadow-review-100-2073425817179496527",
+      "replacement_reason": [
+        "quoted_post_context_unavailable"
+      ],
+      "replacement_target_id": "2073425817179496527",
+      "strata_preserved": [
+        "lane",
+        "language",
+        "substance",
+        "historical_use"
+      ]
+    }
+  ],
+  "retained_case_assignment_regressions": [],
+  "retained_case_retrieval_set_regressions": [],
+  "retrieval_display_mismatch_cases": 0,
+  "retrieval_sets_changed_for_retained_cases": false,
+  "retrieval_used_truncated_text_cases": 1,
+  "root_cause": {
+    "original_capture": "The reported first incoming text is already stored in the retained tweet cache as the literal abbreviated text; no fuller local copy exists.",
+    "replay_extraction": "Replay serialisation contained a 500-character slice. No current replay item reached that bound, but the unsafe slice has been removed. Replay also retained only one merged parent string and no structured thread fields.",
+    "sample_construction": "The v1 sample copied the replay incoming string and collapsed the single parent string into thread_context; it omitted references, authors, timestamps, quoted-post separation and older thread context.",
+    "server_and_browser": "The v1 browser used textContent and no CSS line clamp, so it did not truncate incoming text. It merely rendered the incomplete sample fields it received."
+  },
+  "schema_version": 2
+}

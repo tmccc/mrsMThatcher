@@ -1,0 +1,18 @@
+{
+  "fusion_version": "weighted-rrf-v1",
+  "lexical_candidate_count": 20,
+  "lexical_weight": 1.0,
+  "maximum_results": 5,
+  "metadata_weight": 0.15,
+  "minimum_fused_score": 0.012,
+  "minimum_lexical_score": 3.0,
+  "minimum_packet_confidence": "medium",
+  "minimum_semantic_similarity": 0.84,
+  "minimum_top_margin": 1e-05,
+  "rrf_k": 60,
+  "schema_version": 1,
+  "selected_at": "2026-07-15T17:12:46.517259Z",
+  "selected_from": "fixed_grid_calibration_v1",
+  "semantic_candidate_count": 20,
+  "semantic_weight": 0.8
+}

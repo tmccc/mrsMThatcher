@@ -1,0 +1,31 @@
+{
+  "candidate_count": 156,
+  "completed": 156,
+  "disagreement_counts": {
+    "different_evidence_set": 84,
+    "hybrid_only_evidence": 10,
+    "lexical_only_evidence": 18,
+    "same_evidence": 43,
+    "same_set_different_order": 1
+  },
+  "events": 156,
+  "failures": 0,
+  "generated_at": "2026-07-15T17:13:33.741578Z",
+  "historical_decisions_preserved_not_recomputed": true,
+  "hybrid_changed_evidence_set": 113,
+  "hybrid_only_evidence": 10,
+  "index_version": "1:298179def67b",
+  "latency_max_ms": 281.51,
+  "latency_p50_ms": 147.868,
+  "latency_p95_ms": 229.88,
+  "lexical_only_evidence": 18,
+  "model_revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "multilingual_candidate_count": 18,
+  "no_evidence_disagreements": 28,
+  "schema_version": 1,
+  "since_days": 30,
+  "status_counts": {
+    "completed": 156
+  },
+  "top_5_overlap_percent": 12.35
+}

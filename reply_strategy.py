@@ -50,6 +50,17 @@ DEFAULT_REPLY_STRATEGY = {
     "maximum_retrieved_packets": 5,
     "minimum_grounded_confidence": "medium",
     "no_hashtags": True,
+    "hybrid_retrieval": {
+        "enabled": False,
+        "mode": "shadow",
+        "index_path": "semantic_alignment_research/hybrid_reply_retrieval_001",
+        "maximum_results": 5,
+        "semantic_candidate_count": 20,
+        "lexical_candidate_count": 20,
+        "query_timeout_ms": 1000,
+        "maximum_shadow_history": 5000,
+        "fail_open": True,
+    },
 }
 
 
@@ -112,6 +123,30 @@ def validate_reply_strategy_config(value: Any) -> list[str]:
         errors.append("reply_strategy.preferred_humour_tones contains unsupported values")
     if value.get("minimum_grounded_confidence") not in {"medium", "high"}:
         errors.append("reply_strategy.minimum_grounded_confidence must be medium or high")
+    shadow = value.get("hybrid_retrieval")
+    expected_shadow = {
+        "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
+        "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
+    }
+    if not isinstance(shadow, dict) or set(shadow) != expected_shadow:
+        errors.append("reply_strategy.hybrid_retrieval fields mismatch")
+    else:
+        if type(shadow.get("enabled")) is not bool:
+            errors.append("reply_strategy.hybrid_retrieval.enabled must be boolean")
+        if shadow.get("mode") != "shadow":
+            errors.append("reply_strategy.hybrid_retrieval.mode must be shadow")
+        if not isinstance(shadow.get("index_path"), str) or not shadow["index_path"].strip():
+            errors.append("reply_strategy.hybrid_retrieval.index_path must be non-empty")
+        for key, low, high in (
+            ("maximum_results", 1, 5), ("semantic_candidate_count", 5, 100),
+            ("lexical_candidate_count", 5, 100), ("query_timeout_ms", 50, 10_000),
+            ("maximum_shadow_history", 100, 100_000),
+        ):
+            number = shadow.get(key)
+            if type(number) is not int or not low <= number <= high:
+                errors.append(f"reply_strategy.hybrid_retrieval.{key} must be an integer from {low} to {high}")
+        if shadow.get("fail_open") is not True:
+            errors.append("reply_strategy.hybrid_retrieval.fail_open must remain true")
     if value.get("enabled"):
         if value.get("accuracy_first") is not True:
             errors.append("reply_strategy.accuracy_first must remain true when enabled")
@@ -197,6 +232,7 @@ def strategy_mode_guidance() -> str:
         "If it is materially false or misleading and supplied evidence resolves it with high confidence, use historical_correction. "
         "Otherwise use historical_context when a grounded qualification materially improves a claim that is not clearly false. "
         "Use researched_principle for a concise evidence-backed summary of Thatcher's argument without pretending it is a direct quotation. "
+        "Set factual_claim_made=true whenever the final reply states a historical or policy fact; every historical mode must set it true. "
         "If history adds no material value, choose the most fitting humour mode: wry_reply, playful_reply, deadpan_reply, or warm_reply. "
         "Use no_reply for weak evidence, unclear or unrelated posts, repetition, needless conflict, or when no useful response exists. "
         "Do not force history. Do not force humour."

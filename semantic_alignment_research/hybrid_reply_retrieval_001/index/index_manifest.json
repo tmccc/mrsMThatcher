@@ -1,0 +1,21 @@
+{
+  "build_seconds": 180.856,
+  "corpus_hash": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+  "dimensions": 384,
+  "document_count": 626,
+  "document_template_hash": "5343dad026de2ff31769cc4eb94a425c2153194d91299c88b660dc9573816d7f",
+  "document_template_version": "hybrid-retrieval-document-v1",
+  "dtype": "float32",
+  "eligible_quote_id_set_sha256": "905c8d41a36381c232ed55ceaf42b645ce6aaf6f5aff1427ad9b14f61e8e7e7b",
+  "embeddings_sha256": "298179def67bf0fe17812652684c16440e93e98d65d2a4b66b74b7ae3fea6962",
+  "generated_at": "2026-07-15T16:54:02.247712Z",
+  "index_schema_version": 1,
+  "maximum_model_tokens": 256,
+  "model_id": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "model_load_seconds": 2.491,
+  "model_revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+  "normalisation": "L2 unit vectors; exact cosine via float32 dot product",
+  "peak_rss_delta_kib": 1103272,
+  "quote_ids_sha256": "46bbf91f3f8dbb8f897192b9dcef0df85b8fccde200e2071f636f61f04e69ffc",
+  "schema_version": 1
+}

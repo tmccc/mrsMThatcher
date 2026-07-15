@@ -1,0 +1,42 @@
+{
+  "assertions": {
+    "confirmed_reply_targets_excluded_from_no_reply_ledger": true,
+    "fixture_values_absent": true,
+    "live_state_not_modified": true,
+    "normaliser_accepts_candidate_unchanged": true
+  },
+  "base_state_sha256": "c6df263c0ec978e3dc48d53ad6b91914f780562b20da00ff0bc75d9cbc34add0",
+  "candidate_sha256": "627146c7c7c92aabb6f03019a9a9b53b2ced5560f657c83d8dd955d06a222c69",
+  "clean_snapshot": {
+    "record": "mrsMThatcher.log.1:32095 (structured scalar snapshot; JSON debug body truncated)",
+    "timestamp": "2026-07-15T18:17:20+01:00"
+  },
+  "counts": {
+    "confirmed_reply_records_from_logs": 14,
+    "own_auto_reply_ids": 150,
+    "posted_meme_filenames": 29,
+    "recent_own_post_ids": 20,
+    "replied_to_ids": 108,
+    "replied_to_quote_post_ids": 50,
+    "reply_strategy_history": 3,
+    "seen_quote_post_ids": 115,
+    "terminal_no_reply_records": 7,
+    "tweet_cache": 226
+  },
+  "critical_state": {
+    "daily_quote_reply_count": 1,
+    "daily_reply_count": 3,
+    "last_main_post_id": "2077427274274533828",
+    "last_meme_post_epoch": 1784119355,
+    "last_quote_post_epoch": 1784132233,
+    "last_quote_tweet_check_epoch": 1784149311,
+    "last_reply_check_epoch": 1784150152,
+    "last_reply_epoch": 1784136565,
+    "last_seen_mention_id": "2077502178101473337",
+    "next_meme_post_epoch": 1784214000,
+    "next_quote_post_epoch": 1784140530
+  },
+  "generated_at": "2026-07-15T22:22:55.836932+01:00",
+  "live_state_sha256_after": "3e08414b5a2adedcf47b7e5aaaee10493d1c1af9e503447dd614f5127c66526f",
+  "live_state_sha256_before": "3e08414b5a2adedcf47b7e5aaaee10493d1c1af9e503447dd614f5127c66526f"
+}
