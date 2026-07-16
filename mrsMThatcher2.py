@@ -1216,6 +1216,7 @@ CONSUMER_SECRET = os.getenv("X_CONSUMER_SECRET", "")
 ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN", "")
 ACCESS_SECRET = os.getenv("X_ACCESS_SECRET", "")
 MY_USER_ID = os.getenv("X_MY_USER_ID", "")
+MY_USERNAME = os.getenv("X_MY_USERNAME", "MrsMThatcher").strip().lstrip("@")
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
 
 # Optional. If set, quote lookup uses Bearer auth. If not set, the script
@@ -1363,6 +1364,7 @@ def api_error_is_reply_not_allowed(error: Exception) -> bool:
             "reply to this conversation is not allowed" in message
             or "not been mentioned or otherwise engaged by the author" in message
             or "not allowed to reply" in message
+            or "only reply to or quote posts where you are mentioned or are the author" in message
         )
     )
 
@@ -2269,6 +2271,13 @@ def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
 
 
 def record_api_error(state: dict, error: Exception, service: str, *, scope: str = "api") -> None:
+    if service == "x" and scope == "write" and api_error_is_reply_not_allowed(error):
+        log.warning(
+            "Not recording terminal target-specific X reply restriction in the transient write-error window: %s",
+            error,
+        )
+        return
+
     current = now_epoch()
 
     if service == "x" and scope == "quote":
@@ -3060,6 +3069,35 @@ def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
 # Mentions
 # ---------------------------------------------------------------------
 
+def reply_target_is_directly_eligible(tweet: dict) -> bool:
+    """Check only the target post itself for X reply eligibility evidence."""
+    if str(tweet.get("author_id") or "") == str(MY_USER_ID):
+        return True
+
+    entities = tweet.get("entities")
+    if isinstance(entities, dict):
+        mentions = entities.get("mentions")
+        if isinstance(mentions, list):
+            for mention in mentions:
+                if not isinstance(mention, dict):
+                    continue
+                if str(mention.get("id") or "") == str(MY_USER_ID):
+                    return True
+                username = str(mention.get("username") or "").lstrip("@")
+                if MY_USERNAME and username.casefold() == MY_USERNAME.casefold():
+                    return True
+        return False
+
+    text = str(tweet.get("text") or "")
+    if MY_USERNAME and re.search(
+        rf"(?<![A-Za-z0-9_])@{re.escape(MY_USERNAME)}(?![A-Za-z0-9_])",
+        text,
+        flags=re.IGNORECASE,
+    ):
+        return True
+    return False
+
+
 def get_mentions(state: dict) -> list[dict]:
     base_since_id = str(state.get("last_seen_mention_id") or "")
     log.info(
@@ -3070,7 +3108,7 @@ def get_mentions(state: dict) -> list[dict]:
 
     params = {
         "max_results": MAX_MENTIONS_PER_CHECK,
-        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+        "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
         "expansions": "author_id,attachments.media_keys",
         "media.fields": "media_key,type,url,preview_image_url",
     }
@@ -3255,7 +3293,7 @@ def get_hot_post_reply_candidates(state: dict) -> list[dict]:
         params = {
             "query": query,
             "max_results": HOT_POST_REPLY_SEARCH_API_MAX_RESULTS,
-            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments",
+            "tweet.fields": "author_id,created_at,conversation_id,referenced_tweets,attachments,entities",
             "expansions": "author_id,attachments.media_keys",
             "media.fields": "media_key,type,url,preview_image_url",
         }
@@ -7530,6 +7568,34 @@ def log_reply_strategy_dry_run(*, incoming: str, reply: str, lane: str, target_i
     )
 
 
+def log_reply_strategy_posting_outcome(
+    *,
+    reply: str,
+    status: str,
+    lane: str,
+    target_id: str,
+    failure_reason: str,
+) -> None:
+    metadata = getattr(reply, "strategy_metadata", None)
+    if not isinstance(metadata, dict):
+        return
+    log_event(
+        "reply_strategy_outcome",
+        status=status,
+        lane=lane,
+        target_id=target_id,
+        reply_post_id="",
+        mode=metadata.get("mode"),
+        humour_tone=metadata.get("humour_tone"),
+        evidence_confidence=metadata.get("evidence_confidence"),
+        retrieved_quote_ids=metadata.get("retrieved_quote_ids", []),
+        factual_claim_made=metadata.get("factual_claim_made"),
+        grounded=metadata.get("grounded"),
+        no_reply_reason=metadata.get("no_reply_reason", ""),
+        failure_reason=failure_reason,
+    )
+
+
 def ask_grok_for_reply(
     context_text: str,
     media_context: dict | None = None,
@@ -7893,7 +7959,7 @@ def terminal_reply_evaluation(state: dict, target_id: str) -> dict | None:
     if not isinstance(records, dict):
         return None
     record = records.get(str(target_id))
-    if isinstance(record, dict) and record.get("outcome") == "no_reply":
+    if isinstance(record, dict) and record.get("outcome") in {"no_reply", "reply_not_permitted"}:
         return record
     return None
 
@@ -7904,7 +7970,10 @@ def record_terminal_reply_evaluation(
     target_id: str,
     lane: str,
     reason: str,
+    outcome: str = "no_reply",
 ) -> None:
+    if outcome not in {"no_reply", "reply_not_permitted"}:
+        raise ValueError(f"Unsupported terminal reply outcome: {outcome}")
     records = state.get("reply_evaluation_records", {})
     if not isinstance(records, dict):
         records = {}
@@ -7912,7 +7981,7 @@ def record_terminal_reply_evaluation(
     records[str(target_id)] = {
         "target_id": str(target_id),
         "lane": str(lane),
-        "outcome": "no_reply",
+        "outcome": outcome,
         "reason": str(reason or "model_selected_no_reply"),
         "evaluated_epoch": now_epoch(),
     }
@@ -8333,18 +8402,21 @@ def maybe_reply_to_mentions(state: dict) -> str:
 
         prior_evaluation = terminal_reply_evaluation(state, mention_id)
         if prior_evaluation is not None:
+            prior_outcome = str(prior_evaluation.get("outcome") or "no_reply")
             log.info(
-                "Skipping %s %s: terminal no_reply evaluation already recorded reason=%s",
+                "Skipping %s %s: terminal %s evaluation already recorded reason=%s",
                 candidate_source,
                 mention_id,
+                prior_outcome,
                 prior_evaluation.get("reason", ""),
             )
-            maybe_mark_hot_post_reply_skipped(state, mention, reason="already_evaluated_no_reply")
+            skip_reason = f"already_evaluated_{prior_outcome}"
+            maybe_mark_hot_post_reply_skipped(state, mention, reason=skip_reason)
             log_event(
                 "candidate_skipped",
                 lane=candidate_log_source,
                 id=mention_id,
-                reason="already_evaluated_no_reply",
+                reason=skip_reason,
             )
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
@@ -8355,6 +8427,46 @@ def maybe_reply_to_mentions(state: dict) -> str:
             maybe_mark_hot_post_reply_skipped(state, mention, reason="own_account")
             log_event("candidate_skipped", lane=candidate_log_source, id=mention_id, reason="own_account")
             mark_mention_seen_if_applicable(state, mention)
+            continue
+
+        if not reply_target_is_directly_eligible(mention):
+            reason = "target_does_not_directly_mention_account"
+            log.warning(
+                "Skipping %s %s before context/media/model work: target is not directly reply-eligible",
+                candidate_source,
+                mention_id,
+            )
+            persisted_reply = pending_strategy_reply(
+                state,
+                mention_id,
+                str(candidate_source),
+            )
+            if persisted_reply is not None:
+                log_reply_strategy_posting_outcome(
+                    reply=persisted_reply,
+                    status="posting_failed_terminal",
+                    lane=str(candidate_source),
+                    target_id=mention_id,
+                    failure_reason="reply_not_permitted_preflight",
+                )
+                clear_pending_strategy_reply(state, mention_id, str(candidate_source))
+            record_terminal_reply_evaluation(
+                state,
+                target_id=mention_id,
+                lane=str(candidate_source),
+                reason=reason,
+                outcome="reply_not_permitted",
+            )
+            maybe_mark_hot_post_reply_skipped(state, mention, reason="reply_not_permitted")
+            log_event(
+                "reply_target_terminal",
+                lane=candidate_log_source,
+                target_id=mention_id,
+                outcome="reply_not_permitted",
+                reason=reason,
+            )
+            mark_mention_seen_if_applicable(state, mention)
+            save_state(state, durable=True)
             continue
 
         if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
@@ -8505,6 +8617,27 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     "marking mention as handled without consuming reply quota",
                     mention_id,
                 )
+                log_reply_strategy_posting_outcome(
+                    reply=reply_text,
+                    status="posting_failed_terminal",
+                    lane=str(candidate_source),
+                    target_id=mention_id,
+                    failure_reason="reply_not_permitted",
+                )
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane=str(candidate_source),
+                    reason="x_reply_not_permitted",
+                    outcome="reply_not_permitted",
+                )
+                log_event(
+                    "reply_target_terminal",
+                    lane=candidate_log_source,
+                    target_id=mention_id,
+                    outcome="reply_not_permitted",
+                    reason="x_reply_not_permitted",
+                )
                 replied_to_ids.add(mention_id)
                 clear_pending_strategy_reply(state, mention_id, str(candidate_source))
                 state["replied_to_ids"] = append_unique_capped(
@@ -8513,15 +8646,29 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     1000,
                 )
                 mark_mention_seen_if_applicable(state, mention)
-                save_state(state)
+                save_state(state, durable=True)
                 return NORMAL_CHECK_STATUS_CHECKED
 
             log.exception("Failed to post generated reply")
+            log_reply_strategy_posting_outcome(
+                reply=reply_text,
+                status="posting_failed_retryable",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
+            )
             record_api_error(state, e, "x", scope="write")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
         except Exception as e:
             log.exception("Unexpected failure posting generated reply")
+            log_reply_strategy_posting_outcome(
+                reply=reply_text,
+                status="posting_failed_retryable",
+                lane=str(candidate_source),
+                target_id=mention_id,
+                failure_reason="unexpected_posting_error",
+            )
             record_api_error(state, e, "x", scope="write")
             save_state(state)
             return NORMAL_CHECK_STATUS_API_ERROR
@@ -9205,17 +9352,45 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         "marking quote tweet as skipped without consuming reply quota",
                         quote_id,
                     )
+                    log_reply_strategy_posting_outcome(
+                        reply=reply_text,
+                        status="posting_failed_terminal",
+                        lane="quote_tweet",
+                        target_id=quote_id,
+                        failure_reason="reply_not_permitted",
+                    )
+                    log_event(
+                        "reply_target_terminal",
+                        lane="quote_tweet",
+                        target_id=quote_id,
+                        outcome="reply_not_permitted",
+                        reason="x_reply_not_permitted",
+                    )
                     mark_quote_tweet_skipped(state, quote_id)
                     clear_pending_strategy_reply(state, quote_id, "quote_tweet")
-                    save_state(state)
+                    save_state(state, durable=True)
                     return QUOTE_CHECK_STATUS_CHECKED
 
                 log.exception("Failed to post generated quote-tweet reply")
+                log_reply_strategy_posting_outcome(
+                    reply=reply_text,
+                    status="posting_failed_retryable",
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                    failure_reason=f"x_api_{getattr(e, 'status_code', 'error')}",
+                )
                 record_api_error(state, e, "x", scope="write")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED
             except Exception as e:
                 log.exception("Unexpected failure posting generated quote-tweet reply")
+                log_reply_strategy_posting_outcome(
+                    reply=reply_text,
+                    status="posting_failed_retryable",
+                    lane="quote_tweet",
+                    target_id=quote_id,
+                    failure_reason="unexpected_posting_error",
+                )
                 record_api_error(state, e, "x", scope="write")
                 save_state(state)
                 return QUOTE_CHECK_STATUS_CHECKED

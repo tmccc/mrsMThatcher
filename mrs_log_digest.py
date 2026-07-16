@@ -1216,6 +1216,19 @@ def is_media_v2_request_failure(record: Record) -> bool:
     )
 
 
+def is_reply_target_eligibility_restriction(message: str) -> bool:
+    text = str(message or "").lower()
+    return any(
+        marker in text
+        for marker in (
+            "only reply to or quote posts where you are mentioned or are the author",
+            "reply to this conversation is not allowed",
+            "not been mentioned or otherwise engaged by the author",
+            "not allowed to reply",
+        )
+    )
+
+
 def is_media_fallback_warning(record: Record) -> bool:
     return (
         record.level in {"ERROR", "CRITICAL", "WARNING"}
@@ -1375,6 +1388,7 @@ def summarize_xai_usage_event(
         "author_id": context.get("author_id", ""),
         "prompt_tokens": int_usage_value(usage.get("prompt_tokens")),
         "cached_tokens": int_usage_value(prompt_details.get("cached_tokens")),
+        "image_tokens": int_usage_value(prompt_details.get("image_tokens")),
         "reasoning_tokens": int_usage_value(completion_details.get("reasoning_tokens")),
         "completion_tokens": int_usage_value(usage.get("completion_tokens")),
         "total_tokens": int_usage_value(usage.get("total_tokens")),
@@ -1388,6 +1402,7 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
         "successful_xai_calls": len(events),
         "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
         "cached_tokens": sum(int_usage_value(item.get("cached_tokens")) for item in events),
+        "image_tokens": sum(int_usage_value(item.get("image_tokens")) for item in events),
         "reasoning_tokens": sum(int_usage_value(item.get("reasoning_tokens")) for item in events),
         "completion_tokens": sum(int_usage_value(item.get("completion_tokens")) for item in events),
         "total_tokens": sum(int_usage_value(item.get("total_tokens")) for item in events),
@@ -1607,14 +1622,30 @@ def _normalise_lane(value: Any) -> str:
 
 
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
+    raw_decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
+    decision_by_id: Dict[str, Dict[str, Any]] = {}
+    for index, event in enumerate(raw_decisions):
+        lane = _normalise_lane(event.get("lane"))
+        target = str(event.get("target_id") or "")
+        decision_id = f"{lane}:{target}" if target else f"missing:{index}"
+        decision_by_id.setdefault(decision_id, event)
+    decisions = list(decision_by_id.values())
     outcome_by_id: Dict[str, Dict[str, Any]] = {}
     for index, event in enumerate(events):
         if event.get("kind") != "reply_strategy_outcome":
             continue
-        outcome_id = str(event.get("reply_post_id") or f"missing:{index}")
+        reply_post_id = str(event.get("reply_post_id") or "")
+        outcome_id = (
+            f"reply:{reply_post_id}"
+            if reply_post_id
+            else f"{event.get('status')}:{_normalise_lane(event.get('lane'))}:{event.get('target_id') or index}"
+        )
         outcome_by_id.setdefault(outcome_id, event)
     outcomes = list(outcome_by_id.values())
+    published_outcomes = [
+        event for event in outcomes
+        if str(event.get("status") or "confirmed") in {"confirmed", "posted"}
+    ]
 
     posted: list[tuple[str, str]] = []
     for event in events:
@@ -1625,11 +1656,11 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             target_field = {"mention": "mention_id", "hot-post": "hot_post_reply_id", "quote-tweet": "quote_tweet_id"}[lane]
             posted.append((lane, str(event.get(target_field) or "")))
 
-    observations = list(outcomes)
+    observations = list(published_outcomes)
     observations.extend(event for event in decisions if event.get("mode") == "no_reply")
     outcome_targets = {
         (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
-        for event in outcomes
+        for event in published_outcomes
         if event.get("target_id")
     }
     targeted_decisions: Dict[tuple[str, str], list[Dict[str, Any]]] = {}
@@ -1665,12 +1696,37 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         mode if mode in valid_modes else "strategy metadata unavailable"
         for mode in (str(event.get("mode") or "") for event in observations)
     )
+    generated_modes = Counter({key: 0 for key in modes})
+    generated_modes.update(
+        mode if mode in valid_modes else "strategy metadata unavailable"
+        for mode in (str(event.get("mode") or "") for event in decisions)
+    )
     by_lane: Dict[str, Counter] = {lane: Counter() for lane in ("mention", "hot-post", "quote-tweet", "unavailable")}
     for event in observations:
         lane = _normalise_lane(event.get("lane"))
         mode = str(event.get("mode") or "")
         by_lane[lane][mode if mode in valid_modes else "strategy metadata unavailable"] += 1
+    generated_by_lane: Dict[str, Counter] = {lane: Counter() for lane in by_lane}
+    for event in decisions:
+        lane = _normalise_lane(event.get("lane"))
+        mode = str(event.get("mode") or "")
+        generated_by_lane[lane][mode if mode in valid_modes else "strategy metadata unavailable"] += 1
+    outcome_status_counts = Counter()
+    for event in outcomes:
+        status = str(event.get("status") or "confirmed")
+        if status in {"confirmed", "posted"}:
+            outcome_status_counts["posted"] += 1
+        elif status.startswith("posting_failed"):
+            outcome_status_counts["posting_failed"] += 1
+        else:
+            outcome_status_counts[status or "unavailable"] += 1
+    outcome_status_counts["terminal_no_reply"] += sum(event.get("mode") == "no_reply" for event in decisions)
     retrieved = [int(event["retrieved_count"]) for event in observations if type(event.get("retrieved_count")) is int]
+    generated_retrieved = [
+        int(event["retrieved_count"])
+        for event in decisions
+        if type(event.get("retrieved_count")) is int
+    ]
     rejection_reasons = Counter()
     routine_reasons = Counter()
     repetition_controls = Counter({key: 0 for key in (
@@ -1709,12 +1765,34 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             rejection_reasons[str(event.get("no_reply_reason") or "model-selected no_reply")] += 1
     humour_counts = _count_optional(observations, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
     confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
+    generated_humour_counts = _count_optional(decisions, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
+    generated_confidence_counts = _count_optional(decisions, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
     return {
         "mode_counts": dict(sorted(modes.items())),
         "mode_counts_by_lane": {lane: dict(sorted(counts.items())) for lane, counts in sorted(by_lane.items())},
+        "generated_mode_counts": dict(sorted(generated_modes.items())),
+        "generated_mode_counts_by_lane": {
+            lane: dict(sorted(counts.items())) for lane, counts in sorted(generated_by_lane.items())
+        },
+        "outcome_status_counts": dict(sorted(outcome_status_counts.items())),
         "humour_tone_counts": humour_counts,
         "confidence_counts": confidence_counts,
-        "confirmed_outcome_count": len(outcomes),
+        "generated_humour_tone_counts": generated_humour_counts,
+        "generated_confidence_counts": generated_confidence_counts,
+        "confirmed_outcome_count": len(published_outcomes),
+        "generated_grounded_count": sum(event.get("grounded") is True for event in decisions),
+        "posted_grounded_count": sum(
+            event.get("grounded") is True
+            for event in observations
+            if event.get("mode") != "no_reply"
+        ),
+        "generated_factual_claim_count": sum(event.get("factual_claim") is True for event in decisions),
+        "generated_average_retrieved_packet_count": (
+            sum(generated_retrieved) / len(generated_retrieved)
+            if generated_retrieved else None
+        ),
+        "generated_maximum_retrieved_packet_count": max(generated_retrieved) if generated_retrieved else None,
+        "generated_no_retrieved_packets_count": sum(value == 0 for value in generated_retrieved),
         "grounded_count": sum(event.get("grounded") is True for event in observations),
         "grounding_metadata_unavailable_count": sum(type(event.get("grounded")) is not bool for event in observations),
         "ungrounded_humour_only_count": sum(event.get("grounded") is False and event.get("factual_claim") is False and event.get("mode") not in {"no_reply", None} for event in observations),
@@ -1872,7 +1950,8 @@ def analyse(
             or ("ENABLE_AUTO_REPLIES is True, but XAI_API_KEY is not set." in msg and any(e.get("message", "").startswith("SELFTEST FAIL:") for e in self_test_errors))
         )
         is_handled_reply_restriction = (
-            "reply not allowed" in msg.lower()
+            is_reply_target_eligibility_restriction(msg)
+            or "reply not allowed" in msg.lower()
             or "marking quote tweet as skipped without consuming reply quota" in msg.lower()
             or "not allowed to reply" in msg.lower()
             or "author has restricted who can reply" in msg.lower()
@@ -2056,6 +2135,15 @@ def analyse(
                     factual_claim=event_obj.get("factual_claim_made"),
                     grounded=event_obj.get("grounded"),
                     no_reply_reason=event_obj.get("no_reply_reason"),
+                    failure_reason=event_obj.get("failure_reason") or "",
+                )
+            elif event_obj and event_obj.get("event") == "reply_target_terminal":
+                add_event(
+                    "reply_target_terminal", r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    outcome=event_obj.get("outcome") or "reply_not_permitted",
+                    reason=event_obj.get("reason") or "",
                 )
             elif event_obj and event_obj.get("event") == "reply_strategy_rejection":
                 add_event(
@@ -2226,11 +2314,23 @@ def analyse(
             status_code = x_error_match.group(1)
             if status_code == "403" and is_handled_reply_restriction:
                 endpoint = "post/reply"
+            target_id = str(
+                pending_mention.get("mention_id")
+                or pending_qt.get("quote_tweet_id")
+                or ""
+            )
+            lane = (
+                str(pending_mention.get("source") or "mention")
+                if pending_mention
+                else ("quote_tweet" if pending_qt else "unavailable")
+            )
             api_error = {
                 "time": r.ts.strftime("%Y-%m-%d %H:%M:%S"),
                 "service": service,
                 "endpoint": endpoint,
                 "status": status_code,
+                "target_id": target_id,
+                "lane": lane,
                 "message": short(msg, 240),
             }
             if status_code == "403" and is_handled_reply_restriction:
@@ -2785,6 +2885,11 @@ def analyse(
 
     self_test_times = {str(item.get("time")) for item in self_test_errors}
     api_error_times = {str(item.get("time")) for item in api_errors}
+    handled_restriction_times = [
+        datetime.strptime(str(item["time"]), "%Y-%m-%d %H:%M:%S")
+        for item in handled_api_restrictions
+        if item.get("time")
+    ]
     media_upload_incidents, media_suppressed_fingerprints = correlate_media_upload_incidents(records, max_text)
     remaining_errors: List[Dict[str, Any]] = []
     for item in errors:
@@ -2804,6 +2909,26 @@ def analyse(
             or message.startswith("Failed to fetch quote")
         ):
             continue
+        if message.startswith(("Failed to post generated reply", "Unexpected failure posting generated reply")):
+            try:
+                error_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                error_time = None
+            if error_time is not None and any(
+                seconds_between(error_time, restriction_time) <= 5
+                for restriction_time in handled_restriction_times
+            ):
+                continue
+        if message.startswith("Entering API cooldown after repeated errors"):
+            try:
+                error_time = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                error_time = None
+            if error_time is not None and any(
+                seconds_between(error_time, restriction_time) <= 5
+                for restriction_time in handled_restriction_times
+            ):
+                continue
         remaining_errors.append(item)
     errors = remaining_errors
 
@@ -2825,7 +2950,15 @@ def analyse(
     else:
         headline.append("no serious errors")
     if handled_api_restrictions:
-        headline.append(f"{len(handled_api_restrictions)} handled API restriction(s)")
+        handled_incidents = {
+            (
+                str(item.get("service") or ""),
+                str(item.get("status") or ""),
+                str(item.get("target_id") or item.get("message") or ""),
+            )
+            for item in handled_api_restrictions
+        }
+        headline.append(f"{len(handled_incidents)} handled API restriction incident(s)")
     handled_media_fallbacks = [item for item in media_upload_incidents if item.get("status") == "handled"]
     unrecovered_media = [item for item in media_upload_incidents if item.get("status") != "handled"]
     if handled_media_fallbacks:
@@ -2909,6 +3042,40 @@ def analyse(
         and str(item.get("status")) != "429"
         for item in api_errors
     )
+    all_api_failures = [*api_errors, *handled_api_restrictions]
+    api_status_counts = Counter(str(item.get("status") or "unavailable") for item in all_api_failures)
+    target_eligibility_403_count = sum(
+        str(item.get("status")) == "403"
+        and is_reply_target_eligibility_restriction(str(item.get("message") or ""))
+        for item in all_api_failures
+    )
+    posting_attempt_count = sum(item.get("endpoint") == "post/reply" for item in all_api_failures)
+    transient_failure_count = sum(
+        str(item.get("status") or "") in {"408", "425"}
+        or str(item.get("status") or "").startswith("5")
+        for item in all_api_failures
+    )
+    rate_limit_failure_count = sum(str(item.get("status") or "") == "429" for item in all_api_failures)
+    legacy_cooldown_from_target_restriction_count = sum(
+        any(
+            seconds_between(
+                parse_dt(str(event.get("time") or "")) or datetime.min,
+                restriction_time,
+            ) <= 5
+            for restriction_time in handled_restriction_times
+        )
+        for event in events
+        if event.get("kind") == "api_cooldown_entered" and event.get("reason") == "repeated errors"
+    )
+    unique_api_incidents = {
+        (
+            str(item.get("service") or ""),
+            str(item.get("status") or ""),
+            str(item.get("target_id") or item.get("endpoint") or ""),
+            "" if item.get("target_id") else str(item.get("message") or ""),
+        )
+        for item in all_api_failures
+    }
     post_cooldown_errors: List[Dict[str, Any]] = []
     cooldown_events = [ev for ev in events if ev.get("kind") == "api_cooldown_entered"]
     for item in api_errors:
@@ -2921,6 +3088,48 @@ def analyse(
             if until and item_ts > until:
                 post_cooldown_errors.append(item)
                 break
+
+    explicit_strategy_outcome_targets = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or ""))
+        for event in events
+        if event.get("kind") == "reply_strategy_outcome" and event.get("target_id")
+    }
+    strategy_decisions_by_target = {
+        (_normalise_lane(event.get("lane")), str(event.get("target_id") or "")): event
+        for event in events
+        if event.get("kind") == "reply_strategy_decision" and event.get("target_id")
+    }
+    for restriction in handled_api_restrictions:
+        key = (
+            _normalise_lane(restriction.get("lane")),
+            str(restriction.get("target_id") or ""),
+        )
+        if not key[1] or key in explicit_strategy_outcome_targets:
+            continue
+        decision = strategy_decisions_by_target.get(key)
+        if decision is None:
+            continue
+        restriction_time = parse_dt(str(restriction.get("time") or ""))
+        if restriction_time is None:
+            continue
+        add_event(
+            "reply_strategy_outcome",
+            restriction_time,
+            status="posting_failed_terminal",
+            lane=restriction.get("lane") or "unavailable",
+            target_id=key[1],
+            reply_post_id="",
+            mode=decision.get("mode"),
+            humour_tone=decision.get("humour_tone"),
+            evidence_confidence=decision.get("evidence_confidence"),
+            retrieved_count=decision.get("retrieved_count"),
+            factual_claim=decision.get("factual_claim"),
+            grounded=decision.get("grounded"),
+            no_reply_reason=decision.get("no_reply_reason"),
+            failure_reason="reply_not_permitted",
+            legacy_inferred=True,
+        )
+        explicit_strategy_outcome_targets.add(key)
 
     context_quality = historical_context_quality_summary(events)
     strategy_quality = reply_strategy_summary(events)
@@ -2957,6 +3166,14 @@ def analyse(
             "cooldown_active": cooldown_active,
             "post_cooldown_errors": post_cooldown_errors,
             "not_rate_limited": not_rate_limited,
+            "has_5xx_failures": any(str(item.get("status") or "").startswith("5") for item in all_api_failures),
+            "status_counts": dict(sorted(api_status_counts.items())),
+            "unique_incident_count": len(unique_api_incidents),
+            "posting_attempt_count": posting_attempt_count,
+            "target_eligibility_403_count": target_eligibility_403_count,
+            "transient_failure_count": transient_failure_count,
+            "rate_limit_failure_count": rate_limit_failure_count,
+            "legacy_cooldown_from_target_restriction_count": legacy_cooldown_from_target_restriction_count,
         },
         "main_post_recovery": {
             "receipt_events": receipt_events,
@@ -3479,8 +3696,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 "total",
                 "sources",
                 "cost_ticks",
+                "image",
             ]))
-            out.append(md_table_row(["---"] * 10))
+            out.append(md_table_row(["---"] * 11))
             for item in xai_events:
                 out.append(md_table_row([
                     item.get("time", ""),
@@ -3493,6 +3711,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("total_tokens", 0),
                     item.get("num_sources_used", 0),
                     item.get("cost_in_usd_ticks", 0),
+                    item.get("image_tokens", 0),
                 ]))
             out.append("")
             totals = xai_usage.get("totals") or {}
@@ -3501,6 +3720,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(f"successful_xai_calls = {totals.get('successful_xai_calls', 0)}")
             out.append(f"prompt_tokens        = {totals.get('prompt_tokens', 0)}")
             out.append(f"cached_tokens        = {totals.get('cached_tokens', 0)}")
+            out.append(f"image_tokens         = {totals.get('image_tokens', 0)}")
             out.append(f"reasoning_tokens     = {totals.get('reasoning_tokens', 0)}")
             out.append(f"completion_tokens    = {totals.get('completion_tokens', 0)}")
             out.append(f"total_tokens         = {totals.get('total_tokens', 0)}")
@@ -4011,12 +4231,27 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     strategy = report.get("reply_strategy") or {}
     out.append("## Conversational reply strategy")
-    out.append("Modes: " + compact_counts(strategy.get("mode_counts") or {}))
+    out.append("Generated decisions: " + compact_counts(strategy.get("generated_mode_counts") or {}))
+    out.append("Public outcomes: " + compact_counts(strategy.get("outcome_status_counts") or {}))
+    out.append("Published/terminal modes: " + compact_counts(strategy.get("mode_counts") or {}))
     for lane, counts in (strategy.get("mode_counts_by_lane") or {}).items():
         if counts:
             out.append(f"{lane}: {compact_counts(counts)}")
     out.append(
-        f"Grounded: **{strategy.get('grounded_count', 0)}** "
+        f"Grounded decisions generated: **{strategy.get('generated_grounded_count', 0)}**; "
+        f"grounded replies posted: **{strategy.get('posted_grounded_count', 0)}**; "
+        f"factual decisions generated: **{strategy.get('generated_factual_claim_count', 0)}**."
+    )
+    out.append(
+        f"Generated retrieved packets average/max/none: **"
+        f"{round(strategy['generated_average_retrieved_packet_count'], 2) if strategy.get('generated_average_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"{strategy.get('generated_maximum_retrieved_packet_count') if strategy.get('generated_maximum_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"{strategy.get('generated_no_retrieved_packets_count', 0)}**."
+    )
+    out.append("Generated evidence confidence: " + compact_counts(strategy.get("generated_confidence_counts") or {}))
+    out.append("Generated humour tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
+    out.append(
+        f"Published/terminal grounded: **{strategy.get('grounded_count', 0)}** "
         f"(metadata unavailable: {strategy.get('grounding_metadata_unavailable_count', 0)}); "
         f"humour-only ungrounded: **{strategy.get('ungrounded_humour_only_count', 0)}**; "
         f"factual claims: **{strategy.get('factual_claim_count', 0)}** "
@@ -4029,8 +4264,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{strategy.get('no_retrieved_packets_count', 0)}** "
         f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
     )
-    out.append("Evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
-    out.append("Humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
+    out.append("Published/terminal evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
+    out.append("Published/terminal humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
     out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
     if strategy.get("rejection_reason_counts"):
         out.append("Editorial no-reply/rejections:")
@@ -4093,8 +4328,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
     )
     section(
         "reply_strategy_outcome",
-        "Confirmed reply strategy outcomes",
-        ["time", "lane", "target_id", "reply_post_id", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded"],
+        "Reply strategy outcomes",
+        ["time", "status", "lane", "target_id", "reply_post_id", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "failure_reason"],
+    )
+    section(
+        "reply_target_terminal",
+        "Terminal reply targets",
+        ["time", "lane", "target_id", "outcome", "reason"],
     )
     section("hot_post_search_result", "Hot-post recent-search results", ["time", "original_post_id", "candidates"])
     section("mention_grok_skip", "Mention Grok skips", ["time", "mention_id", "author_id", "incoming_text"])
@@ -4213,6 +4453,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
     post_cooldown_errors = api_health.get("post_cooldown_errors") or []
     if api_errors or handled_restrictions or cooldown_active:
         out.append("## API health")
+        out.append(
+            f"Unique incidents: **{api_health.get('unique_incident_count', 0)}**; "
+            f"posting attempts: **{api_health.get('posting_attempt_count', 0)}**; "
+            f"Target-eligibility 403 responses: **{api_health.get('target_eligibility_403_count', 0)}**; "
+            f"transient transport failures: **{api_health.get('transient_failure_count', 0)}**; "
+            f"rate-limit failures: **{api_health.get('rate_limit_failure_count', 0)}**."
+        )
+        out.append("")
         if api_errors:
             out.append(md_table_row(["time", "service", "endpoint", "status", "window", "remaining", "message"]))
             out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
@@ -4229,14 +4477,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
         if handled_restrictions:
             out.append("Handled API restrictions:")
-            out.append(md_table_row(["time", "service", "endpoint", "status", "message"]))
-            out.append(md_table_row(["---", "---", "---", "---", "---"]))
+            out.append(md_table_row(["time", "service", "endpoint", "status", "lane", "target", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
             for item in handled_restrictions:
                 out.append(md_table_row([
                     item.get("time", ""),
                     item.get("service", ""),
                     item.get("endpoint", ""),
                     item.get("status", ""),
+                    item.get("lane", ""),
+                    item.get("target_id", ""),
                     item.get("message", ""),
                 ]))
             out.append("")
@@ -4260,11 +4510,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("errors_in_window", ""),
                 ]))
             out.append("")
-        if api_health.get("not_rate_limited"):
+        if api_health.get("has_5xx_failures") and api_health.get("not_rate_limited"):
             out.append("503/5xx summary: likely upstream/API-side failure, not quota exhaustion; remaining quota was non-zero on recorded error headers.")
             out.append("")
         if handled_restrictions:
-            out.append("403 restriction summary: target conversation controls disallowed the reply; handled locally without quota/cooldown impact.")
+            legacy_cooldowns = int(api_health.get("legacy_cooldown_from_target_restriction_count", 0) or 0)
+            if legacy_cooldowns:
+                out.append(
+                    "403 restriction summary: deterministic target restrictions were identified; "
+                    f"**{legacy_cooldowns} legacy cooldown activation(s)** in this historical window "
+                    "were caused by the pre-fix classification."
+                )
+            else:
+                out.append("403 restriction summary: target conversation controls disallowed the reply; handled locally without quota/cooldown impact.")
             out.append("")
 
     self_test_errors = report.get("self_test_errors") or []

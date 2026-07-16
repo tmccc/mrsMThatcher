@@ -5012,6 +5012,7 @@ def test_hot_post_reply_native_photo_context_reaches_xai(
                 "author_id": "310",
                 "conversation_id": "900",
                 "created_at": "2026-07-06T10:00:00Z",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
                 "referenced_tweets": [{"type": "replied_to", "id": "900"}],
                 "attachments": {"media_keys": ["3_910"]},
             }
@@ -6377,6 +6378,205 @@ def test_rate_limit_cooldown_uses_future_reset_with_buffer(monkeypatch: pytest.M
 
     assert state["api_cooldown_until_epoch"] == 1_260
     assert state["api_cooldown_reason"] == "x returned 429/rate limit"
+
+
+def test_current_x_reply_not_permitted_403_is_terminal_not_transient() -> None:
+    error = bot.ApiError(
+        "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+        service="x",
+        status_code=403,
+    )
+
+    assert bot.api_error_is_reply_not_allowed(error) is True
+    unrelated_auth_error = bot.ApiError(
+        "X API error 403: {\"type\":\"https://api.x.com/2/problems/not-authorized-for-resource\","
+        "\"detail\":\"This application is not permitted to perform that operation.\"}",
+        service="x",
+        status_code=403,
+    )
+    assert bot.api_error_is_reply_not_allowed(unrelated_auth_error) is False
+
+
+def test_reply_not_permitted_403_does_not_enter_write_error_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_000)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    error = bot.ApiError(
+        "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+        service="x",
+        status_code=403,
+    )
+
+    bot.record_api_error(state, error, "x", scope="write")
+
+    assert state["x_write_error_epochs"] == []
+    assert state["x_write_api_cooldown_until_epoch"] == 0
+
+
+def test_reply_target_eligibility_uses_only_target_author_or_direct_mention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+
+    assert bot.reply_target_is_directly_eligible({"author_id": "12345", "text": "Own post"})
+    assert bot.reply_target_is_directly_eligible({
+        "author_id": "200",
+        "text": "A direct reply",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+    })
+    assert bot.reply_target_is_directly_eligible({
+        "author_id": "200",
+        "text": "@MrsMThatcher a cached direct mention",
+    })
+    assert not bot.reply_target_is_directly_eligible({
+        "author_id": "200",
+        "text": "The bot appears only in the parent",
+        "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+    })
+    assert not bot.reply_target_is_directly_eligible({
+        "author_id": "200",
+        "text": "Quoted text says @MrsMThatcher, but X did not mark it as a direct mention",
+        "entities": {"mentions": [{"id": "999", "username": "SomeoneElse"}]},
+    })
+
+
+def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "2077713953983987776",
+        "author_id": "352335305",
+        "text": "Politics has no place in sport.",
+        "entities": {"mentions": [{"id": "999", "username": "Argentina"}]},
+        "conversation_id": "2077713953983987776",
+        "referenced_tweets": [],
+        "_pagination_truncated": True,
+    }
+    events: list[tuple[str, dict]] = []
+    metadata = {
+        "mode": "historical_context", "humour_tone": "dry",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "Grounded evidence.", "factual_claim_made": True,
+        "grounded": True, "reply_text": "A persisted grounded reply.", "no_reply_reason": "",
+    }
+    bot.store_pending_strategy_reply(
+        state,
+        mention["id"],
+        "mention",
+        ReplyDecision("A persisted grounded reply.", metadata),
+    )
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: pytest.fail("context must not be built"))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
+    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    record = state["reply_evaluation_records"][mention["id"]]
+    assert record["outcome"] == "reply_not_permitted"
+    assert record["reason"] == "target_does_not_directly_mention_account"
+    assert sum(name == "reply_target_terminal" for name, _values in events) == 1
+    assert bot.pending_strategy_reply(state, mention["id"], "mention") is None
+    strategy_events = [values for name, values in events if name == "reply_strategy_outcome"]
+    assert len(strategy_events) == 1
+    assert strategy_events[0]["status"] == "posting_failed_terminal"
+    assert strategy_events[0]["failure_reason"] == "reply_not_permitted_preflight"
+
+
+def test_posting_reply_not_permitted_persists_terminal_strategy_outcome_without_cooldown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher a substantive direct mention",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+    metadata = {
+        "mode": "historical_context", "humour_tone": "dry",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "Grounded evidence.", "factual_claim_made": True,
+        "grounded": True, "reply_text": "A grounded reply.", "no_reply_reason": "",
+    }
+    events: list[tuple[str, dict]] = []
+    error = bot.ApiError(
+        "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+        service="x",
+        status_code=403,
+    )
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: ("context", True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        bot,
+        "ask_grok_for_reply",
+        lambda *_args, **_kwargs: ReplyDecision("A grounded reply.", metadata),
+    )
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: (_ for _ in ()).throw(error))
+    monkeypatch.setattr(bot, "log_event", lambda name, **values: events.append((name, values)))
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+    assert state["reply_evaluation_records"]["100"]["outcome"] == "reply_not_permitted"
+    assert state["x_write_error_epochs"] == []
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+    strategy_events = [values for name, values in events if name == "reply_strategy_outcome"]
+    assert strategy_events == [{
+        "status": "posting_failed_terminal",
+        "lane": "mention",
+        "target_id": "100",
+        "reply_post_id": "",
+        "mode": "historical_context",
+        "humour_tone": "dry",
+        "evidence_confidence": "high",
+        "retrieved_quote_ids": ["a" * 64],
+        "factual_claim_made": True,
+        "grounded": True,
+        "no_reply_reason": "",
+        "failure_reason": "reply_not_permitted",
+    }]
 
 
 @pytest.mark.parametrize("reset_epoch", [None, 900])

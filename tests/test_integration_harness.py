@@ -481,11 +481,6 @@ def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_sch
             "command": "--test-cycle",
         },
         {
-            "name": "reply_not_allowed",
-            "scenario": load_scenario(SCENARIOS / "reply_not_allowed_403.json"),
-            "command": "--test-cycle",
-        },
-        {
             "name": "non_json_mentions",
             "scenario": load_scenario(SCENARIOS / "non_json_mentions.json"),
             "command": "--test-cycle",
@@ -2670,6 +2665,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "text": "A usable hot reply",
                 "author_id": "400",
                 "conversation_id": "700",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
                 "referenced_tweets": [{"type": "replied_to", "id": "700"}],
                 "created_at": "2026-06-30T12:00:00Z",
             }
@@ -2706,6 +2702,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "text": "A new reply after watermark",
                 "author_id": "402",
                 "conversation_id": "700",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
                 "referenced_tweets": [{"type": "replied_to", "id": "700"}],
                 "created_at": "2026-06-30T12:02:00Z",
             }
@@ -2724,6 +2721,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "text": "Grok will skip this usable candidate",
                 "author_id": "403",
                 "conversation_id": "700",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
                 "referenced_tweets": [{"type": "replied_to", "id": "700"}],
                 "created_at": "2026-06-30T12:03:00Z",
             }
@@ -2745,6 +2743,7 @@ def test_hot_post_watermark_edges_and_full_rescan(tmp_path: Path) -> None:
                 "text": "Already replied duplicate visible in full rescan",
                 "author_id": "402",
                 "conversation_id": "700",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
                 "referenced_tweets": [{"type": "replied_to", "id": "700"}],
                 "created_at": "2026-06-30T12:02:00Z",
             }
@@ -3429,14 +3428,15 @@ def test_hot_post_pagination_reaches_candidate_on_second_page(tmp_path: Path) ->
         for i in range(10)
     ]
     replies.append(
-        {
-            "id": "311",
-            "author_id": "411",
-            "conversation_id": "700",
-            "created_at": "2026-01-01T00:00:00.000Z",
-            "text": "This watched post reply deserves an answer",
-            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
-        }
+            {
+                "id": "311",
+                "author_id": "411",
+                "conversation_id": "700",
+                "created_at": "2026-01-01T00:00:00.000Z",
+                "text": "This watched post reply deserves an answer",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+                "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+            }
     )
     server = FakeApiServer(
         {
@@ -3573,14 +3573,15 @@ def test_hot_post_truncated_pagination_resumes_on_next_check(tmp_path: Path) -> 
         for i in range(30)
     ]
     replies.append(
-        {
-            "id": "330",
-            "author_id": "430",
-            "conversation_id": "700",
-            "created_at": "2026-01-01T00:00:00.000Z",
-            "text": "Fourth-page watched reply deserves an answer",
-            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
-        }
+            {
+                "id": "330",
+                "author_id": "430",
+                "conversation_id": "700",
+                "created_at": "2026-01-01T00:00:00.000Z",
+                "text": "Fourth-page watched reply deserves an answer",
+                "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+                "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+            }
     )
     server = FakeApiServer(
         {
@@ -4136,6 +4137,8 @@ def test_reply_not_allowed_403_marks_mention_handled_without_consuming_quota(tmp
     assert "190" in state["replied_to_ids"]
     assert state["daily_reply_count"] == 0
     assert state["x_error_epochs"] == []
+    assert state["x_write_error_epochs"] == []
+    assert state["reply_evaluation_records"]["190"]["outcome"] == "reply_not_permitted"
 
 
 @pytest.mark.parametrize("fake_server", ["non_json_mentions.json"], indirect=True)
@@ -4997,7 +5000,7 @@ def test_digest_golden_sections_for_generated_logs(tmp_path: Path) -> None:
     classified_digest = run_digest(classified_base)
     assert classified_digest.returncode == 0, classified_digest.stderr
     assert "1 operational error(s)" in classified_digest.stdout
-    assert "1 handled API restriction(s)" in classified_digest.stdout
+    assert "1 handled API restriction incident(s)" in classified_digest.stdout
     assert "self-test failures: 2 check(s)" in classified_digest.stdout
     assert "Handled API restrictions" in classified_digest.stdout
     assert "post/reply" in classified_digest.stdout
@@ -5844,6 +5847,7 @@ def test_digest_reports_xai_usage_events_and_totals(tmp_path: Path) -> None:
     assert "successful_xai_calls = 2" in digest.stdout
     assert "prompt_tokens        = 1072" in digest.stdout
     assert "cached_tokens        = 256" in digest.stdout
+    assert "image_tokens         = 0" in digest.stdout
     assert "reasoning_tokens     = 1313" in digest.stdout
     assert "completion_tokens    = 38" in digest.stdout
     assert "total_tokens         = 2423" in digest.stdout

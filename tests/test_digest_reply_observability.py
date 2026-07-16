@@ -185,6 +185,126 @@ def test_unposted_draft_is_excluded_and_confirmed_outcome_is_deduplicated():
     assert result["confirmed_outcome_count"] == 1
 
 
+def test_generated_strategy_and_public_outcomes_are_reported_separately():
+    result = digest.reply_strategy_summary([
+        event("reply_strategy_decision", lane="mention", target_id="skip", mode="no_reply",
+              humour_tone="none", evidence_confidence="low", retrieved_count=0,
+              factual_claim=False, grounded=False, no_reply_reason="weak evidence"),
+        event("reply_strategy_decision", lane="quote_tweet", target_id="posted", mode="warm_reply",
+              humour_tone="warm", evidence_confidence="none", retrieved_count=0,
+              factual_claim=False, grounded=False),
+        event("reply_strategy_outcome", status="confirmed", lane="quote_tweet", target_id="posted",
+              reply_post_id="99", mode="warm_reply", humour_tone="warm",
+              evidence_confidence="none", retrieved_count=0, factual_claim=False, grounded=False),
+        event("reply_strategy_decision", lane="mention", target_id="failed", mode="historical_context",
+              humour_tone="dry", evidence_confidence="high", retrieved_count=1,
+              factual_claim=True, grounded=True),
+        event("reply_strategy_outcome", status="posting_failed_terminal", lane="mention",
+              target_id="failed", mode="historical_context", humour_tone="dry",
+              evidence_confidence="high", retrieved_count=1, factual_claim=True, grounded=True,
+              failure_reason="reply_not_permitted"),
+    ])
+
+    assert result["generated_mode_counts"]["historical_context"] == 1
+    assert result["generated_mode_counts"]["warm_reply"] == 1
+    assert result["generated_mode_counts"]["no_reply"] == 1
+    assert result["outcome_status_counts"] == {
+        "posted": 1,
+        "posting_failed": 1,
+        "terminal_no_reply": 1,
+    }
+    assert result["generated_grounded_count"] == 1
+    assert result["posted_grounded_count"] == 0
+    assert result["generated_average_retrieved_packet_count"] == 1 / 3
+    assert result["generated_confidence_counts"]["high"] == 1
+
+
+def test_xai_usage_includes_image_tokens():
+    record = digest.Record(
+        ts=datetime(2026, 7, 16, 12), level="INFO", src="ask_grok_for_reply", line=1,
+        msg="", path="mrsMThatcher.log", ordinal=1,
+    )
+    item = digest.summarize_xai_usage_event(
+        record,
+        {"prompt_tokens": 100, "prompt_tokens_details": {"image_tokens": 37}},
+        {"lane": "mention", "context_id": "123"},
+    )
+
+    assert item["image_tokens"] == 37
+    assert digest.xai_usage_totals([item])["image_tokens"] == 37
+
+
+def test_403_target_eligibility_incident_is_not_labelled_as_5xx():
+    records = [
+        digest.Record(datetime(2026, 7, 16, 12, 19), "INFO", "maybe_reply_to_mentions", 1,
+                      "Considering mention id=2077713953983987776 author_id=352335305 text='not a mention'",
+                      "mrsMThatcher.log", 1),
+        digest.Record(datetime(2026, 7, 16, 12, 19, 1), "ERROR", "x_request", 2,
+                      "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+                      "mrsMThatcher.log", 2),
+        digest.Record(datetime(2026, 7, 16, 12, 19, 1), "ERROR", "maybe_reply_to_mentions", 3,
+                      "Failed to post generated reply\nTraceback (most recent call last): ...",
+                      "mrsMThatcher.log", 3),
+        digest.Record(datetime(2026, 7, 16, 12, 19, 1), "ERROR", "record_api_error", 4,
+                      "Entering API cooldown after repeated errors until 2026-07-16 13:19:01",
+                      "mrsMThatcher.log", 4),
+        digest.Record(datetime(2026, 7, 16, 12, 34), "INFO", "maybe_reply_to_mentions", 3,
+                      "Considering mention id=2077713953983987776 author_id=352335305 text='not a mention'",
+                      "mrsMThatcher.log", 3),
+        digest.Record(datetime(2026, 7, 16, 12, 34, 1), "ERROR", "x_request", 4,
+                      "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+                      "mrsMThatcher.log", 4),
+    ]
+
+    report = digest.analyse(records)
+    rendered = digest.render_markdown(report)
+
+    assert report["api_health"]["target_eligibility_403_count"] == 2
+    assert report["api_health"]["unique_incident_count"] == 1
+    assert report["api_health"]["transient_failure_count"] == 0
+    assert report["api_health"]["legacy_cooldown_from_target_restriction_count"] == 1
+    assert "operational error" not in report["summary"]["headline"]
+    assert "503/5xx summary" not in rendered
+    assert "Target-eligibility 403 responses: **2**" in rendered
+    assert "legacy cooldown activation" in rendered
+
+
+def test_legacy_target_403_is_correlated_with_generated_grounded_decision():
+    records = [
+        digest.Record(
+            datetime(2026, 7, 16, 12, 19), "INFO", "maybe_reply_to_mentions", 1,
+            "Considering mention id=2077713953983987776 author_id=352335305 text='not a mention'",
+            "mrsMThatcher.log", 1,
+        ),
+        digest.Record(
+            datetime(2026, 7, 16, 12, 19, 1), "INFO", "log_event", 2,
+            'EVENT {"event":"reply_strategy_decision","lane":"mention",'
+            '"target_id":"2077713953983987776","mode":"historical_context",'
+            '"humour_tone":"dry","evidence_confidence":"high",'
+            '"retrieved_quote_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],'
+            '"factual_claim_made":true,"grounded":true,"no_reply_reason":""}',
+            "mrsMThatcher.log", 2,
+        ),
+        digest.Record(
+            datetime(2026, 7, 16, 12, 19, 2), "ERROR", "x_request", 3,
+            "X API error 403: You can only reply to or quote posts where you are mentioned or are the author.",
+            "mrsMThatcher.log", 3,
+        ),
+    ]
+
+    report = digest.analyse(records)
+
+    assert report["reply_strategy"]["generated_grounded_count"] == 1
+    assert report["reply_strategy"]["posted_grounded_count"] == 0
+    assert report["reply_strategy"]["outcome_status_counts"]["posting_failed"] == 1
+    inferred = [
+        event for event in report["events"]
+        if event.get("kind") == "reply_strategy_outcome"
+    ]
+    assert len(inferred) == 1
+    assert inferred[0]["legacy_inferred"] is True
+
+
 def test_markdown_escapes_optional_event_metadata():
     record = digest.Record(
         ts=datetime(2026, 7, 15, 12), level="INFO", src="log_event", line=1,

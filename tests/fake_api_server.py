@@ -211,7 +211,17 @@ class FakeApiServer:
                     return
 
                 if path.startswith("/2/users/") and path.endswith("/mentions"):
-                    mentions = list(self.fake.scenario.get("mentions", []))
+                    account_id = path.split("/")[3]
+                    mentions = []
+                    for raw_mention in self.fake.scenario.get("mentions", []):
+                        mention = dict(raw_mention)
+                        if "entities" not in mention:
+                            mention["entities"] = {
+                                "mentions": [
+                                    {"id": account_id, "username": "MrsMThatcher"}
+                                ]
+                            }
+                        mentions.append(mention)
                     self._json_response(
                         200,
                         self._page_body(

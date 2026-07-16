@@ -12,11 +12,10 @@
     {
       "status": 403,
       "body": {
-        "errors": [
-          {
-            "detail": "You are not allowed to reply to this conversation"
-          }
-        ]
+        "detail": "You can only reply to or quote posts where you are mentioned or are the author.",
+        "status": 403,
+        "title": "Authorization Error",
+        "type": "https://api.x.com/2/problems/not-authorized-for-resource"
       }
     }
   ],
