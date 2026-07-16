@@ -7659,6 +7659,19 @@ def ask_grok_for_reply(
         "temperature": 0.7,
         "max_tokens": max(MAX_GROK_OUTPUT_TOKENS, 400) if strategy_enabled else MAX_GROK_OUTPUT_TOKENS,
     }
+    if strategy_enabled:
+        from reply_strategy import reply_decision_json_schema
+        payload["response_format"] = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "reply_strategy_decision",
+                "strict": True,
+                "schema": reply_decision_json_schema(
+                    MAX_REPLY_CHARS,
+                    int(reply_strategy["maximum_retrieved_packets"]),
+                ),
+            },
+        }
 
     log_json_debug("xAI request payload", redact_xai_payload_for_log(payload))
 
@@ -7822,7 +7835,7 @@ def ask_grok_for_reply(
     else:
         reply = clean_generated_reply(reply)
 
-    if reply.strip().upper() == "SKIP":
+    if not strategy_enabled and reply.strip().upper() == "SKIP":
         log.info("Grok chose to skip")
         if evaluation_outcome is not None:
             evaluation_outcome.update({"status": "no_reply", "reason": "model_selected_skip"})

@@ -19,6 +19,11 @@ MODES = {
 HUMOUR_TONES = {"dry", "wry", "playful", "deadpan", "warm", "none"}
 CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1, "none": 0}
 HISTORICAL_MODES = {"historical_correction", "historical_context", "researched_principle"}
+REPLY_DECISION_FIELDS = frozenset({
+    "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
+    "evidence_summary", "factual_claim_made", "grounded", "reply_text",
+    "no_reply_reason",
+})
 CANNED_PATTERNS = (
     "the lesson remains unlearned", "socialism promised", "history has a habit",
     "one system",
@@ -216,13 +221,111 @@ def build_strategy_prompt_context(evidence: Iterable[RetrievedEvidence]) -> str:
     return json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+def reply_decision_json_schema(
+    maximum_length: int = 270,
+    maximum_retrieved_ids: int = 5,
+) -> dict[str, Any]:
+    """Return the provider schema; local validation remains authoritative."""
+    if type(maximum_retrieved_ids) is not int or not 1 <= maximum_retrieved_ids <= 10:
+        raise ValueError("maximum_retrieved_ids must be an integer from 1 to 10")
+    properties: dict[str, Any] = {
+        "mode": {"type": "string", "enum": sorted(MODES)},
+        "humour_tone": {"type": "string", "enum": sorted(HUMOUR_TONES)},
+        "evidence_confidence": {"type": "string", "enum": sorted(CONFIDENCE_LEVELS)},
+        "retrieved_quote_ids": {
+            "type": "array",
+            "items": {"type": "string", "pattern": "[0-9a-f]{64}"},
+            "maxItems": maximum_retrieved_ids,
+            "description": "Selected completed-corpus evidence IDs; empty for no_reply.",
+        },
+        "evidence_summary": {
+            "type": "string",
+            "description": "Grounding summary for a posted factual reply; empty for no_reply.",
+        },
+        "factual_claim_made": {"type": "boolean"},
+        "grounded": {"type": "boolean"},
+        "reply_text": {"type": "string", "maxLength": maximum_length},
+        "no_reply_reason": {
+            "type": "string",
+            "description": "Reason for no_reply; do not duplicate it in evidence_summary.",
+        },
+    }
+    return {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": properties,
+        "required": sorted(REPLY_DECISION_FIELDS),
+        "additionalProperties": False,
+        "if": {
+            "properties": {"mode": {"const": "no_reply"}},
+            "required": ["mode"],
+        },
+        "then": {
+            "properties": {
+                "humour_tone": {"const": "none"},
+                "evidence_confidence": {"const": "none"},
+                "retrieved_quote_ids": {"maxItems": 0},
+                "evidence_summary": {"maxLength": 0},
+                "factual_claim_made": {"const": False},
+                "grounded": {"const": False},
+                "reply_text": {"maxLength": 0},
+                "no_reply_reason": {"minLength": 1},
+            },
+        },
+    }
+
+
+def normalise_reply_decision(value: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalise only information-free no_reply representations."""
+    normalised = dict(value)
+    if normalised.get("mode") != "no_reply":
+        return normalised
+
+    for field in ("humour_tone", "evidence_confidence"):
+        if field not in normalised:
+            continue
+        item = normalised[field]
+        if item is None or (isinstance(item, str) and not item.strip()):
+            normalised[field] = "none"
+    if "retrieved_quote_ids" in normalised and normalised["retrieved_quote_ids"] is None:
+        normalised["retrieved_quote_ids"] = []
+    for field in ("evidence_summary", "reply_text"):
+        if field not in normalised:
+            continue
+        item = normalised[field]
+        if item is None or (isinstance(item, str) and not item.strip()):
+            normalised[field] = ""
+    for field in ("factual_claim_made", "grounded"):
+        if field in normalised and normalised[field] is None:
+            normalised[field] = False
+    if isinstance(normalised.get("no_reply_reason"), str):
+        normalised["no_reply_reason"] = normalised["no_reply_reason"].strip()
+    return normalised
+
+
 def decision_schema_instruction() -> str:
+    no_reply_example = {
+        "mode": "no_reply",
+        "humour_tone": "none",
+        "evidence_confidence": "none",
+        "retrieved_quote_ids": [],
+        "evidence_summary": "",
+        "factual_claim_made": False,
+        "grounded": False,
+        "reply_text": "",
+        "no_reply_reason": "No useful response.",
+    }
     return (
         'Return exactly one JSON object with fields: '
         'mode, humour_tone, evidence_confidence, retrieved_quote_ids, evidence_summary, '
         'factual_claim_made, grounded, reply_text, no_reply_reason. '
         f'Mode must be one of {sorted(MODES)}. Humour tone must be one of {sorted(HUMOUR_TONES)}. '
-        'Confidence must be high, medium, low, or none. Use reply_text="" for no_reply.'
+        'Confidence must be high, medium, low, or none. For no_reply, put the explanation only in '
+        'no_reply_reason and use humour_tone="none", evidence_confidence="none", '
+        'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
+        'and reply_text="". Never return bare SKIP. Valid no_reply example: '
+        + json.dumps(no_reply_example, ensure_ascii=False, separators=(",", ":"))
+        + "."
     )
 
 
@@ -241,6 +344,8 @@ def strategy_mode_guidance() -> str:
 
 def parse_decision_json(raw: str) -> dict[str, Any]:
     text = str(raw or "").strip()
+    if text.upper() == "SKIP":
+        raise ValueError("bare SKIP is not a valid structured reply decision")
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I)
     value = json.loads(text)
@@ -306,11 +411,8 @@ def validate_reply_decision(
     allowed_humour_tones: set[str] | None = None,
     minimum_grounded_confidence: str = "medium",
 ) -> dict[str, Any]:
-    required = {
-        "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
-        "evidence_summary", "factual_claim_made", "grounded", "reply_text", "no_reply_reason",
-    }
-    if set(value) != required:
+    value = normalise_reply_decision(value)
+    if set(value) != REPLY_DECISION_FIELDS:
         raise ValueError("reply decision fields mismatch")
     mode = value["mode"]
     tone = value["humour_tone"]
@@ -325,6 +427,18 @@ def validate_reply_decision(
         raise ValueError("reply mode is disabled by configuration")
     if allowed_humour_tones is not None and tone != "none" and tone not in allowed_humour_tones:
         raise ValueError("humour tone is disabled by configuration")
+    if type(value["factual_claim_made"]) is not bool or type(value["grounded"]) is not bool:
+        raise ValueError("reply factual and grounded flags must be boolean")
+    if not isinstance(value["evidence_summary"], str) or not isinstance(value["no_reply_reason"], str):
+        raise ValueError("reply evidence and no-reply reason must be strings")
+    if mode == "no_reply" and (
+        tone != "none" or confidence != "none" or ids != []
+        or value["evidence_summary"] != "" or value["factual_claim_made"]
+        or value["grounded"] or reply != ""
+    ):
+        raise ValueError(
+            "no_reply requires tone/confidence none, empty evidence and reply text, and false flags"
+        )
     evidence_ids = {item.quote_id for item in evidence}
     if not isinstance(ids, list) or any(
         not isinstance(item, str) or item not in allowed_quote_ids or item not in evidence_ids
@@ -332,15 +446,6 @@ def validate_reply_decision(
     ):
         raise ValueError("reply cites a non-retrieved or unresolved quote ID")
     selected_evidence = [item for item in evidence if item.quote_id in set(ids)]
-    if type(value["factual_claim_made"]) is not bool or type(value["grounded"]) is not bool:
-        raise ValueError("reply factual and grounded flags must be boolean")
-    if not isinstance(value["evidence_summary"], str) or not isinstance(value["no_reply_reason"], str):
-        raise ValueError("reply evidence and no-reply reason must be strings")
-    if mode == "no_reply" and (
-        tone != "none" or ids or value["evidence_summary"].strip()
-        or value["factual_claim_made"] or value["grounded"]
-    ):
-        raise ValueError("no_reply metadata must be empty")
     if mode in HISTORICAL_MODES and not value["factual_claim_made"]:
         raise ValueError("historical modes must identify a factual claim")
     if mode == "historical_correction" and confidence != "high":

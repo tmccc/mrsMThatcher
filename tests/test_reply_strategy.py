@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from jsonschema import ValidationError as JsonSchemaValidationError
+from jsonschema import validate as validate_json_schema
 
 import mrsMThatcher2 as bot
 from reply_strategy import (
@@ -14,7 +16,10 @@ from reply_strategy import (
     ReplyDecision,
     audit_digest,
     build_strategy_prompt_context,
+    decision_schema_instruction,
+    normalise_reply_decision,
     parse_decision_json,
+    reply_decision_json_schema,
     reply_is_repetitive,
     strategy_mode_guidance,
     retrieve_research_packets,
@@ -100,6 +105,48 @@ def test_strategy_prompt_never_instructs_provider_to_return_bare_skip(
     prompt_text = json.dumps(captured["messages"], ensure_ascii=False)
     assert "Return exactly SKIP" not in prompt_text
     assert "never output bare SKIP" in prompt_text
+    assert "Valid no_reply example" in prompt_text
+
+
+def test_strategy_request_uses_conditional_structured_output_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": json.dumps(decision(
+            mode="no_reply",
+            humour_tone="none",
+            reply_text="",
+            no_reply_reason="No useful response.",
+        ))}}],
+    }).encode("utf-8")
+    captured: dict = {}
+
+    def post(*_args, **kwargs):
+        captured.update(kwargs["json"])
+        return response
+
+    monkeypatch.setattr(bot.requests, "post", post)
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {
+            **bot.reply_strategy,
+            "enabled": True,
+            "research_corpus_enabled": False,
+            "maximum_retrieved_packets": 7,
+        },
+    )
+
+    assert bot.ask_grok_for_reply("Incoming post: Nothing to add.") is None
+    response_format = captured["response_format"]
+    assert response_format["type"] == "json_schema"
+    assert response_format["json_schema"]["strict"] is True
+    schema = response_format["json_schema"]["schema"]
+    assert schema["if"]["properties"]["mode"] == {"const": "no_reply"}
+    assert schema["then"]["properties"]["reply_text"] == {"maxLength": 0}
+    assert schema["properties"]["retrieved_quote_ids"]["maxItems"] == 7
 
 
 def test_strategy_schema_defines_factual_claim_flag_for_historical_modes() -> None:
@@ -193,7 +240,7 @@ def test_humour_remains_available_without_forced_history():
 
 def test_weak_factual_evidence_requires_no_reply():
     result = validate_reply_decision(decision(
-        mode="no_reply", humour_tone="none", evidence_confidence="low",
+        mode="no_reply", humour_tone="none", evidence_confidence="none",
         reply_text="", no_reply_reason="The historical claim cannot be grounded confidently.",
     ), [], allowed_quote_ids=set())
     assert result["mode"] == "no_reply"
@@ -334,6 +381,159 @@ def test_json_parser_accepts_fenced_object():
     assert parse_decision_json('```json\n{"mode":"no_reply"}\n```')["mode"] == "no_reply"
 
 
+def test_bare_skip_is_not_a_structured_reply_decision():
+    with pytest.raises(ValueError, match="bare SKIP"):
+        parse_decision_json("SKIP")
+
+
+def test_valid_no_reply_contract_and_schema() -> None:
+    value = decision(
+        mode="no_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="",
+        no_reply_reason="No useful response.",
+    )
+
+    validate_json_schema(value, reply_decision_json_schema())
+    assert validate_reply_decision(value, [], allowed_quote_ids=set()) == value
+
+
+@pytest.mark.parametrize(
+    ("mode", "tone"),
+    [
+        ("wry_reply", "wry"),
+        ("playful_reply", "playful"),
+        ("deadpan_reply", "deadpan"),
+        ("warm_reply", "warm"),
+    ],
+)
+def test_existing_humour_reply_modes_remain_valid(mode: str, tone: str) -> None:
+    value = decision(mode=mode, humour_tone=tone)
+    validate_json_schema(value, reply_decision_json_schema())
+    assert validate_reply_decision(value, [], allowed_quote_ids=set())["mode"] == mode
+
+
+@pytest.mark.parametrize(
+    ("mode", "confidence"),
+    [
+        ("historical_correction", "high"),
+        ("historical_context", "medium"),
+        ("researched_principle", "medium"),
+    ],
+)
+def test_existing_historical_reply_modes_remain_valid(mode: str, confidence: str) -> None:
+    evidence = RetrievedEvidence(
+        "e" * 64,
+        1.0,
+        "exact",
+        "A supported historical point.",
+        {"verified_text": "Exact words.", "research_confidence": "high"},
+    )
+    value = decision(
+        mode=mode,
+        humour_tone="dry",
+        evidence_confidence=confidence,
+        retrieved_quote_ids=[evidence.quote_id],
+        evidence_summary="A supported historical point.",
+        factual_claim_made=True,
+        grounded=True,
+        reply_text="The historical record supports that narrower conclusion.",
+    )
+    validate_json_schema(value, reply_decision_json_schema())
+    assert validate_reply_decision(
+        value,
+        [evidence],
+        allowed_quote_ids={evidence.quote_id},
+    )["mode"] == mode
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [
+        ("humour_tone", "dry"),
+        ("evidence_confidence", "low"),
+        ("retrieved_quote_ids", ["a" * 64]),
+        ("evidence_summary", "A supposed reason placed in evidence metadata."),
+        ("factual_claim_made", True),
+        ("grounded", True),
+        ("reply_text", "A reply must not accompany no_reply."),
+    ],
+)
+def test_contradictory_no_reply_metadata_is_rejected_by_schema_and_validator(
+    field: str,
+    invalid_value: object,
+) -> None:
+    value = decision(
+        mode="no_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="",
+        no_reply_reason="No useful response.",
+    )
+    value[field] = invalid_value
+
+    with pytest.raises(JsonSchemaValidationError):
+        validate_json_schema(value, reply_decision_json_schema())
+    with pytest.raises(ValueError, match="no_reply"):
+        validate_reply_decision(value, [], allowed_quote_ids=set())
+
+
+def test_no_reply_normalises_only_harmless_empty_representations() -> None:
+    value = decision(
+        mode="no_reply",
+        humour_tone=" ",
+        evidence_confidence=None,
+        retrieved_quote_ids=None,
+        evidence_summary=" \n",
+        factual_claim_made=None,
+        grounded=None,
+        reply_text=None,
+        no_reply_reason="  No useful response.  ",
+    )
+
+    assert normalise_reply_decision(value) == decision(
+        mode="no_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="",
+        no_reply_reason="No useful response.",
+    )
+    result = validate_reply_decision(value, [], allowed_quote_ids=set())
+    assert result["mode"] == "no_reply"
+    assert result["evidence_confidence"] == "none"
+    assert result["evidence_summary"] == ""
+
+
+def test_no_reply_normalisation_does_not_supply_omitted_required_fields() -> None:
+    value = decision(
+        mode="no_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="",
+        no_reply_reason="No useful response.",
+    )
+    value.pop("grounded")
+
+    with pytest.raises(ValueError, match="fields mismatch"):
+        validate_reply_decision(value, [], allowed_quote_ids=set())
+
+
+def test_no_reply_prompt_contains_one_explicit_valid_example() -> None:
+    instruction = decision_schema_instruction()
+    marker = 'Valid no_reply example: '
+    assert instruction.count(marker) == 1
+    example = instruction.split(marker, 1)[1].removesuffix(".")
+    value = json.loads(example)
+    assert value == decision(
+        mode="no_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="",
+        no_reply_reason="No useful response.",
+    )
+
+
 def test_digest_audit_reports_no_rows_for_supplied_digest(tmp_path: Path):
     digest = tmp_path / "digest.md"
     digest.write_text("# Digest\n\nNo conversational reply tables.\n", encoding="utf-8")
@@ -451,7 +651,7 @@ def test_historical_modes_require_factual_claim_and_evidence_summary():
 
 
 def test_no_reply_metadata_is_internally_consistent():
-    with pytest.raises(ValueError, match="no_reply metadata must be empty"):
+    with pytest.raises(ValueError, match="no_reply requires"):
         validate_reply_decision(
             decision(
                 mode="no_reply", humour_tone="dry", evidence_confidence="medium",
