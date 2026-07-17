@@ -1,0 +1,316 @@
+{
+  "all_four_provider_complete": true,
+  "ambiguous_exposure_usd": 0.0,
+  "baseline_providers": {
+    "gemini": {
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 0,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 10,
+        "precision": null,
+        "recall": null,
+        "specificity": 1.0,
+        "true_negative": 10,
+        "true_positive": 0
+      },
+      "completed_images": 8,
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 5,
+        "false_positive": 2,
+        "harmful_eligibility_rate": 0.14285714285714285,
+        "pairs": 23,
+        "precision": 0.6666666666666666,
+        "recall": 0.4444444444444444,
+        "specificity": 0.8571428571428571,
+        "true_negative": 12,
+        "true_positive": 4
+      },
+      "model": "gemini-3.1-pro-preview",
+      "suitable_pair_count": 25
+    },
+    "grok": {
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 0,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 10,
+        "precision": null,
+        "recall": null,
+        "specificity": 1.0,
+        "true_negative": 10,
+        "true_positive": 0
+      },
+      "completed_images": 8,
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 8,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.1111111111111111,
+        "specificity": 1.0,
+        "true_negative": 14,
+        "true_positive": 1
+      },
+      "model": "grok-4.5",
+      "suitable_pair_count": 10
+    }
+  },
+  "consensus_thresholds": {
+    "1_of_4": {
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 4,
+        "false_positive": 3,
+        "harmful_eligibility_rate": 0.21428571428571427,
+        "pairs": 23,
+        "precision": 0.625,
+        "recall": 0.5555555555555556,
+        "specificity": 0.7857142857142857,
+        "true_negative": 11,
+        "true_positive": 5
+      },
+      "pair_count": 40
+    },
+    "2_of_4": {
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 7,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.2222222222222222,
+        "specificity": 1.0,
+        "true_negative": 14,
+        "true_positive": 2
+      },
+      "pair_count": 17
+    },
+    "3_of_4": {
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 7,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.2222222222222222,
+        "specificity": 1.0,
+        "true_negative": 14,
+        "true_positive": 2
+      },
+      "pair_count": 11
+    },
+    "4_of_4": {
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 8,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.1111111111111111,
+        "specificity": 1.0,
+        "true_negative": 14,
+        "true_positive": 1
+      },
+      "pair_count": 2
+    }
+  },
+  "generated_at": "2026-07-16T15:22:25.099917Z",
+  "incremental_provider_value": {
+    "found_by_grok_or_gemini": 4,
+    "found_by_openai_or_anthropic": 3,
+    "found_only_by_grok_or_gemini": 2,
+    "found_only_by_openai_or_anthropic": 1,
+    "held_out_human_positive_pairs": 9
+  },
+  "known_cost_usd": 1.940008,
+  "providers": {
+    "anthropic": {
+      "ambiguous_exposure_usd": 0.0,
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 0,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 10,
+        "precision": null,
+        "recall": null,
+        "specificity": 1.0,
+        "true_negative": 10,
+        "true_positive": 0
+      },
+      "completed_images": 8,
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 6,
+        "false_positive": 1,
+        "harmful_eligibility_rate": 0.07142857142857142,
+        "pairs": 23,
+        "precision": 0.75,
+        "recall": 0.3333333333333333,
+        "specificity": 0.9285714285714286,
+        "true_negative": 13,
+        "true_positive": 3
+      },
+      "known_cost_usd": 0.721713,
+      "model": "claude-sonnet-4-6",
+      "provider_stopped": false,
+      "stop_reason": "",
+      "suitable_pair_count": 23
+    },
+    "openai": {
+      "ambiguous_exposure_usd": 0.0,
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 0,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 10,
+        "precision": null,
+        "recall": null,
+        "specificity": 1.0,
+        "true_negative": 10,
+        "true_positive": 0
+      },
+      "completed_images": 8,
+      "evaluation_metrics": {
+        "available": true,
+        "false_negative": 7,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.2222222222222222,
+        "specificity": 1.0,
+        "true_negative": 14,
+        "true_positive": 2
+      },
+      "known_cost_usd": 1.218295,
+      "model": "gpt-5.6-sol",
+      "provider_stopped": false,
+      "stop_reason": "",
+      "suitable_pair_count": 12
+    }
+  },
+  "schema_version": 1,
+  "selected_images": [
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "estimated_input_tokens": 20458,
+      "gemini_suitable_count": 0,
+      "grok_suitable_count": 1,
+      "partition": "evaluation",
+      "prompt_path": "prompts/0b42b54c4148ee2562fb.txt",
+      "prompt_sha256": "44b32a72ab64315b5076ceb88b6ffc3e547318b5d665e061d7b02980d1e4e99c",
+      "provider_stratum": "grok_only",
+      "shared_suitable_count": 0,
+      "shortlist_quote_ids_sha256": "e873dc4bbaa32fe24a43bfced5ce9e1833db74c59a4dbc10f0b54024f4f28b46"
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "estimated_input_tokens": 20682,
+      "gemini_suitable_count": 6,
+      "grok_suitable_count": 3,
+      "partition": "evaluation",
+      "prompt_path": "prompts/0c4634d8356f42dc4e0c.txt",
+      "prompt_sha256": "d69b8e9eda99b31b6fbbe436cf3fc1693f191bbf68ff5384b2d9b6a2dc9c7247",
+      "provider_stratum": "mixed_disagreement",
+      "shared_suitable_count": 2,
+      "shortlist_quote_ids_sha256": "d8ce55e9c68b0fcfc0f08d544f08f15633c0698e7d20cb6fc7e15300c43f91f9"
+    },
+    {
+      "candidate_id": "168392f289b5df25f16b",
+      "estimated_input_tokens": 21319,
+      "gemini_suitable_count": 2,
+      "grok_suitable_count": 0,
+      "partition": "calibration",
+      "prompt_path": "prompts/168392f289b5df25f16b.txt",
+      "prompt_sha256": "b80d6bb366f097acb8ff34af8636a813e538c92ab5473c578ceaad79be384d8b",
+      "provider_stratum": "gemini_only",
+      "shared_suitable_count": 0,
+      "shortlist_quote_ids_sha256": "163b916056ea7484dbcdffe67288f1e1268940688c3cb65ec3fb01fdb0199f46"
+    },
+    {
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "estimated_input_tokens": 20934,
+      "gemini_suitable_count": 0,
+      "grok_suitable_count": 0,
+      "partition": "calibration",
+      "prompt_path": "prompts/253f9adb9e67db0a67d7.txt",
+      "prompt_sha256": "b9576934449afc6fdff685116b8bfe4234b16f96c5c3a4237025c6139d0a81c0",
+      "provider_stratum": "no_match",
+      "shared_suitable_count": 0,
+      "shortlist_quote_ids_sha256": "1a523be8bd83ad86f10de894a385e1058d8075d5b6b63eab3f75c3c8c34b861b"
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "estimated_input_tokens": 20228,
+      "gemini_suitable_count": 11,
+      "grok_suitable_count": 0,
+      "partition": "evaluation",
+      "prompt_path": "prompts/305d002e01745c0acd9b.txt",
+      "prompt_sha256": "0c8d36a1e49a1b7d497eb58433eec987443ebe3bd7bdfe3e0cfcb97e3babf5af",
+      "provider_stratum": "gemini_only",
+      "shared_suitable_count": 0,
+      "shortlist_quote_ids_sha256": "b475100532589bb20080871b61162784686654ef73783c86061049469ae9d013"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "estimated_input_tokens": 21877,
+      "gemini_suitable_count": 0,
+      "grok_suitable_count": 0,
+      "partition": "evaluation",
+      "prompt_path": "prompts/5202e374b764482c4cda.txt",
+      "prompt_sha256": "5bfb592270a6840515550f6dd1ded20fc0ccc4ed65bd6a799283519ea8bd538e",
+      "provider_stratum": "no_match",
+      "shared_suitable_count": 0,
+      "shortlist_quote_ids_sha256": "31c661e6d899a3d75795f1f938c2f585a957d1da7adef77ac8dbd32500e109fa"
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "estimated_input_tokens": 21210,
+      "gemini_suitable_count": 1,
+      "grok_suitable_count": 1,
+      "partition": "evaluation",
+      "prompt_path": "prompts/7c9a2b387a67c9bd858c.txt",
+      "prompt_sha256": "7e68a42d9d01ef8003e67d449cf5788e2c232a0222ab63bff401311ea991472a",
+      "provider_stratum": "shared_only",
+      "shared_suitable_count": 1,
+      "shortlist_quote_ids_sha256": "73cb742e4834836d6e0c641181286838fae455a0ed67cd6fa9932792a791454b"
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "estimated_input_tokens": 20052,
+      "gemini_suitable_count": 5,
+      "grok_suitable_count": 5,
+      "partition": "evaluation",
+      "prompt_path": "prompts/7cdcd67a8066a3b12d28.txt",
+      "prompt_sha256": "8bbb52716ec499f02f71ca67accdda08642c05cad7a8346c3c64208e8ec82c5f",
+      "provider_stratum": "mixed_disagreement",
+      "shared_suitable_count": 2,
+      "shortlist_quote_ids_sha256": "3d09a4d799eb7097418278cf0127baddbd79e16988681d0df15e5c842428b10c"
+    }
+  ],
+  "three_of_four_majority_evaluation_metrics": {
+    "available": true,
+    "false_negative": 7,
+    "false_positive": 0,
+    "harmful_eligibility_rate": 0.0,
+    "pairs": 23,
+    "precision": 1.0,
+    "recall": 0.2222222222222222,
+    "specificity": 1.0,
+    "true_negative": 14,
+    "true_positive": 2
+  },
+  "three_of_four_majority_pair_count": 11,
+  "trial_name": "image_quote_provider_compatibility_001"
+}

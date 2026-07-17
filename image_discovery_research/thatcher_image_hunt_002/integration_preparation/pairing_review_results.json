@@ -1,0 +1,237 @@
+{
+  "approved_pairing_count": 17,
+  "approved_pairings": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "existing_image": "t11.jpg",
+      "existing_image_score": 45.859754,
+      "new_image_score": 75.736117,
+      "pair_id": "00f4566964e0c88838ad:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "quote_text": "The whole history of negotiation with the Soviet Union teaches us that if you do something they want without insisting on something in return, the Soviets do not regard it as a kindness to be reciprocated, but as a weakness to be exploited.",
+      "review_note": "No. The image is of thatcher with a us president. what has that got to do with the quote?"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "existing_image": "t26.jpg",
+      "existing_image_score": 46.56,
+      "new_image_score": 47.9,
+      "pair_id": "0b15f11312a31033907d:5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "quote_id": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "quote_text": "It [The Berlin Wall] is a monument to oppression and cruelty, but also to futility.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "existing_image": "t59.jpg",
+      "existing_image_score": 49.965151,
+      "new_image_score": 54.265151,
+      "pair_id": "0b15f11312a31033907d:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "quote_text": "Fear is not the basis for foreign policy.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "existing_image": "t25.jpg",
+      "existing_image_score": 102.104335,
+      "new_image_score": 41.664905,
+      "pair_id": "0c4634d8356f42dc4e0c:063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "quote_text": "Conservatives have excellent credentials to speak about human rights. By our efforts, and with precious little help from self-styled liberals, we were largely responsible for securing liberty for a substantial share of the world's population and defending it for most of the rest.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "existing_image": "t25.jpg",
+      "existing_image_score": 102.104335,
+      "new_image_score": 110.5249,
+      "pair_id": "149e63869f481474a798:063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "quote_text": "Conservatives have excellent credentials to speak about human rights. By our efforts, and with precious little help from self-styled liberals, we were largely responsible for securing liberty for a substantial share of the world's population and defending it for most of the rest.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 63.503703,
+      "new_image_score": 39.299508,
+      "pair_id": "305d002e01745c0acd9b:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "quote_id": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "quote_text": "It is always important in matters of high politics to know what you do not know. Those who think that they know, but are mistaken, and act upon their mistakes, are the most dangerous people to have in charge.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "existing_image": "t48.jpg",
+      "existing_image_score": 59.650382,
+      "new_image_score": 39.299508,
+      "pair_id": "305d002e01745c0acd9b:8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "quote_id": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "quote_text": "In politics, integrity really lies in the conviction that it's only on the basis of truth that power should be won - or indeed can be worth winning. It lies in an unswerving belief that you have to be right.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 91.374357,
+      "new_image_score": 40.199754,
+      "pair_id": "305d002e01745c0acd9b:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "3e16363d7234c33cd75e",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 98.978552,
+      "new_image_score": 36.701502,
+      "pair_id": "3e16363d7234c33cd75e:e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+      "quote_id": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+      "quote_text": "We are not in politics to ignore people's worries, we are in politics to deal with them.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "47898be6bfefc5d49c03",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 64.701606,
+      "new_image_score": 68.904892,
+      "pair_id": "47898be6bfefc5d49c03:7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "existing_image": "t20.jpg",
+      "existing_image_score": 74.656854,
+      "new_image_score": 81.438461,
+      "pair_id": "5202e374b764482c4cda:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "quote_id": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "quote_text": "The UN depends on consensus & that is simply not an adequate basis for action or for readiness to take combat risks. If we try to rely solely on the UN, we shall rapidly come to see it is as an illusion factory, where copious resolutions become a substitute for effective action.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "existing_image": "t07.jpg",
+      "existing_image_score": 47.824787,
+      "new_image_score": 98.339489,
+      "pair_id": "7c9a2b387a67c9bd858c:7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "quote_id": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "quote_text": "Our duty is to remember and remind. To forget the past would dishonour all those who fought heroically to resist communism's evil - it would also place us in danger of repeating its mistakes.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 92.791005,
+      "new_image_score": 56.001256,
+      "pair_id": "7cdcd67a8066a3b12d28:184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+      "quote_id": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+      "quote_text": "Any woman who understands the problems of running a home will be nearer to understanding the problems of running a country.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 63.503703,
+      "new_image_score": 59.001256,
+      "pair_id": "7cdcd67a8066a3b12d28:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "quote_id": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "quote_text": "It is always important in matters of high politics to know what you do not know. Those who think that they know, but are mistaken, and act upon their mistakes, are the most dangerous people to have in charge.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 94.791005,
+      "new_image_score": 54.001256,
+      "pair_id": "7cdcd67a8066a3b12d28:b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+      "quote_id": "b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+      "quote_text": "When I was British Prime Minister I was not always popular. Reformers rarely are while reforms are going through, though if we struggle on we reap the rewards later.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "existing_image": "t16.jpg",
+      "existing_image_score": 71.155161,
+      "new_image_score": 53.653413,
+      "pair_id": "86953c03fd343ef6fcc1:5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "quote_id": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "quote_text": "I have enormous admiration for the Jewish people, inside or outside Israel. There have always been Jewish members of my staff and indeed my Cabinet. In fact I just wanted a Cabinet of clever, energetic people - and frequently that turned out to be the same thing.",
+      "review_note": ""
+    },
+    {
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "existing_image": "t36.jpg",
+      "existing_image_score": 91.374357,
+      "new_image_score": 52.553659,
+      "pair_id": "86953c03fd343ef6fcc1:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "review_note": ""
+    }
+  ],
+  "decision_counts": {
+    "approve_pairing": 17,
+    "prefer_existing_image": 83,
+    "reject_pairing": 1
+  },
+  "generated_at": "2026-07-16T10:38:35.564077Z",
+  "maybe_count": 2,
+  "maybe_decision_counts": {
+    "promote_keep": 2
+  },
+  "maybe_review_complete": true,
+  "maybe_reviewed_count": 2,
+  "metadata_validation": {
+    "absence_of_pairing_correction_flags_is_metadata_approval": false,
+    "automated_source_grounded_validation": "passed",
+    "candidate_count": 24,
+    "generated_at": "2026-07-16T09:10:07.807860Z",
+    "human_metadata_validation": "not_performed",
+    "production_integration_applied": false,
+    "safe_for_offline_selector_dry_run": true,
+    "schema_version": 2,
+    "source_identity_method": "authoritative source caption, archive metadata, or source page context; never facial inference"
+  },
+  "pairing_count": 101,
+  "pairing_review_complete": true,
+  "pairing_reviewed_count": 101,
+  "pairing_unreviewed_count": 0,
+  "promoted_maybe_candidate_ids": [
+    "47898be6bfefc5d49c03",
+    "7cdcd67a8066a3b12d28"
+  ],
+  "review_notes": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "decision": "approve_pairing",
+      "note": "No. The image is of thatcher with a us president. what has that got to do with the quote?",
+      "pair_id": "00f4566964e0c88838ad:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "decision": "prefer_existing_image",
+      "note": "America was an allie of the uk!",
+      "pair_id": "00f4566964e0c88838ad:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "decision": "prefer_existing_image",
+      "note": "America was an allie of the uk! this in totally inappropriate",
+      "pair_id": "0b15f11312a31033907d:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "decision": "prefer_existing_image",
+      "note": "America was an allie of the uk! this in totally inappropriate",
+      "pair_id": "0b15f11312a31033907d:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    }
+  ],
+  "schema_version": 1
+}

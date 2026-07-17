@@ -1,0 +1,668 @@
+{
+  "changed_pair_input_count": 229,
+  "generated_at": "2026-07-16T20:39:07.155190Z",
+  "generic_reject_safety_policy": "A generic reject without a contradiction note is not severe safety evidence.",
+  "new_or_changed_deterministic_vetoes": [
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "0641f7ec91d16cf8688baf7560d20acb8d3b6a30786515c13156976005f312f1"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "14c08c30dc2a0df67dcf26df484c1ca694eb81bf61d980fe1642af4343458b9b"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The quotation materially depends on a relationship, but image provenance does not establish it.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "Image provenance does not establish the required adversary-to-partner transformation.",
+          "rule": "missing_transition"
+        }
+      ],
+      "old_deterministic_contradictions": [
+        {
+          "detail": "Image provenance does not establish the required adversary-to-partner transformation.",
+          "rule": "missing_transition"
+        }
+      ],
+      "old_final_decision": "veto",
+      "pair_id": "25fc3d23f177db2482591478401e6ee6f8f57df946cd5fe6ae8f4bd760f0f7e5"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The quotation materially depends on a relationship, but image provenance does not establish it.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "Image provenance does not establish the required adversary-to-partner transformation.",
+          "rule": "missing_transition"
+        }
+      ],
+      "old_deterministic_contradictions": [
+        {
+          "detail": "Image provenance does not establish the required adversary-to-partner transformation.",
+          "rule": "missing_transition"
+        }
+      ],
+      "old_final_decision": "veto",
+      "pair_id": "5c6fad0524a9211fe99aca16def9a1bcb0dbdc47bcc721c59e8e88e85445945d"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "a5b7921d9ba29de808114abbd09f434b448961801568151debbc07db31f3c619"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "db08fe4c145accd2068a6b9c204fec4dbf3ad0d8a7e6581776f096ec09a99761"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "ed45cec6eba9e12094ebeb1607cee30574417f37c2d2c537010017523f841290"
+    },
+    {
+      "new_deterministic_contradictions": [
+        {
+          "detail": "The image depicts an established ally in place of the quotation's explicitly named negotiating counterparty: Soviet Union",
+          "rule": "wrong_geopolitical_counterparty"
+        }
+      ],
+      "old_deterministic_contradictions": [],
+      "old_final_decision": "allow",
+      "pair_id": "fc2aca5d29e3e4632474aa00473aec5f1a1f8ca798e97c9ce760f63f7cdb72db"
+    }
+  ],
+  "operator_positive_override": {
+    "basis": "operator explicitly withdrew accepted Thatcher/Reagan pairings",
+    "count": 4,
+    "rule": "accepted pair is excluded from positive calibration when source-grounded image metadata names Ronald Reagan"
+  },
+  "original_candidate_manifest_sha256": "babf89214d33057292b4b2d282faf8f163fb7b7dd29b0a1fa4c0f329d4707b85",
+  "original_pair_judgement_sha256": "60a27a197418af386ce23695617cf5c245fdd0297e1e385f1df16efcb9282668",
+  "paid_response_files_modified": false,
+  "preserved_paid_judgement_pair_ids": [
+    "012a984973be6ed5b4fdc54b7d71a7ae598b803d5a760db07ca91a0e3a99e145",
+    "01612ee8bdc99ae16e865b0e7d2446e6ae814f3fc39638287336a06aac93ddd6",
+    "020e0205bdc49ec5302cfb3937047a8ed6aa45eda85e8c0fc44c20552a35152e",
+    "0220b5df0c423d4a2ef2608716acf0d654764e9a59812cc7b7558ca37d661d9d",
+    "02f589d86f97930b25fca74391ff98156c30c2c0bb7e41bc91b31d457c336f25",
+    "06a87d5ded0bbcef864e17636f61ba75f11c5a73e981053640eab3bada136dd1",
+    "0927c8aa8ef2c1f955309632d997442cfb8c0b2d9955e9616f4e778fd5096e29",
+    "09c9a57cf43e3e0a78e7239a0cf87d77786759d17b638d8bc593e8ea8e8376d0",
+    "0c423c68879f9ba9fe5f92d1fe7a32641cca04143301fb48df2f430ab885c847",
+    "0e87d3ccd99f8f01c19486745b71270cbc0fb42723675fd15c010615d31906fa",
+    "0f60e5de496ace6f06121108df9cbcb7f32ca342981574e9ac9bdb56e90afb6b",
+    "11ccec3f090610ecda1b3b6dd757fba0f48c9f87c610a2601d7ba3d67e1c6ea8",
+    "1202ccd83611419f8170a9aa8487a9643f2344d5446968209366f5fdd7052181",
+    "15543c6955114fb27ba397176071dfd20dd7b52bf2b1a03a051caad7696144df",
+    "17798fca32d74dc143f85a7c52c9c9d8a3a8bcfb802567d190c5d5f2f9497efb",
+    "17ac1aeced469c3f93fe1de1581350002316ad6ffb7d6ff76cb2d72b327ca722",
+    "19c42a3789faee57716e1132c5ba036684ac07bb96591584610f7ecce2952f18",
+    "1b1d03702d1bc0b2c2943d2094bf2a32f17408b6364f6047db73b9ef6c3ca1a7",
+    "1bf9be99e1f8f4decdc0c390f9c54fcd7feebf934ac088203a90e0ec16c46761",
+    "1cc12daf35cc1e229f322c679d704a00430193563dbfbfce5aee04ad11dbce6c",
+    "1eb13f743dacbac84d7bbb9706fe3ea9b23277568c19333f554879a94f8ae096",
+    "1fa89175fe3123832d7a75d94796330ce720ef2c625bf6b713e57d95512c196b",
+    "206211c3cf8de350e01635b176e81e16782b2e804eb08af34d96fac8c73d438e",
+    "2172230d477b6fd548e72646572fa5f004f0b4b4eb3790289fdfcbeea4e6d012",
+    "229fdbfbbf62bd659458167e0010031b3931cac5db9a3dab80ae373acabfdf2d",
+    "230d9106eece5cb907e4e411cddfcba88da8fa4ae13d65621714fc271a7ad385",
+    "25598a1e430c832454e1b850c6ae0ab767bab11e539e66482f6fc96859d59e19",
+    "2569e217e282a4df33c169043604665907ddbe5a7aa41d3ef4c096b381d72980",
+    "2607ffecfc7d7c574d6032e2f9e248eb3ef2f36010b208712c0c7460348956d2",
+    "26eaddffc62b3e696b93455ac25428ea1bae0224e383189c7c97e4d7a4ee8a4c",
+    "28302c1d0639c2a78d5b5c5d2ca2f7c4a9aa4c65a5e84b120562ebb8afbb898f",
+    "295b00426d2d5fde5801ba0beb6305028e7ea8c57826179e705139b71cbcbcf6",
+    "2a0db2a997109e4bf14b3580735fc83356c499b8f904728137bf307fc1c0a388",
+    "2b4609a4e2295e8110072d153973a21d7a2072d42f67681d580ad4a07110a20c",
+    "2b515955bc89902c0743456c151765f2da59252578fb9a15ce6e644adf268e88",
+    "2b6e043c4f26cd08d3c72019b8bde89d13e31225f6fa36e5818a0760f1efa65d",
+    "2cd20cdbc978a3cdfcb952759edcf1fa6d79466a5958d059eaca5d31a5b0a26e",
+    "2df65ac0abd25e9f2fba97fe766a925fa71bfdd022595f5e56bcf099dbf80b9a",
+    "2f2f4d00bc997ac764e173cbdf24e483f6fee429bc5e1a9bdf3dd081c34a8bed",
+    "2f84d65e65f615651c70eebed6430344517763235c9d4c76135e0ba4b271035f",
+    "30cbbe6654d3b621b33d87e5396b9b14afd8b12ec4d863c31971896408636a18",
+    "3446b6e88112e905e7b94e9c04481ba6c25a32413b6489dafa5fdb379ffa93cd",
+    "34af6612cc1d2b48351d46bf86599cf339bd5be36ccbd9c10499d9f3cedbd6d7",
+    "353ed80403202483d27671f267acde9e66f87974052e78c2668e2a02d50e1075",
+    "357d78a33328625b2d8a1f6e9040b9cb71c2b8d48eec0d85726a84f0794c4bd4",
+    "388e927cf0cde558e6fc95a8a413a6c3b8549cdda31cc9077a570f83439fc558",
+    "38ef5bbec3b6795bfc86c35de31b83a8656dcd5b35846244506ef747d2eacfe9",
+    "3aaf60ff4c3a07b77c0dabb8edc8c9d4f73cf3c90f631660da1bcc8419ded0bc",
+    "3b89f0e6709d3e794d366dd7f9d4fe7f59abefabb90e8e6415833283f0ce35cf",
+    "3bb9aec55f6f89d8142db7a1cd6aa850dfcbbaccd46555fe4d449b5fda94510f",
+    "3c44e66f6f0d382ed583621cffc30a06170a7bf9f8a88d053298ea3b07bdb60b",
+    "3d18b3227640520133f7092c9658c0deba9b45450977f0136dcc18466c417775",
+    "3d450d2895ab358e79ca863d3307b456ae4927dc249ddc02dbb082e01d0ba069",
+    "3d972638802cf37168646d6fecdd15083c7c9678ae0fd3d7d481de6b3b68dad0",
+    "3e438346df5cd1e6069cc84f4a28d7cf395421a854039f5dada1c4d674fd75bd",
+    "3fa27f326ee489e49bab098064278fa812bd84be1a5742d7f83d0e5403e36eb0",
+    "405f3e499fe2669e8cd368a2d60691798e369aa097877868a10fc3b5c2303ef6",
+    "40d0fbab4afd25fd15068f8f6500fba1e9abf8d76f42ec9dcdf2f7ea398dfef3",
+    "43601d0f06280e445b2c71af087522f61057d4f9345a74edc7802f471ffec429",
+    "4446c9c1617c302278a99fed0a85b5b4a8b496bb4db679889e1d17c3d749dcb6",
+    "47a078ec51fa36409c057fff483ce0da13c72aff92120ed016e36c5adbf5a473",
+    "4830c95815b758bf83bf739759de78bc348616d7d56541b60e4cc426a26c62d9",
+    "48a6e045b954bb89fb46c9e7057fd219b05b497bd5f4a001a1bd7ce3d7e3c3f6",
+    "48b66a2d0c76cfd7e767b5b4a16cb289a86e3139167f0ed1b87c82333835e05f",
+    "49fbfffdc1446691abb4eab67d55372a4e78bad120927b0b9a338aa115722f5d",
+    "4c9771853fc3a9b3fed5c5d752577123b58eed279f4eb4e376796ff6135c32ec",
+    "4effcb7188be0fae24f4094a479790f07a056bc2648793484e5a3d3e77b6cf1c",
+    "4f1bb5cb0298ed0af5685fed107dc1aefaa3b0b7d886df7852d6dfe6f747c632",
+    "4f5fec257b714d9a270f23933b38bf76d045d05dac18d8e7661853a2ef0b52e9",
+    "50b63f4ab58c19fb7a85dc21cac59d8ef2d0b8e109848afd053c329def5f1738",
+    "5155e8e5a24b7ebcf4561909312d8bca413ed12aff9ff66cdd56fb6c3593e66c",
+    "5238572f71d569bf6bc1c5175d29e9e9d5428a842c5b14bec79acfe83e1e98e3",
+    "524326a846480726a5736f4f35a3b2b4ebf9eea2aca5e8be5273f1dc723ccdd5",
+    "53399e9364361258ae52737879f23f5ffcf63d467c51135309cb75232e1006dd",
+    "53f8dc0dcbb96baccaa43e8cc1cd79c819eb4fb4752cbf908a3094f72497ee5c",
+    "56d597675a18fbf0430f7cdc18f0633e106d1683be2558f25f289857ad9d50e9",
+    "56e05761dfa3a63c05e8fd5e20a8ca9567bad79bccc0403c4b49c53e2dd82cd0",
+    "572952f279ca299ba1191428076c2292e642fcf8170f005021cd10fff0b09d9c",
+    "58398587a46d833a054da48ac3b386f751820a472d1f90f7b4ccbe03f5d716c2",
+    "597a117032a3b19d0bde9e174964454ae1e1ded0295b8015a0ac80a373844454",
+    "5bb0ae6804b0668a7e8f649f49198fb0df2ba97e7d34e1ec52660ba0343c3425",
+    "5c33593e8e86e2a4c8af232e5bd966ff6d1c1b8db4383b73033792fd6f89e38d",
+    "5cd1f25ff55797a579b475569123309ad39000c50abf9915aaedefa7a95787a8",
+    "5e2b11b45ecd8d78b9f520cc0f818447115b1dac72fcf1103077e3a021739061",
+    "5e50e0b7857d0fae0bad58dc116a2757e71b3c018ed133132c591f7efaad8ea3",
+    "5ed416ce8f78bfd2cf000aa45c20841385b56c67cf2aab908687e2407ac66ce9",
+    "5eedcc74712e2f1ea56434ba3ab7df8c31fa46454d01c689c00196f6404fc59c",
+    "5f0b73c9b87be974482067368b3d206d15ae41a998eb8db7ddc417cf4f1abaa8",
+    "5f492b719593ae1fc2c8583b423485b9651a6967f0727917af284a9eea24b5fa",
+    "61cb81e14ad80d04f08eab9b624072edc00d405429d6019ed168bf51117bd2e2",
+    "62a310009dbeb3e6c120b6dab46246a170ca4f7705454a9b4af1391006b8335a",
+    "6477257a2fee74190cafc6a0ca8f40146c6399e4369e95aab4cd3f69833e5202",
+    "649f6b491a7c461746c0eeaaf9c1dcf9e59fb2cfe086b5922db46c8749794892",
+    "64be144ced560fde2f46bbae32126637ef2028ad7f5f45cb9acbed5ffa7631a0",
+    "64c2bd546ae9720961d028b617b554670ed8fe71a175e26531fac1d1c14b0eb2",
+    "64ffffd1f2f2acd33016f0c741baf0539da54e9cf1da3d1fef355f9c0ded5687",
+    "65855dad71cd1bba78820fd2df42ebac45ef49e1bd38cf8f38d8ec4087910fee",
+    "65b0258e55b65cc584152fbe0e9e785cb052d323c2768311f910ac8b02f8ea44",
+    "6764e459439987c320dffd891581f6a76849b720f75315aad239aba5bea56a41",
+    "67a4e7c169803390dc3f71c03fc3d578b72ac6cc576f5d3798123e187426467c",
+    "6b8c1543bab5417179d34ad198c8b165a002cae763b85f7af5c07f0fe26262f3",
+    "708a6f06bbb24d37c7993cf92a513943384f4231c6a6814c85fb994179215751",
+    "71f5c4500d216049c06ed47f7d3f2138e42773adb8be9a163b9556507d952451",
+    "7316e250a54753c03c066c692b8ec17b55e3d9347d930dbcb0c0c072f1b40737",
+    "73fb63c6e64156ee0f321a2c016b8b42fd992dd85f7f51f73799abc5342ad3a8",
+    "76a77fcedbc6496acde8eaabf42bb08dbdf6d281c279b0e187397830362e9f6c",
+    "76ac6f9ce1e628deb153d61e05b257e77f01e1ed9af0466e4ee7f2deab7abb42",
+    "77c36c32e0a1ec32572dc2d8fd95e2ce2c7fa3d8fe9eb65104eb86fffe91f770",
+    "7937169fdcf82e1cd257107ee812436d6ca44150636706c5c503df8f4ab78b80",
+    "7a0c6fda15f0c0d2892215b9aa0396f3bc981d1e55cf455d0e79e7dc8187e1a8",
+    "7d7b037d21e9eb67272304dbe6449ee31f95645f376083053dd36b2f3b854535",
+    "7eaf7a66e885f0640ceb7399fe313b04d44a111cf2045f0b366269b33b2b1a77",
+    "80cc135e22d4a8c28d7ab506b9d496271abf65298b8dbbe31c857d6113e9638f",
+    "8280a0c7a3dd8e99521b75be4b1cf0f047beddcf61e14d25c40ef715ec0f4bb7",
+    "8296dccfc6fd1bf2648855556b86b75266d28a646ff3fcbf902708c158596f5b",
+    "83f6c166ee1f907a801d110e1673d0559d6477abb56c70ec966e415ee56e06b9",
+    "8547a8f4eaaa4e324cdee4b999921f88794550d26c87cb764866fe6e7bbd153d",
+    "87c9210239b622b6b6048a275870000a0a78b72db9201af9a0516233e48845de",
+    "88c09c7c43e6d675405cadc9883c2313d33a2bc3920988473ed49015d61c3ead",
+    "8a67eb2c5b77e91637122fcadee54b3398197c57bd0197f9b30f6942bf09984b",
+    "8ac2a7c75d4670bc3fcb7317fd9fae100a428cb83f1918a701b5018485526237",
+    "8c45bd6a397b0d7d08d927cc2ec3c4690d481ca8820e729f340ab6718cd130e4",
+    "8dbc10af46000f22f528f847b7fc9375583c4f620d7eafd41a468f0d2d514d40",
+    "92f89b767c2c9278d60fe02e12500ad436e60fdd9aa5fb465aea9c57bd9a3fb6",
+    "93fbbb975c4a1129791708a1b1a11399f0f248af883327a65e83e1e069130135",
+    "9435abd158b7ed11af13cfb191d71c2c7a77ebaaec66cbfd8b0248a4d94ff3d4",
+    "9549f2c5f23fcc59b6b29a9be19d6e1cf9be904851377bf97cfb5059f92a8989",
+    "95d5b49fc19da376e00f2f2e4f73789ce1c9365c9e3fabdcd6fd291d5f236643",
+    "97414b7a6e701e01e2f626df5221d5397c983e0d01237109fae30c0f0736b4ce",
+    "98a25d99363285715a9ff6561a2b95c93553ccbd5db2f6eb907f22eda0b7e241",
+    "999093864da6d7affd889ace48eef3249a68418464a94768db9046d497e49309",
+    "99c21fdabbd980ab1c956e55bb6c7491e6028e3e2801413e9400694476e53a2f",
+    "9a41c994fc15cc1b82284278e0afc4543f38e9f0086a7f9b69c609891a756afd",
+    "9bdeaa59dd82604729de6e4576e3ff05c4186032134933d1a58311070e08986e",
+    "9d023373772eff77524bbfc9adca5acb98cae4e61e77c20d9a061b3729b637a1",
+    "9dbec0f54873bfb9d1644d288016b705ffea23b5f4b6f46cf740e98b631c2c7d",
+    "9ecdc85a7d2fddb5c7385b35f11f3b750d1c2c282ef13c184d3b4c4059e1f581",
+    "a383ef6e450648eecfd34e242f379691d530bafb55d24da3ff0fa2dc56d01dca",
+    "a3ebc343888d21e196cd61226946fb0b19901cc944f339dbf737d4a3cd09dfb6",
+    "a48b644fb9b6ce03c1d600e54426344f71adff8800ea7e94f9ceef9f426dfdb7",
+    "a60bdbbe583decdcbb86ed25bb7ffb8f491d8644dba2091acc8a272e52382c03",
+    "a6529ba752894cc00cc511ac2903fb511a30f612efc6148da579b18e6fc322c9",
+    "a6a21bdd35660cf7d353252f8f524003f9f985cc7e76a0068f83a65e7e76cc0f",
+    "a889229cec8d6861e902659aec0a98071b68deff1256e785b483ed7e76a1d42a",
+    "a8a18f0f8afcd808394740b5bcb5b691573a07c7bb66459f60ce2e01ce93d5d3",
+    "aaae154976ac37de1a003a6699046494c74578b1753cc532d48f63a96f88fcfa",
+    "aae041f94f9f238bf066421e33f198e2f569343942150d6eb27cd3e80044b4ac",
+    "ad6db2f487a86c6479a98373e8a770087a9ee94102e9d7b237791133f7e5aebf",
+    "ae1bf818333c69e9bced224a9fe8fbd363fb08d97fe9efff35df3b6a65697737",
+    "ae44f9052ddcc692f1b245a0883a5cbaabcb734635a0f18cc1e70e930c483d30",
+    "b0e48083cf31e964e179dd2e721974173560f01953140420780347c1ea4202d8",
+    "b2486e2c8afc563c51f669723741dab1d956f830e5f46020c0940ba3bdfc79bb",
+    "b3429b0596f0bb6e7f468bd95359f89756fb166f9ff4c73dac0e0e59d708430a",
+    "b4b48090026fffaa864e06da71294b9880e43c96a2e7e98551c6290385fcc28b",
+    "b6badc2876b4ab2207a8c12bf885d63229bd48a23961881c1d3f2cdd2934c802",
+    "b74989554b85915543c81f9e62cafa6415411a448c2a50f0e01693b1a3fbfc7f",
+    "b9cde49a8663e5a74e4f78a9b7bbffd1ab4e92ac414d8bf4add87f3cc213d6d6",
+    "baef65e8ed30418d43e8a7cd592e3bf9f2b8fe96f6e5c0ed9fa8d6e7c859b779",
+    "bb79226e78420acebab95d702cf30676578a8bdafa23d556a2f3ef826a9fa560",
+    "bc492dc5f834098a4127bc3e992c58f04addb6f66bde2b38e2d611825058bec8",
+    "bcb7c900482081de1ecbc2ef91d1faa0a9b1250738d29ba88ae5a88af73d6367",
+    "c01cd64a17d0ce2b09c92bd4a0e72f5f250f91cad5a0c0dffe025ca7b7a5bf11",
+    "c1d2a7aae8801b729e08f2c066920bdf0ff6f7f8c54e77c207d2234562f7b4f8",
+    "c58be57a94770589c18f3c03b5ce50c21a644098fb7dc5e3b919fcb70a4b4435",
+    "c769e5e133f2dc7a6f6ca48e3c9286e759bd57ec4b8b4754657011ac908908c3",
+    "c86e0c435c6c9cf1a851567aadadf147252ab770f3b91a67e4787bb8430e5e2d",
+    "c880b7d065cb3b1a9a52d1107ca5e180cc136a44ebe0078daea2746fef0a8699",
+    "c947d4c8d362c74a793dd6f93e143ed5122f2cfa956fcb6a490e25dc4a49caff",
+    "c9f2064586578ad4635a5c834c5de91432677ddece0be895ef43634bd3529c28",
+    "cdf91a7bf1819ff7681b55e4d6af83a3d0bcc3c3be0388ef2e7c19adc809d213",
+    "ce0edaeb21cf3226dd6c92f4f718bfeef10e2001f55a79353393811030ca235f",
+    "ceaaeefbe92636554e39283ea894f8134f2fe543e29f9198048ef124e9d0313b",
+    "cede478ef666b59dfd8666ec29831d0c57ee30f29bea774690d9f267f6f81d34",
+    "d0283f427274bbd39b42cde4a7701e4ba62993a123aa63c47605fe76edd636f1",
+    "d14cf9c851fbb067d4570dc7e22ca00a5f37df00b37cf7774f6cac9f523b4f4b",
+    "d32b9a57b7e96e31326e9e6e3ef389ed29759a853f34885f3764a8116775613d",
+    "d710e016921b8e100c91f3da3115053d00c9ce21f5bd63f745e98efd84dac69c",
+    "d95ff07c9e64567f409a5680448faf1716a4ea84c368d260b320210a42eb5224",
+    "d9e178e0edb5f883a431fe6af0b687fb1d78ee5d6760190c795515e2a31f1d84",
+    "db616160d12aa26534d1657d0e6130853ccb36312806f023383d6efe06514e84",
+    "dd052f824c2ddf3d81330f69805ca1d003026b13a6a3cacfc1c807cc35abaeb5",
+    "ddc707e44e3464301ccc8ee175d57b99dc6f051584900b4fd83b35f6e29e0529",
+    "df7d4e685816dd908b4d39ab3a2c3e27ebf72b61b2b64fe09032151bbc167bad",
+    "dfa920d1eedde4089eacf3bff16462da9bcefed63af569884e52464c7dd5ea78",
+    "e09736c4277a53224d54bc110099f498cf477d0d5eecc746366bda7fca97f7dc",
+    "e1a1070781269bebab3054688270667f01450e106089fd4848c8ceec4225dd8f",
+    "e241d1ea9de33c08090bb3bf8be73905ece09bc86153f51cbe6e64af49ac462b",
+    "e3036fb0f239d359f3661a991f94718882210edbf61d28d144ffa0d21dce0a9d",
+    "e46dfbee116abc71dd19b917276498115863d15f02b4d999cb5e22a3188bd980",
+    "e470a52df203b264c158f404a1ac15446cf9ad231af01a80fac1c2be565e8900",
+    "e633cd6111d42898712344964555fa9968e6e6f929e0fb9195fd541e6519aac3",
+    "e7eee472589e0bcdf01e06038dab448cb79c88fd206021692af905527e62d11d",
+    "e81e8d8223b1d45d35b2d9782ac82bc89c6fe2bcd1f06d43aaac663f10305ac8",
+    "e8ed056d46f48474a2fba5845728ef4cfd72f4f957abee3a9f918fc0df7749a5",
+    "e8fd3d2fbfc5fba9a2f398415fe7d99c1ed95db19d23e0edd3e8fdb95de5b175",
+    "e95ef2d2197ae6608daf86a724cafbad26feae80a6748127cd9e5f59855a2572",
+    "e98af5f06fbe47712a400892f71be14526d6cf373c0581ab201f6a5c0b226150",
+    "eca5d56b448a956a4225858c9863bac561fce108e20d7d10fa926352ff506519",
+    "efe7015a9f5259e254fd6a70e4e2646e26c53f57666533d5913321dda95b25c2",
+    "f09bcd2b04bee5ce470bb89bce17c6c7c55b5fbf24bb8a825743ad06fb7fd87d",
+    "f1785c430ca0e2f7bf8a08e4928b6da0b9fd6bd178727f15699535dd1964a6d6",
+    "f1aa7f4774fb47358dabb22de2601712b5e35f486a2ccfddf5b3610cc979597b",
+    "f257b0f01e85540418894dbf03aced995e44cfdf6b3e14280b289b0871d3b87a",
+    "f3a637f772406d489aefda1a614ef87a4ed647c896f5a1296408da7d07f085d1",
+    "f4c1817b3c6e1c735c2e3e9626a2936b301993bfe8eb1d00045070ade7841ab0",
+    "f73ff150c18e0983aca614b201510202972be2929fbfd96ccaface558e715b84",
+    "f8e2d57125130e8dfe0c05e9a439a894945975343dc772a2c445789d2585ef24",
+    "f986d54465bc9e3e970e8de71ef0d1e951c4af281e4a129ddb29a131e41ad415",
+    "f9d4bfcab7267e0986ea4e2b1baeba134383c0970b8cc294c4587782a46cd4a4",
+    "fa7fe92f4ab5d5bea378f05b8875e35a5db65f571a70757278b626d21c4f89e3",
+    "facaa1783e80dcfbb1a863e957c6032fa1416403a1e9e4ca63d022a786cc77cd",
+    "fbfad2ae21bf2666863769b14b07db75c14d93834e048bfbdccbdf70f9dcf3b0"
+  ],
+  "relationship_grounding": {
+    "changed_image_count": 5,
+    "changes": [
+      {
+        "after": [
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "George H. W. Bush"
+            ],
+            "relationship": "unknown"
+          }
+        ],
+        "before": [
+          {
+            "evidence": [
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+                "text": "Thatcher delivered this speech five years after Saddam Hussein's invasion of Kuwait, which she and George H.W. Bush had discussed at the same venue in 1990. She used the occasion to contrast the successful intervention in the Gulf War with the West's failure to stop Serbian aggression in the ongoing Bosnian War. The failure of Western powers to intervene decisively in the Bosnian War. Delaying military action against an aggressor does not prevent war but merely ensures that the eventual conflict will be far more costly and bloody. Giving in to an attacker only increases their strength and confidence, meaning that defeating them later will require more effort and lives. Appeasement is a fundamentally flawed strategy; early deterrence and decisive intervention are necessary to maintain international order. Unchecked aggression emboldens the aggressor, allowing them to consolidate power and forcing defenders to fight a stronger enemy later. A higher price in blood and greater sacrifice will be required to secure the ultimate defeat of the aggressor."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "George H. W. Bush"
+            ],
+            "relationship": "adversary"
+          }
+        ],
+        "image_id": "discovered:00f4566964e0c88838ad"
+      },
+      {
+        "after": [
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Brian Mulroney"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Ciriaco De Mita"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "François Mitterrand"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Helmut Kohl"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Jacques Delors"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Noboru Takeshita"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [
+              {
+                "field": "historical_context",
+                "quote_id": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+                "text": "Margaret Thatcher delivered this eulogy via pre-recorded video at the state funeral of former US President Ronald Reagan at the Washington National Cathedral. The two leaders had shared a close political and personal alliance during the 1980s, collaborating closely on Cold War strategy and conservative economic policies."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Ronald Reagan"
+            ],
+            "relationship": "ally"
+          }
+        ],
+        "before": [
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Brian Mulroney"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Ciriaco De Mita"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "François Mitterrand"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Helmut Kohl"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+                "text": "Earlier in September 1988, European Commission President Jacques Delors addressed the British Trades Union Congress, advocating for a 'social Europe' with guaranteed workers' rights. Thatcher delivered this speech in Bruges to counter his vision, warning against the centralization of power in the European Economic Community. The future political and economic direction of the European Economic Community and the balance of power between member states and Brussels. The European project should remain a cooperative free-trade area of sovereign states rather than evolving into a centralized, federal super-state that dictates domestic economic and social policies. Britain has worked hard to reduce domestic state intervention and will not accept new bureaucratic controls imposed by a central European authority. National sovereignty and free-market economics must be vigorously defended against supranational collectivism, corporatism, and bureaucratic centralization. By publicly rejecting the Delors vision of a federal Europe, Thatcher aimed to rally opposition to centralization and protect her domestic neoliberal reforms from external reversal. The speech became a foundational text for modern British Euroscepticism, leading to the creation of the Bruges Group and sparking a long-term ideological shift in the Conservative Party that culminated in Brexit."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Jacques Delors"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Noboru Takeshita"
+            ],
+            "relationship": "unknown"
+          },
+          {
+            "evidence": [
+              {
+                "field": "historical_context",
+                "quote_id": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+                "text": "Margaret Thatcher delivered this eulogy via pre-recorded video at the state funeral of former US President Ronald Reagan at the Washington National Cathedral. The two leaders had shared a close political and personal alliance during the 1980s, collaborating closely on Cold War strategy and conservative economic policies."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Ronald Reagan"
+            ],
+            "relationship": "ally"
+          }
+        ],
+        "image_id": "discovered:5202e374b764482c4cda"
+      },
+      {
+        "after": [
+          {
+            "evidence": [
+              {
+                "field": "bounded_relationship_semantics",
+                "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+                "text": "In 1983, Thatcher convened a seminar at Chequers with experts to reassess the West's approach to the Soviet Union. This strategic gathering laid the intellectual groundwork for her eventual diplomatic engagement with Soviet leadership, notably Mikhail Gorbachev. Thatcher argued that studying adversaries is essential because it creates strategic openings to eventually transform hostile relationships into cooperative ones. Strategic intelligence and deep comprehension of an adversary are prerequisites for diplomatic breakthroughs and long-term conflict resolution. Thoroughly knowing the enemy enables the eventual transformation of geopolitical adversaries into partners."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Mikhail Gorbachev"
+            ],
+            "relationship": "adversary_to_partner"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Raisa Gorbacheva"
+            ],
+            "relationship": "unknown"
+          }
+        ],
+        "before": [
+          {
+            "evidence": [
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+                "text": "In 1983, Thatcher convened a seminar at Chequers with experts to reassess the West's approach to the Soviet Union. This strategic gathering laid the intellectual groundwork for her eventual diplomatic engagement with Soviet leadership, notably Mikhail Gorbachev. The necessity of studying and understanding the Soviet Union during the Cold War. Thatcher argued that studying adversaries is essential because it creates strategic openings to eventually transform hostile relationships into cooperative ones. Understanding your opponent is valuable because it provides the chance to eventually make them an ally. Strategic intelligence and deep comprehension of an adversary are prerequisites for diplomatic breakthroughs and long-term conflict resolution. By acquiring deep knowledge of an adversary's motivations, constraints, and internal systems, leaders can identify mutual interests and negotiate effectively. Thoroughly knowing the enemy enables the eventual transformation of geopolitical adversaries into partners."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Mikhail Gorbachev"
+            ],
+            "relationship": "adversary_to_partner"
+          },
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Raisa Gorbacheva"
+            ],
+            "relationship": "unknown"
+          }
+        ],
+        "image_id": "discovered:62fe0c8d105bf2ad7c95"
+      },
+      {
+        "after": [
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "George H. W. Bush"
+            ],
+            "relationship": "unknown"
+          }
+        ],
+        "before": [
+          {
+            "evidence": [
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+                "text": "Thatcher delivered this speech five years after Saddam Hussein's invasion of Kuwait, which she and George H.W. Bush had discussed at the same venue in 1990. She used the occasion to contrast the successful intervention in the Gulf War with the West's failure to stop Serbian aggression in the ongoing Bosnian War. The failure of Western powers to intervene decisively in the Bosnian War. Delaying military action against an aggressor does not prevent war but merely ensures that the eventual conflict will be far more costly and bloody. Giving in to an attacker only increases their strength and confidence, meaning that defeating them later will require more effort and lives. Appeasement is a fundamentally flawed strategy; early deterrence and decisive intervention are necessary to maintain international order. Unchecked aggression emboldens the aggressor, allowing them to consolidate power and forcing defenders to fight a stronger enemy later. A higher price in blood and greater sacrifice will be required to secure the ultimate defeat of the aggressor."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "George H. W. Bush"
+            ],
+            "relationship": "adversary"
+          }
+        ],
+        "image_id": "discovered:6966b6853551436e849b"
+      },
+      {
+        "after": [
+          {
+            "evidence": [],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Denis Thatcher"
+            ],
+            "relationship": "unknown"
+          }
+        ],
+        "before": [
+          {
+            "evidence": [
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+                "text": "Following her resignation as Prime Minister in 1990, Thatcher continued to champion free-market economics globally. She frequently argued that capitalism was not just economically efficient but fundamentally moral. The moral distinction between capitalist and socialist systems. Capitalism is inherently moral because it relies on voluntary cooperation and individual freedom, whereas socialism is coercive and subjugates citizens to the state. Capitalism possesses a moral quality that socialism lacks, as socialism merely increases government power over individuals. Economic freedom is inseparable from moral responsibility and true democracy. Contrasting the voluntary nature of market transactions with the coercive planning of socialist governments. Understanding this moral distinction prevents societies from surrendering their freedoms to state control."
+              },
+              {
+                "field": "historical_context",
+                "quote_id": "04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6",
+                "text": "In late 1984, the UK was in the midst of the miners' strike, a major and bitter industrial dispute. Thatcher was emphasizing the need for trade unions to cooperate with management to ensure industrial prosperity rather than engaging in political strikes."
+              },
+              {
+                "field": "bounded_packet_semantics",
+                "quote_id": "093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429",
+                "text": "During a 1986 interview with Italian journalist Enzo Biagi, Thatcher was asked about the 'Iron Lady' nickname, which was originally coined by the Soviet press in 1976 following her staunch anti-communist speech on defense. Her reaction to being called the 'Iron Lady' and the qualities required to lead the United Kingdom. That the nickname is a compliment rather than an insult, as leading a historically significant and reliable nation inherently requires unyielding strength. A leader of a powerful, globally influential nation like Britain must possess a degree of unbending resolve or 'iron'. Effective national leadership on the world stage demands fortitude, resilience, and unwavering resolve. By embracing a potentially critical nickname, she reframes it as a vital leadership asset, aligning her personal brand with national strength. She asserts that she does not mind the title, as it reflects the necessary strength to defend freedom and maintain Britain's status as a reliable ally."
+              },
+              {
+                "field": "mechanism",
+                "quote_id": "0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29",
+                "text": "By contrasting the coercive methods of socialism with the voluntary cooperation of free individuals, Thatcher frames state control as a moral failing."
+              },
+              {
+                "field": "mechanism",
+                "quote_id": "115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0",
+                "text": "By highlighting the total ideological collapse of the adversary, Thatcher pivots to justifying the continued existence of the defensive alliance that opposed it."
+              },
+              {
+                "field": "historical_context",
+                "quote_id": "16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f",
+                "text": "Delivered in 1996 as a memorial lecture for her ideological ally Keith Joseph, Thatcher reflected on conservative philosophy and warned against the resurgence of collectivism. The speech aimed to contrast conservative individualism with socialist state expansion under the guise of 'community'."
+              }
+            ],
+            "evidence_source": "completed_canonical_research_packets",
+            "participants": [
+              "Margaret Thatcher",
+              "Denis Thatcher"
+            ],
+            "relationship": "adversary_to_partner"
+          }
+        ],
+        "image_id": "discovered:7720de19eda682fe608d"
+      }
+    ],
+    "generated_at": "2026-07-16T20:39:04.906355Z",
+    "policy_version": "bounded-explicit-pair-relationship-evidence-v2",
+    "schema_version": 1
+  },
+  "schema_version": 1
+}

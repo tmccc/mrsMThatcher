@@ -1,0 +1,29 @@
+{
+  "ambiguous_exposure_before_usd": 0.080448,
+  "batch_item_count": 1159,
+  "candidate_pair_count": 5862,
+  "expected_incremental_cost_usd": 28.452375,
+  "expected_with_20_percent_contingency_usd": 34.142851,
+  "generated_at": "2026-07-16T19:46:57.803517Z",
+  "hard_combined_ceiling_usd": 100.0,
+  "known_spend_before_usd": 45.249523,
+  "missing_pair_count": 5626,
+  "model": "gemini-3.1-pro-preview",
+  "no_provider_call_made": true,
+  "pair_prompt_version": "relation-aware-material-contradiction-pairs-2026-07-16-v1",
+  "pair_schema_version": "relation-aware-pair-judgement-v4",
+  "projected_combined_exposure_usd": 79.472822,
+  "provider_batch_count": 7,
+  "provider_batch_maximum_reservations_usd": [
+    7.710712,
+    7.673227,
+    7.681166,
+    7.697119,
+    7.67143,
+    7.673679,
+    0.767332
+  ],
+  "reused_pair_count": 236,
+  "schema_version": 1,
+  "within_authorised_ceiling": true
+}

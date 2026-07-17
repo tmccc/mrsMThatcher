@@ -1,0 +1,39 @@
+{
+  "expected_combined_cost_usd": 8.634784,
+  "generated_at": "2026-07-16T10:54:36.342463Z",
+  "google_search_grounding_enabled": false,
+  "guarded_base_combined_cost_usd": 9.486256,
+  "hard_combined_cost_ceiling_usd": 10.0,
+  "human_labels_in_provider_inputs": false,
+  "image_count": 24,
+  "logical_calls_total": 8,
+  "models": {
+    "gemini": "gemini-3.1-pro-preview",
+    "grok": "grok-4.3"
+  },
+  "production_files_written": false,
+  "prompt_parity": true,
+  "providers": {
+    "gemini": {
+      "estimated_input_tokens": 1929196,
+      "expected_cost_usd": 4.470392,
+      "expected_output_tokens": 51000,
+      "guarded_base_cost_usd": 5.03804,
+      "logical_calls": 4,
+      "maximum_output_tokens": 98304,
+      "model": "gemini-3.1-pro-preview"
+    },
+    "grok": {
+      "estimated_input_tokens": 1929196,
+      "expected_cost_usd": 4.164392,
+      "expected_output_tokens": 51000,
+      "guarded_base_cost_usd": 4.448216,
+      "logical_calls": 4,
+      "maximum_output_tokens": 98304,
+      "model": "grok-4.3"
+    }
+  },
+  "quote_count": 626,
+  "schema_version": 1,
+  "within_hard_ceiling": true
+}

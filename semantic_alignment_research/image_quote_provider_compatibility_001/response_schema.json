@@ -1,0 +1,112 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "records": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "assessments": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "confidence": {
+                  "enum": [
+                    "high",
+                    "low",
+                    "medium"
+                  ],
+                  "type": "string"
+                },
+                "decision": {
+                  "enum": [
+                    "suitable",
+                    "unsuitable",
+                    "unsure"
+                  ],
+                  "type": "string"
+                },
+                "match_basis": {
+                  "enum": [
+                    "direct_consequence",
+                    "direct_mechanism",
+                    "direct_principle",
+                    "exact_event",
+                    "named_person_or_relationship",
+                    "no_valid_match",
+                    "portrait_general",
+                    "tone_or_rhetorical"
+                  ],
+                  "type": "string"
+                },
+                "quote_hash": {
+                  "pattern": "^[0-9a-f]{64}$",
+                  "type": "string"
+                },
+                "reason": {
+                  "maxLength": 280,
+                  "type": "string"
+                },
+                "risk_flags": {
+                  "items": {
+                    "enum": [
+                      "ally_adversary_confusion",
+                      "generic_topic_only",
+                      "named_person_mismatch",
+                      "symbolic_overreach",
+                      "tone_mismatch",
+                      "visual_message_mismatch",
+                      "wrong_event",
+                      "wrong_period"
+                    ],
+                    "type": "string"
+                  },
+                  "maxItems": 8,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "quote_hash",
+                "decision",
+                "confidence",
+                "match_basis",
+                "reason",
+                "risk_flags"
+              ],
+              "type": "object"
+            },
+            "maxItems": 25,
+            "minItems": 25,
+            "type": "array"
+          },
+          "candidate_id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "image_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 400,
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidate_id",
+          "image_sha256",
+          "assessments",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "records"
+  ],
+  "type": "object"
+}

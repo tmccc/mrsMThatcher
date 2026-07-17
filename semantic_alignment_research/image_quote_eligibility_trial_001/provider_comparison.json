@@ -1,0 +1,116 @@
+{
+  "consensus_human_evaluation": {
+    "evaluated_pairs": 100,
+    "false_negative": 16,
+    "false_positive": 0,
+    "harmful_eligibility_rate": 0.0,
+    "precision": null,
+    "recall": 0.0,
+    "specificity": 1.0,
+    "true_negative": 84,
+    "true_positive": 0
+  },
+  "current_selector_human_evaluation": {
+    "evaluated_pairs": 100,
+    "false_negative": 10,
+    "false_positive": 70,
+    "harmful_eligibility_rate": 0.8333333333333334,
+    "precision": 0.07894736842105263,
+    "recall": 0.375,
+    "specificity": 0.16666666666666666,
+    "true_negative": 14,
+    "true_positive": 6
+  },
+  "excluded_human_pair_count": 1,
+  "excluded_human_pairs": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "current_selector_would_win": true,
+      "exclusion_reason": "decision contradicts reviewer note",
+      "human_decision": "approve_pairing",
+      "human_note": "No. The image is of thatcher with a us president. what has that got to do with the quote?",
+      "pair_id": "00f4566964e0c88838ad:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    }
+  ],
+  "generated_at": "2026-07-16T11:09:41.300850Z",
+  "human_evaluation_pair_count": 100,
+  "known_cost_usd": 5.6190197,
+  "provider_agreement": {
+    "gemini_only": 26,
+    "grok_only": 0,
+    "intersection_pair_count": 0,
+    "jaccard": 0.0,
+    "union_pair_count": 26
+  },
+  "providers": {
+    "gemini": {
+      "completed_images": 23,
+      "failed_batches": [
+        "batch-04"
+      ],
+      "human_evaluation": {
+        "evaluated_pairs": 100,
+        "false_negative": 16,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "specificity": 1.0,
+        "true_negative": 84,
+        "true_positive": 0
+      },
+      "images_with_no_suitable_quote": 5,
+      "match_basis_counts": {
+        "direct_principle": 3,
+        "exact_event": 4,
+        "named_person_or_relationship": 10,
+        "portrait_general": 9
+      },
+      "partial_validation": {
+        "generated_at": "2026-07-16T11:09:41.291042Z",
+        "invalid_images_retained": 1,
+        "paid_calls_made": 0,
+        "recovered_batches": [],
+        "schema_version": 1,
+        "valid_images_recovered": 5
+      },
+      "suitable_pair_count": 26
+    },
+    "grok": {
+      "completed_images": 24,
+      "failed_batches": [],
+      "human_evaluation": {
+        "evaluated_pairs": 100,
+        "false_negative": 16,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "precision": null,
+        "recall": 0.0,
+        "specificity": 1.0,
+        "true_negative": 84,
+        "true_positive": 0
+      },
+      "images_with_no_suitable_quote": 24,
+      "match_basis_counts": {},
+      "partial_validation": {
+        "invalid_images_retained": 0,
+        "valid_images_recovered": 0
+      },
+      "suitable_pair_count": 0
+    }
+  },
+  "schema_version": 1,
+  "union_human_evaluation": {
+    "evaluated_pairs": 100,
+    "false_negative": 16,
+    "false_positive": 0,
+    "harmful_eligibility_rate": 0.0,
+    "precision": null,
+    "recall": 0.0,
+    "specificity": 1.0,
+    "true_negative": 84,
+    "true_positive": 0
+  },
+  "unlabelled_provider_pairs_are_not_assumed_correct": true
+}

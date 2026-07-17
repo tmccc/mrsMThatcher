@@ -1,0 +1,3943 @@
+{
+  "analysis_kind": "source_grounded_images",
+  "created_at": "2026-07-16T08:37:56.735528Z",
+  "current_hashes": [
+    "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+    "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+    "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+    "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+    "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+    "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+    "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+    "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+    "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+    "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+    "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+    "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+    "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+    "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+    "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+    "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+    "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+    "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+    "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+    "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+    "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+    "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+    "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+    "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
+  ],
+  "failures": {},
+  "file_metadata": {},
+  "items": {
+    "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463": {
+      "analysed_at": "2026-07-16T08:38:17.378935Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 95
+        },
+        "description": "Close-up profile portrait of Margaret Thatcher facing right, smiling with mouth open, styled wavy brown hair, wearing a blue sequined garment with dark blue ruffled collar and a single pearl earring. Dark, indistinct background with soft lighting on the subject.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Profile photo of former Prime Minister Margaret Thatcher. 1990-09-03",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [],
+          "general_reusability": 75,
+          "matching_summary": "Source context: Profile photo of former Prime Minister Margaret Thatcher. 1990-09-03. Warm, composed formal profile portrait suitable for reflective or personal quotations; low visual energy limits use with combative or high-energy topics.",
+          "semantic_specificity": 60,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "smiling",
+            "posing in profile"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 90,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Head-and-shoulders profile portrait of Margaret Thatcher smiling against a dark background.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "dark background",
+            "studio lighting"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "pearl earring",
+          "sequined fabric",
+          "ruffled collar",
+          "styled hair"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: ThatcherProfile.JPG\ncaption: Profile photo of former Prime Minister Margaret Thatcher\nalt_text: ThatcherProfile\nidentity_evidence: File:ThatcherProfile.JPG ThatcherProfile Profile photo of former Prime Minister Margaret Thatcher\napproximate_date: 1990-09-03\narchive_or_collection: Wikimedia Commons\ncredit: Cropped from https://www.flickr.com/photos/jaygalvin/233397357/\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+      "paths": [
+        "production_ready/candidate-08fe3d43c27bece23076.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "71320d3c-defe-93f0-b813-1dfdabf3600a",
+      "source_grounded_context": {
+        "approximate_date": "1990-09-03",
+        "candidate_id": "08fe3d43c27bece23076",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Profile photo of former Prime Minister Margaret Thatcher",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: ThatcherProfile.JPG\ncaption: Profile photo of former Prime Minister Margaret Thatcher\nalt_text: ThatcherProfile\nidentity_evidence: File:ThatcherProfile.JPG ThatcherProfile Profile photo of former Prime Minister Margaret Thatcher\napproximate_date: 1990-09-03\narchive_or_collection: Wikimedia Commons\ncredit: Cropped from https://www.flickr.com/photos/jaygalvin/233397357/\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:ThatcherProfile.JPG",
+        "source_text_sha256": "1143c919ed340432b625ebf5b8332f2d5616e405958c4f16516d40f8424e2c14",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.237305Z",
+      "source_size_bytes": 20156,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "1143c919ed340432b625ebf5b8332f2d5616e405958c4f16516d40f8424e2c14",
+      "usage": {
+        "completion_tokens": 550,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 666,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 64556000,
+        "num_sources_used": 0,
+        "prompt_tokens": 2840,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 156,
+          "text_tokens": 2684
+        },
+        "total_tokens": 4056
+      }
+    },
+    "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9": {
+      "analysed_at": "2026-07-16T08:38:54.737799Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Ronald Reagan and Margaret Thatcher seated side by side on a patterned sofa in a wood-paneled living room at Camp David. Reagan, wearing a beige sweater over a plaid shirt, smiles toward the camera with one hand resting on his knee. Thatcher, in a tweed jacket and skirt with a bow blouse, sits upright with hands clasped, gazing forward. A fruit bowl and additional chairs are visible behind them; a third person bends over a table in the background.",
+        "historical_context": {
+          "confidence": 100,
+          "event_or_context_hint": "Margaret Thatcher, Ronald Reagan. President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched). Taken on 22 December 1984",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "warm"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Source context: Margaret Thatcher, Ronald Reagan. President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched). Taken on 22 December 1984. Strong match for quotations on US-UK diplomacy, summits, or bilateral leadership; relaxed indoor setting suits reflective or partnership-focused text.",
+          "semantic_specificity": 80,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "sitting",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 95,
+          "technical_quality": 90
+        },
+        "scene_summary": "Informal yet official portrait of Ronald Reagan and Margaret Thatcher during a 1984 working luncheon at Camp David, captured in a relaxed indoor residential setting.",
+        "scene_types": [
+          "diplomatic_event",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "Indoor setting with no visible seasonal markers such as foliage, snow, or holiday decorations.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "residential living room",
+            "wood-paneled interior",
+            "Camp David cabin"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "warm"
+        ],
+        "visible_elements": [
+          "patterned sofa",
+          "tweed jacket",
+          "plaid shirt",
+          "fruit bowl",
+          "wood paneling",
+          "curtains",
+          "wicker chairs",
+          "quilted throw"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg\ncaption: Depicted people: Ronald Reagan and Margaret Thatcher\nalt_text: President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\"\nidentity_evidence: File:President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" Depicted people: Ronald Reagan and Margaret Thatcher\napproximate_date: Taken on 22 December 1984\narchive_or_collection: Wikimedia Commons\ncredit: This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "paths": [
+        "production_ready/candidate-0fe7ed6333faf654b062.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "de90f322-d144-93a4-bec8-655e2b5eb9e4",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 22 December 1984",
+        "candidate_id": "0fe7ed6333faf654b062",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched)",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg\ncaption: Depicted people: Ronald Reagan and Margaret Thatcher\nalt_text: President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\"\nidentity_evidence: File:President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" Depicted people: Ronald Reagan and Margaret Thatcher\napproximate_date: Taken on 22 December 1984\narchive_or_collection: Wikimedia Commons\ncredit: This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_with_Prime_Minister_Margaret_Thatcher_During_a_Working_Luncheon_at_Camp_David_(retouched).jpg",
+        "source_text_sha256": "01dc8f238cd255e6411dc8f2d7f4cb62ffb579ed95f833ec058d2df5000f732e",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.237645Z",
+      "source_size_bytes": 721721,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "01dc8f238cd255e6411dc8f2d7f4cb62ffb579ed95f833ec058d2df5000f732e",
+      "usage": {
+        "completion_tokens": 659,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 731,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 75986000,
+        "num_sources_used": 0,
+        "prompt_tokens": 5288,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 2402,
+          "text_tokens": 2886
+        },
+        "total_tokens": 6678
+      }
+    },
+    "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b": {
+      "analysed_at": "2026-07-16T08:39:18.693460Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white photograph of Margaret Thatcher leaning forward to sign a large open book or register with a pen. Robert Muldoon stands to her right, observing the action. Both are formally dressed; Thatcher wears a light jacket with a brooch, Muldoon a dark pinstripe suit and tie. Several other men in suits are visible in the background near an open doorway.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher, Robert Muldoon. Margaret Thatcher (including picture with Robert Muldoon) (crop)",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Source context: Margaret Thatcher, Robert Muldoon. Margaret Thatcher (including picture with Robert Muldoon) (crop). Suitable for formal diplomatic or governmental contexts involving Thatcher or Muldoon; low visual energy suits reflective or serious quotations.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "signing document",
+            "observing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 70,
+          "crop_suitability_for_x": 80,
+          "overall": 75,
+          "subject_clarity": 85,
+          "technical_quality": 70
+        },
+        "scene_summary": "Margaret Thatcher signing a document or visitors' book while Robert Muldoon stands beside her in a formal indoor setting.",
+        "scene_types": [
+          "diplomatic_event",
+          "office_or_working"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "office or reception room",
+            "open doorway",
+            "framed pictures on wall"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "pen",
+          "open book/register",
+          "formal attire",
+          "brooch",
+          "doorway",
+          "wall pictures"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "source_caption",
+        "confidence": "high",
+        "evidence": "page_title: File:Margaret Thatcher (including picture with Robert Muldoon) (15332081937).jpg - Wikimedia Commons\ncaption: Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg\nidentity_evidence: Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert Muldoon"
+        ]
+      },
+      "image_hash": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "paths": [
+        "production_ready/candidate-253f9adb9e67db0a67d7.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "26372185-4943-967b-8195-faeb6826b953",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "253f9adb9e67db0a67d7",
+        "identity_basis": "source_caption",
+        "identity_confidence": "high",
+        "image_sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert Muldoon"
+        ],
+        "source_event_summary": "Margaret Thatcher (including picture with Robert Muldoon) (crop)",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:Margaret Thatcher (including picture with Robert Muldoon) (15332081937).jpg - Wikimedia Commons\ncaption: Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg\nidentity_evidence: Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_(including_picture_with_Robert_Muldoon)_(15332081937).jpg",
+        "source_text_sha256": "b090e5f7c1861bae9301f548687dcfa65ce32a3184ea33c67d7e9dd3dba336e6",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.237922Z",
+      "source_size_bytes": 38590,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "b090e5f7c1861bae9301f548687dcfa65ce32a3184ea33c67d7e9dd3dba336e6",
+      "usage": {
+        "completion_tokens": 594,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 413,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 36348500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2883,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 194,
+          "text_tokens": 2689
+        },
+        "total_tokens": 3890
+      }
+    },
+    "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2": {
+      "analysed_at": "2026-07-16T08:42:56.872391Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 70,
+          "orientation": "landscape",
+          "shot_type": "group",
+          "subject_prominence": 65
+        },
+        "description": "Black-and-white photograph of Margaret Thatcher standing outdoors amid a crowd during a public visit. She wears a dark double-breasted coat with a decorative scarf and pearl necklace, smiling while speaking with a man in a suit. Several other suited men and uniformed police officers surround her; a dark car is partially visible behind the group. Foreground shows backs of onlookers and a police helmet. The scene is a dense outdoor gathering on a paved area.",
+        "historical_context": {
+          "confidence": 80,
+          "event_or_context_hint": "Margaret Thatcher visiting Salford",
+          "specificity": "suggestive",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 60,
+          "matching_summary": "Suitable for public-engagement or official-visit contexts involving Margaret Thatcher; limited to scenes of outdoor crowd interaction.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "crowd",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "speaking",
+            "interacting with crowd"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 70,
+          "crop_suitability_for_x": 65,
+          "overall": 75,
+          "subject_clarity": 80,
+          "technical_quality": 75
+        },
+        "scene_summary": "Margaret Thatcher interacting with a small group of men in suits and police officers while surrounded by a crowd during an outdoor public visit to Salford.",
+        "scene_types": [
+          "outdoor_public_event",
+          "crowd"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "paved street or forecourt",
+            "public gathering",
+            "vehicle present"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm"
+        ],
+        "visible_elements": [
+          "crowd",
+          "suits and ties",
+          "police uniforms and helmets",
+          "overcoats",
+          "car",
+          "pearl necklace",
+          "scarf"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons\nidentity_evidence: File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "paths": [
+        "production_ready/candidate-3e16363d7234c33cd75e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "c9a6dc28-43ea-9440-9c35-d22fb425777d",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "3e16363d7234c33cd75e",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher visiting Salford",
+        "source_evidence_fields": [
+          "page_title",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons\nidentity_evidence: File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_visiting_Salford.jpg",
+        "source_text_sha256": "e2cd46d0bc0ea84abf5438cda43c3b5af6d9ff721c1a1f8689086e67dba0ba00",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.238195Z",
+      "source_size_bytes": 345434,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "e2cd46d0bc0ea84abf5438cda43c3b5af6d9ff721c1a1f8689086e67dba0ba00",
+      "usage": {
+        "completion_tokens": 592,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 524,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 73906000,
+        "num_sources_used": 0,
+        "prompt_tokens": 3788,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 1162,
+          "text_tokens": 2626
+        },
+        "total_tokens": 4904
+      }
+    },
+    "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0": {
+      "analysed_at": "2026-07-16T08:44:08.116518Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 95
+        },
+        "description": "Close-up portrait of Margaret Thatcher wearing a formal black hat with feathers, mesh veil and decorative trim, a black coat with a silver floral brooch, a pearl necklace, pearl earrings and dark lipstick. Her expression is serious and composed against a plain, bright outdoor background.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland. Taken on 11 June 2004",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "solemn",
+            "serious",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "history",
+            "personal_reflection"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Source context: Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland. Taken on 11 June 2004. Strong match for solemn or reflective quotations on leadership, history or statesmanship; formal mourning attire suits commemorative or serious contexts.",
+          "semantic_specificity": 80,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "posing formally"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "solemn"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 90,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Head-and-shoulders view of Margaret Thatcher in formal black mourning attire including a veiled hat, photographed outdoors at Andrews Air Force Base during the 2004 Reagan funeral events.",
+        "scene_types": [
+          "formal_portrait",
+          "historical_archive"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "plain bright background",
+            "natural daylight"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "history",
+          "leadership"
+        ],
+        "tone": [
+          "solemn",
+          "serious"
+        ],
+        "visible_elements": [
+          "black hat with feathers and veil",
+          "pearl necklace",
+          "silver floral brooch",
+          "black coat",
+          "pearl earrings",
+          "dark lipstick"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Margaret Thatcher Reagan funeral.jpg\ncaption: Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland\nalt_text: Margaret Thatcher Reagan funeral\nidentity_evidence: File:Margaret Thatcher Reagan funeral.jpg Margaret Thatcher Reagan funeral Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland\napproximate_date: Taken on 11 June 2004\narchive_or_collection: Wikimedia Commons\ncredit: http://www.defenselink.mil/home/photoessays/2004-06/p20041204a13.html\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+      "paths": [
+        "production_ready/candidate-7c9a2b387a67c9bd858c.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "e4364d1f-98f7-9541-a85c-229c5e0a4a7f",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 11 June 2004",
+        "candidate_id": "7c9a2b387a67c9bd858c",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Margaret Thatcher Reagan funeral.jpg\ncaption: Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland\nalt_text: Margaret Thatcher Reagan funeral\nidentity_evidence: File:Margaret Thatcher Reagan funeral.jpg Margaret Thatcher Reagan funeral Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland\napproximate_date: Taken on 11 June 2004\narchive_or_collection: Wikimedia Commons\ncredit: http://www.defenselink.mil/home/photoessays/2004-06/p20041204a13.html\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_Reagan_funeral.jpg",
+        "source_text_sha256": "41af59b6b64c2cc8bb9e469c279b081a4d6227f13952e72e02427d4abbda9782",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.238490Z",
+      "source_size_bytes": 338829,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "41af59b6b64c2cc8bb9e469c279b081a4d6227f13952e72e02427d4abbda9782",
+      "usage": {
+        "completion_tokens": 638,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 642,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 74981000,
+        "num_sources_used": 0,
+        "prompt_tokens": 3546,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 786,
+          "text_tokens": 2760
+        },
+        "total_tokens": 4826
+      }
+    },
+    "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f": {
+      "analysed_at": "2026-07-16T08:43:49.306351Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 30,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Margaret Thatcher and George H. W. Bush stand side by side outdoors in front of a building with brick wall and porch overhang. Thatcher wears a black jacket with white heart and circle pattern over a white blouse and pearl necklace; Bush wears a dark suit, white shirt, and dark tie. Both are smiling toward the camera in bright daylight.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "George H. W. Bush, Margaret Thatcher. Margaret Thatcher with George H. W. Bush. 1987-07-17",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Source context: George H. W. Bush, Margaret Thatcher. Margaret Thatcher with George H. W. Bush. 1987-07-17. Suitable for diplomatic or bilateral meeting quotations involving Thatcher and Bush; limited to formal, positive-toned contexts due to smiling outdoor pose.",
+          "semantic_specificity": 70,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 70,
+          "crop_suitability_for_x": 80,
+          "overall": 75,
+          "subject_clarity": 85,
+          "technical_quality": 70
+        },
+        "scene_summary": "Outdoor photograph of Margaret Thatcher and George H. W. Bush standing together, both smiling, captured in natural light near a building entrance.",
+        "scene_types": [
+          "informal_portrait",
+          "outdoor_public_event",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible in clothing, foliage or decorations.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "building exterior",
+            "brick wall",
+            "overhanging roof",
+            "daylight"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm"
+        ],
+        "visible_elements": [
+          "brick wall",
+          "porch overhang",
+          "patterned jacket",
+          "suit and tie",
+          "pearl necklace",
+          "white blouse",
+          "smiling expressions"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Margaret Thatcher poses with George H. W. Bush 1987.jpg\ncaption: Margaret Thatcher with George H. W. Bush\nalt_text: Margaret Thatcher poses with George H. W. Bush 1987\nidentity_evidence: File:Margaret Thatcher poses with George H. W. Bush 1987.jpg Margaret Thatcher poses with George H. W. Bush 1987 Margaret Thatcher with George H. W. Bush\napproximate_date: 1987-07-17\narchive_or_collection: Wikimedia Commons\ncredit: http://www.margaretthatcher.org/multimedia/displaydocument.asp?docid=109662\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "George H. W. Bush",
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "paths": [
+        "production_ready/candidate-6966b6853551436e849b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "8ec64939-5ff4-900b-ac3b-c3c3036ebacb",
+      "source_grounded_context": {
+        "approximate_date": "1987-07-17",
+        "candidate_id": "6966b6853551436e849b",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+        "named_people": [
+          "George H. W. Bush",
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher with George H. W. Bush",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Margaret Thatcher poses with George H. W. Bush 1987.jpg\ncaption: Margaret Thatcher with George H. W. Bush\nalt_text: Margaret Thatcher poses with George H. W. Bush 1987\nidentity_evidence: File:Margaret Thatcher poses with George H. W. Bush 1987.jpg Margaret Thatcher poses with George H. W. Bush 1987 Margaret Thatcher with George H. W. Bush\napproximate_date: 1987-07-17\narchive_or_collection: Wikimedia Commons\ncredit: http://www.margaretthatcher.org/multimedia/displaydocument.asp?docid=109662\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_poses_with_George_H._W._Bush_1987.jpg",
+        "source_text_sha256": "f3e9813aafc0660d8e0cbb5703c2ee769bdf485939ca5c4370b9820f4a1f25a3",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.238771Z",
+      "source_size_bytes": 173721,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "f3e9813aafc0660d8e0cbb5703c2ee769bdf485939ca5c4370b9820f4a1f25a3",
+      "usage": {
+        "completion_tokens": 600,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 604,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 66036000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4864,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 2109,
+          "text_tokens": 2755
+        },
+        "total_tokens": 6068
+      }
+    },
+    "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554": {
+      "analysed_at": "2026-07-16T08:43:30.738818Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 70,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "In an ornate indoor room with marble fireplace, gold-framed mirrors and crystal chandeliers, Senator Robert J. Dole hands a ribbon-wrapped gift to Margaret Thatcher while multiple microphones and cameras record the exchange; other formally dressed figures stand nearby.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher, Robert J. Dole. Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]. 1985-02-20",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "warm"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "government",
+            "leadership"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Robert J. Dole. Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]. 1985-02-20. Strong match for diplomatic gift-exchange or US-UK relations topics; less suitable for domestic policy or informal scenes.",
+          "semantic_specificity": 80,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "presenting gift",
+            "receiving gift",
+            "documenting with cameras"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "neutral",
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 80
+        },
+        "scene_summary": "Formal indoor diplomatic presentation: Dole offers a gift to Thatcher amid press coverage in an elegant historic interior.",
+        "scene_types": [
+          "diplomatic_event",
+          "industrial_or_workplace"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate historic room",
+            "marble fireplace mantel",
+            "large mirrors",
+            "crystal chandeliers",
+            "wood panelling"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "government",
+          "leadership"
+        ],
+        "tone": [
+          "serious",
+          "warm"
+        ],
+        "visible_elements": [
+          "wrapped gift",
+          "microphones",
+          "cameras",
+          "marble fireplace",
+          "crystal chandeliers",
+          "gold-framed mirrors",
+          "floral arrangement",
+          "formal suits",
+          "necktie",
+          "lapel pin"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Senator Bob Dole presenting Margaret Thatcher with a gift.jpg\ncaption: Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]\nalt_text: Senator Bob Dole presenting Margaret Thatcher with a gift\nidentity_evidence: File:Senator Bob Dole presenting Margaret Thatcher with a gift.jpg Senator Bob Dole presenting Margaret Thatcher with a gift Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]\napproximate_date: 1985-02-20\narchive_or_collection: Wikimedia Commons\ncredit: Robert and Elizabeth Dole Archive and Special Collections\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert J. Dole"
+        ]
+      },
+      "image_hash": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "paths": [
+        "production_ready/candidate-5ac817d960fb7eb0f974.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "2379968f-1ae5-998c-bc8c-7fa426253869",
+      "source_grounded_context": {
+        "approximate_date": "1985-02-20",
+        "candidate_id": "5ac817d960fb7eb0f974",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert J. Dole"
+        ],
+        "source_event_summary": "Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Senator Bob Dole presenting Margaret Thatcher with a gift.jpg\ncaption: Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]\nalt_text: Senator Bob Dole presenting Margaret Thatcher with a gift\nidentity_evidence: File:Senator Bob Dole presenting Margaret Thatcher with a gift.jpg Senator Bob Dole presenting Margaret Thatcher with a gift Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]\napproximate_date: 1985-02-20\narchive_or_collection: Wikimedia Commons\ncredit: Robert and Elizabeth Dole Archive and Special Collections\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Senator_Bob_Dole_presenting_Margaret_Thatcher_with_a_gift.jpg",
+        "source_text_sha256": "0c0beb934cb6c8c5027c1e872ffd902e22886f69e87b71c357f5795b7a5e011c",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.239062Z",
+      "source_size_bytes": 439689,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "0c0beb934cb6c8c5027c1e872ffd902e22886f69e87b71c357f5795b7a5e011c",
+      "usage": {
+        "completion_tokens": 611,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 500,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 67411000,
+        "num_sources_used": 0,
+        "prompt_tokens": 5160,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 2342,
+          "text_tokens": 2818
+        },
+        "total_tokens": 6271
+      }
+    },
+    "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb": {
+      "analysed_at": "2026-07-16T08:38:36.198950Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Margaret Thatcher and Carl Albert lean across a long wooden table to shake hands in a formal indoor setting. Thatcher stands on the left wearing a belted coat with a brooch; Albert leans forward from the right in a dark suit. Papers, a glass pitcher, stacked cups and metal ashtrays rest on the table. Rows of empty chairs and other suited figures appear in the background of a large chamber.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Carl Albert, Margaret Thatcher. Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975. 1975-09-01",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Source context: Carl Albert, Margaret Thatcher. Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975. 1975-09-01. Fits diplomatic meetings, international relations or formal political encounters.",
+          "semantic_specificity": 75,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "shaking hands"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 82
+        },
+        "scene_summary": "Formal handshake between Margaret Thatcher and Carl Albert across a meeting table in a legislative chamber, September 1975.",
+        "scene_types": [
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "legislative chamber",
+            "long wooden table",
+            "rows of empty chairs",
+            "wood-panelled walls"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "long wooden table",
+          "papers",
+          "glass pitcher",
+          "stacked plastic cups",
+          "metal ashtrays",
+          "rows of chairs",
+          "formal suits"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: CAC CC 001 18 15 0000 1411.jpg\ncaption: Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975\nalt_text: CAC CC 001 18 15 0000 1411\nidentity_evidence: File:CAC CC 001 18 15 0000 1411.jpg CAC CC 001 18 15 0000 1411 Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975\napproximate_date: 1975-09-01\narchive_or_collection: Wikimedia Commons\ncredit: Carl Albert Center\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Carl Albert",
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "paths": [
+        "production_ready/candidate-0b42b54c4148ee2562fb.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "37d083d1-279b-91e5-9b50-146813b10e93",
+      "source_grounded_context": {
+        "approximate_date": "1975-09-01",
+        "candidate_id": "0b42b54c4148ee2562fb",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+        "named_people": [
+          "Carl Albert",
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: CAC CC 001 18 15 0000 1411.jpg\ncaption: Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975\nalt_text: CAC CC 001 18 15 0000 1411\nidentity_evidence: File:CAC CC 001 18 15 0000 1411.jpg CAC CC 001 18 15 0000 1411 Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975\napproximate_date: 1975-09-01\narchive_or_collection: Wikimedia Commons\ncredit: Carl Albert Center\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:CAC_CC_001_18_15_0000_1411.jpg",
+        "source_text_sha256": "304a961c323d52a508f26613aef2cf17f3c52109974b7f8ea5e2c9d000e3c661",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.239339Z",
+      "source_size_bytes": 1015541,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "304a961c323d52a508f26613aef2cf17f3c52109974b7f8ea5e2c9d000e3c661",
+      "usage": {
+        "completion_tokens": 520,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 850,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 97568500,
+        "num_sources_used": 0,
+        "prompt_tokens": 5173,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 2410,
+          "text_tokens": 2763
+        },
+        "total_tokens": 6543
+      }
+    },
+    "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0": {
+      "analysed_at": "2026-07-16T08:39:11.308729Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Ronald Reagan and Margaret Thatcher stand side by side indoors, smiling and shaking hands in a formal diplomatic setting. Reagan wears a dark pinstripe suit with a red striped tie; Thatcher wears a magenta satin blouse with a large bow and pearl necklace. They are positioned in front of an ornate fireplace and a large landscape painting in a richly decorated room at 10 Downing Street.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher, Ronald Reagan. 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London. 1984-06-05",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "authoritative",
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Source context: Margaret Thatcher, Ronald Reagan. 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London. 1984-06-05. Strong match for diplomatic, transatlantic, or leadership quotations; the warm handshake and formal setting suit themes of alliance and statesmanship without seasonal or stylistic restrictions.",
+          "semantic_specificity": 80,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "shaking hands",
+            "smiling at camera"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 85,
+          "overall": 90,
+          "subject_clarity": 95,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal handshake between US President Ronald Reagan and UK Prime Minister Margaret Thatcher during a 1984 diplomatic meeting at 10 Downing Street, London. Both figures are smiling and facing the camera in a classic official photograph.",
+        "scene_types": [
+          "diplomatic_event",
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "10 Downing Street interior",
+            "formal reception room",
+            "fireplace with marble mantel",
+            "gold-framed painting"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "warm",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "handshake",
+          "formal suits",
+          "satin blouse with bow",
+          "pearl necklace",
+          "fireplace mantel",
+          "ornate vase",
+          "large landscape painting",
+          "wallpaper with damask pattern"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg\ncaption: 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London\nalt_text: President Ronald Reagan meeting with Prime Minister Margaret Thatcher\nidentity_evidence: File:President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg President Ronald Reagan meeting with Prime Minister Margaret Thatcher 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London\napproximate_date: 1984-06-05\narchive_or_collection: Wikimedia Commons\ncredit: https://catalog.archives.gov/id/404525171\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "paths": [
+        "production_ready/candidate-168392f289b5df25f16b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "243cd2cd-fc34-948e-a854-95c12db4d7eb",
+      "source_grounded_context": {
+        "approximate_date": "1984-06-05",
+        "candidate_id": "168392f289b5df25f16b",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg\ncaption: 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London\nalt_text: President Ronald Reagan meeting with Prime Minister Margaret Thatcher\nidentity_evidence: File:President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg President Ronald Reagan meeting with Prime Minister Margaret Thatcher 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London\napproximate_date: 1984-06-05\narchive_or_collection: Wikimedia Commons\ncredit: https://catalog.archives.gov/id/404525171\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_meeting_with_Prime_Minister_Margaret_Thatcher.jpg",
+        "source_text_sha256": "39d1e271a71c8071c405b70739746d27056cd039af548521f79ac1882df85ca4",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.239628Z",
+      "source_size_bytes": 635077,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "39d1e271a71c8071c405b70739746d27056cd039af548521f79ac1882df85ca4",
+      "usage": {
+        "completion_tokens": 717,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 323,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 66061000,
+        "num_sources_used": 0,
+        "prompt_tokens": 5194,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 2402,
+          "text_tokens": 2792
+        },
+        "total_tokens": 6234
+      }
+    },
+    "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44": {
+      "analysed_at": "2026-07-16T08:38:25.740175Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Ronald Reagan and Margaret Thatcher stand side by side in a formal indoor setting. Reagan wears a dark blue suit, white shirt and patterned tie; Thatcher wears a dark red patterned dress with belt and brooch. They face forward in front of a large framed painting on a wall with patterned wallpaper and wainscoting.",
+        "historical_context": {
+          "confidence": 90,
+          "event_or_context_hint": "Margaret Thatcher, Ronald Reagan. President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Ronald Reagan. President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b). Strong match for formal diplomatic or transatlantic leadership quotations; low energy and formal attire suit serious or reflective tones rather than combative or populist ones.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal half-body portrait of Ronald Reagan and Margaret Thatcher standing together in an ornate room.",
+        "scene_types": [
+          "formal_portrait",
+          "diplomatic_event",
+          "historical_archive"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate room",
+            "large painting on wall",
+            "patterned wallpaper",
+            "wainscoting",
+            "wooden furniture"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "dark blue suit",
+          "patterned tie",
+          "red patterned dress",
+          "large framed painting",
+          "wallpaper",
+          "table lamp",
+          "handbag"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "paths": [
+        "production_ready/candidate-0b15f11312a31033907d.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "5b639927-ab69-982f-81d8-5862e9b41d9b",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "0b15f11312a31033907d",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+        "source_evidence_fields": [
+          "page_title",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_(cropped_b).jpg",
+        "source_text_sha256": "d4192fc5bd464174f66180b62811a5d9e6cf1ca25c16129b1fd49503412c4634",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.239915Z",
+      "source_size_bytes": 98109,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "d4192fc5bd464174f66180b62811a5d9e6cf1ca25c16129b1fd49503412c4634",
+      "usage": {
+        "completion_tokens": 587,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 530,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 63731000,
+        "num_sources_used": 0,
+        "prompt_tokens": 2972,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 306,
+          "text_tokens": 2666
+        },
+        "total_tokens": 4089
+      }
+    },
+    "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35": {
+      "analysed_at": "2026-07-16T08:43:59.340824Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 20,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Denis Thatcher and Margaret Thatcher stand side by side outdoors in front of a dark wooden door. Denis, on the left, wears a grey suit, white shirt, patterned tie and glasses and smiles. Margaret, on the right, wears a beige jacket over a patterned blouse and smiles. The photograph is a posed half-body portrait taken in daylight.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Denis Thatcher, Margaret Thatcher. Denis and Margaret Thatcher in 1984. 1984-02-12",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm"
+          ],
+          "best_for_topics": [
+            "family",
+            "personal_reflection"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Denis Thatcher, Margaret Thatcher. Denis and Margaret Thatcher in 1984. 1984-02-12. Suitable for personal or family-oriented quotations; the image shows a smiling couple in semi-formal attire with no strong political or policy symbols.",
+          "semantic_specificity": 60,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Denis and Margaret Thatcher posing together outdoors in 1984.",
+        "scene_types": [
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "dark wooden door",
+            "daylight"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm"
+        ],
+        "visible_elements": [
+          "suit",
+          "tie",
+          "glasses",
+          "jacket",
+          "blouse",
+          "wooden door",
+          "earrings"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Denis and Margaret Thatcher in 1984.png\ncaption: Denis and Margaret Thatcher in 1984.\nalt_text: Denis and Margaret Thatcher in 1984\nidentity_evidence: File:Denis and Margaret Thatcher in 1984.png Denis and Margaret Thatcher in 1984 Denis and Margaret Thatcher in 1984.\napproximate_date: 1984-02-12\narchive_or_collection: Wikimedia Commons\ncredit: This file was derived from: Denis and Margaret Thatcher.jpg\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Denis Thatcher",
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "paths": [
+        "production_ready/candidate-7720de19eda682fe608d.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "8202031d-2d49-9b14-b53a-e3713dfb4560",
+      "source_grounded_context": {
+        "approximate_date": "1984-02-12",
+        "candidate_id": "7720de19eda682fe608d",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+        "named_people": [
+          "Denis Thatcher",
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Denis and Margaret Thatcher in 1984.",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Denis and Margaret Thatcher in 1984.png\ncaption: Denis and Margaret Thatcher in 1984.\nalt_text: Denis and Margaret Thatcher in 1984\nidentity_evidence: File:Denis and Margaret Thatcher in 1984.png Denis and Margaret Thatcher in 1984 Denis and Margaret Thatcher in 1984.\napproximate_date: 1984-02-12\narchive_or_collection: Wikimedia Commons\ncredit: This file was derived from: Denis and Margaret Thatcher.jpg\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Denis_and_Margaret_Thatcher_in_1984.png",
+        "source_text_sha256": "2cde0851339b1cbd914532bb7740df327e45719ed01943c4b3008fd7a2cd1473",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.240183Z",
+      "source_size_bytes": 454898,
+      "source_suffix": ".png",
+      "source_text_sha256": "2cde0851339b1cbd914532bb7740df327e45719ed01943c4b3008fd7a2cd1473",
+      "usage": {
+        "completion_tokens": 550,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 548,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 39386000,
+        "num_sources_used": 0,
+        "prompt_tokens": 2944,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 226,
+          "text_tokens": 2718
+        },
+        "total_tokens": 4042
+      }
+    },
+    "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4": {
+      "analysed_at": "2026-07-16T08:47:41.211953Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "landscape",
+          "shot_type": "group",
+          "subject_prominence": 85
+        },
+        "description": "Formal group portrait of eight G-7 leaders standing outdoors on stone steps in front of a historic Gothic-style building at the University of Toronto. From left: Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, François Mitterrand, Helmut Kohl, Noboru Takeshita. All wear dark suits; the women’s white jacket and black skirt contrast with the men’s attire. Taken 20 June 1988 during the 14th G7 summit.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Brian Mulroney, Ciriaco De Mita, François Mitterrand, Helmut Kohl, Jacques Delors, Margaret Thatcher, Noboru Takeshita, Ronald Reagan. G-7 Economic Summit leaders at the University of Toronto in Canada. Taken on 20 June 1988",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Source context: Brian Mulroney, Ciriaco De Mita, François Mitterrand, Helmut Kohl, Jacques Delors, Margaret Thatcher, Noboru Takeshita, Ronald Reagan. G-7 Economic Summit leaders at the University of Toronto in Canada. Taken on 20 June 1988. Highly specific 1988 G7 summit group portrait; best paired with diplomatic, international relations or historical foreign-policy content.",
+          "semantic_specificity": 85,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 82
+        },
+        "scene_summary": "Eight world leaders posed formally outdoors on steps before a stone building with Gothic arched windows and tracery during the 1988 G7 Economic Summit.",
+        "scene_types": [
+          "diplomatic_event",
+          "outdoor_public_event",
+          "historical_archive",
+          "other"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "June daylight",
+            "green foliage"
+          ],
+          "explanation": "Taken mid-June; no strong seasonal markers beyond general summer daylight and foliage.",
+          "occasions": [],
+          "strength": "weak",
+          "visible_season": "summer"
+        },
+        "setting": {
+          "details": [
+            "stone building with Gothic windows",
+            "University of Toronto steps",
+            "daylight"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "dark suits",
+          "neckties",
+          "white jacket",
+          "stone architecture",
+          "Gothic arches",
+          "steps",
+          "red flowers"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: 14th G7 summit.jpg\ncaption: G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.\nalt_text: 14th G7 summit\nidentity_evidence: File:14th G7 summit.jpg 14th G7 summit G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.\napproximate_date: Taken on 20 June 1988\narchive_or_collection: Wikimedia Commons\ncredit: C47870-21 http://www.reagan.utexas.edu/archives/photographs/Econsummits.html\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Brian Mulroney",
+          "Ciriaco De Mita",
+          "François Mitterrand",
+          "Helmut Kohl",
+          "Jacques Delors",
+          "Margaret Thatcher",
+          "Noboru Takeshita",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "paths": [
+        "production_ready/candidate-5202e374b764482c4cda.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "255914a6-0c11-961f-98df-8985ab2026a9",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 20 June 1988",
+        "candidate_id": "5202e374b764482c4cda",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+        "named_people": [
+          "Brian Mulroney",
+          "Ciriaco De Mita",
+          "François Mitterrand",
+          "Helmut Kohl",
+          "Jacques Delors",
+          "Margaret Thatcher",
+          "Noboru Takeshita",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "G-7 Economic Summit leaders at the University of Toronto in Canada",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: 14th G7 summit.jpg\ncaption: G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.\nalt_text: 14th G7 summit\nidentity_evidence: File:14th G7 summit.jpg 14th G7 summit G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.\napproximate_date: Taken on 20 June 1988\narchive_or_collection: Wikimedia Commons\ncredit: C47870-21 http://www.reagan.utexas.edu/archives/photographs/Econsummits.html\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:14th_G7_summit.jpg",
+        "source_text_sha256": "ea8a65f45e3ba5e5722b167e79313b5bdb505ce3c47061a29c9433e225818e28",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.240552Z",
+      "source_size_bytes": 448013,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "ea8a65f45e3ba5e5722b167e79313b5bdb505ce3c47061a29c9433e225818e28",
+      "usage": {
+        "completion_tokens": 662,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 633,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 59486000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4158,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 1242,
+          "text_tokens": 2916
+        },
+        "total_tokens": 5453
+      }
+    },
+    "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8": {
+      "analysed_at": "2026-07-16T08:39:28.348006Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 15,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 95
+        },
+        "description": "Close-up headshot of Margaret Thatcher wearing a large blue hat, dark coat, patterned blouse, and pearl earring, with neutral expression and soft natural lighting against a blurred outdoor background.",
+        "historical_context": {
+          "confidence": 80,
+          "event_or_context_hint": "Margaret Thatcher headshot",
+          "specificity": "suggestive",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "leadership"
+          ],
+          "general_reusability": 55,
+          "matching_summary": "Source context: Margaret Thatcher headshot. Formal headshot portrait suitable for serious or authoritative quotations about leadership or personal reflection.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 90,
+          "overall": 75,
+          "subject_clarity": 85,
+          "technical_quality": 70
+        },
+        "scene_summary": "Formal headshot portrait of Margaret Thatcher.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [],
+          "location_type": "unknown"
+        },
+        "themes": [],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "blue hat",
+          "pearl earring",
+          "dark coat",
+          "patterned blouse"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:Margaret Thatcher headshot.jpg - Wikimedia Commons\nalt_text: Thumbnail for version as of 06:00, 7 December 2007\nidentity_evidence: File:Margaret Thatcher headshot.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+      "paths": [
+        "production_ready/candidate-305d002e01745c0acd9b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "911b77e2-e8c0-9d7f-b8e6-d8c3b95a0681",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "305d002e01745c0acd9b",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher headshot",
+        "source_evidence_fields": [
+          "page_title",
+          "alt_text",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:Margaret Thatcher headshot.jpg - Wikimedia Commons\nalt_text: Thumbnail for version as of 06:00, 7 December 2007\nidentity_evidence: File:Margaret Thatcher headshot.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_headshot.jpg",
+        "source_text_sha256": "0b0155fb001c4da156ba197b4f187bc73f07e6e92a28a2693344afacb7853f33",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.240803Z",
+      "source_size_bytes": 62011,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "0b0155fb001c4da156ba197b4f187bc73f07e6e92a28a2693344afacb7853f33",
+      "usage": {
+        "completion_tokens": 403,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 973,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 71068500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3041,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 401,
+          "text_tokens": 2640
+        },
+        "total_tokens": 4417
+      }
+    },
+    "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a": {
+      "analysed_at": "2026-07-16T08:38:07.568161Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "George H. W. Bush, wearing a dark blazer, light blue shirt and light trousers, stands facing Margaret Thatcher, who wears a multicoloured polka-dot jacket and holds a black clutch. They appear to be in mid-conversation at an indoor reception with other guests visible behind them.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "George H. W. Bush, Margaret Thatcher. President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO. 1990-08-02",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Source context: George H. W. Bush, Margaret Thatcher. President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO. 1990-08-02. Strong match for quotations on US-UK diplomacy or bilateral leadership meetings; specific historical context limits broader reuse.",
+          "semantic_specificity": 85,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "conversing"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 82,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "George H. W. Bush and Margaret Thatcher conversing at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, Colorado on 2 August 1990.",
+        "scene_types": [
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal cues visible; August date is from source record only.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "reception area",
+            "wooden doorway",
+            "wall art",
+            "potted plants"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy"
+        ],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "dark blazer",
+          "light trousers",
+          "polka-dot jacket",
+          "black clutch",
+          "hand gesture",
+          "wooden doors",
+          "artwork",
+          "potted plants"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Thatcher and Bush - 1990 - P14935-18A.jpg\ncaption: President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO\nalt_text: Thatcher and Bush - 1990 - P14935-18A\nidentity_evidence: File:Thatcher and Bush - 1990 - P14935-18A.jpg Thatcher and Bush - 1990 - P14935-18A President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO\napproximate_date: 1990-08-02\narchive_or_collection: Wikimedia Commons\ncredit: George Bush Presidential Library\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "George H. W. Bush",
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "paths": [
+        "production_ready/candidate-00f4566964e0c88838ad.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "ed42a670-4fc8-9fe5-b4cb-c3e3c33b0c5c",
+      "source_grounded_context": {
+        "approximate_date": "1990-08-02",
+        "candidate_id": "00f4566964e0c88838ad",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+        "named_people": [
+          "George H. W. Bush",
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Thatcher and Bush - 1990 - P14935-18A.jpg\ncaption: President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO\nalt_text: Thatcher and Bush - 1990 - P14935-18A\nidentity_evidence: File:Thatcher and Bush - 1990 - P14935-18A.jpg Thatcher and Bush - 1990 - P14935-18A President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO\napproximate_date: 1990-08-02\narchive_or_collection: Wikimedia Commons\ncredit: George Bush Presidential Library\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Thatcher_and_Bush_-_1990_-_P14935-18A.jpg",
+        "source_text_sha256": "1f72c3bba95aee216fc2250271b43fb7e478b723c31491cb2dfcc88f96e1f1f4",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.241073Z",
+      "source_size_bytes": 236718,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "1f72c3bba95aee216fc2250271b43fb7e478b723c31491cb2dfcc88f96e1f1f4",
+      "usage": {
+        "completion_tokens": 592,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 771,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 77556000,
+        "num_sources_used": 0,
+        "prompt_tokens": 3586,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 784,
+          "text_tokens": 2802
+        },
+        "total_tokens": 4949
+      }
+    },
+    "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7": {
+      "analysed_at": "2026-07-16T08:39:03.661638Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "full_body",
+          "subject_prominence": 85
+        },
+        "description": "Margaret Thatcher and Ronald Reagan walk side-by-side along a paved path through a wooded area at Camp David. Thatcher wears a long beige coat and carries gloves and a handbag; Reagan wears a dark leather flight jacket with patches and gestures with gloved hands while speaking. Bare trees and autumn leaves cover the ground under an overcast sky.",
+        "historical_context": {
+          "confidence": 90,
+          "event_or_context_hint": "Margaret Thatcher, Ronald Reagan. President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "pragmatic",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "defence"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Ronald Reagan. President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David. Strong match for diplomatic or US-UK foreign policy quotations; the outdoor autumn setting and walking conversation suit reflective or pragmatic tones.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "walking",
+            "gesturing while speaking"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "animated"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Full-body view of Thatcher and Reagan walking outdoors on a wooded path at Camp David during autumn, with Reagan gesturing animatedly during their conversation.",
+        "scene_types": [
+          "outdoor_public_event",
+          "diplomatic_event",
+          "historical_archive"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "bare trees",
+            "fallen leaves on ground"
+          ],
+          "explanation": "Clear autumn foliage and bare trees indicate fall setting; no strong holiday or event markers.",
+          "occasions": [],
+          "strength": "moderate",
+          "visible_season": "autumn"
+        },
+        "setting": {
+          "details": [
+            "wooded path",
+            "bare deciduous trees",
+            "autumn leaf litter",
+            "overcast daylight",
+            "Camp David grounds"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "serious",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "paved path",
+          "bare trees",
+          "autumn leaves",
+          "beige wool coat",
+          "leather flight jacket",
+          "gloves",
+          "handbag",
+          "patches on jacket"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Patches and text on Reagan's leather jacket including presidential seal and name tag"
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "paths": [
+        "production_ready/candidate-149e63869f481474a798.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "813f1064-2722-9d2f-ab01-96dc80686825",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "149e63869f481474a798",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David",
+        "source_evidence_fields": [
+          "page_title",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_Walking_with_Prime_Minister_Margaret_Thatcher_at_Camp_David_-_DPLA_-_703deafafc5b5947f717b966d2a117d6.jpg",
+        "source_text_sha256": "b63ab1a3b47bb2f07de413e07d744fb3e74c1af91c57fc88c9e0861e69ea4d5d",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.241360Z",
+      "source_size_bytes": 263941,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "b63ab1a3b47bb2f07de413e07d744fb3e74c1af91c57fc88c9e0861e69ea4d5d",
+      "usage": {
+        "completion_tokens": 721,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 495,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 57248500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4137,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 1382,
+          "text_tokens": 2755
+        },
+        "total_tokens": 5353
+      }
+    },
+    "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072": {
+      "analysed_at": "2026-07-16T08:47:59.161209Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Margaret Thatcher and Gijs van Aardenne walk side-by-side on an airport tarmac directly in front of a large jet airliner. Thatcher, on the right, carries a handbag and wears a patterned scarf; van Aardenne is in a dark suit and tie. Several other formally dressed men stand nearby. The scene is brightly lit daylight on an open runway.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Gijs van Aardenne, Margaret Thatcher. Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m). 1983-09-19",
+          "specificity": "specific_event",
+          "visible_symbols": [
+            "aircraft",
+            "formal diplomatic attire"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "pragmatic",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Gijs van Aardenne, Margaret Thatcher. Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m). 1983-09-19. Strong match for diplomatic arrivals, international meetings and state visits; less suitable for domestic policy, economic or ceremonial indoor scenes.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "walking",
+            "conversing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "smiling"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal arrival of UK Prime Minister Margaret Thatcher at Valkenburg airfield accompanied by Dutch minister Gijs van Aardenne, with a large aircraft visible behind them on the tarmac.",
+        "scene_types": [
+          "diplomatic_event",
+          "outdoor_public_event",
+          "international_travel"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal markers visible; clothing and setting are consistent with any time of year.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "airport tarmac",
+            "runway markings",
+            "aircraft undercarriage",
+            "distant buildings and trees"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "serious",
+          "pragmatic"
+        ],
+        "visible_elements": [
+          "large jet airliner",
+          "airport tarmac",
+          "formal business suits",
+          "necktie",
+          "handbag",
+          "patterned scarf",
+          "other suited officials"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg\ncaption: Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041\nalt_text: Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041\nidentity_evidence: File:Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041 Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041\napproximate_date: 1983-09-19\narchive_or_collection: Wikimedia Commons\ncredit: https://proxy.handle.net/10648/ad2dfe3c-d0b4-102d-bcf8-003048976d84\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Gijs van Aardenne",
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "paths": [
+        "production_ready/candidate-f8872af0e0d18261b23e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "cd30d7fe-b6f9-9d7d-8d1f-3f1a3fa14de7",
+      "source_grounded_context": {
+        "approximate_date": "1983-09-19",
+        "candidate_id": "f8872af0e0d18261b23e",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+        "named_people": [
+          "Gijs van Aardenne",
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m)",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg\ncaption: Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041\nalt_text: Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041\nidentity_evidence: File:Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041 Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041\napproximate_date: 1983-09-19\narchive_or_collection: Wikimedia Commons\ncredit: https://proxy.handle.net/10648/ad2dfe3c-d0b4-102d-bcf8-003048976d84\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Aankomt_van_premier_Thatcher_(r)_op_vliegveld_Valkenburg_met_minister_Van_Aarden,_Bestanddeelnr_932-7041.jpg",
+        "source_text_sha256": "6015818fe56346ae433f36d0e58eb94f7c03dff81198be1172f1fecb45588858",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.241648Z",
+      "source_size_bytes": 142974,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "6015818fe56346ae433f36d0e58eb94f7c03dff81198be1172f1fecb45588858",
+      "usage": {
+        "completion_tokens": 670,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 466,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 36411000,
+        "num_sources_used": 0,
+        "prompt_tokens": 3974,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 3968,
+          "image_tokens": 602,
+          "text_tokens": 3372
+        },
+        "total_tokens": 5110
+      }
+    },
+    "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27": {
+      "analysed_at": "2026-07-16T08:44:14.928634Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 90
+        },
+        "description": "Black-and-white close-up portrait of Margaret Thatcher (1983) showing head and shoulders against a plain light background. She wears a patterned geometric scarf tied at the neck, a textured bouclé jacket, a pearl earring, and a small brooch. Her expression is neutral and composed.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher (1983)",
+          "specificity": "suggestive",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher (1983). Formal, restrained portrait suited to serious or authoritative quotations about leadership or government; limited visual energy restricts use for dynamic or celebratory topics.",
+          "semantic_specificity": 85,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posing for portrait"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "reflective"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal studio portrait of Margaret Thatcher from 1983, head-and-shoulders view with plain background.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible in the image.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "plain light background",
+            "studio setting"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "pearl earring",
+          "geometric patterned scarf",
+          "bouclé jacket",
+          "brooch",
+          "styled hair"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "source_metadata",
+        "confidence": "high",
+        "evidence": "page_title: File:Margaret Thatcher (1983).jpg - Wikimedia Commons\nalt_text: File:Margaret Thatcher (1983).jpg\nidentity_evidence: File:Margaret Thatcher (1983).jpg\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+      "paths": [
+        "maybe/candidate-7cdcd67a8066a3b12d28.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "29965c21-6063-9ee4-8bb9-e024c10a7337",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "7cdcd67a8066a3b12d28",
+        "identity_basis": "source_metadata",
+        "identity_confidence": "high",
+        "image_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher (1983)",
+        "source_evidence_fields": [
+          "page_title",
+          "alt_text",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:Margaret Thatcher (1983).jpg - Wikimedia Commons\nalt_text: File:Margaret Thatcher (1983).jpg\nidentity_evidence: File:Margaret Thatcher (1983).jpg\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_(1983).jpg",
+        "source_text_sha256": "7bfc5849c0ec13a08655df7d2dede90483a9ea02c4f126bbd186e4023a1a865b",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.241912Z",
+      "source_size_bytes": 87046,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "7bfc5849c0ec13a08655df7d2dede90483a9ea02c4f126bbd186e4023a1a865b",
+      "usage": {
+        "completion_tokens": 548,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 686,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 43198500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2977,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 338,
+          "text_tokens": 2639
+        },
+        "total_tokens": 4211
+      }
+    },
+    "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99": {
+      "analysed_at": "2026-07-16T08:42:38.415544Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black and white photograph of Margaret Thatcher and Ruud Lubbers standing face-to-face in an indoor setting, both with arms crossed, smiling and appearing engaged in conversation. Thatcher wears a patterned dress with pearl necklace; Lubbers wears a dark suit and tie. Partial figures visible at the edges; abstract wall art and a spherical lamp in the background.",
+        "historical_context": {
+          "confidence": 90,
+          "event_or_context_hint": "Margaret Thatcher, Ruud Lubbers. Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "europe",
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Ruud Lubbers. Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council. Strong match for European diplomacy, EU relations or Thatcher-era foreign policy quotations; the visible interaction supports warm but serious leadership tones.",
+          "semantic_specificity": 80,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "conversing",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Informal discussion between Margaret Thatcher and Ruud Lubbers at the 1983 Stuttgart European Council.",
+        "scene_types": [
+          "diplomatic_event",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No visible seasonal indicators.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "conference room",
+            "abstract artwork on wall",
+            "overhead lighting"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "europe",
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "suit",
+          "necktie",
+          "patterned dress",
+          "pearl necklace",
+          "crossed arms",
+          "smiling expressions",
+          "abstract wall art",
+          "spherical lamp",
+          "wine glass",
+          "conference interior"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons\nidentity_evidence: File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ruud Lubbers"
+        ]
+      },
+      "image_hash": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "paths": [
+        "production_ready/candidate-36d6b17bedd4345d223e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "ad737d5b-510a-90db-befa-b1972367412c",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "36d6b17bedd4345d223e",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ruud Lubbers"
+        ],
+        "source_event_summary": "Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council",
+        "source_evidence_fields": [
+          "page_title",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons\nidentity_evidence: File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Informal_discussion_between_Ruud_Lubbers_and_Margaret_Thatcher_-_1983_Stuttgart_European_Council.jpg",
+        "source_text_sha256": "1acb7ae76a2f6a7fb43b9bad6176933e1c4bb54d121315f4b02d52b5f8ec48fa",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.242217Z",
+      "source_size_bytes": 176929,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "1acb7ae76a2f6a7fb43b9bad6176933e1c4bb54d121315f4b02d52b5f8ec48fa",
+      "usage": {
+        "completion_tokens": 615,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 463,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 67143500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3323,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 632,
+          "text_tokens": 2691
+        },
+        "total_tokens": 4401
+      }
+    },
+    "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2": {
+      "analysed_at": "2026-07-16T08:43:05.357895Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "portrait",
+          "shot_type": "other",
+          "subject_prominence": 95
+        },
+        "description": "Montage of five photographs of Margaret Thatcher from her time as Prime Minister, showing her in formal attire including a striped hat with military figures, a black-and-white close portrait, a blue hat portrait, alongside another figure outdoors, and wearing a white hard hat labelled PRIME MINISTER.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra. between 1979 and 1990 date QS:P,+1950-00-00T00:00:00Z/7,P1319,+1979-00-00T00:00:00Z/9,P1326,+1990-00-00T00:00:00Z/9",
+          "specificity": "specific_event",
+          "visible_symbols": [
+            "PRIME MINISTER hard hat"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "authoritative",
+            "serious"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "patriotism"
+          ],
+          "general_reusability": 60,
+          "matching_summary": "Strong match for quotations referencing Margaret Thatcher, prime ministerial leadership or UK government in the late 20th century; montage format limits use for single-scene contexts.",
+          "semantic_specificity": 75,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posing formally",
+            "public appearance"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "smiling",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 70,
+          "crop_suitability_for_x": 65,
+          "overall": 75,
+          "subject_clarity": 85,
+          "technical_quality": 70
+        },
+        "scene_summary": "Composite image presenting multiple formal and public portraits of Margaret Thatcher spanning her premiership years.",
+        "scene_types": [
+          "formal_portrait",
+          "informal_portrait",
+          "diplomatic_event",
+          "historical_archive"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible across the montage.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "studio portrait",
+            "outdoor public appearance",
+            "ceremonial backdrop"
+          ],
+          "location_type": "mixed"
+        },
+        "themes": [
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "authoritative",
+          "serious"
+        ],
+        "visible_elements": [
+          "hard hat",
+          "PRIME MINISTER text",
+          "military uniforms",
+          "pearl earrings",
+          "formal suits",
+          "hats",
+          "scarves"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Hard hat displays the words PRIME MINISTER"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Montagem de Margaret Thatcher.jpg\ncaption: Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.\nalt_text: Montagem de Margaret Thatcher\nidentity_evidence: File:Montagem de Margaret Thatcher.jpg Montagem de Margaret Thatcher Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.\napproximate_date: between 1979 and 1990 date QS:P,+1950-00-00T00:00:00Z/7,P1319,+1979-00-00T00:00:00Z/9,P1326,+1990-00-00T00:00:00Z/9\narchive_or_collection: Wikimedia Commons\ncredit: This image has been extracted from another file\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+      "paths": [
+        "maybe/candidate-47898be6bfefc5d49c03.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "581a793e-d976-9c4b-87ab-7025509d142b",
+      "source_grounded_context": {
+        "approximate_date": "between 1979 and 1990 date QS:P,+1950-00-00T00:00:00Z/7,P1319,+1979-00-00T00:00:00Z/9,P1326,+1990-00-00T00:00:00Z/9",
+        "candidate_id": "47898be6bfefc5d49c03",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Montagem de Margaret Thatcher.jpg\ncaption: Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.\nalt_text: Montagem de Margaret Thatcher\nidentity_evidence: File:Montagem de Margaret Thatcher.jpg Montagem de Margaret Thatcher Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.\napproximate_date: between 1979 and 1990 date QS:P,+1950-00-00T00:00:00Z/7,P1319,+1979-00-00T00:00:00Z/9,P1326,+1990-00-00T00:00:00Z/9\narchive_or_collection: Wikimedia Commons\ncredit: This image has been extracted from another file\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Montagem_de_Margaret_Thatcher.jpg",
+        "source_text_sha256": "7663ae4bd86a5b0dc83d52925c1fd35820d224bbc749dc26bb37911806654161",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.242506Z",
+      "source_size_bytes": 206569,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "7663ae4bd86a5b0dc83d52925c1fd35820d224bbc749dc26bb37911806654161",
+      "usage": {
+        "completion_tokens": 603,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 531,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 42136000,
+        "num_sources_used": 0,
+        "prompt_tokens": 3092,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 258,
+          "text_tokens": 2834
+        },
+        "total_tokens": 4226
+      }
+    },
+    "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a": {
+      "analysed_at": "2026-07-16T08:38:44.141665Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 95
+        },
+        "description": "Black-and-white close-up portrait of Margaret Thatcher, head and shoulders, with styled hair, pearl earring, and patterned blouse against a plain light background. She gazes slightly to her left with a neutral expression. Image is a cropped formal photograph taken at the White House.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher at White House. Taken on 13 September 1977",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher at White House. Taken on 13 September 1977. Suitable for formal, diplomatic, or leadership-related quotations; limited to serious or authoritative tones due to portrait style and White House context.",
+          "semantic_specificity": 60,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posed"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 95,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 80
+        },
+        "scene_summary": "Formal head-and-shoulders portrait of Margaret Thatcher taken at the White House on 13 September 1977.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "plain light background",
+            "White House"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "pearl earring",
+          "patterned blouse",
+          "styled hair"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Margaret Thatcher at White House (cropped).jpg\ncaption: Margaret Thatcher at White House.\nalt_text: Margaret Thatcher at White House (cropped)\nidentity_evidence: File:Margaret Thatcher at White House (cropped).jpg Margaret Thatcher at White House (cropped) Margaret Thatcher at White House.\napproximate_date: Taken on 13 September 1977\narchive_or_collection: Wikimedia Commons\ncredit: This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsca.09786 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+      "paths": [
+        "production_ready/candidate-0c4634d8356f42dc4e0c.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "ff69d38d-5ede-9b93-b80a-498aeeb70c51",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 13 September 1977",
+        "candidate_id": "0c4634d8356f42dc4e0c",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher at White House.",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Margaret Thatcher at White House (cropped).jpg\ncaption: Margaret Thatcher at White House.\nalt_text: Margaret Thatcher at White House (cropped)\nidentity_evidence: File:Margaret Thatcher at White House (cropped).jpg Margaret Thatcher at White House (cropped) Margaret Thatcher at White House.\napproximate_date: Taken on 13 September 1977\narchive_or_collection: Wikimedia Commons\ncredit: This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsca.09786 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_at_White_House_(cropped).jpg",
+        "source_text_sha256": "f704271883510c1ea445b8beb0b8fed26b02c5fed9816d511b33713f6ed7911e",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.242771Z",
+      "source_size_bytes": 79120,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "f704271883510c1ea445b8beb0b8fed26b02c5fed9816d511b33713f6ed7911e",
+      "usage": {
+        "completion_tokens": 562,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 612,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 41573500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2967,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 210,
+          "text_tokens": 2757
+        },
+        "total_tokens": 4141
+      }
+    },
+    "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4": {
+      "analysed_at": "2026-07-16T08:44:24.712719Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 25,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black and white photograph of Margaret Thatcher seated in an upholstered armchair, shown from the waist up, smiling with mouth open and looking slightly to her right. She wears a light-toned collared jacket with decorative stitching and a prominent brooch on the left lapel, a pearl necklace, and pearl earrings. The background is a plain indoor wall with part of patterned upholstery visible.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher , former UK PM. 18 September 1975",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "personal_reflection"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher , former UK PM. 18 September 1975. Suitable for calm, reflective or personal quotations; the warm smile and formal seated pose support measured or thoughtful tones rather than combative or crowd-energy contexts.",
+          "semantic_specificity": 45,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "seated",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal indoor portrait of Margaret Thatcher seated and smiling, captured in black and white.",
+        "scene_types": [
+          "formal_portrait",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible in clothing, setting or decor.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "armchair",
+            "plain wall",
+            "patterned upholstery"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "armchair",
+          "upholstery",
+          "brooch",
+          "pearl necklace",
+          "pearl earrings",
+          "collared jacket",
+          "light-toned fabric"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: Thatcher-loc.jpg\ncaption: Margaret Thatcher , former UK PM.\nalt_text: Thatcher-loc\nidentity_evidence: File:Thatcher-loc.jpg Thatcher-loc Margaret Thatcher , former UK PM.\napproximate_date: 18 September 1975\narchive_or_collection: Wikimedia Commons\ncredit: This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsc.03266 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher"
+        ]
+      },
+      "image_hash": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+      "paths": [
+        "production_ready/candidate-86953c03fd343ef6fcc1.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "94fb7188-8e76-9d47-a97e-c7a3cbe363b5",
+      "source_grounded_context": {
+        "approximate_date": "18 September 1975",
+        "candidate_id": "86953c03fd343ef6fcc1",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "source_event_summary": "Margaret Thatcher , former UK PM.",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: Thatcher-loc.jpg\ncaption: Margaret Thatcher , former UK PM.\nalt_text: Thatcher-loc\nidentity_evidence: File:Thatcher-loc.jpg Thatcher-loc Margaret Thatcher , former UK PM.\napproximate_date: 18 September 1975\narchive_or_collection: Wikimedia Commons\ncredit: This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsc.03266 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:Thatcher-loc.jpg",
+        "source_text_sha256": "d1a7d9191c25afb1cabae0028ecc92a18ba37905eff0a0cdac5e34c2b283141d",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.243050Z",
+      "source_size_bytes": 948023,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "d1a7d9191c25afb1cabae0028ecc92a18ba37905eff0a0cdac5e34c2b283141d",
+      "usage": {
+        "completion_tokens": 597,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 676,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 93571500,
+        "num_sources_used": 0,
+        "prompt_tokens": 5101,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 192,
+          "image_tokens": 2387,
+          "text_tokens": 2714
+        },
+        "total_tokens": 6374
+      }
+    },
+    "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb": {
+      "analysed_at": "2026-07-16T08:43:21.997141Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 25,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Close profile view of Margaret Thatcher and Ronald Reagan standing outdoors side by side, both facing right. Thatcher wears a black coat with brooch and distinctive black hat with fur trim; Reagan is in a dark suit, light shirt and red patterned tie. Bright daylight with soft sky and blurred foliage in the background.",
+        "historical_context": {
+          "confidence": 90,
+          "event_or_context_hint": "Margaret Thatcher, Ronald Reagan. President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony",
+          "specificity": "specific_event",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Ronald Reagan. President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony. Strong match for formal diplomatic or state-visit quotations; profile composition and very formal attire suit serious foreign-policy or leadership themes.",
+          "semantic_specificity": 65,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "standing in profile",
+            "facing right"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Margaret Thatcher and Ronald Reagan captured in profile during an outdoor arrival ceremony on the South Lawn.",
+        "scene_types": [
+          "diplomatic_event",
+          "outdoor_public_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal markers visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "South Lawn arrival ceremony",
+            "bright daylight",
+            "soft sky",
+            "blurred foliage"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "black coat",
+          "fur-trimmed hat",
+          "brooch",
+          "dark suit",
+          "striped shirt",
+          "red patterned tie",
+          "pearl earring"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "page_title: File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ]
+      },
+      "image_hash": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "paths": [
+        "production_ready/candidate-539626eef2896af392c4.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "0ded54d8-c037-99a9-bf81-591a3303afb1",
+      "source_grounded_context": {
+        "approximate_date": "",
+        "candidate_id": "539626eef2896af392c4",
+        "identity_basis": "page_context",
+        "identity_confidence": "medium",
+        "image_sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "source_event_summary": "President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony",
+        "source_evidence_fields": [
+          "page_title",
+          "identity_evidence",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons\nidentity_evidence: File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_on_The_South_Lawn_During_Her_Arrival_Ceremony_-_DPLA_-_66a3aa38f1a8dec0877aabaefbdf843a.jpg",
+        "source_text_sha256": "1b544f21ebc1ae6c31fb10104e398ea683084e3a350e2499264d2709f9b05c66",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.243323Z",
+      "source_size_bytes": 727064,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "1b544f21ebc1ae6c31fb10104e398ea683084e3a350e2499264d2709f9b05c66",
+      "usage": {
+        "completion_tokens": 633,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 707,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 73361000,
+        "num_sources_used": 0,
+        "prompt_tokens": 5178,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2368,
+          "image_tokens": 2402,
+          "text_tokens": 2776
+        },
+        "total_tokens": 6518
+      }
+    },
+    "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2": {
+      "analysed_at": "2026-07-16T08:42:45.973152Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white photograph of Margaret Thatcher speaking at a presidential podium with multiple microphones, wearing a dark hat and coat. Rosalynn Carter stands immediately to her right in a fur-trimmed hat and patterned coat; Jimmy Carter stands to the far right in a dark suit and tie. The presidential seal is prominent on the front of the podium. A large stone building forms the background under bright daylight.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Jimmy Carter, Margaret Thatcher, Rosalynn Carter. [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST. Taken on 17 December 1979",
+          "specificity": "specific_event",
+          "visible_symbols": [
+            "presidential seal"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "authoritative",
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Source context: Jimmy Carter, Margaret Thatcher, Rosalynn Carter. [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST. Taken on 17 December 1979. Strong match for diplomatic or transatlantic foreign-policy quotations; formal outdoor podium setting with clear leadership presence.",
+          "semantic_specificity": 70,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "speaking at podium",
+            "standing beside speaker"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 92,
+          "technical_quality": 88
+        },
+        "scene_summary": "Margaret Thatcher addresses an audience from a lectern outdoors, flanked by Rosalynn Carter and Jimmy Carter in formal winter attire in front of a government building.",
+        "scene_types": [
+          "podium_speech",
+          "diplomatic_event",
+          "outdoor_public_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "heavy winter coats",
+            "fur-trimmed hat"
+          ],
+          "explanation": "December date and visible winter outerwear support moderate winter association; no holiday decorations or snow.",
+          "occasions": [],
+          "strength": "moderate",
+          "visible_season": "winter"
+        },
+        "setting": {
+          "details": [
+            "Washington, D.C.",
+            "in front of large stone building",
+            "daylight"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "authoritative",
+          "serious"
+        ],
+        "visible_elements": [
+          "presidential seal",
+          "multiple microphones",
+          "lectern",
+          "formal coats",
+          "hats",
+          "stone building facade",
+          "bright daylight shadows"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "THE PRESIDENT OF THE UNITED STATES seal on podium"
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg\ncaption: [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.\nalt_text: President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher\nidentity_evidence: File:President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.\napproximate_date: Taken on 17 December 1979\narchive_or_collection: Wikimedia Commons\ncredit: https://www.loc.gov/item/2021638549/\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Jimmy Carter",
+          "Margaret Thatcher",
+          "Rosalynn Carter"
+        ]
+      },
+      "image_hash": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "paths": [
+        "production_ready/candidate-3abe0be95aa60233f374.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "17916e75-a21b-9e94-bc2b-1ce9625a3680",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 17 December 1979",
+        "candidate_id": "3abe0be95aa60233f374",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+        "named_people": [
+          "Jimmy Carter",
+          "Margaret Thatcher",
+          "Rosalynn Carter"
+        ],
+        "source_event_summary": "[Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg\ncaption: [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.\nalt_text: President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher\nidentity_evidence: File:President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.\napproximate_date: Taken on 17 December 1979\narchive_or_collection: Wikimedia Commons\ncredit: https://www.loc.gov/item/2021638549/\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Jimmy_Carter_and_First_Lady_Rosalynn_Carter_with_British_Prime_Minister_Margaret_Thatcher.jpg",
+        "source_text_sha256": "1463cd04ca4bffcc11c9c6d9d22a76f658d5678b95f1ae034bfd20d9b852db1b",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.243627Z",
+      "source_size_bytes": 490733,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "1463cd04ca4bffcc11c9c6d9d22a76f658d5678b95f1ae034bfd20d9b852db1b",
+      "usage": {
+        "completion_tokens": 672,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 566,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 95268500,
+        "num_sources_used": 0,
+        "prompt_tokens": 5253,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 2402,
+          "text_tokens": 2851
+        },
+        "total_tokens": 6491
+      }
+    },
+    "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a": {
+      "analysed_at": "2026-07-16T08:47:50.561505Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Margaret Thatcher (left), Mikhail Gorbachev (centre) and Raisa Gorbacheva (right) stand together in a formal indoor setting during Gorbachev’s official visit to Great Britain. Thatcher wears a pink jacket and skirt with a pink bow; Gorbachev is in a dark pinstripe suit with a Soviet lapel pin; Gorbacheva wears a grey suit with a colourful floral scarf and carries a black clutch. All three are smiling and looking toward the same direction. A fourth man is partially visible behind Gorbachev.",
+        "historical_context": {
+          "confidence": 95,
+          "event_or_context_hint": "Margaret Thatcher, Mikhail Gorbachev, Raisa Gorbacheva. Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev. Taken on 1 April 1989",
+          "specificity": "specific_event",
+          "visible_symbols": [
+            "Soviet lapel pin"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Source context: Margaret Thatcher, Mikhail Gorbachev, Raisa Gorbacheva. Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev. Taken on 1 April 1989. Strong match for quotations concerning late-Cold-War diplomacy, UK–Soviet relations or Thatcher–Gorbachev encounters; less suitable for purely domestic or economic topics.",
+          "semantic_specificity": 85,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "smiling",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Three principal figures—Margaret Thatcher, Mikhail Gorbachev and Raisa Gorbacheva—pose together at the USSR Embassy in London on 1 April 1989 during Gorbachev’s state visit to Britain. The mood is cordial and formal.",
+        "scene_types": [
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "Indoor diplomatic photograph with no seasonal indicators.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "wood-panelled wall",
+            "floral display",
+            "embassy interior"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "foreign_policy",
+          "leadership"
+        ],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "formal suits",
+          "lapel pin",
+          "floral scarf",
+          "pink bow blouse",
+          "wood panelling",
+          "floral arrangement",
+          "clutch bag",
+          "earrings",
+          "necklace"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "page_title: RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg\ncaption: “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.\nalt_text: RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev\nidentity_evidence: File:RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.\napproximate_date: Taken on 1 April 1989\narchive_or_collection: Wikimedia Commons\ncredit: RIA Novosti archive, image #778094, http://visualrian.ru/ru/site/gallery/#778094 35 mm film / 35 мм негатив\npublisher: Wikimedia Commons",
+        "identities_bound_from_source_record": true,
+        "model_was_not_asked_to_identify_person": true,
+        "named_people": [
+          "Margaret Thatcher",
+          "Mikhail Gorbachev",
+          "Raisa Gorbacheva"
+        ]
+      },
+      "image_hash": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "offline_recovery": {
+        "normalisation": "bounded_prose_truncation_and_source_identity_overlay",
+        "raw_response_file": "source_grounded_raw_responses/23815a85-4601-9919-8a03-ae867b8e3c62.json",
+        "recovered_at": "2026-07-16T08:50:01.366996Z"
+      },
+      "paths": [
+        "production_ready/candidate-62fe0c8d105bf2ad7c95.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+      "response_id": "23815a85-4601-9919-8a03-ae867b8e3c62",
+      "source_grounded_context": {
+        "approximate_date": "Taken on 1 April 1989",
+        "candidate_id": "62fe0c8d105bf2ad7c95",
+        "identity_basis": "archive_record",
+        "identity_confidence": "high",
+        "image_sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+        "named_people": [
+          "Margaret Thatcher",
+          "Mikhail Gorbachev",
+          "Raisa Gorbacheva"
+        ],
+        "source_event_summary": "Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev",
+        "source_evidence_fields": [
+          "page_title",
+          "caption",
+          "alt_text",
+          "identity_evidence",
+          "approximate_date",
+          "archive_or_collection",
+          "credit",
+          "publisher"
+        ],
+        "source_evidence_text": "page_title: RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg\ncaption: “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.\nalt_text: RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev\nidentity_evidence: File:RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.\napproximate_date: Taken on 1 April 1989\narchive_or_collection: Wikimedia Commons\ncredit: RIA Novosti archive, image #778094, http://visualrian.ru/ru/site/gallery/#778094 35 mm film / 35 мм негатив\npublisher: Wikimedia Commons",
+        "source_page_url": "https://commons.wikimedia.org/wiki/File:RIAN_archive_778094_Visit_to_Great_Britain_by_General_secretary_of_CPSU_CC_Mikhail_Gorbachev.jpg",
+        "source_text_sha256": "ed53dd451eb02763f85a73db8509145cf41d75438d601f01c0a38e206fe9dd0f",
+        "visual_model_identity_inference_allowed": false
+      },
+      "source_overlay_refreshed_at": "2026-07-16T09:09:18.243954Z",
+      "source_size_bytes": 429970,
+      "source_suffix": ".jpg",
+      "source_text_sha256": "ed53dd451eb02763f85a73db8509145cf41d75438d601f01c0a38e206fe9dd0f",
+      "usage": {
+        "completion_tokens": 699,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 512,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 38467500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3881,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 3840,
+          "image_tokens": 902,
+          "text_tokens": 2979
+        },
+        "total_tokens": 5092
+      }
+    }
+  },
+  "model": "grok-4.3",
+  "path_index": {
+    "maybe/candidate-47898be6bfefc5d49c03.jpg": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+    "maybe/candidate-7cdcd67a8066a3b12d28.jpg": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+    "production_ready/candidate-00f4566964e0c88838ad.jpg": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+    "production_ready/candidate-08fe3d43c27bece23076.jpg": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+    "production_ready/candidate-0b15f11312a31033907d.jpg": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+    "production_ready/candidate-0b42b54c4148ee2562fb.jpg": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+    "production_ready/candidate-0c4634d8356f42dc4e0c.jpg": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+    "production_ready/candidate-0fe7ed6333faf654b062.jpg": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+    "production_ready/candidate-149e63869f481474a798.jpg": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+    "production_ready/candidate-168392f289b5df25f16b.jpg": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+    "production_ready/candidate-253f9adb9e67db0a67d7.jpg": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+    "production_ready/candidate-305d002e01745c0acd9b.jpg": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+    "production_ready/candidate-36d6b17bedd4345d223e.jpg": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+    "production_ready/candidate-3abe0be95aa60233f374.jpg": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+    "production_ready/candidate-3e16363d7234c33cd75e.jpg": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+    "production_ready/candidate-5202e374b764482c4cda.jpg": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+    "production_ready/candidate-539626eef2896af392c4.jpg": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+    "production_ready/candidate-5ac817d960fb7eb0f974.jpg": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+    "production_ready/candidate-62fe0c8d105bf2ad7c95.jpg": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+    "production_ready/candidate-6966b6853551436e849b.jpg": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+    "production_ready/candidate-7720de19eda682fe608d.png": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+    "production_ready/candidate-7c9a2b387a67c9bd858c.jpg": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+    "production_ready/candidate-86953c03fd343ef6fcc1.jpg": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+    "production_ready/candidate-f8872af0e0d18261b23e.jpg": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072"
+  },
+  "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+  "schema_version": 3,
+  "source": {
+    "image_dir": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/exported_kept/production_ready",
+    "isolated_research": true
+  },
+  "updated_at": "2026-07-16T09:09:18.243966Z"
+}

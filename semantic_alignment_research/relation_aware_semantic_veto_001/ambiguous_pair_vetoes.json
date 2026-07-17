@@ -1,0 +1,126 @@
+{
+  "generated_at": "2026-07-16T18:26:06.812233Z",
+  "logical_call_ids": [
+    "pairs-93d23b40df8d0eeafbd789af-02"
+  ],
+  "policy": "ambiguous provider outcome is never resubmitted automatically; affected pairs are conservatively vetoed",
+  "records": [
+    {
+      "confidence": "low",
+      "contradiction_types": [
+        "insufficient_evidence"
+      ],
+      "decision": "uncertain",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "No validated provider judgement is available.",
+      "final_decision": "veto",
+      "final_reason": "model_veto_or_uncertainty",
+      "image_id": "original:t01.jpg",
+      "materially_misleading": false,
+      "pair_id": "008ca0db833101655f30f6f35ca91c7fbeb77c5c7d4879e2730e66f33d549f94",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "reason": "A prior transmitted request had an ambiguous outcome; automatic resubmission is blocked.",
+      "relationship_supported": "not_required"
+    },
+    {
+      "confidence": "low",
+      "contradiction_types": [
+        "insufficient_evidence"
+      ],
+      "decision": "uncertain",
+      "deterministic_contradictions": [
+        {
+          "detail": "A neutral portrait would erase the contract's required relationship, action, event or mechanism.",
+          "rule": "portrait_substitution"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "dominant_visual_message": "No validated provider judgement is available.",
+      "final_decision": "veto",
+      "final_reason": "deterministic_contradiction",
+      "image_id": "original:t01.jpg",
+      "materially_misleading": false,
+      "pair_id": "0d1095134b5c2225ea1d11ab56a5c19028ab198062c62b1f51c5ee76e207fe2f",
+      "quote_id": "4c135c053d61ff9441b6aed5b77213967f43489263ee9f80b49a4155ef93737e",
+      "reason": "A prior transmitted request had an ambiguous outcome; automatic resubmission is blocked.",
+      "relationship_supported": "not_required"
+    },
+    {
+      "confidence": "low",
+      "contradiction_types": [
+        "insufficient_evidence"
+      ],
+      "decision": "uncertain",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "No validated provider judgement is available.",
+      "final_decision": "veto",
+      "final_reason": "model_veto_or_uncertainty",
+      "image_id": "original:t01.jpg",
+      "materially_misleading": false,
+      "pair_id": "22b3e8b2e9781bc27b244e807b1e7ba5137faa7043e18af457432e9f4f1e8209",
+      "quote_id": "434c1f17b3bb99a0effc4c46299b891cf38aa514eecd56af4a7160bd8a77be53",
+      "reason": "A prior transmitted request had an ambiguous outcome; automatic resubmission is blocked.",
+      "relationship_supported": "not_required"
+    },
+    {
+      "confidence": "low",
+      "contradiction_types": [
+        "insufficient_evidence"
+      ],
+      "decision": "uncertain",
+      "deterministic_contradictions": [
+        {
+          "detail": "The image is a single-person scene but the proposition requires multiple actors.",
+          "rule": "insufficient_actor_count"
+        },
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "A neutral portrait would erase the contract's required relationship, action, event or mechanism.",
+          "rule": "portrait_substitution"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "dominant_visual_message": "No validated provider judgement is available.",
+      "final_decision": "veto",
+      "final_reason": "deterministic_contradiction",
+      "image_id": "original:t01.jpg",
+      "materially_misleading": false,
+      "pair_id": "b44d4cb08cc10b030fadf741503b6d5193306fa55a932c6f18aa6cd8d432567a",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "reason": "A prior transmitted request had an ambiguous outcome; automatic resubmission is blocked.",
+      "relationship_supported": "unknown"
+    },
+    {
+      "confidence": "low",
+      "contradiction_types": [
+        "insufficient_evidence"
+      ],
+      "decision": "uncertain",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "dominant_visual_message": "No validated provider judgement is available.",
+      "final_decision": "veto",
+      "final_reason": "deterministic_contradiction",
+      "image_id": "original:t01.jpg",
+      "materially_misleading": false,
+      "pair_id": "e1541c7390a51f92bcc0d53bf12b710a3f02ba1ac994977aab7c56363912082e",
+      "quote_id": "5592651c6952bbbec34e0f7ea8ba70584facee50299a3c22c58b90a5ba31ff11",
+      "reason": "A prior transmitted request had an ambiguous outcome; automatic resubmission is blocked.",
+      "relationship_supported": "not_required"
+    }
+  ],
+  "schema_version": 1
+}

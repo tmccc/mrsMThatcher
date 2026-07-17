@@ -1,0 +1,58 @@
+{
+  "allow_count": 5453,
+  "blocking_errors": [],
+  "generated_at": "2026-07-16T21:23:26.599003Z",
+  "image_count": 91,
+  "manifest_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json",
+  "manifest_sha256": "3e08320ffa8955e4bbad46444077ee0726e49dee90c29874a81cc872eb3751b0",
+  "pair_count": 5862,
+  "policy_version": "material-veto-v2-postrun-corrected-shadow-v1",
+  "quote_count": 626,
+  "schema_version": 1,
+  "source_file_hashes": {
+    "candidate_pair_manifest": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/production_top8_pair_candidates_v2_postrun_corrected.json",
+      "sha256": "b8f58f1f5b8e149760cf119f6e55d91db98480febb8b5f6584957ca2aafbbc4c"
+    },
+    "corrected_evaluation": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_evaluation_postrun_corrected.json",
+      "sha256": "2e929c043bbff79c5590d5d1227da4211a84750bdbf3def61f41a7e6ee17e7c7"
+    },
+    "corrected_final_status": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_status_postrun_corrected.json",
+      "sha256": "e57d7890b4369c62f3fdea90bde2aee7ee7578d63edd88f81d7a838ff6451e23"
+    },
+    "correction_audit": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/v2_postrun_correction_audit.json",
+      "sha256": "42c6d850f79bb410e6bcd7fc878e3bdf14567702ccc524fb282c21f642a81aed"
+    },
+    "image_contracts": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/attested_image_corpus_manifest_postrun_corrected.json",
+      "sha256": "d3e0f92f665200f5d3e7c76cc90b5dbc6d069cd45148e6b00ea3ea0db22b3115"
+    },
+    "image_corpus": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_001/image_corpus_manifest.json",
+      "sha256": "251cc8e1f3054c7042ae1d1969f58ca057470ce72e62f74be0f4e70e2dc23c17"
+    },
+    "pair_decisions": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/pair_judgements_v2_postrun_corrected.json",
+      "sha256": "44e5c22053b332c92f3a863f0fee19967cb8a8a6fc2f13d77a4bb53aea47d064"
+    },
+    "quotation_corpus": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_001/quote_corpus_manifest.json",
+      "sha256": "3af44e85fa2259e50d049210ca7152817eb9f2bd1e267837afbfb5eb98eb14c1"
+    },
+    "quote_contracts": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_002/semantic_contracts_v2.json",
+      "sha256": "4ac5e3093224519864759554fdb8339bdecc7806fa3eae858535db577763dc96"
+    },
+    "run_manifest": {
+      "path": "semantic_alignment_research/relation_aware_semantic_veto_001/run_manifest.json",
+      "sha256": "44076a13aef1ce92a520d8727325e363e48e6a173660b08e8212d08c1b65ce70"
+    }
+  },
+  "source_pair_ids_unique": true,
+  "strict": true,
+  "valid": true,
+  "veto_count": 409
+}

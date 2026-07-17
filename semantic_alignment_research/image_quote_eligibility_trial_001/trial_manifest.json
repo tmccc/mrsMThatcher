@@ -1,0 +1,143 @@
+{
+  "batch_size": 6,
+  "batches": [
+    {
+      "batch_id": "batch-01",
+      "candidate_ids": [
+        "00f4566964e0c88838ad",
+        "08fe3d43c27bece23076",
+        "0b15f11312a31033907d",
+        "0b42b54c4148ee2562fb",
+        "0c4634d8356f42dc4e0c",
+        "0fe7ed6333faf654b062"
+      ],
+      "estimated_input_tokens": 482035,
+      "image_hashes": [
+        "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+        "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+        "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+        "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+        "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+        "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9"
+      ],
+      "prompt_bytes": 1446103,
+      "prompt_path": "prompts/batch_01.txt",
+      "prompt_sha256": "63d0bd075e087b8d87a39fac216e2979cc423715604b995ddf6b70a422ab64dd"
+    },
+    {
+      "batch_id": "batch-02",
+      "candidate_ids": [
+        "149e63869f481474a798",
+        "168392f289b5df25f16b",
+        "253f9adb9e67db0a67d7",
+        "305d002e01745c0acd9b",
+        "36d6b17bedd4345d223e",
+        "3abe0be95aa60233f374"
+      ],
+      "estimated_input_tokens": 482350,
+      "image_hashes": [
+        "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+        "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+        "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+        "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+        "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+        "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2"
+      ],
+      "prompt_bytes": 1447050,
+      "prompt_path": "prompts/batch_02.txt",
+      "prompt_sha256": "bd5a565f4f33214bcc8084bc2b9a2fa80d100c99034e45e4aafa289c0c4cf08e"
+    },
+    {
+      "batch_id": "batch-03",
+      "candidate_ids": [
+        "3e16363d7234c33cd75e",
+        "47898be6bfefc5d49c03",
+        "5202e374b764482c4cda",
+        "539626eef2896af392c4",
+        "5ac817d960fb7eb0f974",
+        "62fe0c8d105bf2ad7c95"
+      ],
+      "estimated_input_tokens": 482714,
+      "image_hashes": [
+        "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+        "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+        "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+        "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+        "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+        "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
+      ],
+      "prompt_bytes": 1448141,
+      "prompt_path": "prompts/batch_03.txt",
+      "prompt_sha256": "73293df1767b76a99dbc1214486cd2433a9e0f02e8c06ec7b92e5530148ad784"
+    },
+    {
+      "batch_id": "batch-04",
+      "candidate_ids": [
+        "6966b6853551436e849b",
+        "7720de19eda682fe608d",
+        "7c9a2b387a67c9bd858c",
+        "7cdcd67a8066a3b12d28",
+        "86953c03fd343ef6fcc1",
+        "f8872af0e0d18261b23e"
+      ],
+      "estimated_input_tokens": 482097,
+      "image_hashes": [
+        "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+        "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+        "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+        "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+        "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+        "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072"
+      ],
+      "prompt_bytes": 1446291,
+      "prompt_path": "prompts/batch_04.txt",
+      "prompt_sha256": "5b8c23b9c30c2df26a83f2531673685db356182a98b2f6ba017cae75c0626f84"
+    }
+  ],
+  "corpus_template_version": "compact-quote-editorial-corpus-v1",
+  "eligible_corpus": {
+    "closure_audit_sha256": "b0af3d6d072ee00abfc8d0bf0b0acaa42c2a9a6c9a6751cc08507af8a6b88204",
+    "corpus_manifest_sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "eligible_quote_id_set_sha256": "376c4357d26d6f2262513941525e02ad7a3c88d591e3d3704fcfe77cd091062d",
+    "packet_count": 626,
+    "research_packets_sha256": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "unresolved_count": 6,
+    "unresolved_quote_ids": [
+      "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+      "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+      "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+      "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+      "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
+    ]
+  },
+  "generated_at": "2026-07-16T10:54:36.340941Z",
+  "human_labels_in_provider_inputs": false,
+  "image_count": 24,
+  "image_manifest_sha256": "adb6af5742ced6963fd94a9145592ba050698beebb740aa67c503b819d5ba219",
+  "image_work_dir": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/integration_preparation",
+  "prompt_parity": true,
+  "prompt_version": "source-grounded-image-quote-eligibility-v1",
+  "provider_prompt_hashes": {
+    "gemini": [
+      "63d0bd075e087b8d87a39fac216e2979cc423715604b995ddf6b70a422ab64dd",
+      "bd5a565f4f33214bcc8084bc2b9a2fa80d100c99034e45e4aafa289c0c4cf08e",
+      "73293df1767b76a99dbc1214486cd2433a9e0f02e8c06ec7b92e5530148ad784",
+      "5b8c23b9c30c2df26a83f2531673685db356182a98b2f6ba017cae75c0626f84"
+    ],
+    "grok": [
+      "63d0bd075e087b8d87a39fac216e2979cc423715604b995ddf6b70a422ab64dd",
+      "bd5a565f4f33214bcc8084bc2b9a2fa80d100c99034e45e4aafa289c0c4cf08e",
+      "73293df1767b76a99dbc1214486cd2433a9e0f02e8c06ec7b92e5530148ad784",
+      "5b8c23b9c30c2df26a83f2531673685db356182a98b2f6ba017cae75c0626f84"
+    ]
+  },
+  "providers": [
+    "grok",
+    "gemini"
+  ],
+  "quote_corpus_sha256": "c3ae6f56675ba045ab0a2413028f2ad9badcdea3ae18fa4b74efe15c45793906",
+  "research_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001",
+  "schema_version": 1,
+  "trial_name": "image_quote_eligibility_trial_001"
+}

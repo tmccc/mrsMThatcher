@@ -1,0 +1,1321 @@
+{
+  "critical_ally_cases": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "deterministic_contradictions": [
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "America was an allie of the uk!",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "5c6fad0524a9211fe99aca16def9a1bcb0dbdc47bcc721c59e8e88e85445945d",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "America was an allie of the uk! this in totally inappropriate",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "d5bd3fc575ca360e9439b30b23ec9ca218f35a35fde19a88dd5137025c18c72a",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "8c6e6a26ba997a99ecd3280e94f0a5f12981ed36b9b70fec7f525f09bed65df9",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    }
+  ],
+  "excluded_frozen_evidence": [
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "quote_id": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "reason": "image_not_in_authorised_corpus"
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "quote_id": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+      "reason": "image_not_in_authorised_corpus"
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "quote_id": "b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+      "reason": "image_not_in_authorised_corpus"
+    }
+  ],
+  "frozen_evaluation_only": true,
+  "gates": {
+    "all_eligible_frozen_pairs_evaluated": true,
+    "all_explicit_safety_rejections_vetoed": true,
+    "at_least_20_held_out_pairs": true,
+    "critical_ally_cases_all_vetoed": true,
+    "critical_ally_cases_present": true,
+    "explicit_safety_rejections_present": true,
+    "no_deterministic_contradiction_override": true
+  },
+  "generated_at": "2026-07-16T18:39:08.235494Z",
+  "human_labels_sent_to_model": false,
+  "metrics": {
+    "critical_ally_case_count": 3,
+    "critical_ally_veto_count": 3,
+    "deterministic_override_count": 0,
+    "eligible_frozen_pair_count": 73,
+    "evaluated_eligible_pair_count": 73,
+    "excluded_frozen_pair_count": 3,
+    "frozen_evaluation_pair_count": 76,
+    "labelled_pair_count": 73,
+    "missing_eligible_pair_count": 0,
+    "negative_count": 64,
+    "nonpreferred_allow_count": 5,
+    "nonpreferred_allow_rate": 0.079365,
+    "nonpreferred_pair_count": 63,
+    "positive_count": 9,
+    "positive_retained_count": 3,
+    "positive_retention_rate": 0.333333,
+    "safety_false_accept_count": 0,
+    "safety_rejection_count": 4,
+    "safety_rejection_veto_count": 4,
+    "safety_rejection_veto_rate": 1.0
+  },
+  "missing_eligible_pair_ids": [],
+  "nonpreferred_allows": [
+    {
+      "candidate_id": "08fe3d43c27bece23076",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "00d6c6ca96e9591800f3065e9bc928f64432aa21614289b99e01c72a1010bc9d",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "56ed82dc7c8b832354b21f004c5f402e95742c5646f910fdd6f97e7ac36b8df2",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "0f6d12f856f582a6d83e6194edf3fb3f02a706fa86498f8b2a3ea286fa5eaa15",
+      "quote_id": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "3b89f0e6709d3e794d366dd7f9d4fe7f59abefabb90e8e6415833283f0ce35cf",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "a383ef6e450648eecfd34e242f379691d530bafb55d24da3ff0fa2dc56d01dca",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "system_decision": "allow"
+    }
+  ],
+  "passed": true,
+  "records": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "f1785c430ca0e2f7bf8a08e4928b6da0b9fd6bd178727f15699535dd1964a6d6",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "4f5fec257b714d9a270f23933b38bf76d045d05dac18d8e7661853a2ef0b52e9",
+      "quote_id": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "02f589d86f97930b25fca74391ff98156c30c2c0bb7e41bc91b31d457c336f25",
+      "quote_id": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "deterministic_contradictions": [
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "America was an allie of the uk!",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "5c6fad0524a9211fe99aca16def9a1bcb0dbdc47bcc721c59e8e88e85445945d",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "08fe3d43c27bece23076",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "cf127d79f5668639d8e575eccbfb866867ef1418b6c5c29964bde1dac3f3a902",
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "08fe3d43c27bece23076",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "65d97be91ce37dc90c0c6009133d53033038fee876306e4cf5646f7806febb32",
+      "quote_id": "9da101e5b208e4cd67c66fac42a2c352d96bdfab712133bd929a5cd9f8c8ed62",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "08fe3d43c27bece23076",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "00d6c6ca96e9591800f3065e9bc928f64432aa21614289b99e01c72a1010bc9d",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "baee0c773514c71b4eb9ef0b4edb15655e08950d3c0701ab3d94ecd49f8ced99",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "America was an allie of the uk! this in totally inappropriate",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "ed45cec6eba9e12094ebeb1607cee30574417f37c2d2c537010017523f841290",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "America was an allie of the uk! this in totally inappropriate",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "d5bd3fc575ca360e9439b30b23ec9ca218f35a35fde19a88dd5137025c18c72a",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "d13f22ea28ae6b3e445f7bcc73828c8dc8e24f4ca4e84595d64e36d81319bd77",
+      "quote_id": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "cbda2b106f086883cb3e4bb0af48937628ee7dc13093440a9ff9b01871d7d3a9",
+      "quote_id": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "91e6fd2cbd4b9685019bf7cd07d76a35e59e68efc26346cf699d2e0bdee042bd",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "b739befc170fd1bfc3ff5f5767add5036341986393dce185f1a4850c6cfc6f33",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "09b015f5e376b84233170cb789a642f2cb36cad8f41aae4aa42123e5f81e5562",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "503c2d26db085aece4a6b7351de8296db9f88f28257f368e55af8f6ab194fe26",
+      "quote_id": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "7deee86a3a64dfb5498df8a8cd636af673035d80b0bd9f99280e79ea99094fa4",
+      "quote_id": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "56ed82dc7c8b832354b21f004c5f402e95742c5646f910fdd6f97e7ac36b8df2",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "deterministic_contradictions": [
+        {
+          "detail": "The image is a single-person scene but the proposition requires multiple actors.",
+          "rule": "insufficient_actor_count"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "aef10942faf76cf06aa12dd3c84d36c150566a45849b77020e93809098207bdb",
+      "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "deterministic_contradictions": [
+        {
+          "detail": "The image is a single-person scene but the proposition requires multiple actors.",
+          "rule": "insufficient_actor_count"
+        },
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "a24384bc9f85c05bf369624c501b40b0fe7d52bc3dc33ad7dcd4788284619978",
+      "quote_id": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "31d7536c61fd522e38db5ff2b2d8b7eebbbe10250bf1b011012ddca398e13f32",
+      "quote_id": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "a5b7921d9ba29de808114abbd09f434b448961801568151debbc07db31f3c619",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "dcf27e4de06131b815ec4817ea3c896399cceae5312123b11a9301ef408cdcf5",
+      "quote_id": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "87f00901a0c672bb76d12eaec4a047c5addc74aa5ae6739c37ed820f2db6e2b6",
+      "quote_id": "3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "8c6e6a26ba997a99ecd3280e94f0a5f12981ed36b9b70fec7f525f09bed65df9",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "b0f5856d41a5efd424d62a03231b60f0436c8fc6ce40fe35743a0e0aaede378a",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "3f65a0a1470ad54798e0c055f0c3ec3427276032747d2ac942b7996eab9646df",
+      "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "0641f7ec91d16cf8688baf7560d20acb8d3b6a30786515c13156976005f312f1",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "8e36bf94a56db45630e306fc610dcb61ed53b19605531237b0ec61856e39114f",
+      "quote_id": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "d3a73abb863cb3b5dbe4677b181e49ed563f7c6ccff00f7ccca9f159742bc66f",
+      "quote_id": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "deterministic_contradictions": [],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "342cc143a94caedcd41c913834c9a5ddac68e44814b1f6ad1fd8c93fd20c123e",
+      "quote_id": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "deterministic_contradictions": [],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "23642b0649c9264e14351866f6639fcada60669983d1e8bc039965aeb07b9626",
+      "quote_id": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "deterministic_contradictions": [],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "0cd6a32dca59d079354267ba91c4c3063faf1cea46aa7b3c06d9dc27a1f9ecc3",
+      "quote_id": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "bb9a4f49bfda66ba46f3381be6987d6541a57c0cf3831a16a1af886bf97745df",
+      "quote_id": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "443c0b9aa2bebb3b6ea7452694d7ba393b60dce512114fe68fee8b7bc4ca87a6",
+      "quote_id": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "d1f40f47c9ac16e41963a8a8199755913d5f36419650821b97c9388f1ee10e31",
+      "quote_id": "7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "d1830f5db36e301d3394cd1c84636d34856f1593efe5466dd60c662832394927",
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "6a15ec9c2f6dd364aa16f0760611dde520086cf5c6f69ff2f5e9c6052945e808",
+      "quote_id": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "35a75fdefe160cae617165595baef8deaf2546efc38a968e6c9ae545752dbc72",
+      "quote_id": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "0f6d12f856f582a6d83e6194edf3fb3f02a706fa86498f8b2a3ea286fa5eaa15",
+      "quote_id": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "6de5a8c761ad205dea127d0374f3db54b2b615d90295b5e0c19281a688b6d989",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "0dfe835e202850f534b8039cecb77e6a54399fa696ea2a2c2ef6dddbc846f071",
+      "quote_id": "9ca405cce5d93e873fe04501f549fc26591289ed917c0fa9828368106b98e85e",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "49822714d2a5b3e9a9690fce45ed6c3048ca6fabe711105691fbbb0a9a4bc273",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "fc2aca5d29e3e4632474aa00473aec5f1a1f8ca798e97c9ce760f63f7cdb72db",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires an adversarial starting relationship, but local canonical evidence identifies established allies/friends.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "d6bb80acdd3d21eef116f231c43f5325a7c34df6c9ce05a3517f2592f669fda8",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "a6a21bdd35660cf7d353252f8f524003f9f985cc7e76a0068f83a65e7e76cc0f",
+      "quote_id": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "649f6b491a7c461746c0eeaaf9c1dcf9e59fb2cfe086b5922db46c8749794892",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "99c21fdabbd980ab1c956e55bb6c7491e6028e3e2801413e9400694476e53a2f",
+      "quote_id": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "097651ddf3fe93a493caf7fbb9d79e24d0e595fe6322c7030784e5c4d6ad3837",
+      "quote_id": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "548d2bded581bbfdc38dca962e944d9a4fba5e69e0c2385951872bd091cdb57a",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "ae6eecf57774605bf6f306a9eabeb1f3b6271077f46bb386f33f7359446b1f6b",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "ac4bff5b45a7a5ab623fc6a915610f5865a15d0a3048dee7176f60bcdc0d8789",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "02ba7bda7fdea1dbf1f174180b2793514e47bedbd8c34cf615ccf06cf57ba74d",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "295b00426d2d5fde5801ba0beb6305028e7ea8c57826179e705139b71cbcbcf6",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "3b89f0e6709d3e794d366dd7f9d4fe7f59abefabb90e8e6415833283f0ce35cf",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "allow",
+      "pair_id": "a383ef6e450648eecfd34e242f379691d530bafb55d24da3ff0fa2dc56d01dca",
+      "quote_id": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "system_decision": "allow"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "2b4609a4e2295e8110072d153973a21d7a2072d42f67681d580ad4a07110a20c",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "c01cd64a17d0ce2b09c92bd4a0e72f5f250f91cad5a0c0dffe025ca7b7a5bf11",
+      "quote_id": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "6966b6853551436e849b",
+      "deterministic_contradictions": [
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "25fc3d23f177db2482591478401e6ee6f8f57df946cd5fe6ae8f4bd760f0f7e5",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "6966b6853551436e849b",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "5c33593e8e86e2a4c8af232e5bd966ff6d1c1b8db4383b73033792fd6f89e38d",
+      "quote_id": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "6966b6853551436e849b",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "73fb63c6e64156ee0f321a2c016b8b42fd992dd85f7f51f73799abc5342ad3a8",
+      "quote_id": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7720de19eda682fe608d",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "95d5b49fc19da376e00f2f2e4f73789ce1c9365c9e3fabdcd6fd291d5f236643",
+      "quote_id": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7720de19eda682fe608d",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "df7d4e685816dd908b4d39ab3a2c3e27ebf72b61b2b64fe09032151bbc167bad",
+      "quote_id": "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7720de19eda682fe608d",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "reject_pairing",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": true,
+      "model_decision": "veto",
+      "pair_id": "01612ee8bdc99ae16e865b0e7d2446e6ae814f3fc39638287336a06aac93ddd6",
+      "quote_id": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "approve_pairing",
+      "human_note": "",
+      "human_positive": true,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "656bfb241d2326ea751e52740952add522ca6976334e9f1bde83d86df95f0ce4",
+      "quote_id": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "02a08a543fec94c17ae2f68f30da5bf08009a3eeaf92c8e86748757848632dc6",
+      "quote_id": "f54310ea811165cc0aa6cd700407f098510142b4f033bab9b608e62288e6e1b9",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "deterministic_contradictions": [
+        {
+          "detail": "A neutral portrait would erase the contract's required relationship, action, event or mechanism.",
+          "rule": "portrait_substitution"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "88583f14bac904f4da0c0b15f5595251517a4d3010c8bacfdfe534b8c138c542",
+      "quote_id": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "deterministic_contradictions": [
+        {
+          "detail": "The image is a single-person scene but the proposition requires multiple actors.",
+          "rule": "insufficient_actor_count"
+        },
+        {
+          "detail": "A neutral portrait would erase the contract's required relationship, action, event or mechanism.",
+          "rule": "portrait_substitution"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "7a9455a26e54b6c421adb0ad99a31cb0625357520bec6c9b457d74252cdd9c6f",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "a663b7bec727e52358455a05ea10d55c2dcd7ffa3bca7587634d7afb5288aed3",
+      "quote_id": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "deterministic_contradictions": [
+        {
+          "detail": "None of the contract's required named entities is established by image provenance.",
+          "rule": "wrong_named_entity"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "feaadc06dda69e9bcbf9d62615ca7973a7fa17ab14889d980076ec756b886792",
+      "quote_id": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "deterministic_contradictions": [
+        {
+          "detail": "The quotation requires a known relationship, but source-grounded image provenance does not establish one.",
+          "rule": "missing_relationship_evidence"
+        },
+        {
+          "detail": "No source-grounded adversary-to-partner transition is established for the depicted participants.",
+          "rule": "missing_transition"
+        }
+      ],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "fd9708993e6065203948d29e379969362a817ea2cc61c52dd97b0a95a8e03023",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "4388dde0cf7a986e8634345a1355daa89266a80087bccb902bf734d7b212c3fc",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "system_decision": "veto"
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "deterministic_contradictions": [],
+      "human_decision": "prefer_existing_image",
+      "human_note": "",
+      "human_positive": false,
+      "human_safety_rejection": false,
+      "model_decision": "veto",
+      "pair_id": "4cb3650284200bb7603a94c036f363e192840e79b0ce53a63698899549f8aff7",
+      "quote_id": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+      "system_decision": "veto"
+    }
+  ],
+  "safety_false_accepts": [],
+  "schema_version": 1,
+  "scope": "full"
+}

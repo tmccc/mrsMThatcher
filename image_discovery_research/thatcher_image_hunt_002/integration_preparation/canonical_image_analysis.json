@@ -1,0 +1,2908 @@
+{
+  "analysis_kind": "images",
+  "created_at": "2026-07-16T06:00:34.749041Z",
+  "current_hashes": [
+    "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+    "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+    "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+    "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+    "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+    "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+    "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+    "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+    "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+    "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+    "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+    "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+    "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+    "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+    "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+    "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+    "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+    "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+    "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+    "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+    "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+    "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
+  ],
+  "failures": {},
+  "file_metadata": {},
+  "items": {
+    "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463": {
+      "analysed_at": "2026-07-16T06:00:56.386751Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 15,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 85
+        },
+        "description": "Close-up profile view of a woman with styled wavy brown hair and pearl earrings, wearing a blue sequined garment with a dark blue velvet ruffled collar. She is smiling with mouth open, against a dark, indistinct background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "personal"
+          ],
+          "best_for_topics": [
+            "personal_reflection"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Warm smiling close-up supports personal or reflective quotations; limited topical specificity.",
+          "semantic_specificity": 25,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "smiling",
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 78,
+          "overall": 82,
+          "subject_clarity": 88,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal close-up portrait in profile, subject smiling warmly in elegant attire with dark backdrop.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "dark background"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm"
+        ],
+        "visible_elements": [
+          "blue sequined top",
+          "velvet ruffled collar",
+          "pearl earring",
+          "styled hair"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:ThatcherProfile.JPG ThatcherProfile Profile photo of former Prime Minister Margaret Thatcher",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+      "paths": [
+        "production_ready/candidate-08fe3d43c27bece23076.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "67d7d650-c4bd-929a-b7c8-dc5f0a345e9c",
+      "source_size_bytes": 20156,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 441,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 987,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 65568500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2497,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 156,
+          "text_tokens": 2341
+        },
+        "total_tokens": 3925
+      }
+    },
+    "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9": {
+      "analysed_at": "2026-07-16T06:01:43.072718Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "An older man in a sweater vest smiles while seated on a colorful sofa next to a formally dressed woman with clasped hands; both occupy the foreground of a residential living room with a third person visible in the background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "personal_reflection",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Fits calm, personal or reflective quotations in a domestic setting; low energy suits subdued or contemplative tones.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "sitting",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 82,
+          "crop_suitability_for_x": 78,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Two seated figures in a domestic living-room setting, one smiling and one composed, with a background attendant.",
+        "scene_types": [
+          "informal_portrait",
+          "family_or_social"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "residential living room",
+            "comfortable domestic furniture",
+            "large windows with curtains"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "patterned sofa",
+          "woven chairs",
+          "fruit bowl",
+          "curtains",
+          "wooden table",
+          "lamp",
+          "patchwork quilt"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" Depicted people: Ronald Reagan and Margaret Thatcher",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "paths": [
+        "production_ready/candidate-0fe7ed6333faf654b062.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "1f619b98-3154-9a42-9ae2-a752d7c4fb87",
+      "source_size_bytes": 721721,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 543,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 918,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 72292500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4743,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2402,
+          "text_tokens": 2341
+        },
+        "total_tokens": 6204
+      }
+    },
+    "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b": {
+      "analysed_at": "2026-07-16T06:02:18.309003Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white photograph of a woman in a light suit leaning forward to sign a large open ledger or document with a pen at a table. A man in a dark pinstripe suit stands immediately to her right, watching the action with hands at his sides. Additional figures appear partially in the background near an open doorway. The setting is a formal indoor room with plain walls and framed pictures.",
+        "historical_context": {
+          "confidence": 20,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Fits formal official or governmental quotations involving signing or ceremony; low visual energy suits reflective or serious tones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "signing document",
+            "observing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 78,
+          "crop_suitability_for_x": 75,
+          "overall": 82,
+          "subject_clarity": 88,
+          "technical_quality": 80
+        },
+        "scene_summary": "Woman signing a ledger while a man observes in a formal indoor setting.",
+        "scene_types": [
+          "office_or_working",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "formal room",
+            "office interior",
+            "doorway"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "pen",
+          "open ledger",
+          "table",
+          "dark suit",
+          "light suit",
+          "doorway",
+          "framed pictures"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "source_caption",
+        "confidence": "high",
+        "evidence": "Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "paths": [
+        "production_ready/candidate-253f9adb9e67db0a67d7.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "e0748ed9-17e3-9edd-a0a0-af40b0c3e347",
+      "source_size_bytes": 38590,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 493,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 782,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 40042500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2535,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 194,
+          "text_tokens": 2341
+        },
+        "total_tokens": 3810
+      }
+    },
+    "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2": {
+      "analysed_at": "2026-07-16T06:03:06.769845Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "landscape",
+          "shot_type": "group",
+          "subject_prominence": 75
+        },
+        "description": "Black-and-white photograph of a middle-aged woman in a double-breasted coat and pearl necklace smiling while interacting closely with several suited men in a dense outdoor crowd. A police officer in a custodian helmet stands in the foreground; additional men in overcoats and ties surround the central group. A dark car is partially visible behind them. The scene shows public engagement with onlookers in the lower frame.",
+        "historical_context": {
+          "confidence": 30,
+          "event_or_context_hint": "public political engagement or arrival",
+          "specificity": "suggestive",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "democracy",
+            "government"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Suitable for quotations about public leadership or political engagement; the visible interaction and formal attire support tones of warmth combined with seriousness. Avoids strong seasonal or highly specific topical constraints.",
+          "semantic_specificity": 40,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "crowd",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "greeting",
+            "conversing",
+            "standing in group"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "serious",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 75,
+          "crop_suitability_for_x": 70,
+          "overall": 85,
+          "subject_clarity": 80,
+          "technical_quality": 80
+        },
+        "scene_summary": "Outdoor public gathering with a central female figure greeting or conversing amid suited officials and police presence in a crowd.",
+        "scene_types": [
+          "outdoor_public_event",
+          "crowd"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No visible seasonal indicators such as foliage, weather, or decorations.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "pavement",
+            "crowded street scene",
+            "vehicle present"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "double-breasted coat",
+          "pearl necklace",
+          "police custodian helmet",
+          "dark overcoats",
+          "striped ties",
+          "dark saloon car",
+          "crowd of onlookers",
+          "formal suits"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "paths": [
+        "production_ready/candidate-3e16363d7234c33cd75e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "3a4601aa-eb1b-9724-99ee-3bb18cf45d9d",
+      "source_size_bytes": 345434,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 624,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 597,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 50792500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3503,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 1162,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4724
+      }
+    },
+    "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0": {
+      "analysed_at": "2026-07-16T06:04:29.321491Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 90
+        },
+        "description": "Head-and-shoulders portrait of an elderly woman in very formal black attire, wearing an elaborate black hat with feathers, netting and veil trim, a pearl necklace, a silver floral brooch and pearl earrings. Her expression is serious and composed against a plain, bright, out-of-focus background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "solemn",
+            "authoritative",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "personal_reflection",
+            "history"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with formal, reflective or solemn quotations; the restrained formal attire and serious expression suit contemplative or dignified contexts.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 85,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal half-body portrait of an older woman in black mourning-style attire and ornate hat, serious expression, plain light background.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as foliage, weather, clothing layers or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "plain light neutral background"
+          ],
+          "location_type": "unknown"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "solemn"
+        ],
+        "visible_elements": [
+          "black wide-brimmed hat with feathers and mesh veil",
+          "pearl necklace",
+          "silver floral brooch",
+          "black coat or jacket",
+          "pearl earrings",
+          "purple lipstick"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Margaret Thatcher Reagan funeral.jpg Margaret Thatcher Reagan funeral Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+      "paths": [
+        "production_ready/candidate-7c9a2b387a67c9bd858c.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "39a39553-61ea-9ded-a670-f089256ad907",
+      "source_size_bytes": 338829,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 562,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 855,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 50992500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3127,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 786,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4544
+      }
+    },
+    "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f": {
+      "analysed_at": "2026-07-16T06:04:03.059857Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "A woman and a man stand side by side outdoors in front of a building, both smiling toward the camera. The woman wears a black jacket with white heart and circle patterns over a white blouse and pearl necklace; the man wears a dark suit, white shirt, dark tie, and pocket square. Bright daylight illuminates the scene under an overhang with green foliage visible.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "personal_reflection"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with quotations emphasizing personal warmth, diplomatic rapport, or reflective leadership moments between figures.",
+          "semantic_specificity": 30,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "smiling",
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 82,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Two formally attired adults posing together outdoors with warm smiles in a daylight photo opportunity.",
+        "scene_types": [
+          "informal_portrait",
+          "outdoor_public_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as foliage color, weather, or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "in front of building",
+            "under overhang",
+            "daylight",
+            "brick exterior"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "patterned jacket",
+          "dark suit",
+          "white blouse",
+          "pearl necklace",
+          "smiling expressions",
+          "brick wall",
+          "overhang",
+          "foliage"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Margaret Thatcher poses with George H. W. Bush 1987.jpg Margaret Thatcher poses with George H. W. Bush 1987 Margaret Thatcher with George H. W. Bush",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "paths": [
+        "production_ready/candidate-6966b6853551436e849b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "944ea222-726d-9b81-b890-d1b2d34dbc2a",
+      "source_size_bytes": 173721,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 577,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 864,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 68130000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4450,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2109,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5891
+      }
+    },
+    "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554": {
+      "analysed_at": "2026-07-16T06:03:37.291262Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 65,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 75
+        },
+        "description": "Formal indoor scene in an ornate room with chandeliers and a fireplace. A woman in a black suit smiles while exchanging a ribbon-wrapped rectangular item with a man in a gray suit; several microphones and cameras are visible in the foreground, with other formally dressed individuals and a large mirror reflecting press activity in the background.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "formal diplomatic ceremony or gift exchange",
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "solemn",
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "government",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Suitable for formal, diplomatic, or ceremonial quotations emphasizing courtesy, international relations, or official exchange; less ideal for energetic, domestic, or casual topics.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "exchanging item",
+            "smiling",
+            "standing"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "serious",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 80
+        },
+        "scene_summary": "Diplomatic or ceremonial gift exchange or presentation captured by media in an elegant historic interior.",
+        "scene_types": [
+          "diplomatic_event",
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor formal setting with no decorations or foliage cues.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate historic room",
+            "marble fireplace",
+            "gold-framed mirrors",
+            "crystal chandeliers",
+            "wood paneling"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "solemn",
+          "serious"
+        ],
+        "visible_elements": [
+          "microphones",
+          "cameras",
+          "wrapped gift",
+          "chandelier",
+          "fireplace",
+          "floral arrangement",
+          "large mirror",
+          "formal suits",
+          "necktie",
+          "floral blouse"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Senator Bob Dole presenting Margaret Thatcher with a gift.jpg Senator Bob Dole presenting Margaret Thatcher with a gift Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "paths": [
+        "production_ready/candidate-5ac817d960fb7eb0f974.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "e506a63e-2723-9eab-87da-c64172a1fae0",
+      "source_size_bytes": 439689,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 625,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 463,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 62217500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4683,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2342,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5771
+      }
+    },
+    "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb": {
+      "analysed_at": "2026-07-16T06:01:19.755984Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "A woman and a man in formal business attire shake hands across a long wooden table inside a large chamber with rows of empty chairs. Other suited figures stand or sit in the background. A glass pitcher, ashtray, papers and a plastic cup rest on the table surface.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "formal political or diplomatic meeting in a legislative chamber",
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "foreign_policy"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Strong match for formal, serious political or diplomatic quotations involving agreement, negotiation or statesmanship; less suitable for informal, humorous or highly specific policy topics.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "shaking hands",
+            "leaning across table"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 92,
+          "technical_quality": 88
+        },
+        "scene_summary": "Formal handshake across a table in a legislative-style chamber with several onlookers.",
+        "scene_types": [
+          "parliament",
+          "diplomatic_event",
+          "office_or_working"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor formal setting with no decorations or weather cues.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "large chamber",
+            "wooden table",
+            "rows of empty chairs",
+            "plain walls"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "handshake",
+          "wooden table",
+          "glass pitcher",
+          "ashtray",
+          "papers",
+          "plastic cup",
+          "formal suits",
+          "rows of chairs"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:CAC CC 001 18 15 0000 1411.jpg CAC CC 001 18 15 0000 1411 Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "paths": [
+        "production_ready/candidate-0b42b54c4148ee2562fb.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "230eb839-1d1d-9182-9957-e0d449f585b2",
+      "source_size_bytes": 1015541,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 590,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 551,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 86568500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4751,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 2410,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5892
+      }
+    },
+    "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0": {
+      "analysed_at": "2026-07-16T06:02:06.623873Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "A formally dressed man and woman stand side by side indoors, smiling and shaking hands in front of a marble fireplace and large landscape painting. The man wears a dark pinstripe suit with a striped tie; the woman wears a magenta satin blouse with a large bow and pearl necklace. Both appear in half-body view against ornate wallpaper and decorative objects.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "formal diplomatic meeting or state visit",
+          "specificity": "suggestive",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "foreign_policy",
+            "government"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Strong match for formal, diplomatic, or leadership quotations emphasizing cooperation or statesmanship; the warm smiles and handshake support positive or collaborative tones. Avoid for combative, humorous, or domestic policy topics.",
+          "semantic_specificity": 60,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "shaking hands",
+            "smiling at camera"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 95,
+          "technical_quality": 90
+        },
+        "scene_summary": "Posed diplomatic handshake between two smiling individuals in an elegant, formal interior setting with historical furnishings.",
+        "scene_types": [
+          "diplomatic_event",
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor formal setting with no foliage, weather, or holiday cues.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "ornate historic interior",
+            "marble fireplace mantel",
+            "large landscape painting above fireplace",
+            "patterned wallpaper",
+            "crystal or glassware on mantel"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "handshake",
+          "formal suit",
+          "satin blouse with bow",
+          "pearl necklace",
+          "marble fireplace",
+          "large framed landscape painting",
+          "ornate wallpaper",
+          "decorative urn",
+          "gold-framed mirror"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg President Ronald Reagan meeting with Prime Minister Margaret Thatcher 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "paths": [
+        "production_ready/candidate-168392f289b5df25f16b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "3e98bf6c-819f-9948-a32f-e0675b22c0ab",
+      "source_size_bytes": 635077,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 639,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 467,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 63417500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4743,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2402,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5849
+      }
+    },
+    "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44": {
+      "analysed_at": "2026-07-16T06:01:08.151103Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 55,
+          "orientation": "portrait",
+          "shot_type": "full_body",
+          "subject_prominence": 85
+        },
+        "description": "Full-body formal portrait of a man in a dark blue suit with red patterned tie and a woman in a dark patterned dress with pearls and brooch, standing side by side indoors in front of a large framed painting. Both face the camera with neutral to slight-smile expressions in an ornate room with wallpaper, wainscoting, and a lamp.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "foreign_policy"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with formal, diplomatic or leadership quotations that suit a composed, elegant indoor setting.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing for camera"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 92,
+          "technical_quality": 90
+        },
+        "scene_summary": "Two adults in formal attire posed together in an elegant interior with a prominent painting behind them.",
+        "scene_types": [
+          "formal_portrait",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as foliage, weather, or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "formal room",
+            "ornate wall decor",
+            "large painting",
+            "wooden furniture"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "dark suit",
+          "patterned tie",
+          "patterned dress",
+          "pearl necklace",
+          "brooch",
+          "large framed painting",
+          "table lamp",
+          "wallpaper",
+          "wood trim"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "paths": [
+        "production_ready/candidate-0b15f11312a31033907d.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "7858c928-9a3a-9d3b-b121-be4e5d4f7a71",
+      "source_size_bytes": 98109,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 585,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 669,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 63093500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2647,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 306,
+          "text_tokens": 2341
+        },
+        "total_tokens": 3901
+      }
+    },
+    "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35": {
+      "analysed_at": "2026-07-16T06:04:16.588322Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 25,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "A man and a woman stand side-by-side in front of a dark wooden door, both smiling toward the camera. The man wears a grey suit, white shirt and patterned tie; the woman wears a beige jacket, patterned blouse and necklace. Natural daylight illuminates the scene.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "family",
+            "personal_reflection"
+          ],
+          "general_reusability": 55,
+          "matching_summary": "Best paired with warm or reflective quotations; the calm, smiling pose supports personal rather than combative or policy-driven content.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 78,
+          "crop_suitability_for_x": 75,
+          "overall": 82,
+          "subject_clarity": 88,
+          "technical_quality": 80
+        },
+        "scene_summary": "Formal half-body portrait of a man and woman posed together at a building entrance.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators such as foliage, weather or decorations are visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "building entrance",
+            "wooden door frame"
+          ],
+          "location_type": "mixed"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "grey suit",
+          "patterned tie",
+          "beige jacket",
+          "necklace",
+          "wooden door",
+          "smiling expressions"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/png",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Denis and Margaret Thatcher in 1984.png Denis and Margaret Thatcher in 1984 Denis and Margaret Thatcher in 1984.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "paths": [
+        "production_ready/candidate-7720de19eda682fe608d.png"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "df5bce11-06bf-919f-8dd5-bde17e03b35e",
+      "source_size_bytes": 454898,
+      "source_suffix": ".png",
+      "usage": {
+        "completion_tokens": 486,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 1062,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 47267500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2567,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 226,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4115
+      }
+    },
+    "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4": {
+      "analysed_at": "2026-07-16T06:03:17.659707Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "group",
+          "subject_prominence": 85
+        },
+        "description": "Group of eight formally attired adults (seven men, one woman) standing in a line outdoors on a stone platform, posing for a photograph in front of a large historic stone building featuring prominent Gothic-style arched windows and doorways.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "international diplomatic gathering or summit",
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "foreign_policy",
+            "national_identity"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Best paired with quotations on statesmanship, international relations, or formal leadership; static formal group composition suits reflective or serious tones rather than dynamic or personal ones.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "very_formal",
+          "primary_subject_activities": [
+            "standing",
+            "posing for photograph"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "smiling"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 95,
+          "technical_quality": 90
+        },
+        "scene_summary": "Formal outdoor group portrait of political or diplomatic figures arranged in front of ornate historic architecture, with flowers visible in the foreground.",
+        "scene_types": [
+          "formal_portrait",
+          "diplomatic_event",
+          "outdoor_public_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; clothing and setting are year-round formal.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "historic stone building with Gothic arches",
+            "stone steps/platform",
+            "flower beds"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "leadership",
+          "government"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "formal suits",
+          "neckties",
+          "woman in white jacket and black skirt",
+          "stone Gothic architecture",
+          "arched windows",
+          "stone platform",
+          "red flowers in foreground"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:14th G7 summit.jpg 14th G7 summit G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "paths": [
+        "production_ready/candidate-5202e374b764482c4cda.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "1646eea9-7bf2-98af-b89a-211c43854158",
+      "source_size_bytes": 448013,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 469,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 498,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 67618500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3583,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 1242,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4550
+      }
+    },
+    "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8": {
+      "analysed_at": "2026-07-16T06:02:30.473626Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 15,
+          "orientation": "portrait",
+          "shot_type": "close_up",
+          "subject_prominence": 95
+        },
+        "description": "Close-up head-and-shoulders portrait of an older woman with light reddish hair, wearing a large dark-blue hat, pearl earrings, a patterned blue blouse and dark outer garment. She gazes slightly to her right with a neutral, composed expression against a blurred earthy outdoor background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "personal_reflection"
+          ],
+          "general_reusability": 55,
+          "matching_summary": "Restrained formal portrait suits contemplative or measured quotations; low visual energy limits use with energetic or combative themes.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "neutral"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 75,
+          "overall": 82,
+          "subject_clarity": 90,
+          "technical_quality": 80
+        },
+        "scene_summary": "Formal head-and-shoulders portrait of a woman in a blue hat with neutral expression in soft outdoor light.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible in clothing, setting or objects.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "blurred earthy background"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "reflective"
+        ],
+        "visible_elements": [
+          "blue hat",
+          "pearl earring",
+          "patterned blouse",
+          "dark outer garment"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:Margaret Thatcher headshot.jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+      "paths": [
+        "production_ready/candidate-305d002e01745c0acd9b.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "34fffc0a-a47f-91f3-9a5e-3f89bd45a815",
+      "source_size_bytes": 62011,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 520,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 942,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 47305000,
+        "num_sources_used": 0,
+        "prompt_tokens": 2742,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 401,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4204
+      }
+    },
+    "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a": {
+      "analysed_at": "2026-07-16T06:00:45.116206Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "A man in a navy blazer and light trousers stands with hands in pockets facing a woman in a multicoloured polka-dot jacket who holds a black handbag; they appear to be in mid-conversation indoors. Several other people stand behind them near ornate wooden doors.",
+        "historical_context": {
+          "confidence": 20,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Suitable for quotations on diplomatic exchange or serious leadership dialogue; limited energy and specific formal attire reduce broader reuse.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "conversing",
+            "facing each other"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Close conversation between two formally dressed individuals with others visible in the background inside a formal interior.",
+        "scene_types": [
+          "diplomatic_event",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "formal interior",
+            "wooden doors with carvings",
+            "wall decorations"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious"
+        ],
+        "visible_elements": [
+          "navy blazer",
+          "light trousers",
+          "polka-dot jacket",
+          "black handbag",
+          "wooden double doors",
+          "potted plant",
+          "light blue shirt",
+          "brown belt"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Thatcher and Bush - 1990 - P14935-18A.jpg Thatcher and Bush - 1990 - P14935-18A President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "paths": [
+        "production_ready/candidate-00f4566964e0c88838ad.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "cf583aea-812a-96fc-acf2-8330448ac3d3",
+      "source_size_bytes": 236718,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 556,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 616,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 67018500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3125,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 784,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4297
+      }
+    },
+    "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7": {
+      "analysed_at": "2026-07-16T06:01:55.022912Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "full_body",
+          "subject_prominence": 85
+        },
+        "description": "A man and a woman walk side-by-side along a paved path through a leafless woodland. The woman wears a long beige coat and carries gloves and a clutch; the man wears a black leather flight jacket bearing the presidential seal and Air Force One markings, khaki trousers and brown gloves, with one arm extended mid-gesture. Bare trees line the path under an overcast sky; fallen leaves lie on the ground.",
+        "historical_context": {
+          "confidence": 40,
+          "event_or_context_hint": "informal outdoor walk involving a national leader",
+          "specificity": "general",
+          "visible_symbols": [
+            "presidential flight jacket insignia"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "reflective",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "foreign_policy",
+            "personal_reflection"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Calm outdoor walk with visible authority symbols suits reflective or diplomatic quotations; low energy and autumn setting limit use for high-energy or seasonal topics.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "semi_formal",
+          "primary_subject_activities": [
+            "walking",
+            "gesturing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 92,
+          "technical_quality": 88
+        },
+        "scene_summary": "Two figures walking on a wooded path in cool, bare-tree conditions; the man gestures while speaking.",
+        "scene_types": [
+          "outdoor_public_event",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "bare trees",
+            "fallen brown leaves on ground"
+          ],
+          "explanation": "Visible bare branches and leaf litter indicate late autumn or early winter; clothing is consistent with cool weather but no holiday symbols.",
+          "occasions": [],
+          "strength": "moderate",
+          "visible_season": "autumn"
+        },
+        "setting": {
+          "details": [
+            "wooded path",
+            "bare deciduous trees",
+            "overcast daylight",
+            "scattered autumn leaves"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "reflective"
+        ],
+        "visible_elements": [
+          "paved path",
+          "bare trees",
+          "fallen leaves",
+          "beige overcoat",
+          "black leather jacket",
+          "presidential seal",
+          "Air Force One text",
+          "gloves",
+          "clutch handbag",
+          "khaki trousers"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Presidential seal and 'AIR FORCE ONE' lettering on jacket"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "paths": [
+        "production_ready/candidate-149e63869f481474a798.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "d3bbdc0c-577c-990e-9bbb-112f6db2169a",
+      "source_size_bytes": 263941,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 675,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 471,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 51667500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3723,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 1382,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4869
+      }
+    },
+    "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072": {
+      "analysed_at": "2026-07-16T06:04:48.251428Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 45,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 75
+        },
+        "description": "Black-and-white photograph showing a formally dressed man and woman standing close together on an airport tarmac directly beneath the wing of a large jet airliner. The woman holds a handbag and wears a patterned scarf; the man wears a dark suit and tie. Several other suited men stand nearby, with airport vehicles and buildings visible in the background under bright daylight.",
+        "historical_context": {
+          "confidence": 30,
+          "event_or_context_hint": "airport arrival or departure scene",
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "foreign_policy",
+            "leadership",
+            "government"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Suitable for formal, diplomatic or travel-related quotations; strong visual formality and international-travel setting support leadership or foreign-policy topics but lack specific symbols or action.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "conversing"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "smiling"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 88,
+          "technical_quality": 82
+        },
+        "scene_summary": "Two formally attired individuals conversing on an airport tarmac in front of a large passenger jet, with aides and ground equipment visible.",
+        "scene_types": [
+          "international_travel",
+          "outdoor_public_event",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; clothing and setting are consistent year-round.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "airport tarmac",
+            "directly beneath aircraft wing",
+            "open apron with vehicles"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "large jet airliner",
+          "airport tarmac",
+          "wing and engines",
+          "formal suits",
+          "handbag",
+          "patterned scarf",
+          "airport vehicles",
+          "distant buildings",
+          "bright daylight"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "medium"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041 Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "paths": [
+        "production_ready/candidate-f8872af0e0d18261b23e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "9cc9bfbf-ad99-9460-ab43-7d6ac8a448dc",
+      "source_size_bytes": 142974,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 619,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 531,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 42017500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2943,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 602,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4093
+      }
+    },
+    "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99": {
+      "analysed_at": "2026-07-16T06:02:42.140999Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white photograph showing a man in a dark suit with arms crossed smiling toward a woman in a patterned dress and pearl necklace who also has arms crossed and is smiling back during an indoor conversation; partial figures visible at edges with abstract wall art and a spherical light in the background.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "personal_reflection"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Supports quotations emphasising personal warmth or reflective conversation between individuals in formal contexts.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "conversing",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 82,
+          "crop_suitability_for_x": 80,
+          "overall": 88,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Two formally dressed adults stand facing each other with arms crossed, exchanging smiles in a calm indoor setting with decorative wall art.",
+        "scene_types": [
+          "informal_portrait",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible; indoor formal setting.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "formal event space",
+            "abstract wall decoration",
+            "soft lighting"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "dark suit",
+          "white shirt",
+          "dark tie",
+          "patterned dress",
+          "pearl necklace",
+          "abstract wall art",
+          "spherical light fixture",
+          "wine glass",
+          "partial figures at edges"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "paths": [
+        "production_ready/candidate-36d6b17bedd4345d223e.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "fe9972ab-0cfb-998e-bdaa-98729e2037cf",
+      "source_size_bytes": 176929,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 437,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 774,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 43917500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2973,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 632,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4184
+      }
+    },
+    "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a": {
+      "analysed_at": "2026-07-16T06:01:30.414974Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 90
+        },
+        "description": "Black-and-white close-up portrait of an older woman with neatly coiffed light hair, a single pearl earring, and a patterned blouse with a bow at the neck. She gazes slightly upward and to her left with a neutral, composed expression against a plain light wall.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "reflective",
+            "authoritative"
+          ],
+          "best_for_topics": [
+            "personal_reflection",
+            "leadership"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with sober, contemplative or professional quotations; low visual energy suits reflective rather than energetic or celebratory content.",
+          "semantic_specificity": 35,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "posing for portrait"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "reflective"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal head-and-shoulders black-and-white studio portrait of a woman in professional attire.",
+        "scene_types": [
+          "formal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal cues or decorations visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "plain light wall",
+            "studio backdrop"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "reflective"
+        ],
+        "visible_elements": [
+          "pearl earring",
+          "patterned blouse",
+          "bow neckline",
+          "styled hair",
+          "plain background"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Margaret Thatcher at White House (cropped).jpg Margaret Thatcher at White House (cropped) Margaret Thatcher at White House.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+      "paths": [
+        "production_ready/candidate-0c4634d8356f42dc4e0c.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "956e9395-9e8e-9b75-a60a-30da29c20645",
+      "source_size_bytes": 79120,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 532,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 760,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 40667500,
+        "num_sources_used": 0,
+        "prompt_tokens": 2551,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 210,
+          "text_tokens": 2341
+        },
+        "total_tokens": 3843
+      }
+    },
+    "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4": {
+      "analysed_at": "2026-07-16T06:04:38.092353Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 25,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white photograph of a mature woman seated in an upholstered armchair, shown from the waist up. She has neatly coiffed light-coloured hair, wears a light-toned collared jacket with decorative brooch and beaded detail, a pearl earring and necklace, and is smiling with mouth open while looking slightly off-camera. The background is a plain indoor wall with part of patterned upholstery visible.",
+        "historical_context": {
+          "confidence": 10,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious",
+            "reflective"
+          ],
+          "best_for_topics": [
+            "personal_reflection",
+            "leadership",
+            "history"
+          ],
+          "general_reusability": 70,
+          "matching_summary": "Suitable for reflective or personal quotations; the warm smile and formal seated pose support tones of warmth or quiet authority without strong topical signals.",
+          "semantic_specificity": 40,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "sitting",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "warm",
+            "smiling"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal indoor portrait of a single mature woman seated and smiling in an armchair.",
+        "scene_types": [
+          "formal_portrait",
+          "informal_portrait"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "armchair",
+            "plain wall",
+            "patterned fabric"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm",
+          "serious"
+        ],
+        "visible_elements": [
+          "armchair",
+          "upholstery",
+          "brooch",
+          "necklace",
+          "earrings",
+          "jacket",
+          "hairstyle"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:Thatcher-loc.jpg Thatcher-loc Margaret Thatcher , former UK PM.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+      "paths": [
+        "production_ready/candidate-86953c03fd343ef6fcc1.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "6e231520-baa5-9208-9721-1210d9beed24",
+      "source_size_bytes": 948023,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 455,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 420,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 57455000,
+        "num_sources_used": 0,
+        "prompt_tokens": 4728,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2387,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5603
+      }
+    },
+    "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb": {
+      "analysed_at": "2026-07-16T06:03:28.402768Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 20,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Two formally dressed adults stand side by side outdoors in profile, facing right against a bright, blurred sky and bare trees. The woman on the left wears a black coat with decorative buttons and a black hat with dark fur-like trim; her hair is in a bun. The man on the right wears a dark suit, light shirt, and red patterned tie. Both appear composed and attentive.",
+        "historical_context": {
+          "confidence": 0,
+          "event_or_context_hint": null,
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "pragmatic"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "foreign_policy",
+            "national_identity",
+            "government"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Strong match for formal leadership or diplomatic quotations; restrained mood and attire suit serious or authoritative tones. Avoids light or humorous topics.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "gazing rightward"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "smiling"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 80,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Formal outdoor portrait of a woman and man in winter coats, captured in profile with neutral daylight and soft background.",
+        "scene_types": [
+          "formal_portrait",
+          "diplomatic_event",
+          "outdoor_public_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "dark coats",
+            "hat"
+          ],
+          "explanation": "Winter-weight clothing visible but no snow, foliage, or holiday markers; seasonality remains weak.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "bright overcast sky",
+            "blurred natural background",
+            "bare branches"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "black coat",
+          "fur-trimmed hat",
+          "suit jacket",
+          "red tie",
+          "pearl earring",
+          "bare trees",
+          "bright sky"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "page_context",
+        "confidence": "medium",
+        "evidence": "File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "paths": [
+        "production_ready/candidate-539626eef2896af392c4.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "f7daac22-c4a1-93a0-8e02-a875d0dbb46a",
+      "source_size_bytes": 727064,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 616,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 690,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 90593500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4743,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 128,
+          "image_tokens": 2402,
+          "text_tokens": 2341
+        },
+        "total_tokens": 6049
+      }
+    },
+    "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2": {
+      "analysed_at": "2026-07-16T06:02:54.736771Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 40,
+          "orientation": "landscape",
+          "shot_type": "group",
+          "subject_prominence": 85
+        },
+        "description": "Black-and-white archive photograph of three adults standing behind a large podium bearing the Seal of the President of the United States. The leftmost figure, wearing a large hat and dark coat, is speaking into a cluster of microphones with mouth open. The central figure wears a dark fur-trimmed hat and patterned coat; the rightmost figure wears a dark suit and tie. A large classical building forms the background under bright daylight.",
+        "historical_context": {
+          "confidence": 60,
+          "event_or_context_hint": "official outdoor address at a presidential podium",
+          "specificity": "suggestive",
+          "visible_symbols": [
+            "presidential seal"
+          ]
+        },
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "authoritative",
+            "solemn"
+          ],
+          "best_for_topics": [
+            "government",
+            "leadership",
+            "foreign_policy"
+          ],
+          "general_reusability": 75,
+          "matching_summary": "Strong match for formal official or diplomatic statements; limited for informal, domestic, or humorous topics.",
+          "semantic_specificity": 55,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "speaking at podium"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "determined"
+          ]
+        },
+        "quality": {
+          "composition": 85,
+          "crop_suitability_for_x": 80,
+          "overall": 90,
+          "subject_clarity": 92,
+          "technical_quality": 88
+        },
+        "scene_summary": "Formal outdoor podium address with three figures at a presidential lectern in front of a grand building.",
+        "scene_types": [
+          "podium_speech",
+          "outdoor_public_event",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [
+            "heavy coats and hats"
+          ],
+          "explanation": "Heavy outerwear suggests cool weather but no definitive seasonal markers such as snow or foliage.",
+          "occasions": [],
+          "strength": "weak",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "large stone building with columns",
+            "bright daylight",
+            "open plaza"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "government",
+          "leadership"
+        ],
+        "tone": [
+          "serious",
+          "authoritative"
+        ],
+        "visible_elements": [
+          "presidential seal",
+          "podium",
+          "microphones",
+          "formal coats",
+          "hats",
+          "necktie",
+          "classical building facade"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Circular seal text: 'THE PRESIDENT OF THE UNITED STATES' and 'SEAL OF THE PRESIDENT OF THE UNITED STATES'"
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "paths": [
+        "production_ready/candidate-3abe0be95aa60233f374.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "9728905b-4821-9995-912a-12dba1a27ebe",
+      "source_size_bytes": 490733,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 640,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 548,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 65467500,
+        "num_sources_used": 0,
+        "prompt_tokens": 4743,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 2402,
+          "text_tokens": 2341
+        },
+        "total_tokens": 5931
+      }
+    },
+    "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a": {
+      "analysed_at": "2026-07-16T06:03:49.071792Z",
+      "analysis": {
+        "composition": {
+          "background_complexity": 35,
+          "orientation": "portrait",
+          "shot_type": "half_body",
+          "subject_prominence": 85
+        },
+        "description": "Three formally dressed adults stand indoors smiling: a woman in a bright pink suit on the left, a man in a dark pinstripe suit at center, and a woman in a gray suit with a colorful scarf on the right holding a black clutch. Wooden doors and a flower arrangement are visible behind them.",
+        "historical_context": {
+          "confidence": 30,
+          "event_or_context_hint": "formal or diplomatic gathering",
+          "specificity": "general",
+          "visible_symbols": []
+        },
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "serious"
+          ],
+          "best_for_topics": [
+            "leadership",
+            "government",
+            "personal_reflection"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Best paired with positive or reflective quotations on formal occasions due to smiling expressions and formal indoor setting.",
+          "semantic_specificity": 45,
+          "weak_for_topics": []
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "smiling",
+            "warm"
+          ]
+        },
+        "quality": {
+          "composition": 80,
+          "crop_suitability_for_x": 75,
+          "overall": 85,
+          "subject_clarity": 90,
+          "technical_quality": 85
+        },
+        "scene_summary": "Small group of three people in formal attire smiling together in an indoor setting with wooden paneling and flowers.",
+        "scene_types": [
+          "formal_portrait",
+          "diplomatic_event"
+        ],
+        "seasonality": {
+          "avoid_outside_season_or_occasion": false,
+          "cues": [],
+          "explanation": "No seasonal indicators visible.",
+          "occasions": [],
+          "strength": "none",
+          "visible_season": "none"
+        },
+        "setting": {
+          "details": [
+            "wooden paneling",
+            "floral arrangement"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [],
+        "tone": [
+          "warm"
+        ],
+        "visible_elements": [
+          "formal suits",
+          "pink jacket and skirt",
+          "floral scarf",
+          "wooden doors",
+          "flower arrangement",
+          "black clutch"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": null
+        },
+        "visual_energy": "low"
+      },
+      "analysis_model": "grok-4.3",
+      "api_mime_type": "image/jpeg",
+      "identity_provenance": {
+        "basis": "archive_record",
+        "confidence": "high",
+        "evidence": "File:RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.",
+        "model_was_not_asked_to_identify_person": true
+      },
+      "image_hash": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "paths": [
+        "production_ready/candidate-62fe0c8d105bf2ad7c95.jpg"
+      ],
+      "preparation": "original",
+      "prompt_version": "image-analysis-2026-07-05-v4",
+      "response_id": "52cef0f3-1738-9312-8b02-e272379fdfb6",
+      "source_size_bytes": 429970,
+      "source_suffix": ".jpg",
+      "usage": {
+        "completion_tokens": 547,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": 0,
+          "audio_tokens": 0,
+          "reasoning_tokens": 958,
+          "rejected_prediction_tokens": 0
+        },
+        "cost_in_usd_ticks": 54642500,
+        "num_sources_used": 0,
+        "prompt_tokens": 3243,
+        "prompt_tokens_details": {
+          "audio_tokens": 0,
+          "cached_tokens": 2240,
+          "image_tokens": 902,
+          "text_tokens": 2341
+        },
+        "total_tokens": 4748
+      }
+    }
+  },
+  "model": "grok-4.3",
+  "path_index": {
+    "production_ready/candidate-00f4566964e0c88838ad.jpg": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+    "production_ready/candidate-08fe3d43c27bece23076.jpg": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+    "production_ready/candidate-0b15f11312a31033907d.jpg": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+    "production_ready/candidate-0b42b54c4148ee2562fb.jpg": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+    "production_ready/candidate-0c4634d8356f42dc4e0c.jpg": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+    "production_ready/candidate-0fe7ed6333faf654b062.jpg": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+    "production_ready/candidate-149e63869f481474a798.jpg": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+    "production_ready/candidate-168392f289b5df25f16b.jpg": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+    "production_ready/candidate-253f9adb9e67db0a67d7.jpg": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+    "production_ready/candidate-305d002e01745c0acd9b.jpg": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+    "production_ready/candidate-36d6b17bedd4345d223e.jpg": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+    "production_ready/candidate-3abe0be95aa60233f374.jpg": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+    "production_ready/candidate-3e16363d7234c33cd75e.jpg": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+    "production_ready/candidate-5202e374b764482c4cda.jpg": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+    "production_ready/candidate-539626eef2896af392c4.jpg": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+    "production_ready/candidate-5ac817d960fb7eb0f974.jpg": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+    "production_ready/candidate-62fe0c8d105bf2ad7c95.jpg": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+    "production_ready/candidate-6966b6853551436e849b.jpg": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+    "production_ready/candidate-7720de19eda682fe608d.png": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+    "production_ready/candidate-7c9a2b387a67c9bd858c.jpg": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+    "production_ready/candidate-86953c03fd343ef6fcc1.jpg": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+    "production_ready/candidate-f8872af0e0d18261b23e.jpg": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072"
+  },
+  "prompt_version": "image-analysis-2026-07-05-v4",
+  "schema_version": 3,
+  "source": {
+    "image_dir": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/exported_kept/production_ready",
+    "isolated_research": true
+  },
+  "updated_at": "2026-07-16T06:04:48.251953Z"
+}

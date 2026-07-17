@@ -1,0 +1,3438 @@
+{
+  "records": [
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "168392f289b5df25f16b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "168392f289b5df25f16b:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, while the image shows Thatcher and Reagan in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "Soviet exploitation warning; ally handshake creates ally-adversary confusion.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "168392f289b5df25f16b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "168392f289b5df25f16b:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The quote is about the UN and US leadership, while the image shows Thatcher and Reagan in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "Post-1990 UN illusion-factory speech; calibration rejects this image for that quote.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "168392f289b5df25f16b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "168392f289b5df25f16b:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about studying adversaries, while the image shows Thatcher and Reagan in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Know the enemy to make a friend is Soviet strategy; Reagan is ally not enemy.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "168392f289b5df25f16b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "168392f289b5df25f16b:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is about the Falklands War and dictators, while the image shows Thatcher and Reagan in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands stop-dictator interview is 1982 military resolve, not 1984 US visit.",
+          "risk_flags": [
+            "visual_message_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "168392f289b5df25f16b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "168392f289b5df25f16b:8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "The quote is from an address to the Canadian Parliament, while the image shows her with Reagan in a diplomatic setting.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "Canadian Parliament freedom-not-by-force speech; calibration rejects Reagan-Thatcher handshake.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "253f9adb9e67db0a67d7:b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "The quote is about cabinet debate and sycophants, while the image shows Thatcher and Muldoon in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "No yes-men Cabinet preference is UK internal, not foreign visitors book.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "253f9adb9e67db0a67d7:19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+          "reason": "The quote is about her departure from office and John Major, while the image shows her with Robert Muldoon.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+          "reason": "Back-seat driver about Major succession; Muldoon signing scene is unrelated diplomacy.",
+          "risk_flags": [
+            "named_person_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "253f9adb9e67db0a67d7:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The quote is about the UN and US leadership, while the image shows Thatcher and Muldoon in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "UN consensus critique; calibration rejects Muldoon signing for this quote.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "253f9adb9e67db0a67d7:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, while the image shows Thatcher and Muldoon in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "Soviet negotiation reciprocity; Muldoon ally image wrong adversary and period.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "253f9adb9e67db0a67d7:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about studying adversaries, while the image shows Thatcher and Muldoon in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Know enemy to make friend is Soviet strategy; Muldoon is not the enemy.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3e16363d7234c33cd75e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3e16363d7234c33cd75e:38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+          "reason": "The image shows an outdoor public visit, which does not match the context of a press interview for the Financial Times during the miners' strike.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+          "reason": "Friendly walkabout does not convey resisting siren voices or resolute government.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "available_provider_vote_count": 2,
+      "candidate_id": "3e16363d7234c33cd75e",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "3e16363d7234c33cd75e:e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "direct_principle",
+          "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+          "reason": "The image shows Thatcher interacting directly with the public, which aligns with the quote's principle of addressing people's worries.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+          "reason": "Outdoor public engagement with locals supports dealing with people’s worries.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3e16363d7234c33cd75e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3e16363d7234c33cd75e:0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766",
+          "reason": "The image shows an outdoor crowd interaction, which does not match the context of a press interview for The Sun.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766",
+          "reason": "Warm outdoor crowd interaction does not show firm principle or Iron Lady stance.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "47898be6bfefc5d49c03:b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "The montage features images from her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "1977 Opposition no-sycophants quote predates premiership montage.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "47898be6bfefc5d49c03:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "The montage features images from her premiership, not her later years as an author.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "2002 Statecraft epistemic humility is post-PM; montage is premiership only.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "47898be6bfefc5d49c03:1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "The montage format is not suitable for a quote about ministerial authority in a formal cabinet setting.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "Montage does not show Cabinet control or ministers obeying orders.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6"
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "available_provider_vote_count": 2,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "47898be6bfefc5d49c03:7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "The montage of her premiership years is a suitable visual accompaniment for a quote reflecting on her entire tenure as she departs office.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "Premiership-spanning montage can responsibly accompany legacy departure claim.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "47898be6bfefc5d49c03:8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "The montage features images from her premiership, not her post-premiership years.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "1996 Keith Joseph lecture is post-premiership, not montage years.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "539626eef2896af392c4",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "539626eef2896af392c4:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The image shows an arrival ceremony with Ronald Reagan, not a context related to the Soviet Union.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Enemy-to-friend Soviet strategy not shown by Reagan-Thatcher ally photo.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "539626eef2896af392c4",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "539626eef2896af392c4:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The image shows an arrival ceremony during her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet exploitation warning is wrong period; image shows ally not USSR.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "86953c03fd343ef6fcc1:5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+          "reason": "The quote is from her 1993 memoirs. The image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+          "reason": "Calibration-style formal portrait can accompany Jewish cabinet merit admiration.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "86953c03fd343ef6fcc1:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is from 1986. The image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "1986 conviction quote; 1975 smile is period-mismatched generic.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "86953c03fd343ef6fcc1:7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "partition": "calibration",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "The quote is from 1990. The image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "Not 1990 Downing Street departure.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "00f4566964e0c88838ad",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "00f4566964e0c88838ad:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is about the 1982 Falklands War, while the image is from 1990.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "1990 Aspen photo is wrong war and period for 1982 Falklands dictator quote.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "00f4566964e0c88838ad",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "00f4566964e0c88838ad:c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+          "reason": "The quote is about NATO, but the image is a bilateral US-UK meeting, not a NATO event.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+          "reason": "NATO euphoria warning is not communicated by a social US-UK ranch chat.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57"
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "available_provider_vote_count": 2,
+      "candidate_id": "00f4566964e0c88838ad",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "00f4566964e0c88838ad:f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+          "reason": "The quote is about the Gulf War and appeasement, and the image shows Thatcher with George H.W. Bush in Aspen in August 1990, the exact time and place they discussed the response to Iraq's invasion of Kuwait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+          "reason": "Aspen with Bush is the venue and partnership later recalled in her Aspen Institute never-appease speech.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "00f4566964e0c88838ad",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "00f4566964e0c88838ad:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about knowing the enemy (the Soviet Union), but the image shows her with an ally (the US President).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Knowing the Soviet enemy is not shown by smiling with Bush.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "08fe3d43c27bece23076",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "08fe3d43c27bece23076:9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+          "reason": "The quote is from a 1981 House of Commons debate, while the image is a 1990 portrait.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+          "reason": "Hayek Commons endorsement not a studio profile.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "08fe3d43c27bece23076",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "08fe3d43c27bece23076:9da101e5b208e4cd67c66fac42a2c352d96bdfab712133bd929a5cd9f8c8ed62",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9da101e5b208e4cd67c66fac42a2c352d96bdfab712133bd929a5cd9f8c8ed62",
+          "reason": "The quote is from a 1979 article, while the image is from 1990.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9da101e5b208e4cd67c66fac42a2c352d96bdfab712133bd929a5cd9f8c8ed62",
+          "reason": "1979 fiscal-morality article needs election context, not 1990 portrait.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9da101e5b208e4cd67c66fac42a2c352d96bdfab712133bd929a5cd9f8c8ed62"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "08fe3d43c27bece23076",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "08fe3d43c27bece23076:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is from a 1986 interview, while the image is from 1990.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "Composed personal portrait can support conviction-over-personal-future interview line.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "0b15f11312a31033907d",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "0b15f11312a31033907d:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "The quote is a general statement about foreign policy, which aligns well with a formal portrait of Thatcher and Reagan, key figures in Cold War diplomacy.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "Unverified foreign-policy aphorism not specifically carried by this pose.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b15f11312a31033907d",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b15f11312a31033907d:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, but the image shows her with an ally (Ronald Reagan).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet exploitation warning; ally photo risks ally/adversary confusion.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b15f11312a31033907d",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b15f11312a31033907d:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about knowing the enemy (the Soviet Union), but the image shows her with an ally (Ronald Reagan).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Knowing the enemy (Soviets) is mis-served by smiling with ally Reagan.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b15f11312a31033907d",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "0b15f11312a31033907d:5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+          "reason": "The quote is about the Berlin Wall, while the image is a formal indoor portrait with Ronald Reagan.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614",
+          "reason": "Berlin Wall draft speech needs wall imagery, not Reagan formal pose.",
+          "risk_flags": [
+            "visual_message_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b15f11312a31033907d",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b15f11312a31033907d:f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+          "reason": "The quote is from a late 1990s speech about historical revisionism, while the image shows her with Ronald Reagan during the 1980s.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+          "reason": "1999 Churchill memorial Cold War revisionism needs post-PM speaking context.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b42b54c4148ee2562fb:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, but the image shows her shaking hands with a US politician.",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "Soviet negotiation hardness is about adversaries, not US Speaker Albert.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b42b54c4148ee2562fb:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about knowing the enemy (the Soviet Union), but the image shows her shaking hands with an ally (a US politician).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Enemy-to-friend strategy is Soviet Cold War, not this handshake.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b42b54c4148ee2562fb:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is about the 1982 Falklands War, while the image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "1982 Falklands dictator risks not 1975 US Congress visit.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b42b54c4148ee2562fb:9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "The quote is about defeating dictators, but the image shows her shaking hands with a US politician, which could create a misleading association.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "Defeating dictators tone clashes with friendly handshake.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0b42b54c4148ee2562fb:8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "The quote is from an address to the Canadian Parliament, while the image shows a meeting with a US politician.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "Canadian Parliament freedom-not-by-force address wrong venue and event.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0c4634d8356f42dc4e0c:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "The quote is a general statement about foreign policy, which aligns well with a formal portrait taken at the White House.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "Unverified fear-not-foreign-policy line not specifically this 1977 visit.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "0c4634d8356f42dc4e0c:063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "The quote is an unverified internet quote, and pairing it with an official portrait could lend it false authenticity.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "Unverified partisan human-rights boast should not be propped by White House portrait.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0c4634d8356f42dc4e0c:9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "The quote is a general statement about defeating dictators, which aligns well with a serious formal portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "Dictators must be defeated not specifically shown by calm portrait.",
+          "risk_flags": [
+            "generic_topic_only",
+            "tone_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0fe7ed6333faf654b062:b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "The quote is about her domestic cabinet ministers, while the image shows her with a foreign head of state.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "1977 no-sycophants cabinet line wrong period and company.",
+          "risk_flags": [
+            "named_person_mismatch",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0fe7ed6333faf654b062:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, but the image shows her with an ally (Ronald Reagan).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet concession warning; ally Camp David risks ally/adversary confusion.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0fe7ed6333faf654b062:19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+          "reason": "The quote is about her resignation and John Major, while the image shows her with Ronald Reagan.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+          "reason": "Back-seat driver succession remark is 1990 Major transition, not Reagan summit.",
+          "risk_flags": [
+            "named_person_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0fe7ed6333faf654b062:3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25",
+          "reason": "The quote is about the British press from a 1979 banquet, while the image shows a diplomatic meeting with Ronald Reagan.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25",
+          "reason": "1979 Lord Mayor free-press banquet wrong event.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "0fe7ed6333faf654b062:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about knowing the enemy (the Soviet Union), but the image shows her with an ally (Ronald Reagan).",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Know-the-enemy Soviet strategy is not smiling with Reagan ally.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "149e63869f481474a798",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "149e63869f481474a798:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is about the Falklands War and dictators, while the image shows Thatcher and Reagan at Camp David.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands dictator-stop interview needs 1982 resolve context, not Camp David stroll.",
+          "risk_flags": [
+            "visual_message_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "149e63869f481474a798",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "149e63869f481474a798:063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "The quote is about human rights and conservatism, while the image shows Thatcher and Reagan walking at Camp David. The image does not communicate the specific argument about human rights.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "Unverified partisan rights claim; Camp David walk with Reagan does not illustrate credentials or liberal contrast.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "149e63869f481474a798",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "149e63869f481474a798:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, while the image shows Thatcher and Reagan at Camp David.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet reciprocity warning; ally handshake-walk risks ally/adversary confusion.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "149e63869f481474a798",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "149e63869f481474a798:c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+          "reason": "The quote is about NATO and post-Cold War complacency, while the image shows Thatcher and Reagan at Camp David.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+          "reason": "NATO euphoria warning is institutional policy; bilateral walk is generic.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "149e63869f481474a798",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "149e63869f481474a798:9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "The quote is about defeating dictators, while the image shows Thatcher and Reagan walking at Camp David.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "Defeating dictators claim is not shown by amicable ally walk.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "305d002e01745c0acd9b",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "305d002e01745c0acd9b:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is about her personal future and beliefs, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "Belief over personal future could be portrait-rhetorical, but image is too generic and undated.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "305d002e01745c0acd9b",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "305d002e01745c0acd9b:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "The quote is about epistemic humility and leadership, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "Statecraft know-what-you-do-not-know is late memoir principle; calibration rejects portrait fallback.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 1,
+      "candidate_id": "305d002e01745c0acd9b",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "305d002e01745c0acd9b:8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "The quote is about political integrity and truth, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "1996 Keith Joseph integrity lecture is post-premiership specific; undated headshot insufficient.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "36d6b17bedd4345d223e:8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+          "reason": "The quote is about Western inaction in the face of massacres, while the image shows Thatcher and Lubbers in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+          "reason": "Unverified Balkans massacres we-won't intervention quote; wrong topic and image.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "36d6b17bedd4345d223e:a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+          "reason": "The quote is about Eastern Europe and socialism, while the image shows Thatcher and Lubbers in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+          "reason": "1990 Eastern Europe visit young people speech; Lubbers Western EC partner.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "36d6b17bedd4345d223e:7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0",
+          "reason": "The quote is a critique of European nationalism, while the image shows Thatcher and Lubbers in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0",
+          "reason": "Post-1990 federal Europe bureaucratic fiction lecture; smiling 1983 EC chat undercuts Eurosceptic bitterness.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "36d6b17bedd4345d223e:f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+          "reason": "The quote is a critique of European integration, while the image shows Thatcher and Lubbers in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+          "reason": "Statecraft European integration utopia threat; friendly 1983 Lubbers image undercuts argument.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "36d6b17bedd4345d223e:c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+          "reason": "The quote is a critique of mainland Europe, while the image shows Thatcher and Lubbers in a diplomatic setting.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+          "reason": "2002 Statecraft mainland Europe problems; 1983 friendly EC photo contradicts hardline.",
+          "risk_flags": [
+            "tone_mismatch",
+            "visual_message_mismatch",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3abe0be95aa60233f374",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3abe0be95aa60233f374:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The quote is about the UN and US leadership, while the image shows Thatcher speaking at a podium with Jimmy Carter.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "1991 UN illusion factory; 1979 Carter visit wrong period and institution.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3abe0be95aa60233f374",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3abe0be95aa60233f374:347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+          "reason": "The quote is about principled leadership and ignoring opinion polls, while the image shows Thatcher speaking at a podium with Jimmy Carter.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7",
+          "reason": "1986 grumblers/opinion polls Central Council is domestic conviction politics.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "347f10293feef2bf9ab0ed60081b426ab01c6f669ab2ef69a17d0cc4610b91f7"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3abe0be95aa60233f374",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3abe0be95aa60233f374:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is about negotiating with the Soviet Union, while the image shows Thatcher speaking at a podium with Jimmy Carter.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet reciprocity; Carter is ally and wrong year for that speech.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3abe0be95aa60233f374",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3abe0be95aa60233f374:9ca405cce5d93e873fe04501f549fc26591289ed917c0fa9828368106b98e85e",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9ca405cce5d93e873fe04501f549fc26591289ed917c0fa9828368106b98e85e",
+          "reason": "The quote is from the 1983 Conservative Party Conference, while the image shows Thatcher speaking at a podium with Jimmy Carter.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9ca405cce5d93e873fe04501f549fc26591289ed917c0fa9828368106b98e85e",
+          "reason": "Strong government draws line trust people is 1983 conference post-election.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "9ca405cce5d93e873fe04501f549fc26591289ed917c0fa9828368106b98e85e"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "3abe0be95aa60233f374",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "3abe0be95aa60233f374:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is about the Falklands War and dictators, while the image shows Thatcher speaking at a podium with Jimmy Carter.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands 1982 stop-dictator ITN; 1979 Carter photo wrong war and year.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5202e374b764482c4cda",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5202e374b764482c4cda:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The image shows a G7 summit during her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet reciprocity warning is wrong period; image is Western G7 allies.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5202e374b764482c4cda",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5202e374b764482c4cda:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The image shows a G7 summit, not a seminar at Chequers or a specific context related to the Soviet Union.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Know-the-enemy Soviet strategy is not G7 allies group portrait.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5202e374b764482c4cda",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "5202e374b764482c4cda:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The image shows a G7 summit during her premiership, not her post-premiership years.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "UN illusion-factory argument is not G7 leaders photo.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5202e374b764482c4cda",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5202e374b764482c4cda:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The image shows a 1988 G7 summit, not the 1982 Falklands War context.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands dictator-stop interview is not 1988 G7.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5202e374b764482c4cda",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5202e374b764482c4cda:b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "The image shows a G7 summit during her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "1977 Cabinet yes-men quote predates and mismatches G7 diplomacy.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5ac817d960fb7eb0f974:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The image shows a diplomatic gift exchange during her premiership, not her post-premiership years.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "UN consensus critique is not bilateral Dole-Thatcher gift scene.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5ac817d960fb7eb0f974:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The image shows a diplomatic gift exchange during her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 Soviet reciprocity warning is wrong period and adversary focus.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5ac817d960fb7eb0f974:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The image shows a diplomatic gift exchange, not an interview about the Falklands War.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands dictator risks interview is not 1985 Dole gift.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5ac817d960fb7eb0f974:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The image shows a diplomatic gift exchange with Robert Dole, not a context related to the Soviet Union.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Turning enemy into friend refers to Soviets, not Dole gift.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "5ac817d960fb7eb0f974:1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "The image shows a diplomatic gift exchange, not a formal cabinet or professional setting suitable for a quote about ministerial authority.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "Cabinet obedience quote unrelated to US senator gift presentation.",
+          "risk_flags": [
+            "named_person_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "62fe0c8d105bf2ad7c95:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The image shows a diplomatic meeting with Mikhail Gorbachev during her premiership, not her time as Opposition Leader.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "1975 hardline Soviet exploitation warning is wrong period; image is warm 1989 engagement.",
+          "risk_flags": [
+            "tone_mismatch",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "available_provider_vote_count": 2,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "62fe0c8d105bf2ad7c95:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The image shows Margaret Thatcher with Mikhail Gorbachev, which directly aligns with the quote about turning an enemy into a friend.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Cordial Thatcher–Gorbachev meeting visually supports turning adversary into friend.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "62fe0c8d105bf2ad7c95:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "The image shows a diplomatic meeting with Mikhail Gorbachev, which does not relate to a quote about fear and foreign policy.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "Unverified fear-not-foreign-policy line lacks specific match beyond generic diplomacy.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "62fe0c8d105bf2ad7c95:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The image shows a diplomatic meeting with Mikhail Gorbachev, not an interview about the Falklands War.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands dictator risks is wrong event; Gorbachev is partner not junta.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "62fe0c8d105bf2ad7c95:6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+          "reason": "The image shows a diplomatic meeting with Mikhail Gorbachev during her premiership, not her post-premiership years.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+          "reason": "1990s military-intervention caution is wrong period and topic.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "6966b6853551436e849b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "6966b6853551436e849b:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about knowing the enemy to turn them into a friend, referring to the Soviet Union. The image shows Bush, an ally.",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Bush is ally, not adversary-turned-friend; risks ally/adversary confusion.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "6966b6853551436e849b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "6966b6853551436e849b:7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "The quote is her departure remarks from Downing Street in 1990. The image is from 1987 with Bush.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "1987 outdoor smile with Bush is not 1990 Downing Street departure.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "6966b6853551436e849b",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "6966b6853551436e849b:063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "The quote contrasts conservative and liberal approaches to human rights and liberty. The image shows Thatcher and Bush smiling in a diplomatic setting, which does not communicate the ideological argument.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+          "reason": "Smiling bilateral photo with Bush does not illustrate unverified partisan human-rights claim.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7720de19eda682fe608d",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "7720de19eda682fe608d:8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+          "reason": "The quote is from 1979 about her father and winning the election. The image is from 1984.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+          "reason": "Father/Grantham 1979 arrival quote not matched by 1984 Denis photo.",
+          "risk_flags": [
+            "named_person_mismatch",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7720de19eda682fe608d",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "7720de19eda682fe608d:5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
+          "reason": "The quote is about her parents and early life from the 1970s. The image is from 1984 with her husband.",
+          "risk_flags": [
+            "visual_message_mismatch",
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
+          "reason": "Parents/no-money upbringing quote not shown by mid-1980s couple photo.",
+          "risk_flags": [
+            "symbolic_overreach",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7720de19eda682fe608d",
+      "human_decision": "reject_pairing",
+      "human_positive": false,
+      "pair_id": "7720de19eda682fe608d:25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+          "reason": "The quote is about Christmas. The image is a generic outdoor portrait from February.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+          "reason": "Family image loosely fits Christmas family circle but quote is unverified holiday filler.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9"
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "available_provider_vote_count": 2,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "7c9a2b387a67c9bd858c:7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+          "reason": "The quote is a solemn 2008 message about remembering the past. The image shows Thatcher in her later years in solemn mourning attire, matching the tone and period.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+          "reason": "Solemn elder stateswoman mourning attire fits duty-to-remember communism message.",
+          "risk_flags": []
+        },
+        "openai": null
+      },
+      "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "7c9a2b387a67c9bd858c:f54310ea811165cc0aa6cd700407f098510142b4f033bab9b608e62288e6e1b9",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f54310ea811165cc0aa6cd700407f098510142b4f033bab9b608e62288e6e1b9",
+          "reason": "The quote is from the 1970s. The image is from 2004.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f54310ea811165cc0aa6cd700407f098510142b4f033bab9b608e62288e6e1b9",
+          "reason": "1970s opposition values restatement not 2004 image.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "f54310ea811165cc0aa6cd700407f098510142b4f033bab9b608e62288e6e1b9"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "7c9a2b387a67c9bd858c:cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+          "reason": "The quote is about socialism and freedom. The image is a funeral portrait.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
+          "reason": "Korea socialism paradox speech not illustrated by AFB mourning exit.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "7c9a2b387a67c9bd858c:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is from 1982. The image is from 2004.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Not 1982 Falklands dictator interview.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "7cdcd67a8066a3b12d28:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "The quote is from 2002. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "2002 Statecraft epistemic humility needs later elder image, not 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "7cdcd67a8066a3b12d28:184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+          "reason": "The quote is from the 1979 campaign. The image is a 1983 formal portrait.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+          "reason": "1983 formal portrait not 1979 household-budget campaign imagery.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "human_decision": "approve_pairing",
+      "human_positive": true,
+      "pair_id": "7cdcd67a8066a3b12d28:b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+          "reason": "The quote is a post-premiership reflection. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a",
+          "reason": "Post-PM reformer unpopularity reflection needs later period.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "b2d7265d79b80783486dc5fdff82f5d3ac3bd774fd46216e854a1f9abc00e30a"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "f8872af0e0d18261b23e:d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "The quote is from 1975. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+          "reason": "Soviet reciprocity warning; Dutch ally arrival risks wrong relationship.",
+          "risk_flags": [
+            "ally_adversary_confusion",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "f8872af0e0d18261b23e:771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "The quote is from 1991. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1",
+          "reason": "Calibration: diplomatic arrival photo is unsuitable for UN consensus critique.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "f8872af0e0d18261b23e:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The quote is about the Soviet Union. The image is a diplomatic arrival in the Netherlands, an ally.",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Know-the-enemy quote; van Aardenne is ally not adversary.",
+          "risk_flags": [
+            "ally_adversary_confusion"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "f8872af0e0d18261b23e:a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "The quote is from 1982 about the Falklands. The image is from 1983 in the Netherlands.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+          "reason": "Falklands dictator stop interview not this visit.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d"
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "available_provider_vote_count": 0,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "human_decision": "prefer_existing_image",
+      "human_positive": false,
+      "pair_id": "f8872af0e0d18261b23e:8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+      "partition": "held_out",
+      "provider_decisions": {
+        "anthropic": null,
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "The quote is an address to the Canadian Parliament. The image is a diplomatic arrival in the Netherlands.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+          "reason": "Calibration: ally diplomatic photo unsuitable for Canadian Parliament freedom creed quote.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        },
+        "openai": null
+      },
+      "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b"
+    }
+  ],
+  "schema_version": 1
+}

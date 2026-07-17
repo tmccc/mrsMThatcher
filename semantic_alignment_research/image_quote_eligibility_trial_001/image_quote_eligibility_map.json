@@ -1,0 +1,849 @@
+{
+  "interpretation": "Provider suggestions are review candidates, not production eligibility. No pair may enter production from this trial without human or separately authorised validation.",
+  "records": [
+    {
+      "candidate_id": "00f4566964e0c88838ad",
+      "image_sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "named_people": [
+        "George H. W. Bush",
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "The United States must continue to lead the free world, as its foundational ideals of freedom and enterprise have universal appeal and are essential for global stability.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "exact_event",
+              "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+              "reason": "The image captures Thatcher and Bush in Aspen in August 1990, the exact setting and time period of her Aspen Institute speech praising American values.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+          "quote_text": "I am an undiluted admirer of American values and the American dream and I believe they will continue to inspire not just the people of the United States but millions across the face of the globe.",
+          "source_event": "Speech to the Aspen Institute"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That the international community must not tolerate the unprovoked military conquest and annexation of a sovereign UN member state.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "exact_event",
+              "quote_hash": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+              "reason": "The photograph was taken on August 2, 1990, the day Iraq invaded Kuwait, when Thatcher and Bush met in Aspen to coordinate the international response.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+          "quote_text": "We cannot conceivably accept that a country can simply march into a neighbour, which is an independent country and a full member of the UN, and annex it.",
+          "source_event": "Response to the Iraqi invasion of Kuwait (Assumed)"
+        }
+      ]
+    },
+    {
+      "candidate_id": "08fe3d43c27bece23076",
+      "image_sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That she possesses a sharp, reliable intuition that allows her to instantly and accurately judge others without needing prolonged deliberation.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+              "reason": "A reflective, personal quote about her character and judgment that fits a formal, composed portrait from the end of her premiership.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+          "source_event": "Quoted in contemporary press reports, notably The New York Times, upon her resignation as Prime Minister"
+        }
+      ]
+    },
+    {
+      "candidate_id": "0b15f11312a31033907d",
+      "image_sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To argue that Reagan's uncompromising stance against socialism was a crucial element of his political courage and ultimate success in the Cold War.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+              "reason": "The image shows Thatcher with Reagan, making it a strong match for her quote specifically praising his rejection of socialism.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+          "source_event": "Lecture to the Heritage Foundation (\"The Principles of Conservatism\")"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Reagan's political success was rooted in his genuine, shared love for American ideals of freedom and opportunity, which resonated deeply with ordinary citizens.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+              "reason": "The image features Thatcher and Reagan together, directly illustrating her reflections on his leadership and their shared values.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+          "source_event": "Eulogy for Ronald Reagan"
+        }
+      ]
+    },
+    {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "image_sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "named_people": [
+        "Carl Albert",
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Thatcher argued that Marxism is fundamentally flawed in theory and inevitably leads to oppressive and bleak societies in practice, contrasting it with the values of freedom and constitutional government.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "exact_event",
+              "quote_hash": "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939",
+              "reason": "The image shows Thatcher meeting US officials in September 1975, the same trip during which she delivered this major address in Washington D.C.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939",
+          "quote_text": "I reject Marxism because its doctrines seem to me false. It is the negation of human dignity. Wherever you have Marxist Government you have tyranny, oppression and drabness.",
+          "source_event": "Speech to the National Press Club"
+        }
+      ]
+    },
+    {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "image_sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher at White House.",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Economic freedom and prosperity are intrinsically linked to and dependent upon a broader societal commitment to personal liberty and the rule of law.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "exact_event",
+              "quote_hash": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+              "reason": "The image is a portrait from her September 1977 US visit, aligning with her major speech in Houston during the same trip.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+          "quote_text": "The free enterprise economy which underlies our prosperity and underpins our freedoms can survive only in a society devoted to personal liberties under just laws.",
+          "source_event": "Speech to the English Speaking Union in Houston"
+        }
+      ]
+    },
+    {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "image_sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched)",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To argue that Reagan's uncompromising stance against socialism was a crucial element of his political courage and ultimate success in the Cold War.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+              "reason": "The image shows Thatcher with Reagan, making it a strong match for her quote specifically praising his rejection of socialism.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+          "source_event": "Lecture to the Heritage Foundation (\"The Principles of Conservatism\")"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Reagan's political success was rooted in his genuine, shared love for American ideals of freedom and opportunity, which resonated deeply with ordinary citizens.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+              "reason": "The image features Thatcher and Reagan together at Camp David, directly illustrating her reflections on his leadership and their shared values.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+          "source_event": "Eulogy for Ronald Reagan"
+        }
+      ]
+    },
+    {
+      "candidate_id": "149e63869f481474a798",
+      "image_sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To argue that Reagan's uncompromising stance against socialism was a crucial element of his political courage and ultimate success in the Cold War.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+              "reason": "The quote explicitly discusses Ronald Reagan's worldview and his rejection of socialism, making it a strong match for an image of Thatcher and Reagan together.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+          "source_event": "Lecture to the Heritage Foundation (\"The Principles of Conservatism\")"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Reagan's political success was rooted in his genuine, shared love for American ideals of freedom and opportunity, which resonated deeply with ordinary citizens.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+              "reason": "The quote is from Thatcher's eulogy for Ronald Reagan, directly addressing his leadership and connection with the American people.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+          "source_event": "Eulogy for Ronald Reagan"
+        }
+      ]
+    },
+    {
+      "candidate_id": "168392f289b5df25f16b",
+      "image_sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To argue that Reagan's uncompromising stance against socialism was a crucial element of his political courage and ultimate success in the Cold War.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+              "reason": "The quote explicitly discusses Ronald Reagan's worldview and his rejection of socialism, making it a strong match for an image of Thatcher and Reagan together.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+          "source_event": "Lecture to the Heritage Foundation (\"The Principles of Conservatism\")"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Reagan's political success was rooted in his genuine, shared love for American ideals of freedom and opportunity, which resonated deeply with ordinary citizens.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+              "reason": "The quote is from Thatcher's eulogy for Ronald Reagan, directly addressing his leadership and connection with the American people.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+          "source_event": "Eulogy for Ronald Reagan"
+        }
+      ]
+    },
+    {
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "image_sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "named_people": [
+        "Margaret Thatcher",
+        "Robert Muldoon"
+      ],
+      "provider_no_match": [
+        "gemini",
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher (including picture with Robert Muldoon) (crop)",
+      "suitable_quotes": []
+    },
+    {
+      "candidate_id": "305d002e01745c0acd9b",
+      "image_sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher headshot",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Leaders should be guided by rational thought rather than public displays of emotion, keeping their feelings private where they can drive conviction without causing vulnerability.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+              "reason": "A personal reflection on emotional restraint and leadership style, suitable for a formal, serious portrait.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+          "quote_text": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best.",
+          "source_event": "Interview with Barbara Walters on ABC TV"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That she possesses a sharp, reliable intuition that allows her to instantly and accurately judge others without needing prolonged deliberation.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+              "reason": "A quote about her personal decisiveness and intuition, fitting for a direct, authoritative headshot.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+          "source_event": "Quoted in contemporary press reports, notably The New York Times, upon her resignation as Prime Minister"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To project strength and resolve, assuring both supporters and opponents that she possessed the fortitude necessary to implement her political agenda.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+              "reason": "A personal statement about courage and character, compatible with a serious portrait.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+          "quote_text": "I hope the one quality I am not lacking is courage.",
+          "source_event": "Speech to the House of Commons"
+        },
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "She argued that leadership requires firm principles and the courage to act on them, rather than constantly seeking compromise or the middle ground.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c",
+              "reason": "A defining personal statement about her identity as a conviction politician, suitable for a general portrait.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c",
+          "quote_text": "I am not a consensus politician. I'm a conviction politician.",
+          "source_event": "Pre-election statements (1979) / Recalled in BBC1 Panorama Interview (1984)"
+        }
+      ]
+    },
+    {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "image_sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ruud Lubbers"
+      ],
+      "provider_no_match": [
+        "gemini",
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council",
+      "suitable_quotes": []
+    },
+    {
+      "candidate_id": "3abe0be95aa60233f374",
+      "image_sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "named_people": [
+        "Jimmy Carter",
+        "Margaret Thatcher",
+        "Rosalynn Carter"
+      ],
+      "provider_no_match": [
+        "gemini",
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "[Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+      "suitable_quotes": []
+    },
+    {
+      "candidate_id": "3e16363d7234c33cd75e",
+      "image_sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher visiting Salford",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "To argue that a strong, well-funded, and respected police force is essential for maintaining the rule of law and protecting citizens from rising crime.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "direct_principle",
+              "quote_hash": "d6339a4a3e7b322ec1c567a1c250de9cd826c8b6c3e0915b80c926b6aebfe573",
+              "reason": "The image shows Thatcher surrounded by and interacting with police officers in a positive manner, directly illustrating her stated principle of needing a well-respected police force.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "d6339a4a3e7b322ec1c567a1c250de9cd826c8b6c3e0915b80c926b6aebfe573",
+          "quote_text": "We stress the need to have enough police, to have them well paid, well equipped and well respected.",
+          "source_event": "Speech to Scottish Conservative Party Conference ('Onwards to Victory')"
+        }
+      ]
+    },
+    {
+      "candidate_id": "47898be6bfefc5d49c03",
+      "image_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That the nickname is a compliment rather than an insult, as leading a historically significant and reliable nation inherently requires unyielding strength.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429",
+              "reason": "The montage presents various facets of her leadership as Prime Minister, making it a strong visual match for her reflection on the 'touch of iron' required to lead Britain.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429",
+          "quote_text": "If you lead a country like Britain, a strong country, a country which has taken a lead in world affairs in good times and in bad, a country that is always reliable, then you have to have a touch of iron about you.",
+          "source_event": "TV Interview for Italian Television (RAI)"
+        }
+      ]
+    },
+    {
+      "candidate_id": "5202e374b764482c4cda",
+      "image_sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "named_people": [
+        "Brian Mulroney",
+        "Ciriaco De Mita",
+        "François Mitterrand",
+        "Helmut Kohl",
+        "Jacques Delors",
+        "Margaret Thatcher",
+        "Noboru Takeshita",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "G-7 Economic Summit leaders at the University of Toronto in Canada",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That free trade is essential for economic prosperity, driving competition, lowering prices, and ultimately benefiting all consumers despite global economic challenges.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "direct_principle",
+              "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+              "reason": "The G7 summit is a premier forum for international economic cooperation, making it a suitable visual for her quote on trade as an engine of post-war growth.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+          "quote_text": "Trade has been a great engine of post-war growth. All have gained from the greater freedom of trade and payments. Freer trade has meant lower prices, more competition and faster growth. And every consumer has benefited.",
+          "source_event": "Speech at the Lord Mayor's Banquet"
+        }
+      ]
+    },
+    {
+      "candidate_id": "539626eef2896af392c4",
+      "image_sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Reagan's political success was rooted in his genuine, shared love for American ideals of freedom and opportunity, which resonated deeply with ordinary citizens.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+              "reason": "The image features Thatcher alongside Ronald Reagan, directly illustrating her eulogistic quote about his leadership and their shared values.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+          "source_event": "Eulogy for Ronald Reagan"
+        }
+      ]
+    },
+    {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "image_sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "named_people": [
+        "Margaret Thatcher",
+        "Robert J. Dole"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "Britain's traditional history and its ties to the Anglo-Saxon world are profound advantages that should be celebrated, not discarded or superficially modernized through political 're-branding'.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "direct_principle",
+              "quote_hash": "80bfb8b6d1d7edc4af384bbf90aee9d3b44dc1b6c623ff237feb520724f54c4c",
+              "reason": "The diplomatic meeting between Thatcher and US Senator Bob Dole visually represents the alliance of the 'English speaking peoples' mentioned in the quote.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "80bfb8b6d1d7edc4af384bbf90aee9d3b44dc1b6c623ff237feb520724f54c4c",
+          "quote_text": "The freedom we take for granted today was created and upheld by the English speaking peoples. These are the real, practical advantages that come from our history - a great history - and one that doesn't need \"re-branding\".",
+          "source_event": "Speech at the International Free Enterprise Dinner"
+        }
+      ]
+    },
+    {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "image_sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "named_people": [
+        "Margaret Thatcher",
+        "Mikhail Gorbachev",
+        "Raisa Gorbacheva"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That socialism inherently fails because it relies on central planning and state ownership, a reality now being acknowledged even by the leader of the communist world.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "named_person_or_relationship",
+              "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+              "reason": "The image shows Thatcher with Mikhail Gorbachev, directly supporting her quote referencing him and his economic reforms.",
+              "risk_flags": [],
+              "strength": "strong"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+          "quote_text": "Socialism is nationalisation of the total means of production, distribution and exchange and the planning of that by the central government - and that is what Gorbachev is saying has not worked.",
+          "source_event": "Media Interview"
+        }
+      ]
+    },
+    {
+      "candidate_id": "6966b6853551436e849b",
+      "image_sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "named_people": [
+        "George H. W. Bush",
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "gemini",
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher with George H. W. Bush",
+      "suitable_quotes": []
+    },
+    {
+      "candidate_id": "7720de19eda682fe608d",
+      "image_sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "named_people": [
+        "Denis Thatcher",
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Denis and Margaret Thatcher in 1984.",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "True leadership requires standing apart from consensus and popular opinion, making loneliness an inevitable and necessary burden of the office.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+              "reason": "The quote reflects on the loneliness of being Prime Minister and the vital companionship of her husband, Denis. The image shows them together, making it a compatible personal portrait.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+          "quote_text": "Being prime minister is a lonely job... you cannot lead from the crowd.",
+          "source_event": "Publication of her memoir, The Downing Street Years"
+        }
+      ]
+    },
+    {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "image_sha256": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [
+        "gemini"
+      ],
+      "source_event": "Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+      "suitable_quotes": []
+    },
+    {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "image_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher (1983)",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That she possesses a sharp, reliable intuition that allows her to instantly and accurately judge others without needing prolonged deliberation.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+              "reason": "The quote is a general reflection on her decisiveness and judgment of character. The formal, serious portrait from her prime ministerial years is a suitable general match.",
+              "risk_flags": [
+                "wrong_period"
+              ],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+          "source_event": "Quoted in contemporary press reports, notably The New York Times, upon her resignation as Prime Minister"
+        }
+      ]
+    },
+    {
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "image_sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Margaret Thatcher , former UK PM.",
+      "suitable_quotes": [
+        {
+          "agreement_class": "gemini_only",
+          "human_review_required": true,
+          "intended_argument": "That being a woman provides a unique kind of steadfastness and endurance, allowing her to persevere in difficult situations when others might quit.",
+          "provider_assessments": {
+            "gemini": {
+              "match_basis": "portrait_general",
+              "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+              "reason": "The quote is a personal reflection from 1975 about her resilience as a woman. The 1975 portrait is a suitable general match for this personal statement.",
+              "risk_flags": [],
+              "strength": "moderate"
+            }
+          },
+          "provider_vote_count": 1,
+          "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+          "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+          "source_event": "Speech or interview in 1975"
+        }
+      ]
+    },
+    {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "image_sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "named_people": [
+        "Gijs van Aardenne",
+        "Margaret Thatcher"
+      ],
+      "provider_no_match": [
+        "gemini",
+        "grok"
+      ],
+      "provider_result_missing": [],
+      "source_event": "Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m)",
+      "suitable_quotes": []
+    }
+  ],
+  "schema_version": 1
+}

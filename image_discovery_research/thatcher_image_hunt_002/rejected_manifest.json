@@ -1,0 +1,404 @@
+{
+  "records": [
+    {
+      "candidate_id": "0cba14f48403e717ab54",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:20:36.854438Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "115a39650ca84dcbca49",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:20:56.018523Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "13bc3cefd04282aec893",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:21:03.069224Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "28c5a5c96e454347a100",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:21:37.303938Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "2911d6cc15726540f2d5",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:21:55.517982Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "309e06733ffb80c27d45",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:22:29.934738Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3163201f724759922bbd",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:22:40.137745Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "31a858f7b0d951320051",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:22:45.985877Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "35c5d4b16805d55ef7ff",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:22:53.171710Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "35eb8aa4f227197d3d65",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:23:00.672681Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3784b882b5e2dd37260a",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:23:40.281018Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3aa40102d02ce98c3e8d",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:23:45.583067Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3b329acf5806ea605afc",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:04.835123Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3c5285b2625ca546fe5a",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:13.431965Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3d8e300f0c9e25ff7e9e",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:27.767915Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3e4a894c44146ebeb6a6",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:43.839231Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "3e6a09a8fc90137b1108",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:52.218415Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "40f520595b0f81a1c2a9",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:24:59.330935Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "435f0bd306850693de4e",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:25:08.054257Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "4594479322bd9e302261",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:25:17.331969Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "4e895c1cb4f28adededd",
+      "decision": "reject_poor_quality",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:25:56.875533Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "5003b000a19c71fec405",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:26:08.055430Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "5204a12aa615991bce09",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:26:26.287904Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "53c532a48c8f94aae6bc",
+      "decision": "reject",
+      "note": "there are a lot of pictures featuring Reagan, which is fair enough, I didn't have many",
+      "reviewed_at": "2026-07-16T05:27:36.199025Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "63426a84f009c2566ec4",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:28:10.800845Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "6f1706aa18d7c6c4d3f4",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:28:48.114510Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "720b078e411fbb68c733",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:28:54.843927Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "80122483ee7b15b9ce3e",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:29:42.412931Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "81a5cc0d8a32301d6ccd",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:29:50.911069Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "81e0cb23c02e5aa779c5",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:29:56.400878Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "841eeb0f4ea727572a77",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:32:06.356422Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "89a30e17ac49b666aea9",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:32:21.496568Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "8e9ec1d566d11977fa8f",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:32:28.601541Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "910111a68d30050cd5a2",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:32:35.536115Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "9167c99daf30fb622abe",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:32:50.975350Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "96bfbc52a3985775efa9",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:11.378370Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "a6b3445c7859a8c3900d",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:18.133076Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "a88d883fcc6073dbda35",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:25.221950Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "ad5bdb2e20a3782e22e0",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:31.972970Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "aeb46fb8da3f05fbc1ed",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:37.974789Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "b083c855c214b96df017",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:52.927657Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "b28c12f1adec53bfd0f4",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:33:59.785227Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "b359f82c9d55a020bf58",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:34:07.369750Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "b6392f38783c87687f0f",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:34:16.851905Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "b8c083432f728abcc969",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:34:30.114633Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "be71d159e37a065d76a7",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:34:37.674595Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "c41c3797972fecb41f81",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:34:58.823951Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "ca7fca8482b626d48875",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:35:10.182208Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "cda70b91a23caa16c660",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:35:16.725345Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "cfdbe42280de0fa796e2",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:35:41.591771Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "d0633896c2d71b042380",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:35:52.671192Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "dc449a250967b2791ad1",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:35:59.707412Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "dede943039c3370ef755",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:36:06.527679Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "e57df813e29565fc6800",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:36:12.840810Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "e90fcf26f0b0dbc61218",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:36:21.957689Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "f60cfa607d1b7878ee69",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:36:36.825747Z",
+      "revision": 1
+    },
+    {
+      "candidate_id": "f9ef1656f0f149fa88e5",
+      "decision": "reject",
+      "note": "",
+      "reviewed_at": "2026-07-16T05:36:57.178532Z",
+      "revision": 1
+    }
+  ],
+  "schema_version": 1
+}

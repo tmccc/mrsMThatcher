@@ -1,0 +1,20 @@
+{
+  "reviews": {
+    "47898be6bfefc5d49c03": {
+      "candidate_id": "47898be6bfefc5d49c03",
+      "decision": "promote_keep",
+      "note": "",
+      "reviewed_at": "2026-07-16T08:17:56.256862Z",
+      "revision": 1
+    },
+    "7cdcd67a8066a3b12d28": {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "decision": "promote_keep",
+      "note": "",
+      "reviewed_at": "2026-07-16T08:18:07.995002Z",
+      "revision": 1
+    }
+  },
+  "schema_version": 1,
+  "updated_at": "2026-07-16T08:18:07.995035Z"
+}

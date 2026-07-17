@@ -1,0 +1,20 @@
+{
+  "allow_count": 216,
+  "ambiguous_exposure_usd": 0.080448,
+  "contract_count": 626,
+  "developer_attempts": 111,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "full_passed": true,
+  "generated_at": "2026-07-16T18:44:37.930697Z",
+  "image_count": 91,
+  "known_spend_usd": 40.573945,
+  "live_production_enabled": false,
+  "model": "gemini-3.1-pro-preview",
+  "pair_count": 2495,
+  "pilot_passed": true,
+  "production_files_unchanged": true,
+  "schema_version": 1,
+  "vertex_attempts": 0,
+  "veto_count": 2279
+}

@@ -1,0 +1,84 @@
+{
+  "ambiguous_unrecorded_response_count": 0,
+  "baseline_image_count": 69,
+  "commons_archive_api_429_events": 11,
+  "commons_archive_api_requests": 133,
+  "commons_bounded_rate_limit_cycles": 2,
+  "commons_image_429_failures": 617,
+  "commons_recovery_exhausted": true,
+  "completed_logical_call_count": 12,
+  "conservative_ambiguous_exposure_usd": 0.0,
+  "dedupe_class_counts": {
+    "alternate_scan": 2,
+    "exact_duplicate": 5,
+    "near_duplicate": 40,
+    "visually_distinct": 85
+  },
+  "developer_attempt_count": 13,
+  "downloaded_candidates": 132,
+  "estimated_ambiguous_spend_usd": 0.0,
+  "failover_occurred": false,
+  "gemini_model": "gemini-3.1-pro-preview",
+  "generated_at": "2026-07-16T05:41:13.084020Z",
+  "grounded_source_pages": 400,
+  "http_429_attempts": [],
+  "known_spend_usd": {
+    "developer_api": 1.4485796,
+    "vertex": 0.0
+  },
+  "logical_call_count": 12,
+  "major_gaps": [
+    "early career, Finchley campaigning and Education Secretary years",
+    "election canvassing, crowds, rallies and active outdoor campaigning",
+    "factories, shops, farms, schools and industrial visits",
+    "conversations with workers and members of the public",
+    "Cabinet, parliamentary, desk-work and behind-the-scenes working scenes",
+    "international diplomacy with source-identified Reagan, Gorbachev and Cold War context",
+    "Falklands, defence, European Council and Bruges-era settings",
+    "warm, humorous, laughing, informal and later-life book-event scenes",
+    "group photographs and high visual-energy compositions"
+  ],
+  "possible_replacements": 0,
+  "review": {
+    "complete": true,
+    "decision_counts": {
+      "keep": 26,
+      "maybe": 2,
+      "reject": 56,
+      "reject_poor_quality": 1
+    },
+    "kept_rights_status_counts": {
+      "attribution_required": 3,
+      "public_domain": 19,
+      "rights_unclear": 4
+    },
+    "note_count": 1,
+    "outcome_counts": {
+      "keep": 26,
+      "maybe": 2,
+      "reject": 57
+    },
+    "production_ready_kept_count": 22,
+    "reviewed_count": 85,
+    "revision_count": 86,
+    "unreviewed_count": 0
+  },
+  "review_url": "http://127.0.0.1:8768",
+  "rights_status_counts": {
+    "attribution_required": 16,
+    "editorial_or_licensed_only": 2,
+    "public_domain": 49,
+    "rights_unclear": 18
+  },
+  "target_met": false,
+  "target_reviewable_candidates": 140,
+  "triage_priority_counts": {
+    "high": 25,
+    "low": 16,
+    "medium": 31,
+    "reject": 13
+  },
+  "triaged_reviewable_candidates": 85,
+  "unsupported_model_source_records": 0,
+  "vertex_attempt_count": 0
+}

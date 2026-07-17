@@ -1,0 +1,21 @@
+{
+  "ambiguous_possible_exposure_usd": 0.15000000000000002,
+  "candidate_count": 24,
+  "combined_known_cost_usd": 0.28212145,
+  "combined_known_plus_ambiguous_usd": 0.43212145,
+  "expected_incremental_cost_usd": 0.0051,
+  "hard_combined_cost_ceiling_usd": 1.0,
+  "identity_source_only": true,
+  "image_schema_version": 3,
+  "model": "grok-4.3",
+  "network_calls_made": false,
+  "observed_baseline_maximum_projection_usd": 0.0084,
+  "pending_count": 1,
+  "prior_pixel_only_analysis_cost_usd": 0.12987535,
+  "prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+  "required_exact_confirmation_usd": 1.0,
+  "schema_version": 1,
+  "source_grounded_cost_so_far_usd": 0.1522461,
+  "source_identity_record_count": 24,
+  "unaccounted_provider_response_count": 3
+}

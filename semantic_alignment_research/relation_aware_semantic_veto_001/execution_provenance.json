@@ -1,0 +1,84 @@
+{
+  "batch_jobs": [
+    {
+      "batch_id": "diagnostic-fixed-pair-envelope-001",
+      "effective_status": "provider_succeeded_schema_transport_incompatible",
+      "incident": "native_json_schema_transport_returned_schema_skeletons",
+      "item_count": 2,
+      "known_cost_usd": 0.05489,
+      "provider_job_id": "batches/5sv6khie80pedlctc5m0pcwhristqqs2cs0e",
+      "provider_state": "JOB_STATE_SUCCEEDED",
+      "recorded_status": "submitted"
+    },
+    {
+      "batch_id": "diagnostic-typed-pair-envelope-001",
+      "effective_status": "completed",
+      "incident": null,
+      "item_count": 2,
+      "known_cost_usd": 0.070408,
+      "provider_job_id": "batches/ov6z6z2o1fgafefna0gw0u2n1i1dj069jmtz",
+      "provider_state": "JOB_STATE_SUCCEEDED",
+      "recorded_status": "completed"
+    },
+    {
+      "batch_id": "full-pair-judgements-001",
+      "effective_status": "provider_succeeded_schema_transport_incompatible",
+      "incident": "native_json_schema_transport_returned_schema_skeletons",
+      "item_count": 499,
+      "known_cost_usd": 8.248285,
+      "provider_job_id": "batches/3ea7q4ejj7wl7ej3zjialb4ygcew7n5iabxd",
+      "provider_state": "JOB_STATE_SUCCEEDED",
+      "recorded_status": "submitted"
+    },
+    {
+      "batch_id": "full-pair-judgements-003-typed-response-schema",
+      "effective_status": "completed",
+      "incident": null,
+      "item_count": 497,
+      "known_cost_usd": 12.567393,
+      "provider_job_id": "batches/eklw8yqhm63xlp94tb8khp8xp3gwqtzwjk3k",
+      "provider_state": "JOB_STATE_SUCCEEDED",
+      "recorded_status": "completed"
+    },
+    {
+      "batch_id": "full-semantic-contracts-001",
+      "effective_status": "completed",
+      "incident": null,
+      "item_count": 606,
+      "known_cost_usd": 14.516975,
+      "provider_job_id": "batches/586bqic0myanw0d8nls9f7iy9jhqhwfta1hi",
+      "provider_state": "JOB_STATE_SUCCEEDED",
+      "recorded_status": "completed"
+    }
+  ],
+  "completed_normalised_response_count": 1208,
+  "completed_response_prompt_hash_count": 1174,
+  "completed_response_transport_counts": {
+    "developer_api": 136,
+    "developer_api_batch": 1069,
+    "interactive_split_recovery": 3
+  },
+  "developer_api_version": "v1beta",
+  "final_code_versions": {
+    "contract_prompt_version": "relation-aware-semantic-veto-2026-07-16-v1",
+    "contract_schema_version": "relation-aware-quote-contract-v1",
+    "pair_prompt_version": "relation-aware-semantic-veto-pairs-2026-07-16-v3",
+    "pair_schema_version": "relation-aware-pair-judgement-v4"
+  },
+  "generated_at": "2026-07-16T18:44:37.929395Z",
+  "initial_run_manifest_sha256": "44076a13aef1ce92a520d8727325e363e48e6a173660b08e8212d08c1b65ce70",
+  "model": "gemini-3.1-pro-preview",
+  "note": "The prepared manifest records the initial schema versions. Final code versions differ where the Gemini Batch native JSON-schema transport had to be replaced by the SDK's typed response-schema transport. Per-request prompt hashes and raw responses are retained.",
+  "prepared_versions": {
+    "contract_prompt_version": "relation-aware-semantic-veto-2026-07-16-v1",
+    "contract_schema_version": "relation-aware-quote-contract-v1",
+    "pair_prompt_version": "relation-aware-semantic-veto-pairs-2026-07-16-v2",
+    "pair_schema_version": "relation-aware-pair-judgement-v2"
+  },
+  "pricing_version": "gemini-3.1-pro-preview-public-pricing-2026-07-16-v1",
+  "schema_version": 1,
+  "sdk_version": "2.11.0",
+  "temperature": 0.0,
+  "thinking_level": "HIGH",
+  "vertex_api_version": "v1"
+}

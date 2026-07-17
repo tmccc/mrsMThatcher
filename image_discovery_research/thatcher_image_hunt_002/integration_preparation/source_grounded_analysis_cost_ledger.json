@@ -1,0 +1,15 @@
+{
+  "ambiguous_possible_exposure_in_usd_ticks": 1500000000,
+  "ambiguous_possible_exposure_usd": 0.15,
+  "combined_known_cost_in_usd_ticks": 2821214500,
+  "combined_known_cost_usd": 0.28212145,
+  "combined_known_plus_ambiguous_usd": 0.43212145,
+  "completed_count": 24,
+  "failure_count": 0,
+  "hard_combined_ceiling_usd": 1.0,
+  "prior_pixel_only_cost_in_usd_ticks": 1298753500,
+  "schema_version": 1,
+  "source_grounded_cost_in_usd_ticks": 1522461000,
+  "source_grounded_cost_usd": 0.1522461,
+  "unaccounted_provider_response_count": 3
+}

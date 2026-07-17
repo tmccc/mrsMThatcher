@@ -1,0 +1,249 @@
+{
+  "records": [
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "168392f289b5df25f16b",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "scene": "Formal handshake between US President Ronald Reagan and UK Prime Minister Margaret Thatcher during a 1984 diplomatic meeting at 10 Downing Street, London. Both figures are smiling and facing the camera in a classic official photograph.",
+        "source_event": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London"
+      },
+      "quote": {
+        "argument": "The UN's structural reliance on consensus makes it incapable of swift, resolute military action, meaning the free world must continue to rely on US leadership and sovereign nation-states for collective security.",
+        "event": "Speech to the Chicago Council on Foreign Relations",
+        "quote": "The UN depends on consensus & that is simply not an adequate basis for action or for readiness to take combat risks. If we try to rely solely on the UN, we shall rapidly come to see it is as an illusion factory, where copious resolutions become a substitute for effective action.",
+        "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "168392f289b5df25f16b",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "scene": "Formal handshake between US President Ronald Reagan and UK Prime Minister Margaret Thatcher during a 1984 diplomatic meeting at 10 Downing Street, London. Both figures are smiling and facing the camera in a classic official photograph.",
+        "source_event": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London"
+      },
+      "quote": {
+        "argument": "Western democracies possess superior ideals that will naturally prevail, and while they are committed to these values, they will not force them upon others militarily.",
+        "event": "Address to the Canadian Parliament",
+        "quote": "We intend freedom and justice to conquer. Yes, we do have a creed and we wish others to share it. But it is not part of our policy to impose our beliefs by force or threat of force.",
+        "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "253f9adb9e67db0a67d7",
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert Muldoon"
+        ],
+        "scene": "Margaret Thatcher signing a document or visitors' book while Robert Muldoon stands beside her in a formal indoor setting.",
+        "source_event": "Margaret Thatcher (including picture with Robert Muldoon) (crop)"
+      },
+      "quote": {
+        "argument": "Although she was relinquishing formal executive power, she fully intended to remain highly influential and offer forceful guidance to her successor.",
+        "event": "Comments made upon John Major's victory in the Conservative Party leadership contest",
+        "quote": "I shall not be pulling the levers there but I shall be a very good back-seat driver.",
+        "quote_hash": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "253f9adb9e67db0a67d7",
+        "named_people": [
+          "Margaret Thatcher",
+          "Robert Muldoon"
+        ],
+        "scene": "Margaret Thatcher signing a document or visitors' book while Robert Muldoon stands beside her in a formal indoor setting.",
+        "source_event": "Margaret Thatcher (including picture with Robert Muldoon) (crop)"
+      },
+      "quote": {
+        "argument": "The UN's structural reliance on consensus makes it incapable of swift, resolute military action, meaning the free world must continue to rely on US leadership and sovereign nation-states for collective security.",
+        "event": "Speech to the Chicago Council on Foreign Relations",
+        "quote": "The UN depends on consensus & that is simply not an adequate basis for action or for readiness to take combat risks. If we try to rely solely on the UN, we shall rapidly come to see it is as an illusion factory, where copious resolutions become a substitute for effective action.",
+        "quote_hash": "771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1"
+      }
+    },
+    {
+      "human_editorial_decision": "suitable",
+      "image": {
+        "candidate_id": "3e16363d7234c33cd75e",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Margaret Thatcher interacting with a small group of men in suits and police officers while surrounded by a crowd during an outdoor public visit to Salford.",
+        "source_event": "Margaret Thatcher visiting Salford"
+      },
+      "quote": {
+        "argument": "Mainstream political parties must acknowledge and address the public's genuine concerns about immigration rather than dismissing them, to prevent voters from turning to extremes.",
+        "event": "Interview for Granada TV's World in Action",
+        "quote": "We are not in politics to ignore people's worries, we are in politics to deal with them.",
+        "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "3e16363d7234c33cd75e",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Margaret Thatcher interacting with a small group of men in suits and police officers while surrounded by a crowd during an outdoor public visit to Salford.",
+        "source_event": "Margaret Thatcher visiting Salford"
+      },
+      "quote": {
+        "argument": "Voters prefer a government that stands firm on its principles rather than one that constantly bends to pressure or popular opinion.",
+        "event": "Interview for The Sun",
+        "quote": "I don't believe they [the voters] want a Government to be so flexible it becomes invertebrate. You don't want a Government full of flexi-toys.",
+        "quote_hash": "0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "3e16363d7234c33cd75e",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Margaret Thatcher interacting with a small group of men in suits and police officers while surrounded by a crowd during an outdoor public visit to Salford.",
+        "source_event": "Margaret Thatcher visiting Salford"
+      },
+      "quote": {
+        "argument": "A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.",
+        "event": "Interview for the Financial Times",
+        "quote": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+        "quote_hash": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+      }
+    },
+    {
+      "human_editorial_decision": "suitable",
+      "image": {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Composite image presenting multiple formal and public portraits of Margaret Thatcher spanning her premiership years.",
+        "source_event": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra."
+      },
+      "quote": {
+        "argument": "Despite her forced resignation, she believed her administration had successfully transformed and improved the country over her three terms in office.",
+        "event": "Remarks departing Downing Street",
+        "quote": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+        "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Composite image presenting multiple formal and public portraits of Margaret Thatcher spanning her premiership years.",
+        "source_event": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra."
+      },
+      "quote": {
+        "argument": "She values debate and discussion but ultimately expects her decisions and authority to be strictly followed.",
+        "event": "The Observer",
+        "quote": "I don't mind how much my Ministers talk, so long as they do what I say.",
+        "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Composite image presenting multiple formal and public portraits of Margaret Thatcher spanning her premiership years.",
+        "source_event": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra."
+      },
+      "quote": {
+        "argument": "Leaders must recognize the limits of their knowledge to avoid disastrous policy errors. Overconfident ignorance is the greatest threat in high-stakes governance.",
+        "event": "Publication of 'Statecraft: Strategies for a Changing World'",
+        "quote": "It is always important in matters of high politics to know what you do not know. Those who think that they know, but are mistaken, and act upon their mistakes, are the most dangerous people to have in charge.",
+        "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "539626eef2896af392c4",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "scene": "Margaret Thatcher and Ronald Reagan captured in profile during an outdoor arrival ceremony on the South Lawn.",
+        "source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony"
+      },
+      "quote": {
+        "argument": "Western nations must demand reciprocal concessions when negotiating with the Soviet Union, as unilateral goodwill will be exploited rather than reciprocated.",
+        "event": "Speech to Chelsea Conservative Association",
+        "quote": "The whole history of negotiation with the Soviet Union teaches us that if you do something they want without insisting on something in return, the Soviets do not regard it as a kindness to be reciprocated, but as a weakness to be exploited.",
+        "quote_hash": "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "539626eef2896af392c4",
+        "named_people": [
+          "Margaret Thatcher",
+          "Ronald Reagan"
+        ],
+        "scene": "Margaret Thatcher and Ronald Reagan captured in profile during an outdoor arrival ceremony on the South Lawn.",
+        "source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony"
+      },
+      "quote": {
+        "argument": "Thatcher argued that studying adversaries is essential because it creates strategic openings to eventually transform hostile relationships into cooperative ones.",
+        "event": "The Downing Street Years",
+        "quote": "It pays to know the enemy not least because at some time you may have the opportunity to turn him into a friend.",
+        "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3"
+      }
+    },
+    {
+      "human_editorial_decision": "suitable",
+      "image": {
+        "candidate_id": "86953c03fd343ef6fcc1",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Formal indoor portrait of Margaret Thatcher seated and smiling, captured in black and white.",
+        "source_event": "Margaret Thatcher , former UK PM."
+      },
+      "quote": {
+        "argument": "That her appointments were based strictly on merit, energy, and intelligence, qualities she frequently found in her Jewish colleagues.",
+        "event": "The Downing Street Years (Memoir)",
+        "quote": "I have enormous admiration for the Jewish people, inside or outside Israel. There have always been Jewish members of my staff and indeed my Cabinet. In fact I just wanted a Cabinet of clever, energetic people - and frequently that turned out to be the same thing.",
+        "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a"
+      }
+    },
+    {
+      "human_editorial_decision": "unsuitable",
+      "image": {
+        "candidate_id": "86953c03fd343ef6fcc1",
+        "named_people": [
+          "Margaret Thatcher"
+        ],
+        "scene": "Formal indoor portrait of Margaret Thatcher seated and smiling, captured in black and white.",
+        "source_event": "Margaret Thatcher , former UK PM."
+      },
+      "quote": {
+        "argument": "Despite her forced resignation, she believed her administration had successfully transformed and improved the country over her three terms in office.",
+        "event": "Remarks departing Downing Street",
+        "quote": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+        "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428"
+      }
+    }
+  ],
+  "schema_version": 1
+}

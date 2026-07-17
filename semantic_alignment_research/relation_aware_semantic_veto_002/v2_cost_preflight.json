@@ -1,0 +1,15 @@
+{
+  "ambiguous_exposure_before_usd": 0.080448,
+  "authorised_hard_ceiling_usd": 100.0,
+  "expected_incremental_cost_usd": 28.452375,
+  "expected_with_20_percent_contingency_usd": 34.142851,
+  "fits_authorised_hard_ceiling": true,
+  "further_execution_authorised": true,
+  "generated_at": "2026-07-16T19:42:20.804579Z",
+  "known_spend_before_usd": 45.249523,
+  "missing_pair_count": 5626,
+  "observed_v1_cost_per_pair_usd": 0.005057301,
+  "paid_calls_made": false,
+  "remaining_under_authorised_hard_ceiling_usd": 54.670029,
+  "schema_version": 1
+}

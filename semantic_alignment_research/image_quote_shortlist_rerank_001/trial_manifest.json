@@ -1,0 +1,106 @@
+{
+  "batches": [
+    {
+      "batch_id": "batch-01",
+      "candidate_ids": [
+        "00f4566964e0c88838ad",
+        "08fe3d43c27bece23076",
+        "0b15f11312a31033907d",
+        "0b42b54c4148ee2562fb",
+        "0c4634d8356f42dc4e0c",
+        "0fe7ed6333faf654b062"
+      ],
+      "estimated_input_tokens": 98186,
+      "prompt_path": "prompts/batch_01.txt",
+      "prompt_sha256": "23089aa29605c0c31bb3ab0f4ab50e8d0e61172b6149f639c8dbe017effa55a4"
+    },
+    {
+      "batch_id": "batch-02",
+      "candidate_ids": [
+        "149e63869f481474a798",
+        "168392f289b5df25f16b",
+        "253f9adb9e67db0a67d7",
+        "305d002e01745c0acd9b",
+        "36d6b17bedd4345d223e",
+        "3abe0be95aa60233f374"
+      ],
+      "estimated_input_tokens": 99921,
+      "prompt_path": "prompts/batch_02.txt",
+      "prompt_sha256": "283b4b0cb0c90b90309f1f73c689d165155a6ef439d85ad156bb58ca47d80239"
+    },
+    {
+      "batch_id": "batch-03",
+      "candidate_ids": [
+        "3e16363d7234c33cd75e",
+        "47898be6bfefc5d49c03",
+        "5202e374b764482c4cda",
+        "539626eef2896af392c4",
+        "5ac817d960fb7eb0f974",
+        "62fe0c8d105bf2ad7c95"
+      ],
+      "estimated_input_tokens": 100072,
+      "prompt_path": "prompts/batch_03.txt",
+      "prompt_sha256": "5211afb5472258d9b585a9a80bf50a21982451f54f2091590185851ef926c1f3"
+    },
+    {
+      "batch_id": "batch-04",
+      "candidate_ids": [
+        "6966b6853551436e849b",
+        "7720de19eda682fe608d",
+        "7c9a2b387a67c9bd858c",
+        "7cdcd67a8066a3b12d28",
+        "86953c03fd343ef6fcc1",
+        "f8872af0e0d18261b23e"
+      ],
+      "estimated_input_tokens": 99694,
+      "prompt_path": "prompts/batch_04.txt",
+      "prompt_sha256": "c625c4e6fd2101de3bbf8042f9e7ae60444d26e145273fefd828e76ad3ed5d8a"
+    }
+  ],
+  "calibration_split_sha256": "0e1e0e7329884b6e3f719c3e22c267f95d0aac3ea47299e66cb7581c5f8d2dc2",
+  "generated_at": "2026-07-16T11:25:23.677159Z",
+  "image_count": 24,
+  "prompt_parity": true,
+  "prompt_version": "image-quote-focused-shortlist-rerank-v1",
+  "provider_prompt_hashes": {
+    "anthropic": [
+      "23089aa29605c0c31bb3ab0f4ab50e8d0e61172b6149f639c8dbe017effa55a4",
+      "283b4b0cb0c90b90309f1f73c689d165155a6ef439d85ad156bb58ca47d80239",
+      "5211afb5472258d9b585a9a80bf50a21982451f54f2091590185851ef926c1f3",
+      "c625c4e6fd2101de3bbf8042f9e7ae60444d26e145273fefd828e76ad3ed5d8a"
+    ],
+    "gemini": [
+      "23089aa29605c0c31bb3ab0f4ab50e8d0e61172b6149f639c8dbe017effa55a4",
+      "283b4b0cb0c90b90309f1f73c689d165155a6ef439d85ad156bb58ca47d80239",
+      "5211afb5472258d9b585a9a80bf50a21982451f54f2091590185851ef926c1f3",
+      "c625c4e6fd2101de3bbf8042f9e7ae60444d26e145273fefd828e76ad3ed5d8a"
+    ],
+    "grok": [
+      "23089aa29605c0c31bb3ab0f4ab50e8d0e61172b6149f639c8dbe017effa55a4",
+      "283b4b0cb0c90b90309f1f73c689d165155a6ef439d85ad156bb58ca47d80239",
+      "5211afb5472258d9b585a9a80bf50a21982451f54f2091590185851ef926c1f3",
+      "c625c4e6fd2101de3bbf8042f9e7ae60444d26e145273fefd828e76ad3ed5d8a"
+    ],
+    "openai": [
+      "23089aa29605c0c31bb3ab0f4ab50e8d0e61172b6149f639c8dbe017effa55a4",
+      "283b4b0cb0c90b90309f1f73c689d165155a6ef439d85ad156bb58ca47d80239",
+      "5211afb5472258d9b585a9a80bf50a21982451f54f2091590185851ef926c1f3",
+      "c625c4e6fd2101de3bbf8042f9e7ae60444d26e145273fefd828e76ad3ed5d8a"
+    ]
+  },
+  "providers": [
+    "grok",
+    "openai",
+    "anthropic",
+    "gemini"
+  ],
+  "quote_count": 626,
+  "research_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001",
+  "retrieval_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/hybrid_reply_retrieval_001",
+  "schema_version": 1,
+  "shortlist_size": 25,
+  "shortlist_version": "local-image-quote-shortlist-v1",
+  "shortlists_sha256": "7d63d80b33b0fbb0fc537cce2f0294bfded3a2800cca21f1957691e5506e8727",
+  "trial_name": "image_quote_shortlist_rerank_001",
+  "work_dir": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/integration_preparation"
+}

@@ -1,0 +1,237 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "actor_count_minimum": {
+      "maximum": 12,
+      "minimum": 0,
+      "type": "integer"
+    },
+    "claim_type": {
+      "enum": [
+        "abstract_principle",
+        "causal_claim",
+        "comparison",
+        "concrete_action",
+        "named_entity",
+        "named_event",
+        "other",
+        "personal_reflection",
+        "relationship",
+        "relationship_transformation",
+        "warning"
+      ],
+      "type": "string"
+    },
+    "confidence": {
+      "enum": [
+        "high",
+        "low",
+        "medium"
+      ],
+      "type": "string"
+    },
+    "dominant_proposition": {
+      "type": "string"
+    },
+    "final_relationship": {
+      "enum": [
+        "adversary",
+        "ally",
+        "enemy",
+        "friend",
+        "none",
+        "opponent",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "hard_conflicts": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "historical_specificity": {
+      "enum": [
+        "event_specific",
+        "general",
+        "period_specific",
+        "person_specific"
+      ],
+      "type": "string"
+    },
+    "initial_relationship": {
+      "enum": [
+        "adversary",
+        "ally",
+        "enemy",
+        "friend",
+        "none",
+        "opponent",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "misleading_implications_to_avoid": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "multi_person_image_risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "type": "string"
+    },
+    "named_entities_required": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "neutral_portrait_allowed": {
+      "type": "boolean"
+    },
+    "polarity": {
+      "enum": [
+        "mixed",
+        "negative",
+        "neutral",
+        "positive"
+      ],
+      "type": "string"
+    },
+    "quote_id": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "quote_text": {
+      "type": "string"
+    },
+    "relationship_evidence_required": {
+      "type": "boolean"
+    },
+    "required_action": {
+      "type": "string"
+    },
+    "required_actor_roles": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 16,
+      "type": "array"
+    },
+    "required_after_state": {
+      "type": "string"
+    },
+    "required_before_state": {
+      "type": "string"
+    },
+    "required_direction": {
+      "type": "string"
+    },
+    "required_transition": {
+      "enum": [
+        "coercion_to_freedom",
+        "conflict_to_peace",
+        "decline_to_recovery",
+        "enemy_to_friend",
+        "freedom_to_coercion",
+        "none",
+        "opponent_to_partner",
+        "other"
+      ],
+      "type": "string"
+    },
+    "research_confidence": {
+      "enum": [
+        "high",
+        "low",
+        "medium"
+      ],
+      "type": "string"
+    },
+    "source_fields_used": {
+      "items": {
+        "enum": [
+          "broader_principle",
+          "claimed_consequence",
+          "date",
+          "editorial_guidance",
+          "entities",
+          "historical_context",
+          "immediate_subject",
+          "intended_argument",
+          "literal_meaning",
+          "mechanism",
+          "quote_text",
+          "research_confidence",
+          "source_event",
+          "verification_status",
+          "verified_text"
+        ],
+        "type": "string"
+      },
+      "maxItems": 15,
+      "minItems": 1,
+      "type": "array"
+    },
+    "verification_status": {
+      "type": "string"
+    },
+    "verified_text": {
+      "type": "string"
+    },
+    "visual_strategies_allowed": {
+      "items": {
+        "enum": [
+          "documentary",
+          "historical_scene",
+          "literal",
+          "neutral_portrait",
+          "symbolic"
+        ],
+        "type": "string"
+      },
+      "maxItems": 5,
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "quote_id",
+    "quote_text",
+    "verified_text",
+    "verification_status",
+    "research_confidence",
+    "dominant_proposition",
+    "claim_type",
+    "actor_count_minimum",
+    "required_actor_roles",
+    "named_entities_required",
+    "initial_relationship",
+    "final_relationship",
+    "required_transition",
+    "required_action",
+    "required_direction",
+    "required_before_state",
+    "required_after_state",
+    "polarity",
+    "historical_specificity",
+    "visual_strategies_allowed",
+    "neutral_portrait_allowed",
+    "multi_person_image_risk",
+    "relationship_evidence_required",
+    "hard_conflicts",
+    "misleading_implications_to_avoid",
+    "source_fields_used",
+    "confidence"
+  ],
+  "type": "object"
+}

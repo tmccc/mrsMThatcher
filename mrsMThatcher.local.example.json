@@ -34,6 +34,14 @@
       "fail_open": true
     }
   },
+  "quote_image_semantic_veto": {
+    "enabled": false,
+    "mode": "shadow",
+    "manifest_path": "semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json",
+    "fail_open": true,
+    "record_best_allowed_alternative": true,
+    "maximum_shadow_history": 10000
+  },
   "MAX_AUTO_REPLIES_PER_DAY": 24,
   "MAX_QUOTE_REPLIES_PER_DAY": 12,
   "MIN_SECONDS_BETWEEN_REPLIES": 3600,

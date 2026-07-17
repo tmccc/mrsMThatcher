@@ -74,9 +74,9 @@ def openai_output_schema(schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA) -> dict[str
 
 
 def anthropic_output_schema(schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA) -> dict[str,Any]:
-    # Anthropic structured outputs reject numeric range keywords; local strict
-    # validation retains the provider-neutral 0..100 contract.
-    return _without_schema_keywords(schema,{"minimum","maximum","maxItems","maxLength","uniqueItems"})
+    # Anthropic structured outputs reject numeric ranges and array minimums
+    # above one; local strict validation retains those provider-neutral rules.
+    return _without_schema_keywords(schema,{"minimum","maximum","minItems","maxItems","maxLength","uniqueItems"})
 
 
 def validate_bakeoff_result(value: Any) -> dict[str, Any]:
@@ -197,10 +197,10 @@ class ProviderLedger:
 
 
 class ProviderClient:
-    def __init__(self,provider:str,api_key:str,transport:Callable[...,Any]|None=None):
+    def __init__(self,provider:str,api_key:str,transport:Callable[...,Any]|None=None,*,timeout_seconds:float=180):
         if provider not in {"grok","openai","anthropic","gemini"}: raise ValueError("unknown provider")
         if not api_key: raise RuntimeError(f"{provider} API key required only for explicit execution")
-        self.provider=provider; self.model=PROVIDER_MODELS[provider]; self.transport=transport or requests.post; self.api_key=api_key
+        self.provider=provider; self.model=PROVIDER_MODELS[provider]; self.transport=transport or requests.post; self.api_key=api_key; self.timeout_seconds=float(timeout_seconds)
     def payload(self,prompt:str,*,schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA,schema_name:str="provider_neutral_picture_editor",max_output_tokens:int=MAX_OUTPUT_TOKENS):
         if self.provider=="grok":
             return {"model":self.model,"messages":[{"role":"user","content":prompt}],"response_format":{"type":"json_schema","json_schema":{"name":schema_name,"strict":True,"schema":schema}},"reasoning_effort":"low","max_tokens":max_output_tokens}
@@ -215,7 +215,7 @@ class ProviderClient:
         if self.provider=="anthropic": headers.update({"x-api-key":self.api_key,"anthropic-version":"2023-06-01"})
         elif self.provider=="gemini": headers["x-goog-api-key"]=self.api_key
         else: headers["Authorization"]=f"Bearer {self.api_key}"
-        started=time.monotonic(); response=self.transport(urls[self.provider],headers=headers,json=self.payload(prompt,schema=schema,schema_name=schema_name,max_output_tokens=max_output_tokens),timeout=180); latency=time.monotonic()-started; response.raise_for_status(); raw=response.json(); request_id=response.headers.get("request-id") or response.headers.get("x-request-id") or raw.get("id")
+        started=time.monotonic(); response=self.transport(urls[self.provider],headers=headers,json=self.payload(prompt,schema=schema,schema_name=schema_name,max_output_tokens=max_output_tokens),timeout=self.timeout_seconds); latency=time.monotonic()-started; response.raise_for_status(); raw=response.json(); request_id=response.headers.get("request-id") or response.headers.get("x-request-id") or raw.get("id")
         if self.provider=="grok":
             content=json.loads(raw["choices"][0]["message"]["content"]); usage=raw.get("usage") or {}; ticks=usage.get("cost_in_usd_ticks")
             if type(ticks) is not int: raise ValueError("missing authoritative Grok cost")

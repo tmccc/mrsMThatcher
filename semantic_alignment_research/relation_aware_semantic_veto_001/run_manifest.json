@@ -1,0 +1,41 @@
+{
+  "baseline_image_count": 69,
+  "batch_price_factor": 0.5,
+  "contract_prompt_version": "relation-aware-semantic-veto-2026-07-16-v1",
+  "contract_schema_sha256": "453eaf87f231ab01fb187490a2c066141a5517b329a0ffd4f186c932b3a78919",
+  "contract_schema_version": "relation-aware-quote-contract-v1",
+  "developer_api_version": "v1beta",
+  "discovered_image_count": 22,
+  "generated_at": "2026-07-16T17:21:56.400665Z",
+  "google_search_enabled": false,
+  "image_count": 91,
+  "image_generation_enabled": false,
+  "model": "gemini-3.1-pro-preview",
+  "pair_prompt_version": "relation-aware-semantic-veto-pairs-2026-07-16-v2",
+  "pair_schema_sha256": "54cbaa2db1014d2c46a0ee420c6af3a8b83326e31d3b028c2f2424f536035582",
+  "pair_schema_version": "relation-aware-pair-judgement-v2",
+  "pricing_version": "gemini-3.1-pro-preview-public-pricing-2026-07-16-v1",
+  "production_hash_aggregate_before": "928ff2313c23eb638c144a489fe9d3c0cb30ba7bb8989c55467d5fc40e2cc158",
+  "quote_count": 626,
+  "run_name": "relation_aware_semantic_veto_001",
+  "schema_version": 1,
+  "sdk_version": "2.11.0",
+  "standard_price_per_million": {
+    "cached_input": 0.2,
+    "input": 2.0,
+    "output": 12.0
+  },
+  "temperature": 0.0,
+  "thinking_level": "HIGH",
+  "tools_enabled": false,
+  "unresolved_quote_ids": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
+    "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
+    "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
+    "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
+    "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
+  ],
+  "url_context_enabled": false,
+  "vertex_api_version": "v1"
+}

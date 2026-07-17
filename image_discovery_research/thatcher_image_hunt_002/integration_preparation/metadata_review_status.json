@@ -1,0 +1,11 @@
+{
+  "absence_of_pairing_correction_flags_is_metadata_approval": false,
+  "automated_source_grounded_validation": "passed",
+  "candidate_count": 24,
+  "generated_at": "2026-07-16T09:10:07.807860Z",
+  "human_metadata_validation": "not_performed",
+  "production_integration_applied": false,
+  "safe_for_offline_selector_dry_run": true,
+  "schema_version": 2,
+  "source_identity_method": "authoritative source caption, archive metadata, or source page context; never facial inference"
+}

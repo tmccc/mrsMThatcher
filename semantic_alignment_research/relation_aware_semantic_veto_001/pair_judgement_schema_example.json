@@ -1,0 +1,101 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "records": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "enum": [
+              "high",
+              "low",
+              "medium"
+            ],
+            "type": "string"
+          },
+          "contradiction_types": {
+            "items": {
+              "enum": [
+                "ally_adversary_confusion",
+                "generic_theme_only",
+                "insufficient_actor_count",
+                "insufficient_evidence",
+                "misleading_dominant_message",
+                "missing_relationship_evidence",
+                "missing_transition",
+                "none",
+                "other",
+                "portrait_substitution",
+                "wrong_action",
+                "wrong_before_after_state",
+                "wrong_direction",
+                "wrong_event",
+                "wrong_named_entity",
+                "wrong_period",
+                "wrong_relationship"
+              ],
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "decision": {
+            "enum": [
+              "allow",
+              "uncertain",
+              "veto"
+            ],
+            "type": "string"
+          },
+          "dominant_visual_message": {
+            "type": "string"
+          },
+          "image_id": {
+            "type": "string"
+          },
+          "materially_misleading": {
+            "type": "boolean"
+          },
+          "pair_id": {
+            "type": "string"
+          },
+          "quote_id": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "relationship_supported": {
+            "enum": [
+              "no",
+              "not_required",
+              "unknown",
+              "yes"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "pair_id",
+          "quote_id",
+          "image_id",
+          "decision",
+          "confidence",
+          "materially_misleading",
+          "relationship_supported",
+          "contradiction_types",
+          "dominant_visual_message",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "records"
+  ],
+  "type": "object"
+}

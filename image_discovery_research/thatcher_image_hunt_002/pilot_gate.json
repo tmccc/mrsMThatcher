@@ -1,0 +1,28 @@
+{
+  "checks": {
+    "at_least_10_visually_distinct": true,
+    "at_least_15_attributed_downloads": true,
+    "production_isolation": true,
+    "source_extraction_operational": true
+  },
+  "dedupe": {
+    "class_counts": {
+      "alternate_scan": 2,
+      "exact_duplicate": 5,
+      "near_duplicate": 40,
+      "visually_distinct": 85
+    },
+    "retained_count": 85
+  },
+  "harvest": {
+    "accepted_source_pages": 400,
+    "commons_categories_processed_now": 0,
+    "commons_cooldown_active": false,
+    "commons_cooldown_until_epoch": null,
+    "downloaded_candidates": 132,
+    "failures": 630,
+    "grounded_calls": 6,
+    "unsupported_source_records": 0
+  },
+  "passed": true
+}

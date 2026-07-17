@@ -1,0 +1,2017 @@
+{
+  "ambiguous_exposure_usd": 0.080448,
+  "hard_combined_ceiling_usd": 60.0,
+  "known_spend_by_class": {
+    "planned": 43.017925,
+    "repair": 2.231598
+  },
+  "known_spend_by_transport": {
+    "developer_api": 45.249523,
+    "vertex_ai": 0.0
+  },
+  "known_spend_usd": 45.249523,
+  "operations": [
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102954,
+      "operation_id": "pilot-contract-e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3:developer_api:1",
+      "timestamp": "2026-07-16T16:54:27.118712Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.058104,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3:developer_api:1",
+      "timestamp": "2026-07-16T16:54:58.351361Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103138,
+      "operation_id": "pilot-contract-d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce:developer_api:1",
+      "timestamp": "2026-07-16T16:54:58.363707Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.046828,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce:developer_api:1",
+      "timestamp": "2026-07-16T16:55:23.372462Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102826,
+      "operation_id": "pilot-contract-a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d:developer_api:1",
+      "timestamp": "2026-07-16T16:55:23.384818Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.044552,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d:developer_api:1",
+      "timestamp": "2026-07-16T16:55:50.485846Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102708,
+      "operation_id": "pilot-contract-9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1:developer_api:1",
+      "timestamp": "2026-07-16T16:55:50.497517Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.041528,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1:developer_api:1",
+      "timestamp": "2026-07-16T16:56:17.528581Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102904,
+      "operation_id": "pilot-contract-b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696:developer_api:1",
+      "timestamp": "2026-07-16T16:56:17.540983Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.044548,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696:developer_api:1",
+      "timestamp": "2026-07-16T16:56:42.963751Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103044,
+      "operation_id": "pilot-contract-c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57:developer_api:1",
+      "timestamp": "2026-07-16T16:56:42.969607Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.03622,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57:developer_api:1",
+      "timestamp": "2026-07-16T16:57:03.910560Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102862,
+      "operation_id": "pilot-contract-cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5:developer_api:1",
+      "timestamp": "2026-07-16T16:57:03.917746Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.038742,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5:developer_api:1",
+      "timestamp": "2026-07-16T16:57:28.146246Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103088,
+      "operation_id": "pilot-contract-063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7:developer_api:1",
+      "timestamp": "2026-07-16T16:57:28.152938Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.039862,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7:developer_api:1",
+      "timestamp": "2026-07-16T16:57:52.164937Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103008,
+      "operation_id": "pilot-contract-19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296:developer_api:1",
+      "timestamp": "2026-07-16T16:57:52.178589Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.041492,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296:developer_api:1",
+      "timestamp": "2026-07-16T16:58:17.835921Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.10286,
+      "operation_id": "pilot-contract-3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25:developer_api:1",
+      "timestamp": "2026-07-16T16:58:17.842256Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.044986,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-3775a90baa2bc484f4dec17e9a57acd6b585d5fb5ef7cedf957282e25d0a7e25:developer_api:1",
+      "timestamp": "2026-07-16T16:58:44.290051Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102678,
+      "operation_id": "pilot-contract-5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614:developer_api:1",
+      "timestamp": "2026-07-16T16:58:44.304613Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.039066,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-5ceb13e34965449fa47555c1e2108e196fb1570290539ef580758be01671a614:developer_api:1",
+      "timestamp": "2026-07-16T16:59:06.177289Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103078,
+      "operation_id": "pilot-contract-6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129:developer_api:1",
+      "timestamp": "2026-07-16T16:59:06.191993Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.036368,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129:developer_api:1",
+      "timestamp": "2026-07-16T16:59:27.076298Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103512,
+      "operation_id": "pilot-contract-771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1:developer_api:1",
+      "timestamp": "2026-07-16T16:59:27.090420Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.059484,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-771fd65c34f85b3d99e5ad9b6955d6ac5d33d572acbd63d2fc7d3454237c30d1:developer_api:1",
+      "timestamp": "2026-07-16T17:00:06.410548Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102936,
+      "operation_id": "pilot-contract-8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b:developer_api:1",
+      "timestamp": "2026-07-16T17:00:06.425542Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04265,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b:developer_api:1",
+      "timestamp": "2026-07-16T17:00:30.769453Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103224,
+      "operation_id": "pilot-contract-f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e:developer_api:1",
+      "timestamp": "2026-07-16T17:00:30.784135Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04142,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e:developer_api:1",
+      "timestamp": "2026-07-16T17:00:52.972352Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103364,
+      "operation_id": "pilot-contract-f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2:developer_api:1",
+      "timestamp": "2026-07-16T17:00:52.987535Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047506,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2:developer_api:1",
+      "timestamp": "2026-07-16T17:01:21.295666Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103074,
+      "operation_id": "pilot-contract-00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d:developer_api:1",
+      "timestamp": "2026-07-16T17:01:21.311632Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.043652,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d:developer_api:1",
+      "timestamp": "2026-07-16T17:01:46.466047Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102784,
+      "operation_id": "pilot-contract-0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5:developer_api:1",
+      "timestamp": "2026-07-16T17:01:46.483347Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048856,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5:developer_api:1",
+      "timestamp": "2026-07-16T17:02:13.963927Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103022,
+      "operation_id": "pilot-contract-0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a:developer_api:1",
+      "timestamp": "2026-07-16T17:02:13.979587Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.049348,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a:developer_api:1",
+      "timestamp": "2026-07-16T17:02:56.215544Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103002,
+      "operation_id": "pilot-contract-00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae:developer_api:1",
+      "timestamp": "2026-07-16T17:02:56.225486Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.033518,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-contract-00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae:developer_api:1",
+      "timestamp": "2026-07-16T17:03:16.057091Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.181004,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733:developer_api:1",
+      "timestamp": "2026-07-16T17:03:16.084982Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "released",
+      "maximum_usd": 0.181004,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733:developer_api:1",
+      "reason": "http_400",
+      "timestamp": "2026-07-16T17:03:17.327238Z"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103572,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:1",
+      "timestamp": "2026-07-16T17:07:37.253344Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "released",
+      "maximum_usd": 0.103572,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:1",
+      "reason": "http_400",
+      "timestamp": "2026-07-16T17:07:38.311938Z"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.030246,
+      "operation_id": "diagnostic-single-pair-schema:developer_api:1",
+      "timestamp": "2026-07-16T17:08:12.454443Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.022522,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "diagnostic-single-pair-schema:developer_api:1",
+      "timestamp": "2026-07-16T17:08:27.069332Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.060824,
+      "operation_id": "diagnostic-five-pair-schema:developer_api:1",
+      "timestamp": "2026-07-16T17:08:57.422710Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "released",
+      "maximum_usd": 0.060824,
+      "operation_id": "diagnostic-five-pair-schema:developer_api:1",
+      "reason": "http_400",
+      "timestamp": "2026-07-16T17:08:58.286130Z"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.031766,
+      "operation_id": "diagnostic-two-pair-schema:developer_api:1",
+      "timestamp": "2026-07-16T17:09:21.414843Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.02854,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "diagnostic-two-pair-schema:developer_api:1",
+      "timestamp": "2026-07-16T17:09:37.840552Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.060824,
+      "operation_id": "diagnostic-five-pair-local-cardinality:developer_api:1",
+      "timestamp": "2026-07-16T17:10:34.265866Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.057914,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "diagnostic-five-pair-local-cardinality:developer_api:1",
+      "timestamp": "2026-07-16T17:11:04.035691Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103554,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:1",
+      "timestamp": "2026-07-16T17:12:00.051731Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.099204,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:1",
+      "timestamp": "2026-07-16T17:12:48.358911Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.103684,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:12:48.368358Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.099272,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:13:34.686479Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.103452,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:2",
+      "timestamp": "2026-07-16T17:16:22.591190Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.087992,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-01:developer_api:2",
+      "timestamp": "2026-07-16T17:17:07.144490Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.102986,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-02:developer_api:1",
+      "timestamp": "2026-07-16T17:17:07.164473Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.098982,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-02:developer_api:1",
+      "timestamp": "2026-07-16T17:17:55.764564Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.103116,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-02-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:17:55.774789Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.09905,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-02-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:18:43.558855Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080646,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-03:developer_api:1",
+      "timestamp": "2026-07-16T17:22:05.218198Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.057688,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-03:developer_api:1",
+      "timestamp": "2026-07-16T17:22:34.865818Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080864,
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-04:developer_api:1",
+      "timestamp": "2026-07-16T17:22:34.882311Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.06417,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-66024ff60805e55e8733-04:developer_api:1",
+      "timestamp": "2026-07-16T17:23:09.181752Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080496,
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-01:developer_api:1",
+      "timestamp": "2026-07-16T17:23:09.198063Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.057062,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-01:developer_api:1",
+      "timestamp": "2026-07-16T17:23:38.595513Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080242,
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-02:developer_api:1",
+      "timestamp": "2026-07-16T17:23:38.614923Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.050274,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-02:developer_api:1",
+      "timestamp": "2026-07-16T17:24:01.503233Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080086,
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-03:developer_api:1",
+      "timestamp": "2026-07-16T17:24:01.521415Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.06608,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-03:developer_api:1",
+      "timestamp": "2026-07-16T17:24:34.678605Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080422,
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-04:developer_api:1",
+      "timestamp": "2026-07-16T17:24:34.698595Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.073406,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-1999adff8ee0a26ddca7-04:developer_api:1",
+      "timestamp": "2026-07-16T17:25:13.020762Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080548,
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-01:developer_api:1",
+      "timestamp": "2026-07-16T17:25:13.040383Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048304,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-01:developer_api:1",
+      "timestamp": "2026-07-16T17:25:31.033983Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080294,
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-02:developer_api:1",
+      "timestamp": "2026-07-16T17:25:31.053866Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.049914,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-02:developer_api:1",
+      "timestamp": "2026-07-16T17:25:53.838479Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080138,
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-03:developer_api:1",
+      "timestamp": "2026-07-16T17:25:53.864678Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047134,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-03:developer_api:1",
+      "timestamp": "2026-07-16T17:26:19.012651Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080474,
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-04:developer_api:1",
+      "timestamp": "2026-07-16T17:26:19.031992Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.066582,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-45add1a300a5ef28407a-04:developer_api:1",
+      "timestamp": "2026-07-16T17:26:43.978287Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080846,
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-01:developer_api:1",
+      "timestamp": "2026-07-16T17:26:44.018041Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.06257,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-01:developer_api:1",
+      "timestamp": "2026-07-16T17:27:11.848960Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080594,
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-02:developer_api:1",
+      "timestamp": "2026-07-16T17:27:11.871880Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.065746,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-02:developer_api:1",
+      "timestamp": "2026-07-16T17:27:44.421647Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080436,
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-03:developer_api:1",
+      "timestamp": "2026-07-16T17:27:44.443600Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.071948,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-03:developer_api:1",
+      "timestamp": "2026-07-16T17:28:20.803973Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080772,
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-04:developer_api:1",
+      "timestamp": "2026-07-16T17:28:20.828428Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.049748,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-9e90ba1fc88239bc0182-04:developer_api:1",
+      "timestamp": "2026-07-16T17:28:44.556480Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.081196,
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-01:developer_api:1",
+      "timestamp": "2026-07-16T17:28:44.579246Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.059156,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-01:developer_api:1",
+      "timestamp": "2026-07-16T17:29:15.064721Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.08106,
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-02:developer_api:1",
+      "timestamp": "2026-07-16T17:29:15.090866Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048292,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-02:developer_api:1",
+      "timestamp": "2026-07-16T17:29:37.602135Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080786,
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-03:developer_api:1",
+      "timestamp": "2026-07-16T17:29:37.625693Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0676,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-03:developer_api:1",
+      "timestamp": "2026-07-16T17:30:11.798444Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080912,
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-04:developer_api:1",
+      "timestamp": "2026-07-16T17:30:11.823820Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.05144,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-4462413aebe11ffa7da4-04:developer_api:1",
+      "timestamp": "2026-07-16T17:30:37.809928Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.08245,
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-01:developer_api:1",
+      "timestamp": "2026-07-16T17:30:37.840367Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.052154,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-01:developer_api:1",
+      "timestamp": "2026-07-16T17:31:05.795228Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.082198,
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-02:developer_api:1",
+      "timestamp": "2026-07-16T17:31:05.822346Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.052108,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-02:developer_api:1",
+      "timestamp": "2026-07-16T17:31:29.685911Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.082042,
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-03:developer_api:1",
+      "timestamp": "2026-07-16T17:31:29.709016Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.05095,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-03:developer_api:1",
+      "timestamp": "2026-07-16T17:31:49.382165Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.082376,
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-04:developer_api:1",
+      "timestamp": "2026-07-16T17:31:49.408427Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.062354,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2b4118f760904f9e4613-04:developer_api:1",
+      "timestamp": "2026-07-16T17:32:18.331654Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080318,
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-01:developer_api:1",
+      "timestamp": "2026-07-16T17:32:18.358587Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04348,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-01:developer_api:1",
+      "timestamp": "2026-07-16T17:32:38.794672Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080182,
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-02:developer_api:1",
+      "timestamp": "2026-07-16T17:32:38.822798Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.052852,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-02:developer_api:1",
+      "timestamp": "2026-07-16T17:33:05.376442Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.07991,
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-03:developer_api:1",
+      "timestamp": "2026-07-16T17:33:05.402851Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047858,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-03:developer_api:1",
+      "timestamp": "2026-07-16T17:33:29.376974Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080232,
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-04:developer_api:1",
+      "timestamp": "2026-07-16T17:33:29.387881Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.045008,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-b7f461c2f8805c3dec5e-04:developer_api:1",
+      "timestamp": "2026-07-16T17:33:52.697387Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080638,
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-01:developer_api:1",
+      "timestamp": "2026-07-16T17:33:52.725755Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.064224,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-01:developer_api:1",
+      "timestamp": "2026-07-16T17:34:26.420504Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080386,
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-02:developer_api:1",
+      "timestamp": "2026-07-16T17:34:26.436781Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.051284,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-02:developer_api:1",
+      "timestamp": "2026-07-16T17:34:50.142039Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080228,
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-03:developer_api:1",
+      "timestamp": "2026-07-16T17:34:50.173234Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.074676,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-03:developer_api:1",
+      "timestamp": "2026-07-16T17:35:31.391286Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080564,
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-04:developer_api:1",
+      "timestamp": "2026-07-16T17:35:31.421245Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048634,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "pilot-pairs-2f1d7e0df2cedf82a452-04:developer_api:1",
+      "timestamp": "2026-07-16T17:35:55.624915Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 19.597024,
+      "operation_id": "batch:full-semantic-contracts-001",
+      "timestamp": "2026-07-16T17:41:15.932608Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 14.516975,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:full-semantic-contracts-001",
+      "timestamp": "2026-07-16T17:44:03.764531Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064588,
+      "operation_id": "contract-01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:44:03.767870Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.045448,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:44:28.017411Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064718,
+      "operation_id": "contract-01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea-batch-repair-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:44:28.032072Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.050822,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea-batch-repair-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:44:52.563010Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064658,
+      "operation_id": "contract-0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:48:08.593668Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.040152,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:48:33.271368Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064328,
+      "operation_id": "contract-123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:48:33.292477Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.043978,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:00.811018Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.06454,
+      "operation_id": "contract-1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:00.832447Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.050294,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:23.207053Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064606,
+      "operation_id": "contract-272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:23.229048Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.043728,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:49.370528Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.06489,
+      "operation_id": "contract-36b2a8c67d50ee96a66e498fee99e582249046518a8a106b9f45a7252a04c250-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:49:49.392282Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0439,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-36b2a8c67d50ee96a66e498fee99e582249046518a8a106b9f45a7252a04c250-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:50:16.500306Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064576,
+      "operation_id": "contract-394f9bfdba87cd41246755a6c39ae2a5b2e5345d3680824cb8c1056bfc42e8cd-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:50:16.509225Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04334,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-394f9bfdba87cd41246755a6c39ae2a5b2e5345d3680824cb8c1056bfc42e8cd-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:50:43.335546Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064462,
+      "operation_id": "contract-4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:50:43.357289Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.051156,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:51:14.693717Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064694,
+      "operation_id": "contract-52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:53:16.880730Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.038496,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:53:41.343962Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064468,
+      "operation_id": "contract-63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:53:41.367560Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.044384,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:54:08.704746Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064618,
+      "operation_id": "contract-680c125e2370e410e2ab7bfac93b8f3348cdef51c05193c3367f4c9011d05896-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:54:08.727119Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.045966,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-680c125e2370e410e2ab7bfac93b8f3348cdef51c05193c3367f4c9011d05896-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:54:52.591210Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.06476,
+      "operation_id": "contract-697ca41825ed6037eac03257d9e7940e826ce6bdb988c583c0e3e1c423701e1c-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:54:52.620112Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.054792,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-697ca41825ed6037eac03257d9e7940e826ce6bdb988c583c0e3e1c423701e1c-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:56:15.694763Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.065054,
+      "operation_id": "contract-78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:56:15.723905Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.056444,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:56:48.092663Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064666,
+      "operation_id": "contract-79f56edd93c69559dfb1724efeedb46db18779e49cb20be32106ecbce333ac70-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:56:48.120938Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04397,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-79f56edd93c69559dfb1724efeedb46db18779e49cb20be32106ecbce333ac70-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:57:07.280117Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064504,
+      "operation_id": "contract-7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:57:07.301829Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047752,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:57:36.109998Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064948,
+      "operation_id": "contract-7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:57:36.151369Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.049454,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-7fcbc9b9b70b6bf56c1d90c0a6e34ecf0e9e31db416700afc372265999e35370-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:58:05.517715Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064378,
+      "operation_id": "contract-8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:58:05.539132Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.041482,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:58:32.540759Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064792,
+      "operation_id": "contract-8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:58:32.567837Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047792,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:01.202514Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064716,
+      "operation_id": "contract-9189ef7d35fab34adace585f067caf959116285668919e18e4c2e84ec8ef9fb8-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:01.225330Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.043362,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-9189ef7d35fab34adace585f067caf959116285668919e18e4c2e84ec8ef9fb8-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:28.992023Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064926,
+      "operation_id": "contract-9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:29.015709Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.043808,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-9414fb7b6cb833fe280e9b09f41ea5279ada22a3fcab325a40d5225b89b47840-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:55.480109Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064684,
+      "operation_id": "contract-9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T17:59:55.502359Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.04752,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:00:15.384420Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064546,
+      "operation_id": "contract-a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:00:15.398641Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.041918,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:00:40.229908Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064498,
+      "operation_id": "contract-c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:00:40.264363Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.045594,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-c0f5b7d28896e83788b2236c3467524602501aa1ac2d86964231fc3b9202d14b-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:01:06.924207Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064854,
+      "operation_id": "contract-c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:01:06.946122Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.047694,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:01:33.711003Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064626,
+      "operation_id": "contract-dbfa68097a782d6daf0cb3db564af0377ee5d4b4664bf2d5b506487474578c1b-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:01:33.734575Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048216,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-dbfa68097a782d6daf0cb3db564af0377ee5d4b4664bf2d5b506487474578c1b-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:02:01.789571Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064612,
+      "operation_id": "contract-de4e8c509af0ec25b4ee05d41f70b3eef1ce22d79f7a88371db90317c3b511c6-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:02:01.801803Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.058694,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-de4e8c509af0ec25b4ee05d41f70b3eef1ce22d79f7a88371db90317c3b511c6-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:02:38.297711Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064956,
+      "operation_id": "contract-f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:02:38.307202Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.056204,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:11.256392Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.06457,
+      "operation_id": "contract-f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:11.279416Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.041628,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:35.605387Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064652,
+      "operation_id": "contract-f91e0364d491714d6ecea18b0e7443bc4b8ed600a6f3212df8f8c9e5f3bbad1d-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:35.628178Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.037146,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-f91e0364d491714d6ecea18b0e7443bc4b8ed600a6f3212df8f8c9e5f3bbad1d-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:58.475696Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064798,
+      "operation_id": "contract-fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:03:58.500733Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.048708,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-fa71f0cf8063ea2c61e574fec0651068331030e517909861676296813622e06e-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:04:20.643852Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064854,
+      "operation_id": "contract-fc50aae01c89b36013cc5145681adbd23ee473877938445882adfefa29a74ecf-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:04:20.667237Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.052782,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-fc50aae01c89b36013cc5145681adbd23ee473877938445882adfefa29a74ecf-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:04:50.509030Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.064752,
+      "operation_id": "contract-fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:04:50.532187Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.042256,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "contract-fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:05:17.540732Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 20.001038,
+      "operation_id": "batch:full-pair-judgements-001",
+      "timestamp": "2026-07-16T18:08:26.620211Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 8.248285,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:full-pair-judgements-001",
+      "timestamp": "2026-07-16T18:11:28.249022Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.080482,
+      "operation_id": "pairs-93d23b40df8d0eeafbd789af-01-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:11:28.273836Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.064614,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-93d23b40df8d0eeafbd789af-01-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:12:02.295358Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.080448,
+      "operation_id": "pairs-93d23b40df8d0eeafbd789af-02-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:12:02.323608Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "ambiguous",
+      "maximum_usd": 0.080448,
+      "operation_id": "pairs-93d23b40df8d0eeafbd789af-02-batch-repair:developer_api:1",
+      "reason": "",
+      "timestamp": "2026-07-16T18:12:38.688981Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.083604,
+      "operation_id": "batch:diagnostic-fixed-pair-envelope-001",
+      "timestamp": "2026-07-16T18:16:40.924796Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.05489,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:diagnostic-fixed-pair-envelope-001",
+      "timestamp": "2026-07-16T18:19:13.491512Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.083652,
+      "operation_id": "diagnostic-fixed-pairs-93d23b40df8d0eea-01-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:19:13.505037Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "released",
+      "maximum_usd": 0.083652,
+      "operation_id": "diagnostic-fixed-pairs-93d23b40df8d0eea-01-batch-repair:developer_api:1",
+      "reason": "http_400",
+      "timestamp": "2026-07-16T18:19:14.381147Z"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.080491,
+      "operation_id": "batch:diagnostic-typed-pair-envelope-001",
+      "timestamp": "2026-07-16T18:23:07.775534Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.070408,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:diagnostic-typed-pair-envelope-001",
+      "timestamp": "2026-07-16T18:25:29.523648Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 19.934852,
+      "operation_id": "batch:full-pair-judgements-003-typed-response-schema",
+      "timestamp": "2026-07-16T18:26:06.912535Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 12.567393,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:full-pair-judgements-003-typed-response-schema",
+      "timestamp": "2026-07-16T18:29:11.985741Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.079586,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-01-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:29:12.009619Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.05838,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-01-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:29:43.113037Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.08039,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:29:43.141428Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.077762,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-batch-repair:developer_api:1",
+      "timestamp": "2026-07-16T18:30:23.384783Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073984,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:34:15.146055Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012804,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:34:23.316324Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073622,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:34:23.341745Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01168,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:34:30.080340Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.07381,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:34:30.096169Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011256,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:34:37.113392Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073968,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:34:37.138948Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016362,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:34:47.216916Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073982,
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:34:47.243094Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011834,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-26def44c7df818eb8dee6dbc-02-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:34:54.194326Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073854,
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:34:54.206456Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011328,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:35:01.355059Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073776,
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:35:01.377850Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01117,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:35:08.912710Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.074284,
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:35:08.942280Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011944,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:35:22.280378Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073878,
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:35:22.298564Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011008,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:35:28.631999Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073872,
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:35:28.646492Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017536,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-f90b372dca85136b6389f268-01-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:35:40.887427Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073778,
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:35:40.905937Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.019958,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-01:developer_api:1",
+      "timestamp": "2026-07-16T18:35:54.531273Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073802,
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:35:54.558109Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01115,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-02:developer_api:1",
+      "timestamp": "2026-07-16T18:36:01.089861Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073944,
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:36:01.116910Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011992,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-03:developer_api:1",
+      "timestamp": "2026-07-16T18:36:07.771017Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073796,
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:36:07.792913Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.021058,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-04:developer_api:1",
+      "timestamp": "2026-07-16T18:36:22.456547Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.073978,
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:36:22.482766Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.010376,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "pairs-8a3c2c114486810b5d71ff31-01-split-05:developer_api:1",
+      "timestamp": "2026-07-16T18:36:27.449945Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 7.578556,
+      "operation_id": "batch:production-top5-pair-judgements-001-01",
+      "timestamp": "2026-07-16T19:03:07.996880Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 4.583394,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:production-top5-pair-judgements-001-01",
+      "timestamp": "2026-07-16T19:06:46.328571Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.07439,
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-01:developer_api:1",
+      "timestamp": "2026-07-16T19:06:46.335919Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014294,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-01:developer_api:1",
+      "timestamp": "2026-07-16T19:06:54.758411Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.074948,
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-02:developer_api:1",
+      "timestamp": "2026-07-16T19:06:54.773418Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013042,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-02:developer_api:1",
+      "timestamp": "2026-07-16T19:07:02.303512Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.074634,
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-03:developer_api:1",
+      "timestamp": "2026-07-16T19:07:02.331036Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.034576,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-03:developer_api:1",
+      "timestamp": "2026-07-16T19:07:21.685647Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.074724,
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-04:developer_api:1",
+      "timestamp": "2026-07-16T19:11:09.148076Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015762,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-04:developer_api:1",
+      "timestamp": "2026-07-16T19:11:17.871387Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.074318,
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-05:developer_api:1",
+      "timestamp": "2026-07-16T19:11:17.900398Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01451,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "production-pairs-091c874d8e1cf58f-bad107b155554344-split-05:developer_api:1",
+      "timestamp": "2026-07-16T19:11:26.632394Z",
+      "transport": "developer_api"
+    }
+  ],
+  "pending_reservations": {},
+  "planned_execution_ceiling_usd": 50.0,
+  "pricing_version": "gemini-3.1-pro-preview-public-pricing-2026-07-16-v1",
+  "repair_reserve_usd": 10.0,
+  "schema_version": 1,
+  "updated_at": "2026-07-16T19:11:26.632422Z"
+}

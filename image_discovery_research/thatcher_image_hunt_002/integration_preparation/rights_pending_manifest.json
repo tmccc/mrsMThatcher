@@ -1,0 +1,654 @@
+{
+  "records": [
+    {
+      "archive_or_collection": "",
+      "candidate_id": "03ddee84fc44a0f167c5",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/2026-03/40-whpo-c38006-26.jpg",
+      "export_group": "rights_pending",
+      "export_relative_path": "rights_pending/candidate-03ddee84fc44a0f167c5.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 50,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 70
+        },
+        "description": "Margaret Thatcher, Ronald Reagan, and Nancy Reagan standing indoors, smiling and talking.",
+        "pairing": {
+          "best_for_tones": [
+            "warm",
+            "informal"
+          ],
+          "best_for_topics": [
+            "US-UK relations",
+            "diplomacy",
+            "personal relationships"
+          ],
+          "general_reusability": 60,
+          "matching_summary": "Good for informal diplomatic contexts.",
+          "semantic_specificity": 70,
+          "weak_for_topics": [
+            "domestic policy",
+            "formal events"
+          ]
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "informal",
+          "primary_subject_activities": [
+            "talking",
+            "smiling"
+          ],
+          "primary_subject_moods": [
+            "happy",
+            "relaxed"
+          ]
+        },
+        "quality": {
+          "composition": 65,
+          "crop_suitability_for_x": 60,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 65,
+          "subject_clarity": 70,
+          "technical_quality": 65,
+          "too_small": false
+        },
+        "scene_summary": "Informal meeting between Thatcher and the Reagans.",
+        "scene_types": [
+          "meeting",
+          "conversation"
+        ],
+        "setting": {
+          "details": [
+            "fireplace",
+            "windows",
+            "furniture"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "diplomacy",
+          "friendship"
+        ],
+        "tone": [
+          "warm",
+          "friendly"
+        ],
+        "visible_elements": [
+          "people",
+          "fireplace",
+          "windows"
+        ],
+        "visible_symbols": [
+          "presidential seal on jacket"
+        ],
+        "visible_text": {
+          "present": true,
+          "summary": "Text on jacket patch"
+        },
+        "visual_energy": "medium"
+      },
+      "height": 662,
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "PM Thatcher visit to Camp David with President and Nancy Reagan",
+      "licence_text": "Camp David. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_filename": "03ddee84fc44a0f167c5.jpg",
+      "original_relative_path": "downloaded/03ddee84fc44a0f167c5.jpg",
+      "original_sha256": "48ba558a9e822f0bfe1e83cabf0e4e357a885af18d42a0f2ed51da5a0b98fed8",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "03ddee84fc44a0f167c5",
+        "decision": "keep",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:19:50.165008Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 2,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:19:50.166418Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [
+          "group or crowd composition",
+          "warm or humorous expression"
+        ],
+        "editorial_redundancy": "medium",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t44.jpg; visual duplicate class visually_distinct.",
+            "filename": "t44.jpg",
+            "semantic_similarity": 0.879797,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t43.jpg; visual duplicate class visually_distinct.",
+            "filename": "t43.jpg",
+            "semantic_similarity": 0.879556,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t48.jpg; visual duplicate class visually_distinct.",
+            "filename": "t48.jpg",
+            "semantic_similarity": 0.872247,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "activities:talking",
+          "moods:happy",
+          "moods:relaxed",
+          "people_count:small_group",
+          "scene_types:conversation",
+          "scene_types:meeting",
+          "tone:friendly"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 428440,
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/camp-david",
+      "width": 1000
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "07b4ded15cd71e2d7e00",
+      "caption": "Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg/1920px-Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg",
+      "export_group": "rights_pending",
+      "export_relative_path": "rights_pending/candidate-07b4ded15cd71e2d7e00.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 30,
+          "orientation": "square",
+          "shot_type": "half_body",
+          "subject_prominence": 70
+        },
+        "description": "The woman is standing and talking with another woman, with men in the background.",
+        "pairing": {
+          "best_for_tones": [
+            "formal",
+            "historical"
+          ],
+          "best_for_topics": [
+            "meetings",
+            "events"
+          ],
+          "general_reusability": 50,
+          "matching_summary": "Standard event photography.",
+          "semantic_specificity": 50,
+          "weak_for_topics": [
+            "action",
+            "high energy"
+          ]
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "conversing",
+            "standing"
+          ],
+          "primary_subject_moods": [
+            "pleasant",
+            "engaged"
+          ]
+        },
+        "quality": {
+          "composition": 55,
+          "crop_suitability_for_x": 50,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 55,
+          "subject_clarity": 60,
+          "technical_quality": 55,
+          "too_small": false
+        },
+        "scene_summary": "The woman interacting at an event or meeting.",
+        "scene_types": [
+          "event",
+          "interaction"
+        ],
+        "setting": {
+          "details": [
+            "signage",
+            "doorway"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "politics",
+          "public life"
+        ],
+        "tone": [
+          "polite",
+          "formal"
+        ],
+        "visible_elements": [
+          "people",
+          "sign",
+          "suits"
+        ],
+        "visible_symbols": [],
+        "visible_text": {
+          "present": true,
+          "summary": "SALLE JOSEPHINE"
+        },
+        "visual_energy": "low"
+      },
+      "height": 1920,
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher and Anne McIntosh at the European Parliament in Strasbourg.jpg Margaret Thatcher and Anne McIntosh at the European Parliament in Strasbourg Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "licence_text": "Attribution Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "licence_url": "",
+      "original_filename": "07b4ded15cd71e2d7e00.jpg",
+      "original_relative_path": "downloaded/07b4ded15cd71e2d7e00.jpg",
+      "original_sha256": "d860126cd4c4896918c9167f70de9031cbd08c3a258244206e358328d1a32619",
+      "photographer_or_credit": "https://multimedia.europarl.europa.eu/en/photo/visit-of-margaret-thatcher-prime-minister-of-the-united-kingdom-at-the-european-parliament-in-strasbourg-reception_19861200_015_003",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "07b4ded15cd71e2d7e00",
+        "decision": "keep",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:19:57.497308Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 3,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:19:57.497926Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [
+          "group or crowd composition"
+        ],
+        "editorial_redundancy": "high",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t58.jpg; visual duplicate class visually_distinct.",
+            "filename": "t58.jpg",
+            "semantic_similarity": 0.901214,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t44.jpg; visual duplicate class visually_distinct.",
+            "filename": "t44.jpg",
+            "semantic_similarity": 0.898166,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t48.jpg; visual duplicate class visually_distinct.",
+            "filename": "t48.jpg",
+            "semantic_similarity": 0.897209,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "activities:conversing",
+          "moods:engaged",
+          "moods:pleasant",
+          "people_count:small_group",
+          "scene_types:event",
+          "scene_types:interaction",
+          "tone:formal",
+          "tone:polite"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 1069248,
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg",
+      "width": 1920
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "0ee56e114d72910c951a",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/styles/large/public/2026-03/40-whpo-c37999-13.jpg?itok=tj0gsQ6V",
+      "export_group": "rights_pending",
+      "export_relative_path": "rights_pending/candidate-0ee56e114d72910c951a.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 50,
+          "orientation": "landscape",
+          "shot_type": "half_body",
+          "subject_prominence": 70
+        },
+        "description": "Margaret Thatcher and Ronald Reagan sitting across a desk from each other, talking.",
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "professional"
+          ],
+          "best_for_topics": [
+            "diplomacy",
+            "meetings",
+            "US-UK relations"
+          ],
+          "general_reusability": 60,
+          "matching_summary": "Good for illustrating formal meetings and diplomacy.",
+          "semantic_specificity": 65,
+          "weak_for_topics": [
+            "informal events",
+            "action"
+          ]
+        },
+        "people": {
+          "count_category": "two",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "sitting",
+            "talking"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "engaged"
+          ]
+        },
+        "quality": {
+          "composition": 60,
+          "crop_suitability_for_x": 60,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 60,
+          "subject_clarity": 65,
+          "technical_quality": 60,
+          "too_small": false
+        },
+        "scene_summary": "Thatcher and Reagan in a meeting across a desk.",
+        "scene_types": [
+          "meeting",
+          "conversation"
+        ],
+        "setting": {
+          "details": [
+            "desk",
+            "flags",
+            "paintings"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "diplomacy",
+          "leadership"
+        ],
+        "tone": [
+          "serious",
+          "professional"
+        ],
+        "visible_elements": [
+          "people",
+          "desk",
+          "flags",
+          "microphone"
+        ],
+        "visible_symbols": [
+          "US flag",
+          "presidential flag"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": ""
+        },
+        "visual_energy": "low"
+      },
+      "height": 323,
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "President Radio Address at Camp David with PM Thatcher",
+      "licence_text": "Camp David. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_filename": "0ee56e114d72910c951a.jpg",
+      "original_relative_path": "downloaded/0ee56e114d72910c951a.jpg",
+      "original_sha256": "0d6ff1021185ed1b8fb28bc5d38ec8556e3ca3ed1a30cec54cbf24a0d85f7654",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "0ee56e114d72910c951a",
+        "decision": "keep",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:20:43.945313Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 9,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:43.947186Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [],
+        "editorial_redundancy": "medium",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t44.jpg; visual duplicate class visually_distinct.",
+            "filename": "t44.jpg",
+            "semantic_similarity": 0.886219,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t43.jpg; visual duplicate class visually_distinct.",
+            "filename": "t43.jpg",
+            "semantic_similarity": 0.866749,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t59.jpg; visual duplicate class visually_distinct.",
+            "filename": "t59.jpg",
+            "semantic_similarity": 0.86502,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "activities:talking",
+          "moods:engaged",
+          "people_count:two",
+          "scene_types:conversation",
+          "scene_types:meeting",
+          "tone:professional"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 24935,
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/camp-david",
+      "width": 480
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "65f03237053cecb5ee11",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/2026-06/40-whpo-c8575-32a.jpg",
+      "export_group": "rights_pending",
+      "export_relative_path": "rights_pending/candidate-65f03237053cecb5ee11.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 60,
+          "orientation": "portrait",
+          "shot_type": "group",
+          "subject_prominence": 65
+        },
+        "description": "Margaret Thatcher and Ronald Reagan standing outside 10 Downing Street, gesturing and talking, with other officials behind them.",
+        "pairing": {
+          "best_for_tones": [
+            "formal",
+            "active"
+          ],
+          "best_for_topics": [
+            "US-UK relations",
+            "diplomacy",
+            "press events"
+          ],
+          "general_reusability": 65,
+          "matching_summary": "Excellent for illustrating official visits and press events at Downing Street.",
+          "semantic_specificity": 70,
+          "weak_for_topics": [
+            "informal events",
+            "personal life"
+          ]
+        },
+        "people": {
+          "count_category": "small_group",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "standing",
+            "talking",
+            "gesturing"
+          ],
+          "primary_subject_moods": [
+            "engaged",
+            "serious"
+          ]
+        },
+        "quality": {
+          "composition": 60,
+          "crop_suitability_for_x": 55,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 60,
+          "subject_clarity": 65,
+          "technical_quality": 60,
+          "too_small": false
+        },
+        "scene_summary": "Thatcher and Reagan outside 10 Downing Street.",
+        "scene_types": [
+          "press event",
+          "visit"
+        ],
+        "setting": {
+          "details": [
+            "door",
+            "brick wall",
+            "pavement"
+          ],
+          "location_type": "outdoor"
+        },
+        "themes": [
+          "diplomacy",
+          "leadership"
+        ],
+        "tone": [
+          "formal",
+          "active"
+        ],
+        "visible_elements": [
+          "people",
+          "door",
+          "police officer"
+        ],
+        "visible_symbols": [],
+        "visible_text": {
+          "present": false,
+          "summary": ""
+        },
+        "visual_energy": "medium"
+      },
+      "height": 1496,
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "Making joint statement to the press after Meeting with Prime Minister Thatcher at 10 Downing Street during trip to United Kingdom",
+      "licence_text": "Foreign Trips. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_filename": "65f03237053cecb5ee11.jpg",
+      "original_relative_path": "downloaded/65f03237053cecb5ee11.jpg",
+      "original_sha256": "c7d6de1a5988b7b20731bdd49aeda1966ebf25deda7b4dc7fd0e29478528411b",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "65f03237053cecb5ee11",
+        "decision": "keep",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:28:23.693432Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 47,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:28:23.695902Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [
+          "active or outdoor setting",
+          "group or crowd composition"
+        ],
+        "editorial_redundancy": "medium",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t05.jpg; visual duplicate class visually_distinct.",
+            "filename": "t05.jpg",
+            "semantic_similarity": 0.860736,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t44.jpg; visual duplicate class visually_distinct.",
+            "filename": "t44.jpg",
+            "semantic_similarity": 0.859161,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t43.jpg; visual duplicate class visually_distinct.",
+            "filename": "t43.jpg",
+            "semantic_similarity": 0.855392,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "activities:talking",
+          "moods:engaged",
+          "people_count:small_group",
+          "scene_types:press event",
+          "scene_types:visit",
+          "tone:active",
+          "tone:formal"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 717365,
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/foreign-trips",
+      "width": 1000
+    }
+  ],
+  "schema_version": 1
+}

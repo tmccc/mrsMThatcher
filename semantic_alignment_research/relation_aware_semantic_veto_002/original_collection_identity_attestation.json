@@ -1,0 +1,494 @@
+{
+  "attestation_version": "original-thatcher-collection-curator-attestation-v1",
+  "attested_image_count": 69,
+  "basis": "authoritative project collection provenance",
+  "facial_identification_used": false,
+  "generated_at": "2026-07-16T19:41:59.450319Z",
+  "record_set_sha256": "5adf9135311235d5318944d87f346ca56f710d71e0e2859e47ee5bcc7860d54e",
+  "records": [
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t01.jpg",
+      "image_sha256": "2c16ce452b28dbd067b4419981a3d4f92099cc8c60964bf291c7e4955d74ed7c",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t02.jpg",
+      "image_sha256": "0092a3540800c4373236d1ee7a09812f51ac1a2e742b32c2ee49e0f0ced965ff",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t03.jpg",
+      "image_sha256": "305d7a0023859204cf243c918268ba53b00e5b934c505ba3c2ae11e6a2003dc6",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t04.jpg",
+      "image_sha256": "28e0b8a92e5cf025fda52a6f22fe326fadac6cf7d6d9598649dcdb8c51619472",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t05.jpg",
+      "image_sha256": "38527605ae6890331049ae7212d80a9be068816bc393c95fa629ef981152814c",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t06.jpg",
+      "image_sha256": "aa06ccc1d4df46d3c6c9e57cc28c04ae6dde82686ad0ac7833895898b5d167b4",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t07.jpg",
+      "image_sha256": "35c6800c53d580ae8e72bc9092baef4731d406f6cdce4434bf1f34e7f253bb92",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t08.jpg",
+      "image_sha256": "afb14c66ed09557ee7fd0669b205191a1bd852944111e34fc5cfc3134402973f",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t09.jpg",
+      "image_sha256": "a73c566e7c58b5383b9b4d444982035651bac72bb6aa171ed049069d47614534",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t10.jpg",
+      "image_sha256": "042cd4436753acb607fe997305ceb40349e4c8f0e46e417be996d8e3fb851717",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t11.jpg",
+      "image_sha256": "6234d9985e55740aff9452c57b125ef384bfa3d14bf0733edcb0f84b3d3cc940",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t12.jpg",
+      "image_sha256": "a5cc03d6433cbff4f38e72da66ce4299532a0bdc981b248af1adb063ffa79105",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t13.jpg",
+      "image_sha256": "733c5de83000b8e5b6c41df43bd76a410e12a22fc763ce0b49e57a4068bf01d7",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t14.jpg",
+      "image_sha256": "eb250a4534412da58fbbf2247c7c041041972ccde4f77ce86888523d86e648c3",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t15.jpg",
+      "image_sha256": "2d769e4504dd9800d571d9022f155adab1fffe6f2a4fcc4f58a05565ee9895fe",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t16.jpg",
+      "image_sha256": "d0c84994ae123cdaa5baaf53f531e992fa25467923d70d0f2cb5833cabc46478",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t17.jpg",
+      "image_sha256": "43c655262ddc429feac725570ca76e916d9c2d3148c737aa19255f96d005c3b5",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t18.jpg",
+      "image_sha256": "c7c812e932fafa159457dd7ae6df43ebce92242bd531ab0693ee62813fa702d3",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t19.jpg",
+      "image_sha256": "542ff5edee3aadb388a4e37ac45fb06d750406dd21954b8cf22bace338560516",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t20.jpg",
+      "image_sha256": "069289b13ed357f51e34f078304ebdf000764320511cf442fcac1b52ce0e4acc",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t21.jpg",
+      "image_sha256": "4bd5163e3713dae425c903b57647366faaf9d6ea69917d4e529c914f3a400f03",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t22.jpg",
+      "image_sha256": "17d2965e855668f27e3d4e17ede3ed92b7da21333a01b4805e59d295155af1df",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t23.jpg",
+      "image_sha256": "bbece6db8c9d9ce3c40786fd7b192af27b9a1856614ab293c6b0e7b40c4c10e5",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t24.jpg",
+      "image_sha256": "726d569db22d10bb3d8c4f2914d92cf07dc0dc756ffd9d03b38eeaab5bc69826",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t25.jpg",
+      "image_sha256": "338db418e3dcaf95a16d4d91a63fe7570a55ca32b0653d62a8420dac672bc78e",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t26.jpg",
+      "image_sha256": "63f51478a1a7b87e1052477d0c7d7d70d3dfcf498b893eaa58e6c91d79ad9f50",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t27.jpg",
+      "image_sha256": "4c9c764d5f28f0846a9c64f8b69381cd4a96c7d6d92ded935ac60c9c5e743513",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t28.jpg",
+      "image_sha256": "ddfc763dea0887cb9b806899f36044af52d1c2b920d1e97dd2e7e3dcc74fa965",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t29.jpg",
+      "image_sha256": "fc03c6a7d115641c5837f4e1d7ecfb1fdbcb561bb2b42c801573f02da477e8e2",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t30.jpg",
+      "image_sha256": "e9fe1f70f928e3a715b55807fa4d421374ae1e6c746121639fcf574abb17477e",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t31.jpg",
+      "image_sha256": "76c80b0c25a492efea705a2ce0a74c9914c3deab18505826f23eae815d96ee05",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t32.jpg",
+      "image_sha256": "faf154698368de9516208123d224394cd201748dfc1ec150d33656a800eae719",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t33.jpg",
+      "image_sha256": "2468c1ee08aa57a0164cf5903c80de8169da597bc9ce922d9fc29e27739ac968",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t34.jpg",
+      "image_sha256": "3f446ece7bcc1727e81b7301a8eca188f38c7a5ea0c0ddcdb5d92866a4f0beae",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t35.jpg",
+      "image_sha256": "ff3f0e8fd7c6f77d80f40b38d85d09872fccaed8b14577a3d67e4e5dea371d09",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t36.jpg",
+      "image_sha256": "a00d5add6f791a77a856b04b32459781047384718d119dfb94e028f673f986b4",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t37.jpg",
+      "image_sha256": "bda197fb2f3bb6ccc4e3323ffdc9ba9106d48f9fc929d8741865cdd52f1e574a",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t38.jpg",
+      "image_sha256": "f174bce4483b8db3af79ae2c500222c822177abdffb666c93b867e0c6cacfeb3",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t39.jpg",
+      "image_sha256": "a6976f8aae0c9194cbe4dcd01b9eb668a89975a19c1a762be86edc8228eceb36",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t40.jpg",
+      "image_sha256": "3428b9875d945d196f3eb3509a4bc297fba7ac4082689cabf023441f49955c0e",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t41.jpg",
+      "image_sha256": "90e6483abb5c742b1c8405b09089aff7d0e64894fe3e7f8953b3e4fcb8498e66",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t42.jpg",
+      "image_sha256": "fe3d58fe35fba3c157cb713dd5f5bc04add0697287f4bc1e4804efb019fac707",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t43.jpg",
+      "image_sha256": "813562e46bbcb273fe4f048e6386c6f4b93edc2936a4603d4eb3d650f8d73bd8",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t44.jpg",
+      "image_sha256": "04db47bd4c09a6e14a236bee9abe5664b8bb5775a0bebc920cf6ea0827711e08",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t45.jpg",
+      "image_sha256": "36e0cd3c8ea049b5b13f3454d810cea946c64088bbc4ca878f299f3c19047b34",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t46.jpg",
+      "image_sha256": "14d156f4febfb21f37ca4979e72389891b4a7998c66d4c744fb3fcf28830c578",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t47.jpg",
+      "image_sha256": "b730e1f1a28fd71e01cb5e2b9aaabfa0412d1bcd679cec3f3f522fec39df3070",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t48.jpg",
+      "image_sha256": "cb889a2809a3d405dcb12c65cc6be1bbb8fca57954f6dc9ef9fc7f11278c50fe",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t49.jpg",
+      "image_sha256": "b8e19c84b69244075e60a1061e8991274dd4a318d31a5fe06fd150bfa7bddf27",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t50.jpg",
+      "image_sha256": "b451e351209765f900c04226f8ac40cf76f84b84318e3a912d1334f1cac46194",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t51.jpg",
+      "image_sha256": "f94e47bb3153c28dd5b7bbd5b6717f8273b3b727f4377a5840c9deded25351e4",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t52.jpg",
+      "image_sha256": "7662dcedac7c09dc94c8aeee994847a7e86fc5efb8cd8334eaff23df4bb6da07",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t54.jpg",
+      "image_sha256": "4ef39fce6b4ed901674b1e1e5fe8c601f1930c6c9ecf826de052c354267414ca",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t55.jpg",
+      "image_sha256": "537f0347e30c75290ee1150a80fe5b962b46d145243268969723e41845dc6c9c",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t56.jpg",
+      "image_sha256": "6731ce7fd2770587f1a805c8f48c87b65cd3a37217f6b74d6eaa4c0b1b3d56e4",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t57.jpg",
+      "image_sha256": "cd8d960a563f22936248b1306f29014f443a206bb8aef901802016462810e359",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t58.jpg",
+      "image_sha256": "2a12403a4a2b5e6d7c40d71b27c96ff17ae9a238f75765ec5909527ecf6b0100",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t59.jpg",
+      "image_sha256": "28b3b58a5984c882f62864356b76e1c2b7a7ba3af408fb9e3999017398ba5584",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t60.jpg",
+      "image_sha256": "d7b6414a5d2ea0fc0ca84696be252865eb3b6519d3301d1a21d5fa2cca88cb84",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t61.jpg",
+      "image_sha256": "0be5cd1d5483155fab478c23deb5777020dd0fa64d87732c94e16dec95839818",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t62.jpg",
+      "image_sha256": "ec1f2c768e0548992c6779859cbf8bcceb9809a8b391bc1b204f918943b277d5",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t63.jpg",
+      "image_sha256": "384e0173b083e13ad2904be7d3fe8c6700a2cc04dea5637f97d85de7a9dc4d3b",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t64.jpg",
+      "image_sha256": "401a3a65f2213cbce26f660c8d5953698103271e0f392582cd26e08536c7bf06",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t65.jpg",
+      "image_sha256": "cafdf84e431c64a2461c8ca7ef4ef16847b8dfb1636b983aaebb32bfc5d6e938",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t66.jpg",
+      "image_sha256": "9beb16b2e7151f1282d31a06a4c4cecb246f1d7e21deecfcc2fe6205a63134fa",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t67.jpg",
+      "image_sha256": "b24222b6a77a8ddc632fa047e8ad112b703280d37531da779adcb600de13c73f",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t68.jpg",
+      "image_sha256": "60335b8f439aedaa74d8a1192d37c3b10b60d2edf6ac855580c9d1ccb78a6446",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t69.jpg",
+      "image_sha256": "ff9695ec8f50f6cd17f52de431bb4e063c6a83d01e7c9a2b84a2e0f37d55ce29",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    },
+    {
+      "attested_person": "Margaret Thatcher",
+      "image_id": "original:t70.jpg",
+      "image_sha256": "c727dc524a2da35c98978891db588b393805fa87cbadb0c16dc9958ec7e97acd",
+      "other_participants": "unknown_unless_separately_source_grounded",
+      "scope": "principal_subject_only"
+    }
+  ],
+  "schema_version": 1
+}

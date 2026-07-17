@@ -1,0 +1,850 @@
+{
+  "records": [
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "00f4566964e0c88838ad",
+      "caption": "President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/1/17/Thatcher_and_Bush_-_1990_-_P14935-18A.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Thatcher and Bush - 1990 - P14935-18A.jpg Thatcher and Bush - 1990 - P14935-18A President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "licence_text": "Public domain President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "licence_url": "",
+      "original_sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "photographer_or_credit": "George Bush Presidential Library",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 1,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:19:32.471204Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Thatcher_and_Bush_-_1990_-_P14935-18A.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "03ddee84fc44a0f167c5",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/2026-03/40-whpo-c38006-26.jpg",
+      "export_group": "rights_pending",
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "PM Thatcher visit to Camp David with President and Nancy Reagan",
+      "licence_text": "Camp David. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_sha256": "48ba558a9e822f0bfe1e83cabf0e4e357a885af18d42a0f2ed51da5a0b98fed8",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 2,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:19:50.166418Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/camp-david"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "07b4ded15cd71e2d7e00",
+      "caption": "Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg/1920px-Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg",
+      "export_group": "rights_pending",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher and Anne McIntosh at the European Parliament in Strasbourg.jpg Margaret Thatcher and Anne McIntosh at the European Parliament in Strasbourg Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "licence_text": "Attribution Visit of Margaret THATCHER, Prime Minister of the United-Kingdom at the European Parliament in Strasbourg. Reception",
+      "licence_url": "",
+      "original_sha256": "d860126cd4c4896918c9167f70de9031cbd08c3a258244206e358328d1a32619",
+      "photographer_or_credit": "https://multimedia.europarl.europa.eu/en/photo/visit-of-margaret-thatcher-prime-minister-of-the-united-kingdom-at-the-european-parliament-in-strasbourg-reception_19861200_015_003",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 3,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:19:57.497926Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_and_Anne_McIntosh_at_the_European_Parliament_in_Strasbourg.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "08fe3d43c27bece23076",
+      "caption": "Profile photo of former Prime Minister Margaret Thatcher",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/2/28/ThatcherProfile.JPG",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:ThatcherProfile.JPG ThatcherProfile Profile photo of former Prime Minister Margaret Thatcher",
+      "licence_text": "CC BY 2.0 Profile photo of former Prime Minister Margaret Thatcher",
+      "licence_url": "https://creativecommons.org/licenses/by/2.0",
+      "original_sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+      "photographer_or_credit": "Cropped from https://www.flickr.com/photos/jaygalvin/233397357/",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "Cropped from https://www.flickr.com/photos/jaygalvin/233397357/. Licensed under CC BY 2.0 (https://creativecommons.org/licenses/by/2.0).",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 4,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:03.641425Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "attribution_required",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:ThatcherProfile.JPG"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "0b15f11312a31033907d",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_(cropped_b).jpg/500px-President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_(cropped_b).jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b).jpg - Wikimedia Commons",
+      "licence_text": "500 × 592 pixels  been extracted from another file : President Ronald Reagan and Prime Minister Margaret Thatcher.jpg Licensing [ edit ] Public domain Public domain false false This work is in the public domain in the United States because it is a work prepared by an officer or employee of the United States Federal Government as | stage stamp designs published by the United States Postal Service since 1978 . (See § 313.6(C)(1) of Compendium of U.S. Copyright Office Practices). It also does not apply to certain US coins; see The US Mint Terms of Use . This file has been identified as being free of known restrictions under copyright law | , including all related and neighboring rights. https://creativecommons.org/publicdomain/mark/1.0/ PDM Creative Commons Public Domain Mark 1.0 false false File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 18:48, 4 July 2025 1,725 × | te metadata was last modified 03:02, 29 March 2017 Unique ID of original document uuid:12A470C05161DC11B9C9A0200EF6F2CE Copyright status Copyright status not set Keywords foreign trips head of state IIM version 2 Structured data Items portrayed in this file depicts Margaret Thatcher copyright status public d |  under licenses specified on their description page. All structured data from the file namespace is available under the Creative Commons CC0 License ; all unstructured text is available under the Creative Commons Attribution-Sh",
+      "licence_url": "",
+      "original_sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 5,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:10.411254Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_(cropped_b).jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "caption": "Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/CAC_CC_001_18_15_0000_1411.jpg/1920px-CAC_CC_001_18_15_0000_1411.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:CAC CC 001 18 15 0000 1411.jpg CAC CC 001 18 15 0000 1411 Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+      "licence_text": "CC BY-SA 4.0 Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/4.0",
+      "original_sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "photographer_or_credit": "Carl Albert Center",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "Carl Albert Center. Licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0).",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 6,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:18.867708Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "attribution_required",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:CAC_CC_001_18_15_0000_1411.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "caption": "Margaret Thatcher at White House.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/4/46/Margaret_Thatcher_at_White_House_(cropped).jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher at White House (cropped).jpg Margaret Thatcher at White House (cropped) Margaret Thatcher at White House.",
+      "licence_text": "Public domain Margaret Thatcher at White House.",
+      "licence_url": "",
+      "original_sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+      "photographer_or_credit": "This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsca.09786 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 7,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:27.170295Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_at_White_House_(cropped).jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "0ee56e114d72910c951a",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/styles/large/public/2026-03/40-whpo-c37999-13.jpg?itok=tj0gsQ6V",
+      "export_group": "rights_pending",
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "President Radio Address at Camp David with PM Thatcher",
+      "licence_text": "Camp David. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_sha256": "0d6ff1021185ed1b8fb28bc5d38ec8556e3ca3ed1a30cec54cbf24a0d85f7654",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 9,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:43.947186Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/camp-david"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "0fe7ed6333faf654b062",
+      "caption": "Depicted people: Ronald Reagan and Margaret Thatcher",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/President_Ronald_Reagan_with_Prime_Minister_Margaret_Thatcher_During_a_Working_Luncheon_at_Camp_David_(retouched).jpg/1920px-President_Ronald_Reagan_with_Prime_Minister_Margaret_Thatcher_During_a_Working_Luncheon_at_Camp_David_(retouched).jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched).jpg President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David title QS:P1476,en:\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" label QS:Len,\"President Reagan with Prime Minister Margaret Thatcher during a working luncheon at Camp David\" Depicted people: Ronald Reagan and Margaret Thatcher",
+      "licence_text": "Public domain Depicted people: Ronald Reagan and Margaret Thatcher",
+      "licence_url": "",
+      "original_sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "photographer_or_credit": "This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 10,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:20:50.398556Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_with_Prime_Minister_Margaret_Thatcher_During_a_Working_Luncheon_at_Camp_David_(retouched).jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "149e63869f481474a798",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/President_Ronald_Reagan_Walking_with_Prime_Minister_Margaret_Thatcher_at_Camp_David_-_DPLA_-_703deafafc5b5947f717b966d2a117d6.jpg/960px-President_Ronald_Reagan_Walking_with_Prime_Minister_Margaret_Thatcher_at_Camp_David_-_DPLA_-_703deafafc5b5947f717b966d2a117d6.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David - DPLA - 703deafafc5b5947f717b966d2a117d6.jpg - Wikimedia Commons",
+      "licence_text": "960 × 1,460 pixels on as part of a cooperation project. The donation was facilitated by the Digital Public Library of America . Permission Copyright determination made by \" National Archives and Records Administration (Q518155) \" using RightsStatements.org No Copyright - United States The organization that has made the Item av | ailable believes that the Item is in the Public Domain under the laws of the United States, but a determination was not made as to its copyright status under the copyright laws of other countries. The Item may not be in the Public Dom |  accuracy of this Rights Statement. You are responsible for your own use. You may find additional information about the copyright status of the Item on the website of the organization that has made the Item available. You may need to obtain other permissions for your intended use. For example, other rights s | uch as publicity, privacy or moral rights may limit how you may use the material. Public domain Public domain false false Public domain This media file is in the public domain in the United States . This applies to U.S. works where the copyright has expired, often because its first public | n due to lack of notice or renewal. See this page for further explanation. United States This image might not be in the public domain outside of the United States; this especially applies in the countries and areas that do not apply the rule of the shorter term for US works, such as Canada, Mainland China (not H | ico, and Swi",
+      "licence_url": "",
+      "original_sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 13,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:21:12.666724Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_Walking_with_Prime_Minister_Margaret_Thatcher_at_Camp_David_-_DPLA_-_703deafafc5b5947f717b966d2a117d6.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "168392f289b5df25f16b",
+      "caption": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/43/President_Ronald_Reagan_meeting_with_Prime_Minister_Margaret_Thatcher.jpg/1920px-President_Ronald_Reagan_meeting_with_Prime_Minister_Margaret_Thatcher.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:President Ronald Reagan meeting with Prime Minister Margaret Thatcher.jpg President Ronald Reagan meeting with Prime Minister Margaret Thatcher 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "licence_text": "Public domain 6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "licence_url": "",
+      "original_sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "photographer_or_credit": "https://catalog.archives.gov/id/404525171",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 14,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:21:18.218946Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_meeting_with_Prime_Minister_Margaret_Thatcher.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "caption": "Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Margaret_Thatcher_(including_picture_with_Robert_Muldoon)_(crop).jpg/500px-Margaret_Thatcher_(including_picture_with_Robert_Muldoon)_(crop).jpg",
+      "export_group": "production_ready",
+      "identity_basis": "source_caption",
+      "identity_confidence": "high",
+      "identity_evidence": "Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg",
+      "licence_text": "Margaret Thatcher (including picture with Robert Muldoon) (crop).jpg er pictured with children at a New Zealand National Party dinner.jpg Licensing [ edit ] This file is licensed under the Creative Commons Attribution-Share Alike 2.0 Generic license. You are free: to share – to copy, distribute and transmit the work to remix – to adapt the work Under the following conditions: attrib | your contributions under the same or compatible license as the original. https://creativecommons.org/licenses/by-sa/2.0 CC BY-SA 2.0 Creative Commons Attribution-Share Alike 2.0 true true This image was originally posted to Flickr by Archives New Zealand at https://flickr.com/photos/35759981@N08/15332081 | 937 . It was reviewed on 18 February 2016 by FlickreviewR and was confirmed to be licensed under the terms of the cc-by-sa-2.0. 18 February 2016 File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 10:45, 18 February 201 |  : 35759981@N08 URL : https://www.flickr.com/people/35759981@N08 published in Flickr publication date : 12 October 2014 copyright status copyrighted copyright license Creative Commons Attribution-ShareAlike 2.0 Generic collection Archives New Zealand inception 10 October 2014 source of file file available on | es : Margaret Thatcher in 1976 1976 in Wellington History of Wellington Hidden categories: Images with extracted images CC-BY-SA-2.0 Flickr images reviewed by FlickreviewR Images from Archiv",
+      "licence_url": "",
+      "original_sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 15,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:21:31.569803Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_(including_picture_with_Robert_Muldoon)_(15332081937).jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "305d002e01745c0acd9b",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/archive/0/0a/20071208002522!Margaret_Thatcher_headshot.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:Margaret Thatcher headshot.jpg - Wikimedia Commons",
+      "licence_text": "06:00, 7 December 2007 org/multimedia/displaydocument.asp?docid=109595 Author White House Photographic Office Permission ( Reusing this file ) Copyrighted waived by US Government, PD Licensing [ edit ] Public domain Public domain false false This work is in the public domain in the United States because it is a work prepared by an | stage stamp designs published by the United States Postal Service since 1978 . (See § 313.6(C)(1) of Compendium of U.S. Copyright Office Practices). It also does not apply to certain US coins; see The US Mint Terms of Use . This file has been identified as being free of known restrictions under copyright law | , including all related and neighboring rights. https://creativecommons.org/publicdomain/mark/1.0/ PDM Creative Commons Public Domain Mark 1.0 false false File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 03:36, 26 November 2010 65 | g/multimedia/displaydocument.asp?docid=109595 |Date=17 December 1979 |Author=White House Photograhic Office |Permission=Copyrighted waived by US Government, PD |other_v You cannot overwrite this file. File usage on Commons The following page uses this file: File:Montagem de Margaret Thatcher.jpg File usage o | nd time 22:36, 25 November 2010 Color space sRGB Structured data Items portrayed in this file depicts Margaret Thatcher copyright status public domain applies to jurisdiction : United States determination method or standard :",
+      "licence_url": "",
+      "original_sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 18,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:22:02.748687Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_headshot.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "36d6b17bedd4345d223e",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Informal_discussion_between_Ruud_Lubbers_and_Margaret_Thatcher_-_1983_Stuttgart_European_Council.jpg/960px-Informal_discussion_between_Ruud_Lubbers_and_Margaret_Thatcher_-_1983_Stuttgart_European_Council.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:Informal discussion between Ruud Lubbers and Margaret Thatcher - 1983 Stuttgart European Council.jpg - Wikimedia Commons",
+      "licence_text": "960 × 642 pixels the European Commission and is licensed under the Creative Commons Attribution 4.0 International license. Note that the copyright holder on the website must be the European Commission, its predecessors (such as the Commission of the European Communities (CEC)), or the European Union. This file is licensed un | der the Creative Commons Attribution 4.0 International license. Attribution: © European Union, 2026 You are free: to share – to copy, distribute and transmit the work to remix – to adapt the work Under th | er, but not in any way that suggests the licensor endorses you or your use. https://creativecommons.org/licenses/by/4.0 CC BY 4.0 Creative Commons Attribution 4.0 true true This file, which was originally posted to an external website, has not yet been reviewed by an administrator or reviewer to confirm  | etadata was last modified 11:52, 27 September 2013 Unique ID of original document uuid:BB6BDEAC9C1FE31186748F51B0D1885A Copyright status Copyright status not set IIM version 33,056 Structured data Items portrayed in this file depicts Ruud Lubbers Margaret Thatcher copyright status copyrighted copyright licen | se Creative Commons Attribution 4.0 International inception 19 June 1983 data size 3,215,255 byte height 2,433 pixel width 3,637 pixel media type image/jpeg checksum cc2156633741e7d13ee67da51e7a13f68 |  Ruud Lubbers in 1983 Margaret Thatcher in 1983 Ruud Lubbers and Margaret Thatcher 1983 in Stuttgart Hidden categories: CC-BY-4.0 EC-Audiovisu",
+      "licence_url": "",
+      "original_sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 24,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:23:17.925978Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Informal_discussion_between_Ruud_Lubbers_and_Margaret_Thatcher_-_1983_Stuttgart_European_Council.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "3abe0be95aa60233f374",
+      "caption": "[Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/President_Jimmy_Carter_and_First_Lady_Rosalynn_Carter_with_British_Prime_Minister_Margaret_Thatcher.jpg/1920px-President_Jimmy_Carter_and_First_Lady_Rosalynn_Carter_with_British_Prime_Minister_Margaret_Thatcher.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher.jpg President Jimmy Carter and First Lady Rosalynn Carter with British Prime Minister Margaret Thatcher [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+      "licence_text": "Public domain [Margaret Thatcher, Prime Minister of Great Britain, speaking at a lectern, next to President Jimmy Carter and First Lady Rosalynn Carter, Washington, D.C.] / MST.",
+      "licence_url": "",
+      "original_sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "photographer_or_credit": "https://www.loc.gov/item/2021638549/",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 27,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:23:55.172621Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Jimmy_Carter_and_First_Lady_Rosalynn_Carter_with_British_Prime_Minister_Margaret_Thatcher.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "3e16363d7234c33cd75e",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Margaret_Thatcher_visiting_Salford.jpg/1280px-Margaret_Thatcher_visiting_Salford.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:Margaret Thatcher visiting Salford.jpg - Wikimedia Commons",
+      "licence_text": "1,280 × 902 pixels rgaret Thatcher visit 1982 Author University of Salford Press Office Licensing [ edit ] This file is licensed under the Creative Commons Attribution 2.0 Generic license. You are free: to share – to copy, distribute and transmit the work to remix – to adapt the work Under the following conditions: attribution – You  | er, but not in any way that suggests the licensor endorses you or your use. https://creativecommons.org/licenses/by/2.0 CC BY 2.0 Creative Commons Attribution 2.0 true true This image was originally posted to Flickr by University of Salford at https://www.flickr.com/photos/32104790@N02/4389801672 . It wa | s reviewed on 18 January 2012 by FlickreviewR and was confirmed to be licensed under the terms of the cc-by-2.0. 18 January 2012 File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 17:10, 13 April 2013 2,131 | : 32104790@N02 URL : https://www.flickr.com/people/32104790@N02 published in Flickr publication date : 26 February 2010 copyright status copyrighted copyright license Creative Commons Attribution 2.0 Generic source of file file available on the internet described at URL : https://www.flickr.com/photos/salfor | ng_Salford.jpg&oldid=1142290841 \" Categories : 1982 in the City of Salford Margaret Thatcher in 1982 Hidden categories: CC-BY-2.0 Flickr images reviewed by FlickreviewR Images by the University of Salford Press Office This page was last edited on 5 Jan",
+      "licence_url": "",
+      "original_sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 31,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:24:37.028700Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_visiting_Salford.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "47898be6bfefc5d49c03",
+      "caption": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/0/0a/Montagem_de_Margaret_Thatcher.jpg",
+      "export_group": "maybe",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Montagem de Margaret Thatcher.jpg Montagem de Margaret Thatcher Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "licence_text": "Public domain Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "licence_url": "",
+      "original_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+      "photographer_or_credit": "This image has been extracted from another file",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 37,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:25:40.508656Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "maybe",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Montagem_de_Margaret_Thatcher.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "5202e374b764482c4cda",
+      "caption": "G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/14th_G7_summit.jpg/1280px-14th_G7_summit.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:14th G7 summit.jpg 14th G7 summit G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.",
+      "licence_text": "Public domain G-7 Economic Summit leaders at the University of Toronto in Canada (left to right) Jacques Delors, Ciriaco De Mita, Margaret Thatcher, Ronald Reagan, Brian Mulroney, Francois Mitterrand, Helmut Kohl, Noboru Takeshita. 6/20/88.",
+      "licence_url": "",
+      "original_sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "photographer_or_credit": "C47870-21 http://www.reagan.utexas.edu/archives/photographs/Econsummits.html",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 40,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:26:18.667430Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:14th_G7_summit.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "539626eef2896af392c4",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_on_The_South_Lawn_During_Her_Arrival_Ceremony_-_DPLA_-_66a3aa38f1a8dec0877aabaefbdf843a.jpg/1920px-President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_on_The_South_Lawn_During_Her_Arrival_Ceremony_-_DPLA_-_66a3aa38f1a8dec0877aabaefbdf843a.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "page_context",
+      "identity_confidence": "medium",
+      "identity_evidence": "File:President Ronald Reagan and Prime Minister Margaret Thatcher on The South Lawn During Her Arrival Ceremony - DPLA - 66a3aa38f1a8dec0877aabaefbdf843a.jpg - Wikimedia Commons",
+      "licence_text": "1,920 × 2,888 pixels on as part of a cooperation project. The donation was facilitated by the Digital Public Library of America . Permission Copyright determination made by \" National Archives and Records Administration (Q518155) \" using RightsStatements.org No Copyright - United States The organization that has made the Item av | ailable believes that the Item is in the Public Domain under the laws of the United States, but a determination was not made as to its copyright status under the copyright laws of other countries. The Item may not be in the Public Dom |  accuracy of this Rights Statement. You are responsible for your own use. You may find additional information about the copyright status of the Item on the website of the organization that has made the Item available. You may need to obtain other permissions for your intended use. For example, other rights s | uch as publicity, privacy or moral rights may limit how you may use the material. Public domain Public domain false false Public domain This media file is in the public domain in the United States . This applies to U.S. works where the copyright has expired, often because its first public | n due to lack of notice or renewal. See this page for further explanation. United States This image might not be in the public domain outside of the United States; this especially applies in the countries and areas that do not apply the rule of the shorter term for US works, such as Canada, Mainland China (not H | ico, and S",
+      "licence_url": "",
+      "original_sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 42,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:26:40.831473Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:President_Ronald_Reagan_and_Prime_Minister_Margaret_Thatcher_on_The_South_Lawn_During_Her_Arrival_Ceremony_-_DPLA_-_66a3aa38f1a8dec0877aabaefbdf843a.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "caption": "Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Senator_Bob_Dole_presenting_Margaret_Thatcher_with_a_gift.jpg/1920px-Senator_Bob_Dole_presenting_Margaret_Thatcher_with_a_gift.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Senator Bob Dole presenting Margaret Thatcher with a gift.jpg Senator Bob Dole presenting Margaret Thatcher with a gift Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+      "licence_text": "Public domain Thatcher, Margaret; Dole, Robert J., 1923-; Dole presents Margaret Thatcher with a gift with reporters documenting the occasion, Notes: British Prime Minister Margaret Thatcher [1979-1990]",
+      "licence_url": "",
+      "original_sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "photographer_or_credit": "Robert and Elizabeth Dole Archive and Special Collections",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 44,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:27:46.615507Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Senator_Bob_Dole_presenting_Margaret_Thatcher_with_a_gift.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "caption": "“Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/7/74/RIAN_archive_778094_Visit_to_Great_Britain_by_General_secretary_of_CPSU_CC_Mikhail_Gorbachev.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev.jpg RIAN archive 778094 Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.",
+      "licence_text": "CC BY-SA 3.0 “Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev”. The meeting between the General secretary of CPSU CC, Mikhail Gorbachev, on an official visit to Great Britain, and the British Prime Minister, Margaret Thatcher (left) at the embassy of the USSR. On the right: Raisa Gorbacheva.",
+      "licence_url": "https://creativecommons.org/licenses/by-sa/3.0",
+      "original_sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "photographer_or_credit": "RIA Novosti archive, image #778094, http://visualrian.ru/ru/site/gallery/#778094 35 mm film / 35 мм негатив",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "RIA Novosti archive, image #778094, http://visualrian.ru/ru/site/gallery/#778094 35 mm film / 35 мм негатив. Licensed under CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0).",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 45,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:27:58.066280Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "attribution_required",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:RIAN_archive_778094_Visit_to_Great_Britain_by_General_secretary_of_CPSU_CC_Mikhail_Gorbachev.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "65f03237053cecb5ee11",
+      "caption": "",
+      "direct_image_url": "https://www.reaganlibrary.gov/sites/default/files/2026-06/40-whpo-c8575-32a.jpg",
+      "export_group": "rights_pending",
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "Making joint statement to the press after Meeting with Prime Minister Thatcher at 10 Downing Street during trip to United Kingdom",
+      "licence_text": "Foreign Trips. Click on Thumbnails below for larger images which are all available in higher resolution. You can download higher resolution images (400 dpi JPG, 4-5MB) of most of these photos from the National Archives Catalog.",
+      "licence_url": "",
+      "original_sha256": "c7d6de1a5988b7b20731bdd49aeda1966ebf25deda7b4dc7fd0e29478528411b",
+      "photographer_or_credit": "",
+      "publisher": "Ronald Reagan Presidential Library",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 47,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:28:23.695902Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "rights_unclear",
+      "source_page_url": "https://www.reaganlibrary.gov/archives/audiovisual/white-house-photo-collection-galleries/foreign-trips"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "6966b6853551436e849b",
+      "caption": "Margaret Thatcher with George H. W. Bush",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/c/ce/Margaret_Thatcher_poses_with_George_H._W._Bush_1987.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher poses with George H. W. Bush 1987.jpg Margaret Thatcher poses with George H. W. Bush 1987 Margaret Thatcher with George H. W. Bush",
+      "licence_text": "Public domain Margaret Thatcher with George H. W. Bush",
+      "licence_url": "",
+      "original_sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "photographer_or_credit": "http://www.margaretthatcher.org/multimedia/displaydocument.asp?docid=109662",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 48,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:28:31.892594Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_poses_with_George_H._W._Bush_1987.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "7720de19eda682fe608d",
+      "caption": "Denis and Margaret Thatcher in 1984.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/3/3d/Denis_and_Margaret_Thatcher_in_1984.png",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Denis and Margaret Thatcher in 1984.png Denis and Margaret Thatcher in 1984 Denis and Margaret Thatcher in 1984.",
+      "licence_text": "Public domain Denis and Margaret Thatcher in 1984.",
+      "licence_url": "",
+      "original_sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "photographer_or_credit": "This file was derived from: Denis and Margaret Thatcher.jpg",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 51,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:29:02.222438Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Denis_and_Margaret_Thatcher_in_1984.png"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "caption": "Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/3/36/Margaret_Thatcher_Reagan_funeral.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher Reagan funeral.jpg Margaret Thatcher Reagan funeral Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+      "licence_text": "Public domain Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+      "licence_url": "",
+      "original_sha256": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+      "photographer_or_credit": "http://www.defenselink.mil/home/photoessays/2004-06/p20041204a13.html",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 52,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:29:11.293105Z"
+          },
+          {
+            "line_number": 53,
+            "revision": 2,
+            "timestamp": "2026-07-16T05:29:22.171350Z"
+          }
+        ],
+        "latest_revision": 2,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_Reagan_funeral.jpg"
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Margaret_Thatcher_(1983).jpg/500px-Margaret_Thatcher_(1983).jpg?_=20130731155231",
+      "export_group": "maybe",
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher (1983).jpg",
+      "licence_text": "Archief , the Dutch National Archives, donated in the context of a partnership program . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing . العربية ∙ Deutsch ∙ English ∙ français ∙ galego ∙ Bahasa Indonesia ∙ italiano ∙ 日本語  | Bahasa Indonesia ∙ 日本語 ∙ македонски ∙ Nederlands ∙ português ∙ русский ∙ 中文 ∙ +/− This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication . The person who associated a work with this deed has dedicated the work to the public domain by waiving all of their rights to the work |  worldwide under copyright law, including all related and neighboring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without a | sking permission. http://creativecommons.org/publicdomain/zero/1.0/deed.en CC0 Creative Commons Zero, Public Domain Dedication false false File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 15:52, 31 July 2013 2,44 |  the camera, and it may be completely wrong. Image title Premier Thatcher 19 september 1983 Author Rob Bogaerts / Anefo Copyright holder http://proxy.handle.net/10648/ad2e0288-d0b4-102d-bcf8-003048976d84 Short title Margaret Thatcher Online copyright statement http://www.gahetna.nl/over-ons/open-data Orienta | age height 3,259 px Date and time of digitizing 14",
+      "licence_url": "",
+      "original_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 54,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:29:35.877937Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "maybe",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_(1983).jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "caption": "Margaret Thatcher , former UK PM.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/f/ff/Thatcher-loc.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Thatcher-loc.jpg Thatcher-loc Margaret Thatcher , former UK PM.",
+      "licence_text": "Public domain Margaret Thatcher , former UK PM.",
+      "licence_url": "",
+      "original_sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+      "photographer_or_credit": "This image  is available from the United States Library of Congress 's Prints and Photographs division under the digital ID ppmsc.03266 . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing .",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 59,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:32:15.920897Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Thatcher-loc.jpg"
+    },
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "f8872af0e0d18261b23e",
+      "caption": "Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/Aankomt_van_premier_Thatcher_(r)_op_vliegveld_Valkenburg_met_minister_Van_Aarden,_Bestanddeelnr_932-7041.jpg/960px-Aankomt_van_premier_Thatcher_(r)_op_vliegveld_Valkenburg_met_minister_Van_Aarden,_Bestanddeelnr_932-7041.jpg",
+      "export_group": "production_ready",
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041.jpg Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aarden, Bestanddeelnr 932-7041 Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041",
+      "licence_text": "CC0 Collectie / Archief : Fotocollectie Anefo Reportage / Serie : Bezoek Engelse premier Margaret Thatcher Beschrijving : Aankomt van premier Thatcher (r) op vliegveld Valkenburg met minister Van Aardenne (Economische Zaken) (m) Datum : 19 september 1983 Locatie : Valkenburg, Zuid-Holland Trefwoorden : aankomst en vertrek, ministers, ministers-presidenten, vliegtuigen, vliegvelden Persoonsnaam : Aardenne, G.M.V. van, Thatcher, Margaret Fotograaf : Bogaerts, Rob / Anefo Auteursrechthebbende : Nationaal Archief Materiaalsoort : Negatief (zwart/wit) Nummer archiefinventaris : bekijk toegang 2.24.01.05 Bestanddeelnummer : 932-7041",
+      "licence_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+      "original_sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "photographer_or_credit": "https://proxy.handle.net/10648/ad2dfe3c-d0b4-102d-bcf8-003048976d84",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 85,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:36:49.793413Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "keep",
+      "rights_status": "public_domain",
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Aankomt_van_premier_Thatcher_(r)_op_vliegveld_Valkenburg_met_minister_Van_Aarden,_Bestanddeelnr_932-7041.jpg"
+    }
+  ],
+  "schema_version": 1
+}

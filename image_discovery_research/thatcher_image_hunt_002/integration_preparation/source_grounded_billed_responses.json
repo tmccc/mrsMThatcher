@@ -1,0 +1,125 @@
+{
+  "responses": {
+    "0ded54d8-c037-99a9-bf81-591a3303afb1": {
+      "candidate_id": "539626eef2896af392c4",
+      "cost_in_usd_ticks": 73361000,
+      "status": "completed_before_billing_ledger"
+    },
+    "17916e75-a21b-9e94-bc2b-1ce9625a3680": {
+      "candidate_id": "3abe0be95aa60233f374",
+      "cost_in_usd_ticks": 95268500,
+      "status": "completed_before_billing_ledger"
+    },
+    "2379968f-1ae5-998c-bc8c-7fa426253869": {
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "cost_in_usd_ticks": 67411000,
+      "status": "completed_before_billing_ledger"
+    },
+    "23815a85-4601-9919-8a03-ae867b8e3c62": {
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "cost_in_usd_ticks": 38467500,
+      "status": "provider_response_received"
+    },
+    "243cd2cd-fc34-948e-a854-95c12db4d7eb": {
+      "candidate_id": "168392f289b5df25f16b",
+      "cost_in_usd_ticks": 66061000,
+      "status": "completed_before_billing_ledger"
+    },
+    "255914a6-0c11-961f-98df-8985ab2026a9": {
+      "candidate_id": "5202e374b764482c4cda",
+      "cost_in_usd_ticks": 59486000,
+      "status": "provider_response_received"
+    },
+    "26372185-4943-967b-8195-faeb6826b953": {
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "cost_in_usd_ticks": 36348500,
+      "status": "completed_before_billing_ledger"
+    },
+    "29965c21-6063-9ee4-8bb9-e024c10a7337": {
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "cost_in_usd_ticks": 43198500,
+      "status": "completed_before_billing_ledger"
+    },
+    "37d083d1-279b-91e5-9b50-146813b10e93": {
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "cost_in_usd_ticks": 97568500,
+      "status": "completed_before_billing_ledger"
+    },
+    "581a793e-d976-9c4b-87ab-7025509d142b": {
+      "candidate_id": "47898be6bfefc5d49c03",
+      "cost_in_usd_ticks": 42136000,
+      "status": "completed_before_billing_ledger"
+    },
+    "5b639927-ab69-982f-81d8-5862e9b41d9b": {
+      "candidate_id": "0b15f11312a31033907d",
+      "cost_in_usd_ticks": 63731000,
+      "status": "completed_before_billing_ledger"
+    },
+    "71320d3c-defe-93f0-b813-1dfdabf3600a": {
+      "candidate_id": "08fe3d43c27bece23076",
+      "cost_in_usd_ticks": 64556000,
+      "status": "completed_before_billing_ledger"
+    },
+    "813f1064-2722-9d2f-ab01-96dc80686825": {
+      "candidate_id": "149e63869f481474a798",
+      "cost_in_usd_ticks": 57248500,
+      "status": "completed_before_billing_ledger"
+    },
+    "8202031d-2d49-9b14-b53a-e3713dfb4560": {
+      "candidate_id": "7720de19eda682fe608d",
+      "cost_in_usd_ticks": 39386000,
+      "status": "completed_before_billing_ledger"
+    },
+    "8ec64939-5ff4-900b-ac3b-c3c3036ebacb": {
+      "candidate_id": "6966b6853551436e849b",
+      "cost_in_usd_ticks": 66036000,
+      "status": "completed_before_billing_ledger"
+    },
+    "911b77e2-e8c0-9d7f-b8e6-d8c3b95a0681": {
+      "candidate_id": "305d002e01745c0acd9b",
+      "cost_in_usd_ticks": 71068500,
+      "status": "completed_before_billing_ledger"
+    },
+    "94fb7188-8e76-9d47-a97e-c7a3cbe363b5": {
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "cost_in_usd_ticks": 93571500,
+      "status": "completed_before_billing_ledger"
+    },
+    "ad737d5b-510a-90db-befa-b1972367412c": {
+      "candidate_id": "36d6b17bedd4345d223e",
+      "cost_in_usd_ticks": 67143500,
+      "status": "completed_before_billing_ledger"
+    },
+    "c9a6dc28-43ea-9440-9c35-d22fb425777d": {
+      "candidate_id": "3e16363d7234c33cd75e",
+      "cost_in_usd_ticks": 73906000,
+      "status": "completed_before_billing_ledger"
+    },
+    "cd30d7fe-b6f9-9d7d-8d1f-3f1a3fa14de7": {
+      "candidate_id": "f8872af0e0d18261b23e",
+      "cost_in_usd_ticks": 36411000,
+      "status": "provider_response_received"
+    },
+    "de90f322-d144-93a4-bec8-655e2b5eb9e4": {
+      "candidate_id": "0fe7ed6333faf654b062",
+      "cost_in_usd_ticks": 75986000,
+      "status": "completed_before_billing_ledger"
+    },
+    "e4364d1f-98f7-9541-a85c-229c5e0a4a7f": {
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "cost_in_usd_ticks": 74981000,
+      "status": "completed_before_billing_ledger"
+    },
+    "ed42a670-4fc8-9fe5-b4cb-c3e3c33b0c5c": {
+      "candidate_id": "00f4566964e0c88838ad",
+      "cost_in_usd_ticks": 77556000,
+      "status": "completed_before_billing_ledger"
+    },
+    "ff69d38d-5ede-9b93-b80a-498aeeb70c51": {
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "cost_in_usd_ticks": 41573500,
+      "status": "completed_before_billing_ledger"
+    }
+  },
+  "schema_version": 1
+}

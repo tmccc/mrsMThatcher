@@ -1,0 +1,295 @@
+{
+  "collision_checked_names": 136,
+  "next_available_number": 95,
+  "records": [
+    {
+      "applied": false,
+      "candidate_id": "00f4566964e0c88838ad",
+      "old_name": "00f4566964e0c88838ad.jpg",
+      "proposed_name": "t71.jpg",
+      "reverse_operation": {
+        "from": "t71.jpg",
+        "to": "00f4566964e0c88838ad.jpg"
+      },
+      "sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "source_export_path": "production_ready/candidate-00f4566964e0c88838ad.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "old_name": "08fe3d43c27bece23076.jpg",
+      "proposed_name": "t72.jpg",
+      "reverse_operation": {
+        "from": "t72.jpg",
+        "to": "08fe3d43c27bece23076.jpg"
+      },
+      "sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+      "source_export_path": "production_ready/candidate-08fe3d43c27bece23076.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "0b15f11312a31033907d",
+      "old_name": "0b15f11312a31033907d.jpg",
+      "proposed_name": "t73.jpg",
+      "reverse_operation": {
+        "from": "t73.jpg",
+        "to": "0b15f11312a31033907d.jpg"
+      },
+      "sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "source_export_path": "production_ready/candidate-0b15f11312a31033907d.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "old_name": "0b42b54c4148ee2562fb.jpg",
+      "proposed_name": "t74.jpg",
+      "reverse_operation": {
+        "from": "t74.jpg",
+        "to": "0b42b54c4148ee2562fb.jpg"
+      },
+      "sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "source_export_path": "production_ready/candidate-0b42b54c4148ee2562fb.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "old_name": "0c4634d8356f42dc4e0c.jpg",
+      "proposed_name": "t75.jpg",
+      "reverse_operation": {
+        "from": "t75.jpg",
+        "to": "0c4634d8356f42dc4e0c.jpg"
+      },
+      "sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+      "source_export_path": "production_ready/candidate-0c4634d8356f42dc4e0c.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "old_name": "0fe7ed6333faf654b062.jpg",
+      "proposed_name": "t76.jpg",
+      "reverse_operation": {
+        "from": "t76.jpg",
+        "to": "0fe7ed6333faf654b062.jpg"
+      },
+      "sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "source_export_path": "production_ready/candidate-0fe7ed6333faf654b062.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "149e63869f481474a798",
+      "old_name": "149e63869f481474a798.jpg",
+      "proposed_name": "t77.jpg",
+      "reverse_operation": {
+        "from": "t77.jpg",
+        "to": "149e63869f481474a798.jpg"
+      },
+      "sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "source_export_path": "production_ready/candidate-149e63869f481474a798.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "168392f289b5df25f16b",
+      "old_name": "168392f289b5df25f16b.jpg",
+      "proposed_name": "t78.jpg",
+      "reverse_operation": {
+        "from": "t78.jpg",
+        "to": "168392f289b5df25f16b.jpg"
+      },
+      "sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "source_export_path": "production_ready/candidate-168392f289b5df25f16b.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "253f9adb9e67db0a67d7",
+      "old_name": "253f9adb9e67db0a67d7.jpg",
+      "proposed_name": "t79.jpg",
+      "reverse_operation": {
+        "from": "t79.jpg",
+        "to": "253f9adb9e67db0a67d7.jpg"
+      },
+      "sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "source_export_path": "production_ready/candidate-253f9adb9e67db0a67d7.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "old_name": "305d002e01745c0acd9b.jpg",
+      "proposed_name": "t80.jpg",
+      "reverse_operation": {
+        "from": "t80.jpg",
+        "to": "305d002e01745c0acd9b.jpg"
+      },
+      "sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+      "source_export_path": "production_ready/candidate-305d002e01745c0acd9b.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "36d6b17bedd4345d223e",
+      "old_name": "36d6b17bedd4345d223e.jpg",
+      "proposed_name": "t81.jpg",
+      "reverse_operation": {
+        "from": "t81.jpg",
+        "to": "36d6b17bedd4345d223e.jpg"
+      },
+      "sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "source_export_path": "production_ready/candidate-36d6b17bedd4345d223e.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "3abe0be95aa60233f374",
+      "old_name": "3abe0be95aa60233f374.jpg",
+      "proposed_name": "t82.jpg",
+      "reverse_operation": {
+        "from": "t82.jpg",
+        "to": "3abe0be95aa60233f374.jpg"
+      },
+      "sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "source_export_path": "production_ready/candidate-3abe0be95aa60233f374.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "3e16363d7234c33cd75e",
+      "old_name": "3e16363d7234c33cd75e.jpg",
+      "proposed_name": "t83.jpg",
+      "reverse_operation": {
+        "from": "t83.jpg",
+        "to": "3e16363d7234c33cd75e.jpg"
+      },
+      "sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "source_export_path": "production_ready/candidate-3e16363d7234c33cd75e.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "old_name": "47898be6bfefc5d49c03.jpg",
+      "proposed_name": "t93.jpg",
+      "reverse_operation": {
+        "from": "t93.jpg",
+        "to": "47898be6bfefc5d49c03.jpg"
+      },
+      "sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+      "source_export_path": "maybe/candidate-47898be6bfefc5d49c03.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "5202e374b764482c4cda",
+      "old_name": "5202e374b764482c4cda.jpg",
+      "proposed_name": "t84.jpg",
+      "reverse_operation": {
+        "from": "t84.jpg",
+        "to": "5202e374b764482c4cda.jpg"
+      },
+      "sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "source_export_path": "production_ready/candidate-5202e374b764482c4cda.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "539626eef2896af392c4",
+      "old_name": "539626eef2896af392c4.jpg",
+      "proposed_name": "t85.jpg",
+      "reverse_operation": {
+        "from": "t85.jpg",
+        "to": "539626eef2896af392c4.jpg"
+      },
+      "sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "source_export_path": "production_ready/candidate-539626eef2896af392c4.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "5ac817d960fb7eb0f974",
+      "old_name": "5ac817d960fb7eb0f974.jpg",
+      "proposed_name": "t86.jpg",
+      "reverse_operation": {
+        "from": "t86.jpg",
+        "to": "5ac817d960fb7eb0f974.jpg"
+      },
+      "sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "source_export_path": "production_ready/candidate-5ac817d960fb7eb0f974.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "old_name": "62fe0c8d105bf2ad7c95.jpg",
+      "proposed_name": "t87.jpg",
+      "reverse_operation": {
+        "from": "t87.jpg",
+        "to": "62fe0c8d105bf2ad7c95.jpg"
+      },
+      "sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "source_export_path": "production_ready/candidate-62fe0c8d105bf2ad7c95.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "6966b6853551436e849b",
+      "old_name": "6966b6853551436e849b.jpg",
+      "proposed_name": "t88.jpg",
+      "reverse_operation": {
+        "from": "t88.jpg",
+        "to": "6966b6853551436e849b.jpg"
+      },
+      "sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "source_export_path": "production_ready/candidate-6966b6853551436e849b.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "7720de19eda682fe608d",
+      "old_name": "7720de19eda682fe608d.png",
+      "proposed_name": "t89.png",
+      "reverse_operation": {
+        "from": "t89.png",
+        "to": "7720de19eda682fe608d.png"
+      },
+      "sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "source_export_path": "production_ready/candidate-7720de19eda682fe608d.png"
+    },
+    {
+      "applied": false,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "old_name": "7c9a2b387a67c9bd858c.jpg",
+      "proposed_name": "t90.jpg",
+      "reverse_operation": {
+        "from": "t90.jpg",
+        "to": "7c9a2b387a67c9bd858c.jpg"
+      },
+      "sha256": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+      "source_export_path": "production_ready/candidate-7c9a2b387a67c9bd858c.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "old_name": "7cdcd67a8066a3b12d28.jpg",
+      "proposed_name": "t94.jpg",
+      "reverse_operation": {
+        "from": "t94.jpg",
+        "to": "7cdcd67a8066a3b12d28.jpg"
+      },
+      "sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+      "source_export_path": "maybe/candidate-7cdcd67a8066a3b12d28.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "old_name": "86953c03fd343ef6fcc1.jpg",
+      "proposed_name": "t91.jpg",
+      "reverse_operation": {
+        "from": "t91.jpg",
+        "to": "86953c03fd343ef6fcc1.jpg"
+      },
+      "sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+      "source_export_path": "production_ready/candidate-86953c03fd343ef6fcc1.jpg"
+    },
+    {
+      "applied": false,
+      "candidate_id": "f8872af0e0d18261b23e",
+      "old_name": "f8872af0e0d18261b23e.jpg",
+      "proposed_name": "t92.jpg",
+      "reverse_operation": {
+        "from": "t92.jpg",
+        "to": "f8872af0e0d18261b23e.jpg"
+      },
+      "sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "source_export_path": "production_ready/candidate-f8872af0e0d18261b23e.jpg"
+    }
+  ],
+  "schema_version": 1
+}

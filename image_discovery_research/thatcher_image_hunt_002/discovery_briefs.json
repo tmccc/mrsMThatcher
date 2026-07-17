@@ -1,0 +1,156 @@
+{
+  "brief_count": 6,
+  "briefs": [
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "184995cbd086fc87a7d2ff1f1666b1978424c00813ca8af4492839a72a5ab75f",
+      "brief_id": "early-career-domestic",
+      "focus": "early legal and political career, Finchley constituency work, 1950s-1970s campaigns, canvassing, Education Secretary school and university visits",
+      "order": 1,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    },
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "8e8f6785a852abea7c12c3de8b623b704cc6cf8205d6a31355e729e42411f79a",
+      "brief_id": "workers-industry-public",
+      "focus": "factories, workshops, shops, farms, industrial visits, conversations with workers, families and members of the public, active outdoor scenes",
+      "order": 2,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    },
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "5f4adc23cbbc9ac319a37a5372f6631f0cc2a376edc49f2075c7193171951cab",
+      "brief_id": "government-working-scenes",
+      "focus": "Cabinet, parliamentary, dispatch-box, desk work, press conferences, policy meetings, election headquarters and behind-the-scenes working scenes",
+      "order": 3,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    },
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "220e613a62168158de835f9b5565f7a9c11b2d60db75c1e36345e51cb0ca5a0e",
+      "brief_id": "cold-war-diplomacy",
+      "focus": "Reagan, Gorbachev, NATO, Cold War diplomacy, Washington, Moscow and other source-identified international meetings",
+      "order": 4,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    },
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "128928be779a48b3d895bc41b82971917fe75ceedc3d23770367243b9345ddf0",
+      "brief_id": "defence-europe-rallies",
+      "focus": "Falklands and defence settings, European Council and Bruges-era events, patriotic scenes, crowds, rallies and forceful public speaking",
+      "order": 5,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    },
+    {
+      "avoid_publishers": [
+        "Getty",
+        "Alamy",
+        "Pinterest",
+        "wallpaper sites",
+        "unattributed blogs"
+      ],
+      "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+      "brief_hash": "d5cb52712bceae5b9c6574eeed7dfc19052c00c6bb876559f26a0114fe708370",
+      "brief_id": "informal-later-life",
+      "focus": "warm or laughing expressions, informal moments, group photographs, later-life speeches, memoir and book events, high-energy or visually distinctive scenes",
+      "order": 6,
+      "preferred_publishers": [
+        "Margaret Thatcher Foundation",
+        "Wikimedia Commons",
+        "UK Parliament",
+        "UK Government or National Archives",
+        "US presidential libraries",
+        "NARA",
+        "NATO or institutional archives",
+        "universities",
+        "Flickr Commons institutions"
+      ]
+    }
+  ],
+  "schema_version": 1
+}

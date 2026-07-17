@@ -1,0 +1,11 @@
+{
+  "authoritative_evaluation": "v2_final_evaluation_postrun_corrected.json",
+  "authoritative_status": "v2_final_status_postrun_corrected.json",
+  "correction_audit": "v2_postrun_correction_audit.json",
+  "generated_at": "2026-07-16T20:39:08.103820Z",
+  "live_production_enabled": false,
+  "original_paid_run_evaluation": "v2_final_evaluation.json",
+  "original_paid_run_status": "v2_final_status.json",
+  "paid_response_files_modified": false,
+  "schema_version": 1
+}

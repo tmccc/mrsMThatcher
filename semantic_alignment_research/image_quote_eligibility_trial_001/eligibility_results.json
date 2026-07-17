@@ -1,0 +1,786 @@
+{
+  "providers": {
+    "gemini": [
+      {
+        "candidate_id": "00f4566964e0c88838ad",
+        "image_sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "8e2cf333d3528f1802f9bcae69bf7f698a8ae4dd71dbe1f0f8db4ae3ed22369b",
+            "reason": "Generic foreign policy quote from a different event (Canadian Parliament)."
+          }
+        ],
+        "selection_summary": "Matches quotes directly related to the August 1990 Aspen meeting and the Iraqi invasion of Kuwait.",
+        "suitable_quotes": [
+          {
+            "match_basis": "exact_event",
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The image captures Thatcher and Bush in Aspen in August 1990, the exact setting and time period of her Aspen Institute speech praising American values.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "exact_event",
+            "quote_hash": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+            "reason": "The photograph was taken on August 2, 1990, the day Iraq invaded Kuwait, when Thatcher and Bush met in Aspen to coordinate the international response.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "08fe3d43c27bece23076",
+        "image_sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
+            "reason": "Economic policy quote not suited to a warm, smiling profile portrait."
+          }
+        ],
+        "selection_summary": "Matches a reflective, personal quote suitable for a formal, smiling portrait from 1990.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+            "reason": "A reflective, personal quote about her character and judgment that fits a formal, composed portrait from the end of her premiership.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "0b15f11312a31033907d",
+        "image_sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac",
+            "reason": "Generic Cold War quote without specific relevance to the Reagan relationship."
+          }
+        ],
+        "selection_summary": "Matches quotes specifically discussing Ronald Reagan and their shared ideological alliance.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+            "reason": "The image features Thatcher and Reagan together, directly illustrating her reflections on his leadership and their shared values.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+            "reason": "The image shows Thatcher with Reagan, making it a strong match for her quote specifically praising his rejection of socialism.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "0b42b54c4148ee2562fb",
+        "image_sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82",
+            "reason": "Domestic UK policy quote not suited to a US diplomatic visit."
+          }
+        ],
+        "selection_summary": "Matches quotes from her September 1975 visit to the United States.",
+        "suitable_quotes": [
+          {
+            "match_basis": "exact_event",
+            "quote_hash": "693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939",
+            "reason": "The image shows Thatcher meeting US officials in September 1975, the same trip during which she delivered this major address in Washington D.C.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "0c4634d8356f42dc4e0c",
+        "image_sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+            "reason": "Domestic election quote not suited to a White House portrait."
+          }
+        ],
+        "selection_summary": "Matches quotes from her 1977 visit to the United States.",
+        "suitable_quotes": [
+          {
+            "match_basis": "exact_event",
+            "quote_hash": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+            "reason": "The image is a portrait from her September 1977 US visit, aligning with her major speech in Houston during the same trip.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "0fe7ed6333faf654b062",
+        "image_sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+            "reason": "Domestic UK policy quote not suited to a US diplomatic meeting."
+          }
+        ],
+        "selection_summary": "Matches quotes specifically discussing Ronald Reagan and their shared ideological alliance.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+            "reason": "The image features Thatcher and Reagan together at Camp David, directly illustrating her reflections on his leadership and their shared values.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+            "reason": "The image shows Thatcher with Reagan, making it a strong match for her quote specifically praising his rejection of socialism.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "149e63869f481474a798",
+        "image_sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The quote is about American values and the American dream, but it was delivered in 1990 to the Aspen Institute, not during a meeting with Reagan."
+          }
+        ],
+        "selection_summary": "Selected quotes directly referencing Ronald Reagan, matching the specific named relationship depicted in the image.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+            "reason": "The quote explicitly discusses Ronald Reagan's worldview and his rejection of socialism, making it a strong match for an image of Thatcher and Reagan together.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+            "reason": "The quote is from Thatcher's eulogy for Ronald Reagan, directly addressing his leadership and connection with the American people.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "168392f289b5df25f16b",
+        "image_sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "While about American values, it does not specifically reference Reagan or the 1984 diplomatic meeting."
+          }
+        ],
+        "selection_summary": "Selected quotes directly referencing Ronald Reagan, matching the specific named relationship depicted in the image.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+            "reason": "The quote explicitly discusses Ronald Reagan's worldview and his rejection of socialism, making it a strong match for an image of Thatcher and Reagan together.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+            "reason": "The quote is from Thatcher's eulogy for Ronald Reagan, directly addressing his leadership and connection with the American people.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "253f9adb9e67db0a67d7",
+        "image_sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Generic quote about government serving the people; does not relate to Robert Muldoon or the specific diplomatic signing event."
+          },
+          {
+            "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+            "reason": "Generic quote about international trade; lacks specific connection to the individuals or event shown."
+          }
+        ],
+        "selection_summary": "No quotes in the corpus specifically reference Robert Muldoon, New Zealand relations, or the exact diplomatic signing event depicted.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "305d002e01745c0acd9b",
+        "image_sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+            "reason": "The 'lady's not for turning' quote requires a conference or podium setting, not a general outdoor headshot."
+          }
+        ],
+        "selection_summary": "Selected personal, biographical, and rhetorical quotes that match the general portrait nature of the image.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+            "reason": "A personal reflection on emotional restraint and leadership style, suitable for a formal, serious portrait.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+            "reason": "A quote about her personal decisiveness and intuition, fitting for a direct, authoritative headshot.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+            "reason": "A personal statement about courage and character, compatible with a serious portrait.",
+            "risk_flags": [],
+            "strength": "strong"
+          },
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c",
+            "reason": "A defining personal statement about her identity as a conviction politician, suitable for a general portrait.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "36d6b17bedd4345d223e",
+        "image_sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679",
+            "reason": "While about Europe, the Bruges speech is highly combative and anti-federalist, which mismatches the warm, smiling, informal interaction depicted with Lubbers."
+          },
+          {
+            "quote_hash": "7bc23ff24cc77411babb56be0acae76fab7cafb8e5ba714afddff7ff153641f0",
+            "reason": "A harsh critique of European federalism that clashes with the friendly diplomatic tone of the image."
+          }
+        ],
+        "selection_summary": "No quotes in the corpus specifically reference Ruud Lubbers or the 1983 Stuttgart European Council, and generic European quotes in the corpus are too combative for this friendly image.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "3abe0be95aa60233f374",
+        "image_sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The quote is about American values, but it was delivered in 1990 to the Aspen Institute, not during the 1979 visit with Jimmy Carter."
+          },
+          {
+            "quote_hash": "de2f6b87928f0cc73b8ad5538f01f35a8bf51dc81c0ca5362f5c54a4ae1c33c8",
+            "reason": "Delivered in the US (Houston), but in 1977, not the 1979 event depicted with the Carters."
+          }
+        ],
+        "selection_summary": "No quotes in the corpus specifically reference Jimmy Carter, Rosalynn Carter, or the exact 1979 Washington D.C. diplomatic event depicted.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "3e16363d7234c33cd75e",
+        "image_sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c",
+            "reason": "The quote criticizes police for failing to uphold the law against mobs, which contradicts the warm, orderly interaction shown in the image."
+          }
+        ],
+        "selection_summary": "Selected a quote emphasizing the need for a well-respected police force, which aligns with the visual of Thatcher interacting respectfully with police officers.",
+        "suitable_quotes": [
+          {
+            "match_basis": "direct_principle",
+            "quote_hash": "d6339a4a3e7b322ec1c567a1c250de9cd826c8b6c3e0915b80c926b6aebfe573",
+            "reason": "The image shows Thatcher surrounded by and interacting with police officers in a positive manner, directly illustrating her stated principle of needing a well-respected police force.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "image_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+            "reason": "While the montage covers her premiership, it does not specifically depict her departure from Downing Street."
+          }
+        ],
+        "selection_summary": "Selected a quote reflecting her overarching leadership persona ('Iron Lady') which suits a retrospective montage of her time as Prime Minister.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429",
+            "reason": "The montage presents various facets of her leadership as Prime Minister, making it a strong visual match for her reflection on the 'touch of iron' required to lead Britain.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "5202e374b764482c4cda",
+        "image_sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The quote is specifically about American values, which is too narrow for a multilateral G7 summit photo."
+          }
+        ],
+        "selection_summary": "Selected a quote about international trade and post-war growth, fitting the context of a G7 Economic Summit.",
+        "suitable_quotes": [
+          {
+            "match_basis": "direct_principle",
+            "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+            "reason": "The G7 summit is a premier forum for international economic cooperation, making it a suitable visual for her quote on trade as an engine of post-war growth.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "539626eef2896af392c4",
+        "image_sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+            "reason": "The quote is about Reagan's views on socialism, which is slightly too specific ideologically for a general arrival ceremony portrait."
+          }
+        ],
+        "selection_summary": "Selected a quote directly praising Ronald Reagan and his connection with the American people, perfectly matching the formal portrait of the two leaders.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+            "reason": "The image features Thatcher alongside Ronald Reagan, directly illustrating her eulogistic quote about his leadership and their shared values.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "5ac817d960fb7eb0f974",
+        "image_sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The quote is a broad statement on American values, whereas the image is a specific diplomatic gift exchange."
+          }
+        ],
+        "selection_summary": "Selected a quote about the English-speaking peoples, which aligns with the diplomatic exchange between the UK Prime Minister and a US Senator.",
+        "suitable_quotes": [
+          {
+            "match_basis": "direct_principle",
+            "quote_hash": "80bfb8b6d1d7edc4af384bbf90aee9d3b44dc1b6c623ff237feb520724f54c4c",
+            "reason": "The diplomatic meeting between Thatcher and US Senator Bob Dole visually represents the alliance of the 'English speaking peoples' mentioned in the quote.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "62fe0c8d105bf2ad7c95",
+        "image_sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "faad97e5b07130a98c0531f43df62852be170f85927407334fa458f157868935",
+            "reason": "The quote is from a 1987 banquet in the Kremlin, whereas this image is from a 1989 visit to London."
+          }
+        ],
+        "selection_summary": "Selected a quote explicitly naming Mikhail Gorbachev, matching the visual of Thatcher meeting with him.",
+        "suitable_quotes": [
+          {
+            "match_basis": "named_person_or_relationship",
+            "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+            "reason": "The image shows Thatcher with Mikhail Gorbachev, directly supporting her quote referencing him and his economic reforms.",
+            "risk_flags": [],
+            "strength": "strong"
+          }
+        ]
+      },
+      {
+        "candidate_id": "6966b6853551436e849b",
+        "image_sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+            "reason": "The quote is about American values and George H.W. Bush is present, but the quote is from 1990 and the image is from 1987. The image is a generic portrait and does not directly illustrate the specific quote."
+          }
+        ],
+        "selection_summary": "The image is a generic outdoor portrait of Margaret Thatcher and George H.W. Bush. None of the quotes in the corpus directly relate to this specific meeting or their relationship in a way that this image unambiguously illustrates.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "7720de19eda682fe608d",
+        "image_sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "177c5ed000e4e54e91a1a730b89e37e73bba6bb7e9e93238010ec61f464bb493",
+            "reason": "The quote is about strengthening the family, but it is a political speech from 1988. The image is a personal portrait from 1984 and does not fit the political context."
+          }
+        ],
+        "selection_summary": "The image is a personal portrait of Margaret and Denis Thatcher. It is suitable for quotes about her personal life or family, but the corpus lacks a strong match for this specific image.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+            "reason": "The quote reflects on the loneliness of being Prime Minister and the vital companionship of her husband, Denis. The image shows them together, making it a compatible personal portrait.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "7cdcd67a8066a3b12d28",
+        "image_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b",
+            "reason": "The quote is from a specific 1980 conference speech. This is a generic 1983 studio portrait."
+          }
+        ],
+        "selection_summary": "The image is a formal studio portrait from 1983. It is suitable for general, reflective, or philosophical quotes from that era.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+            "reason": "The quote is a general reflection on her decisiveness and judgment of character. The formal, serious portrait from her prime ministerial years is a suitable general match.",
+            "risk_flags": [
+              "wrong_period"
+            ],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "86953c03fd343ef6fcc1",
+        "image_sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+        "no_suitable_quote": false,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+            "reason": "The quote is from a specific 1975 speech in the US. This is a generic 1975 portrait."
+          }
+        ],
+        "selection_summary": "The image is a formal portrait from 1975, shortly after she became Leader of the Opposition. It is suitable for general quotes from that period.",
+        "suitable_quotes": [
+          {
+            "match_basis": "portrait_general",
+            "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+            "reason": "The quote is a personal reflection from 1975 about her resilience as a woman. The 1975 portrait is a suitable general match for this personal statement.",
+            "risk_flags": [],
+            "strength": "moderate"
+          }
+        ]
+      },
+      {
+        "candidate_id": "f8872af0e0d18261b23e",
+        "image_sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b",
+            "reason": "The quote is about international trade, but the image is a specific diplomatic arrival in the Netherlands in 1983. The image does not illustrate the quote."
+          }
+        ],
+        "selection_summary": "The image shows a specific diplomatic arrival in the Netherlands in 1983. None of the quotes in the corpus relate to this event or the specific relationship shown.",
+        "suitable_quotes": []
+      }
+    ],
+    "grok": [
+      {
+        "candidate_id": "00f4566964e0c88838ad",
+        "image_sha256": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "The image depicts a specific 1990 diplomatic reception between Bush and Thatcher. No corpus quote addresses this exact event, relationship, or direct mechanism shown. Broad diplomacy quotes rejected as insufficiently specific.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "08fe3d43c27bece23076",
+        "image_sha256": "03546cf7ed7c3f0737d35a3da00f2e6711b2f392a32e80e3c8dd9686eec65463",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Portrait of Thatcher alone. No quote matches her personal biographical or rhetorical tone in this specific post-premiership profile context without overreach.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "0b15f11312a31033907d",
+        "image_sha256": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Formal portrait of Reagan and Thatcher. No corpus quote concerns this exact diplomatic pairing or visible interaction.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "0b42b54c4148ee2562fb",
+        "image_sha256": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "1975 handshake with Carl Albert. No quote addresses this specific 1975 legislative encounter or relationship.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "0c4634d8356f42dc4e0c",
+        "image_sha256": "a28a8a8929ccec1d10af2aaaca9c9ec335d46a748afe99b0248ac1e4574fc17a",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "1977 White House portrait. No quote matches this exact White House visit or period-specific biographical context.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "0fe7ed6333faf654b062",
+        "image_sha256": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "1984 Camp David working luncheon. No quote concerns this specific relaxed diplomatic setting or 1984 partnership moment.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "149e63869f481474a798",
+        "image_sha256": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Generic limited government theme; does not address US-UK alliance or specific event."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Image depicts specific diplomatic walk with Reagan at Camp David; corpus lacks matching US-UK foreign policy or exact event quotes.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "168392f289b5df25f16b",
+        "image_sha256": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Broad principle of limited government; ignores specific diplomatic relationship."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Formal handshake image requires exact transatlantic alliance quote; corpus lacks direct match for 1984 Downing Street event.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "253f9adb9e67db0a67d7",
+        "image_sha256": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "General governance theme; no named person or exact event match."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Signing with Muldoon image requires specific diplomatic or New Zealand relationship quote; corpus lacks matching content.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "305d002e01745c0acd9b",
+        "image_sha256": "5fb099573ab92f222b46d6621f59dbfe0c6c5d2f0f46836279f4a59251525db8",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Abstract principle; not biographical or rhetorical tone match for portrait."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Headshot portrait requires compatible personal or rhetorical quote; corpus lacks biographical match for general portrait.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "36d6b17bedd4345d223e",
+        "image_sha256": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "General foreign policy; no named relationship or exact event match."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Informal discussion with Lubbers image requires European diplomacy quote; corpus lacks specific 1983 Stuttgart Council match.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "3abe0be95aa60233f374",
+        "image_sha256": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Broad leadership theme; wrong event and named persons mismatch."
+          }
+        ],
+        "selection_summary": "No suitable quote found. Podium speech with Carters image requires specific 1979 transatlantic event quote; corpus lacks direct match for Washington D.C. speech.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "3e16363d7234c33cd75e",
+        "image_sha256": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Image depicts outdoor public engagement; no quote in corpus directly illustrates crowd interaction mechanism or exact event without symbolic overreach or generic_topic_only.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "image_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Montage of premiership portraits; no quote matches exact multi-image biographical tone without portrait_general mismatch or wrong_period.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "5202e374b764482c4cda",
+        "image_sha256": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Specific 1988 G7 group portrait; no quote concerns exact_event of Toronto summit or named_person_or_relationship without wrong_event or ally_adversary_confusion.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "539626eef2896af392c4",
+        "image_sha256": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "Profile arrival ceremony with Reagan; no quote on exact_event or named_person_or_relationship without visual_message_mismatch or tone_mismatch.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "5ac817d960fb7eb0f974",
+        "image_sha256": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "1985 Dole gift exchange indoors; no quote on exact_event or named_person_or_relationship without wrong_period or named_person_mismatch.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "62fe0c8d105bf2ad7c95",
+        "image_sha256": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [],
+        "selection_summary": "1989 Gorbachev visit with Raisa; no quote on exact_event or named_person_or_relationship without wrong_event or symbolic_overreach.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "6966b6853551436e849b",
+        "image_sha256": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "General government role quote lacks direct Bush relationship or bilateral meeting basis."
+          }
+        ],
+        "selection_summary": "Diplomatic image of Thatcher with Bush requires quote on that specific relationship or 1987 event; none in corpus match exactly.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "7720de19eda682fe608d",
+        "image_sha256": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+            "reason": "Personal reflection quote is biographical but not tied to Denis or 1984 family context."
+          }
+        ],
+        "selection_summary": "Personal portrait with Denis requires family or biographical quote; corpus lacks any Denis-specific content.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "7c9a2b387a67c9bd858c",
+        "image_sha256": "20a781f120d90ba2adbd10708e8c0c21375600bef07a85c91889a1bad346bbf0",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
+            "reason": "Leadership quote is general and lacks Reagan funeral or 2004 solemn context."
+          }
+        ],
+        "selection_summary": "Mourning portrait at Reagan funeral requires solemn leadership or Reagan-specific quote; none in corpus match exact event or person.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "7cdcd67a8066a3b12d28",
+        "image_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac",
+            "reason": "Authoritative leadership quote is compatible in tone but not tied to 1983 portrait context."
+          }
+        ],
+        "selection_summary": "Formal 1983 studio portrait requires authoritative leadership quote tied to that period; corpus lacks exact biographical match.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "86953c03fd343ef6fcc1",
+        "image_sha256": "ba9ab57f6e54121149597770f9846545ee95287a473c2b2d780cad8f24822dc4",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+            "reason": "Personal reflection quote is biographical but not tied to 1975 seated portrait."
+          }
+        ],
+        "selection_summary": "1975 smiling seated portrait requires reflective personal quote; corpus lacks direct 1975 biographical tie.",
+        "suitable_quotes": []
+      },
+      {
+        "candidate_id": "f8872af0e0d18261b23e",
+        "image_sha256": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+        "no_suitable_quote": true,
+        "rejected_broad_matches": [
+          {
+            "quote_hash": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+            "reason": "Foreign policy quote is generic and lacks specific 1983 Valkenburg arrival."
+          }
+        ],
+        "selection_summary": "1983 diplomatic arrival with van Aardenne requires exact event or foreign policy arrival quote; none match.",
+        "suitable_quotes": []
+      }
+    ]
+  },
+  "schema_version": 1
+}

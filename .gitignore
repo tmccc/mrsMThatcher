@@ -22,6 +22,7 @@ engagement_analytics/raw_responses/
 engagement_analytics/exports/
 engagement_analytics/reports/
 hybrid_reply_retrieval_runtime/
+quote_image_semantic_veto_runtime/
 production_state_recovery_*/
 semantic_alignment_research/hybrid_reply_retrieval_*/index_history/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/backups/
@@ -68,6 +69,11 @@ semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_review_stat
 semantic_alignment_research/quote_research_full_001/retry_analysis/retry_validation_20/
 semantic_alignment_research/quote_research_full_001/retry_batches/*_run/
 semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/
+image_discovery_research/**/downloaded/
+image_discovery_research/**/grounded_discovery/raw/
+image_discovery_research/**/triage_batches/raw/
+image_discovery_research/**/triage_batches/thumbnails/
+image_discovery_research/**/exported_kept/images/
 simulation_runs/
 
 # Local image-generation trials and reproducible large outputs.

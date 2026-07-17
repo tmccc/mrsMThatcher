@@ -1,0 +1,241 @@
+{
+  "ambiguous_exposure_usd": 7.785713,
+  "any_provider": {
+    "held_out_metrics": {
+      "available": true,
+      "false_negative": 7,
+      "false_positive": 5,
+      "harmful_eligibility_rate": 0.078125,
+      "pairs": 76,
+      "precision": 0.5,
+      "recall": 0.4166666666666667,
+      "specificity": 0.921875,
+      "true_negative": 59,
+      "true_positive": 5
+    },
+    "pair_count": 63
+  },
+  "available_provider_majority": {
+    "calibration_metrics": {
+      "available": true,
+      "false_negative": 2,
+      "false_positive": 0,
+      "harmful_eligibility_rate": 0.0,
+      "pairs": 23,
+      "precision": 1.0,
+      "recall": 0.5,
+      "specificity": 1.0,
+      "true_negative": 19,
+      "true_positive": 2
+    },
+    "held_out_metrics": {
+      "available": true,
+      "false_negative": 11,
+      "false_positive": 2,
+      "harmful_eligibility_rate": 0.03125,
+      "pairs": 76,
+      "precision": 0.3333333333333333,
+      "recall": 0.08333333333333333,
+      "specificity": 0.96875,
+      "true_negative": 62,
+      "true_positive": 1
+    },
+    "pair_count": 20,
+    "providers": [
+      "grok",
+      "gemini"
+    ],
+    "threshold": 2
+  },
+  "complete_providers": [
+    "grok",
+    "gemini"
+  ],
+  "generated_at": "2026-07-16T12:25:02.950650Z",
+  "known_cost_usd": 2.574162,
+  "majority": {
+    "available": false,
+    "calibration_metrics": {
+      "available": false,
+      "false_negative": null,
+      "false_positive": null,
+      "harmful_eligibility_rate": null,
+      "pairs": 23,
+      "precision": null,
+      "recall": null,
+      "specificity": null,
+      "true_negative": null,
+      "true_positive": null
+    },
+    "held_out_metrics": {
+      "available": false,
+      "false_negative": null,
+      "false_positive": null,
+      "harmful_eligibility_rate": null,
+      "pairs": 76,
+      "precision": null,
+      "recall": null,
+      "specificity": null,
+      "true_negative": null,
+      "true_positive": null
+    },
+    "pair_count": null
+  },
+  "providers": {
+    "anthropic": {
+      "calibration_metrics": {
+        "available": false,
+        "false_negative": null,
+        "false_positive": null,
+        "harmful_eligibility_rate": null,
+        "pairs": 23,
+        "precision": null,
+        "recall": null,
+        "specificity": null,
+        "true_negative": null,
+        "true_positive": null
+      },
+      "complete": false,
+      "completed_images": 0,
+      "failed_batches": [
+        "batch-01",
+        "batch-02",
+        "batch-03",
+        "batch-04"
+      ],
+      "held_out_metrics": {
+        "available": false,
+        "false_negative": null,
+        "false_positive": null,
+        "harmful_eligibility_rate": null,
+        "pairs": 76,
+        "precision": null,
+        "recall": null,
+        "specificity": null,
+        "true_negative": null,
+        "true_positive": null
+      },
+      "suitable_pair_count": 0,
+      "unsure_pair_count": 0
+    },
+    "gemini": {
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 2,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.5,
+        "specificity": 1.0,
+        "true_negative": 19,
+        "true_positive": 2
+      },
+      "complete": true,
+      "completed_images": 24,
+      "failed_batches": [],
+      "held_out_metrics": {
+        "available": true,
+        "false_negative": 7,
+        "false_positive": 4,
+        "harmful_eligibility_rate": 0.0625,
+        "pairs": 76,
+        "precision": 0.5555555555555556,
+        "recall": 0.4166666666666667,
+        "specificity": 0.9375,
+        "true_negative": 60,
+        "true_positive": 5
+      },
+      "suitable_pair_count": 53,
+      "unsure_pair_count": 0
+    },
+    "grok": {
+      "calibration_metrics": {
+        "available": true,
+        "false_negative": 1,
+        "false_positive": 0,
+        "harmful_eligibility_rate": 0.0,
+        "pairs": 23,
+        "precision": 1.0,
+        "recall": 0.75,
+        "specificity": 1.0,
+        "true_negative": 19,
+        "true_positive": 3
+      },
+      "complete": true,
+      "completed_images": 24,
+      "failed_batches": [],
+      "held_out_metrics": {
+        "available": true,
+        "false_negative": 11,
+        "false_positive": 3,
+        "harmful_eligibility_rate": 0.046875,
+        "pairs": 76,
+        "precision": 0.25,
+        "recall": 0.08333333333333333,
+        "specificity": 0.953125,
+        "true_negative": 61,
+        "true_positive": 1
+      },
+      "suitable_pair_count": 30,
+      "unsure_pair_count": 0
+    },
+    "openai": {
+      "calibration_metrics": {
+        "available": false,
+        "false_negative": null,
+        "false_positive": null,
+        "harmful_eligibility_rate": null,
+        "pairs": 23,
+        "precision": null,
+        "recall": null,
+        "specificity": null,
+        "true_negative": null,
+        "true_positive": null
+      },
+      "complete": false,
+      "completed_images": 0,
+      "failed_batches": [
+        "batch-01",
+        "batch-02",
+        "batch-03",
+        "batch-04"
+      ],
+      "held_out_metrics": {
+        "available": false,
+        "false_negative": null,
+        "false_positive": null,
+        "harmful_eligibility_rate": null,
+        "pairs": 76,
+        "precision": null,
+        "recall": null,
+        "specificity": null,
+        "true_negative": null,
+        "true_positive": null
+      },
+      "suitable_pair_count": 0,
+      "unsure_pair_count": 0
+    }
+  },
+  "schema_version": 1,
+  "unanimous": {
+    "available": false,
+    "held_out_metrics": {
+      "available": false,
+      "false_negative": null,
+      "false_positive": null,
+      "harmful_eligibility_rate": null,
+      "pairs": 76,
+      "precision": null,
+      "recall": null,
+      "specificity": null,
+      "true_negative": null,
+      "true_positive": null
+    },
+    "pair_count": null
+  },
+  "vote_distribution": {
+    "1": 43,
+    "2": 20
+  }
+}

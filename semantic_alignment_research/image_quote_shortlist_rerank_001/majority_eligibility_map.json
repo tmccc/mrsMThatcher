@@ -1,0 +1,2208 @@
+{
+  "production_authorised": false,
+  "records": [
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "00f4566964e0c88838ad",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "majority_suitable": false,
+      "named_people": [
+        "George H. W. Bush",
+        "Margaret Thatcher"
+      ],
+      "pair_id": "00f4566964e0c88838ad:f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+          "reason": "The quote is about the Gulf War and appeasement, and the image shows Thatcher with George H.W. Bush in Aspen in August 1990, the exact time and place they discussed the response to Iraq's invasion of Kuwait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+          "reason": "Aspen with Bush is the venue and partnership later recalled in her Aspen Institute never-appease speech.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "quote_text": "To me the most significant lesson is: never appease an aggressor. If we do, he will only grow stronger and more confident, and to secure his ultimate defeat will require greater effort and greater sacrifice. The longer you put off the needed decision and action, the higher the price in blood which has to be paid.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "reason": "The quote is a general humorous remark about men in politics, which fits well with a general portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "low",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "reason": "Light personal portrait can carry witty gender-stereotype line without wrong event claim.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "quote_text": "One of the things being in politics has taught me is that men are not a reasoned or reasonable sex.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+          "reason": "The quote is a general philosophical statement from her post-premiership period, which aligns with this 1990 portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+          "reason": "Near-post-premiership warm portrait fits reflective opportunity/wealth-creation remark.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "eedd44ae6091311a51996b72ece3c5a1f44a867ce2f8df6795495052052cee37",
+      "quote_text": "You simply have to give people the opportunity to do better.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0b15f11312a31033907d",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "0b15f11312a31033907d:23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "The quote is Thatcher describing Reagan's views on socialism, making an image of the two leaders together highly appropriate.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "Formal Reagan-Thatcher portrait supports her later praise of Reagan’s anti-socialism.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0b15f11312a31033907d",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "0b15f11312a31033907d:b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "The quote is Thatcher's eulogy for Ronald Reagan, making an image of the two leaders together highly appropriate.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "Historic Reagan-Thatcher partnership image fits her eulogy on his bond with America.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "The quote is a personal reflection on her judgment, which fits well with a general portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "Serious scrutinising headshot can support ten-second judgment personal claim.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "The quote is from 1977 about her leadership style, which perfectly matches this 1977 portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+          "reason": "1977 Opposition-era authoritative portrait fits same-period no-sycophants cabinet stance.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "quote_text": "I don't want a Cabinet of yes-men or yes-women. It's not healthy. I can't stand sycophants.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "0fe7ed6333faf654b062:23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "The quote is Thatcher describing Reagan's views on socialism, making an image of the two leaders together highly appropriate.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "Working Camp David image of the pair supports her later account of Reagan’s anti-socialism.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "0fe7ed6333faf654b062",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan with Prime Minister Margaret Thatcher During a Working Luncheon at Camp David (retouched)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "0fe7ed6333faf654b062:b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "The quote is Thatcher's eulogy for Ronald Reagan, making an image of the two leaders together highly appropriate.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "Iconic Camp David partnership image responsibly accompanies her Reagan eulogy.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "3e16363d7234c33cd75e",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher visiting Salford",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "3e16363d7234c33cd75e:e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "direct_principle",
+          "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+          "reason": "The image shows Thatcher interacting directly with the public, which aligns with the quote's principle of addressing people's worries.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+          "reason": "Outdoor public engagement with locals supports dealing with people’s worries.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+      "quote_text": "We are not in politics to ignore people's worries, we are in politics to deal with them.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "47898be6bfefc5d49c03",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "47898be6bfefc5d49c03:7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "The montage of her premiership years is a suitable visual accompaniment for a quote reflecting on her entire tenure as she departs office.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+          "reason": "Premiership-spanning montage can responsibly accompany legacy departure claim.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "7066fdf6027a1cbdc45dad3ef5cd95d0ee67a6500e519480b3a0814a266dc428",
+      "quote_text": "We're leaving Downing Street for the last time after eleven-and-a-half wonderful years, and we're very happy that we leave the United Kingdom in a very, very much better state than when we came here eleven and a half years ago.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Mikhail Gorbachev",
+        "Raisa Gorbacheva"
+      ],
+      "pair_id": "62fe0c8d105bf2ad7c95:67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+          "reason": "The image shows Margaret Thatcher with Mikhail Gorbachev, which directly aligns with the quote referencing Gorbachev's admissions of systemic failure.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+          "reason": "Thatcher with Gorbachev supports her citing his admission socialism has not worked.",
+          "risk_flags": [
+            "visual_message_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+      "quote_text": "Socialism is nationalisation of the total means of production, distribution and exchange and the planning of that by the central government - and that is what Gorbachev is saying has not worked.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "62fe0c8d105bf2ad7c95",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Visit to Great Britain by General secretary of CPSU CC Mikhail Gorbachev",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Mikhail Gorbachev",
+        "Raisa Gorbacheva"
+      ],
+      "pair_id": "62fe0c8d105bf2ad7c95:e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "exact_event",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "The image shows Margaret Thatcher with Mikhail Gorbachev, which directly aligns with the quote about turning an enemy into a friend.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+          "reason": "Cordial Thatcher–Gorbachev meeting visually supports turning adversary into friend.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "quote_text": "It pays to know the enemy not least because at some time you may have the opportunity to turn him into a friend.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "7720de19eda682fe608d",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Denis and Margaret Thatcher in 1984.",
+      "majority_suitable": false,
+      "named_people": [
+        "Denis Thatcher",
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7720de19eda682fe608d:6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+          "reason": "The quote mentions 'there are individual men and women, and there are families'. The image of Margaret and Denis Thatcher illustrates the family unit.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "direct_principle",
+          "quote_hash": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+          "reason": "Image of Margaret with husband Denis can illustrate individuals and families line.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
+      "quote_text": "There is no such thing as society: there are individual men and women, and there are families.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "7720de19eda682fe608d",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Denis and Margaret Thatcher in 1984.",
+      "majority_suitable": false,
+      "named_people": [
+        "Denis Thatcher",
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7720de19eda682fe608d:fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+          "reason": "The quote is from her memoirs where she pays tribute to Denis Thatcher's support during the lonely job of being Prime Minister. The image shows them together.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+          "reason": "Memoir lonely-job line credits Denis support; couple portrait can responsibly accompany.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "fb1906b50638e7e795309417cd776e02c2a0e97cf35b9526628fbb19b9429544",
+      "quote_text": "Being prime minister is a lonely job... you cannot lead from the crowd.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "7c9a2b387a67c9bd858c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher, former Prime Minister of the United Kingdom, exits a limousine on the ramp at Andrews Air Force Base, Mayland",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7c9a2b387a67c9bd858c:7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+          "reason": "The quote is a solemn 2008 message about remembering the past. The image shows Thatcher in her later years in solemn mourning attire, matching the tone and period.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+          "reason": "Solemn elder stateswoman mourning attire fits duty-to-remember communism message.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "7dbba6c4f8dd7af5635a2716dc751f209b4263f22f809114a0c801553ccdfc40",
+      "quote_text": "Our duty is to remember and remind. To forget the past would dishonour all those who fought heroically to resist communism's evil - it would also place us in danger of repeating its mistakes.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "The quote is about her sharp judgment. The formal, serious portrait matches the authoritative tone.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "Composed scrutinizing portrait can accompany ten-second judgment personality claim.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+          "reason": "The quote is about persevering through fundamental changes. The serious 1983 portrait matches the resolute tone.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+          "reason": "Serious mid-premiership portrait can support perseverance-on-reforms principle.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "quote_text": "The important thing, when you're making fundamental changes, is that you have to persevere until they work.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+          "reason": "The quote is from the late 1970s about private vulnerability. The 1975 portrait is from the correct era and its calm, reflective tone suits the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+          "reason": "1975 opposition-era seated reflective smile can suit private tears vulnerability.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "quote_text": "There are a few times when I get home at night and everything has got on top of me when I shed a few tears, silently, alone.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": true,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+          "reason": "The quote is from 1972. The 1975 portrait is from the correct era and its calm tone suits the personal reflection.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+          "reason": "Early soft-not-hard resolve can pair with warm yet composed 1975 portrait.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 2,
+      "quote_hash": "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+      "quote_text": "I'm not hard, I'm frightfully soft - but I will not be hounded. I will not be driven anywhere against my will.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "00f4566964e0c88838ad",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Bush and British Prime Minister Margaret Thatcher visit at a reception given by Ambassador and Mrs. Henry Catto at Catto Ranch, Aspen, CO",
+      "majority_suitable": false,
+      "named_people": [
+        "George H. W. Bush",
+        "Margaret Thatcher"
+      ],
+      "pair_id": "00f4566964e0c88838ad:a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+          "reason": "The quote is from a House of Commons debate about the Gulf War, while the image is a diplomatic reception.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+          "reason": "Aspen Bush-Thatcher meeting is the immediate Gulf crisis partnership backdrop to her anti-appeasement stance on Iraq.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a3f5d7ce4a52a64ac2d6c5fb5a74384a0178f7f9d1f3a8771001fc6d2c2a82cf",
+      "quote_text": "I seem to smell the stench of appeasement in the air.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+          "reason": "The quote is a general philosophical statement from her post-premiership period, which aligns with this 1990 portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+          "reason": "Warm smiling profile does not communicate capitalism-vs-socialism moral argument.",
+          "risk_flags": [
+            "generic_topic_only",
+            "visual_message_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+      "quote_text": "We must never forget that it is in fact capitalism which has the moral quality in society. Not socialism, which is the elevation of the power of the government over the people.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "The quote is a personal reflection on her judgment, which fits well with a general portrait from the end of her premiership.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "Warm smile undercuts sharp ten-second judgment persona.",
+          "risk_flags": [
+            "tone_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+          "reason": "The quote is from her 1993 memoirs, and this 1990 portrait is a reasonable match for her post-premiership reflections.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+          "reason": "Skin-colour political-rights line needs SA context; portrait alone is empty.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+      "quote_text": "The colour of someone's skin should not determine his or her political rights.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:6b2f57df8c4b2e575347fc3b22c574e75a6132279a8a15bff6041ea3c5fc0795",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "6b2f57df8c4b2e575347fc3b22c574e75a6132279a8a15bff6041ea3c5fc0795",
+          "reason": "The quote is a general philosophical statement from her post-premiership period, which aligns with this 1990 portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "6b2f57df8c4b2e575347fc3b22c574e75a6132279a8a15bff6041ea3c5fc0795",
+          "reason": "Economic-democracy slogan not shown by smiling profile.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "6b2f57df8c4b2e575347fc3b22c574e75a6132279a8a15bff6041ea3c5fc0795",
+      "quote_text": "Free enterprise capitalism is economic democracy.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "The quote is attributed to 1983, while the image is from 1990.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "tone_or_rhetorical",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "Warm smiling portrait can accompany humanising weakness admission without wrong event.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "quote_text": "Oh, I have lots of human weaknesses, who hasn't?",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+          "reason": "The quote is a reflection from her autobiography, which fits well with a general portrait from her later years.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+          "reason": "WWII home-front reflection not carried by formal 1990 portrait.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+      "quote_text": "We all see these great calamities with different eyes, and so their impact upon us is different.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "The quote is a general statement about meritocracy, which fits well with a general portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "Everest room-at-the-top metaphor not specifically illustrated.",
+          "risk_flags": [
+            "generic_topic_only",
+            "symbolic_overreach"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "quote_text": "People think that at the top there isn't much room. They tend to think of it as an Everest. My message is that there is tons of room at the top.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "08fe3d43c27bece23076",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Profile photo of former Prime Minister Margaret Thatcher",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "08fe3d43c27bece23076:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is from a 1986 interview, while the image is from 1990.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "Composed personal portrait can support conviction-over-personal-future interview line.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0b15f11312a31033907d",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan and Prime Minister Margaret Thatcher (cropped b)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "0b15f11312a31033907d:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "The quote is a general statement about foreign policy, which aligns well with a formal portrait of Thatcher and Reagan, key figures in Cold War diplomacy.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "Unverified foreign-policy aphorism not specifically carried by this pose.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "quote_text": "Fear is not the basis for foreign policy.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0b42b54c4148ee2562fb",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Black and white photograph print of Carl Albert shaking hands with Margaret Thatcher. September 1975",
+      "majority_suitable": false,
+      "named_people": [
+        "Carl Albert",
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0b42b54c4148ee2562fb:0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+          "reason": "The quote is about her domestic political rise in 1975, while the image shows a diplomatic meeting in the US.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+          "reason": "1975 handshake as rising Conservative leader can support same-year woman’s stick-to-job resolve.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+      "quote_text": "I've got a woman's ability to stick to a job and get on with it when everyone else walks off and leaves it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+          "reason": "The quote is a personal reflection on vulnerability from her time as Leader of the Opposition, which aligns well with this 1977 portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+          "reason": "Private tears admission conflicts with formal public White House portrait.",
+          "risk_flags": [
+            "tone_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "quote_text": "There are a few times when I get home at night and everything has got on top of me when I shed a few tears, silently, alone.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "The quote is a general statement about defeating dictators, which aligns well with a serious formal portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+          "reason": "Dictators must be defeated not specifically shown by calm portrait.",
+          "risk_flags": [
+            "generic_topic_only",
+            "tone_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+      "quote_text": "In my view dictators do not surrender. They have to be well and truly defeated.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "The quote is a general statement about meritocracy, which fits well with a general portrait.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "Everest room-at-top maxim is generic; portrait adds no mechanism.",
+          "risk_flags": [
+            "generic_topic_only",
+            "symbolic_overreach"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "quote_text": "People think that at the top there isn't much room. They tend to think of it as an Everest. My message is that there is tons of room at the top.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "The quote is a general statement about foreign policy, which aligns well with a formal portrait taken at the White House.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+          "reason": "Unverified fear-not-foreign-policy line not specifically this 1977 visit.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+      "quote_text": "Fear is not the basis for foreign policy.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "0c4634d8356f42dc4e0c",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher at White House.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "0c4634d8356f42dc4e0c:dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+          "reason": "The quote is from a 1976 House of Commons debate, while the image is a 1977 portrait.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+          "reason": "1976 liberty-over-equality Commons stance can use serious Opposition-era White House portrait nearby in time.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "149e63869f481474a798",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "149e63869f481474a798:23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "The quote is about Reagan's stance against socialism, and the image shows Thatcher and Reagan together, illustrating their ideological alliance.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "Quote is Thatcher's later description of Reagan's anti-socialism; casual Camp David walk does not communicate that argument.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "149e63869f481474a798",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "President Ronald Reagan Walking with Prime Minister Margaret Thatcher at Camp David",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "149e63869f481474a798:b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "The quote is about Reagan's connection with the American people, and the image shows Thatcher and Reagan together.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "2004 funeral eulogy about Reagan's bond with Americans is not this 1980s Camp David walk.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "168392f289b5df25f16b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "168392f289b5df25f16b:23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "The quote is about Reagan's stance against socialism, and the image shows Thatcher and Reagan together, illustrating their ideological alliance.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+          "reason": "Thatcher later describing Reagan's anti-socialism; warm 1984 handshake does not state that argument.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_event"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "23a7a16a048e2a3a2884fdf31d53c4b6149367fa9420be7ca734a3af75845a7f",
+      "quote_text": "Socialism was a patent failure which should be cast onto the trash heap of history.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "168392f289b5df25f16b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "6-5-1984 Trip to United Kingdom, President Ronald Reagan meeting with Prime Minister Margaret Thatcher of United Kingdom at 10 Downing Street, London",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher",
+        "Ronald Reagan"
+      ],
+      "pair_id": "168392f289b5df25f16b:b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "The quote is about Reagan's connection with the American people, and the image shows Thatcher and Reagan together.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "named_person_or_relationship",
+          "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+          "reason": "Funeral eulogy on Reagan-people sympathy is 2004 solemn context, not 1984 handshake.",
+          "risk_flags": [
+            "wrong_event",
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "b09c4175a50f081e3807a29428f16f7644ef38c809f7f4ac8b20ea3c72aa3785",
+      "quote_text": "Ronald Reagan carried the American people with him in his great endeavours because there was perfect sympathy between them. He and they loved America and what it stands for: freedom and opportunity for ordinary people.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+          "reason": "The quote is about emotional restraint and stoicism, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+          "reason": "Heart-on-sleeve stoicism could use portrait, but generic hat headshot does not communicate the interview point.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+      "quote_text": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "The quote is about personal intuition and judgment, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "Ten-second judgment is personal; neutral hat portrait does not show scrutiny or decisiveness.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+          "reason": "The quote is about courage, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+          "reason": "Courage claim is early Commons; headshot is only weak generic leadership fallback.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "74e9c754c9ed8e8673892526574f24023e91230e10315007aae6424b95b7fc47",
+      "quote_text": "I hope the one quality I am not lacking is courage.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "The quote is about epistemic humility and leadership, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+          "reason": "Statecraft know-what-you-do-not-know is late memoir principle; calibration rejects portrait fallback.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+      "quote_text": "It is always important in matters of high politics to know what you do not know. Those who think that they know, but are mistaken, and act upon their mistakes, are the most dangerous people to have in charge.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "The quote is about political integrity and truth, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+          "reason": "1996 Keith Joseph integrity lecture is post-premiership specific; undated headshot insufficient.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "quote_text": "In politics, integrity really lies in the conviction that it's only on the basis of truth that power should be won - or indeed can be worth winning. It lies in an unswerving belief that you have to be right.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+          "reason": "The quote is about World War II and calamities, and the image is a formal, serious headshot of Thatcher, which aligns with the reflective tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+          "reason": "WWII calamities different eyes is Path to Power reflection, not portrait match.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "914b2efd6da554daea001e37fe05a398688f95bd72e37921e80e2938b4d4b9bd",
+      "quote_text": "We all see these great calamities with different eyes, and so their impact upon us is different.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130",
+          "reason": "The quote is about long-term respect over short-term popularity, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130",
+          "reason": "Newsweek long-term respect over popularity is 1992 elder article, not this headshot.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a7d7d5eedd7894be874898a0bb7840c5abbe6764135c1154d49378c51186e130",
+      "quote_text": "Far better to command respect for doing the right thing long-term than to pursue short-term popularity.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+          "reason": "The quote is about perseverance and fundamental changes, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+          "reason": "Persevere until reforms work is principle; generic headshot fails to show resolve context.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "quote_text": "The important thing, when you're making fundamental changes, is that you have to persevere until they work.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+          "reason": "The quote is about courage and standing by convictions, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+          "reason": "Goldsmith eulogy courage against taunts is memorial context, not generic headshot.",
+          "risk_flags": [
+            "wrong_event"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+      "quote_text": "It takes courage of a high order to lay yourself open to the taunts and sneers of lesser men who try to diminish your character because they can't defeat your arguments.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is about her personal future and beliefs, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "Belief over personal future could be portrait-rhetorical, but image is too generic and undated.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "305d002e01745c0acd9b",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher headshot",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "305d002e01745c0acd9b:db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+          "reason": "The quote is about constitutions and values, and the image is a formal, serious headshot of Thatcher, which aligns with the tone of the quote.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+          "reason": "Constitutions on hearts Statecraft line is late book principle, not hat portrait.",
+          "risk_flags": [
+            "generic_topic_only",
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "quote_text": "Constitutions have to be written on hearts, not just paper.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "The quote is about her authority over her cabinet. The formal, serious 1983 portrait suits this authoritative statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+          "reason": "Authoritative portrait only generically suits ministers-do-what-I-say; no cabinet mechanism shown.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "quote_text": "I don't mind how much my Ministers talk, so long as they do what I say.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "The quote is about human weaknesses. The formal, serious portrait does not convey vulnerability.",
+          "risk_flags": [
+            "tone_mismatch"
+          ]
+        },
+        "grok": {
+          "confidence": "low",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "Neutral 1983 portrait can loosely humanise unverified weaknesses admission.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "quote_text": "Oh, I have lots of human weaknesses, who hasn't?",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "The quote is a general statement about ambition and meritocracy. The formal 1983 portrait is suitable for this general philosophical statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "Unverified room-at-top line only loosely fits leadership portrait.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "quote_text": "People think that at the top there isn't much room. They tend to think of it as an Everest. My message is that there is tons of room at the top.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "The quote is from 1986. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+          "reason": "Authoritative portrait compatible with conviction-over-personal-future statement.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "d6bb2861e084d37cb5109423252d79319e9a55f6dbc3d705839f1ad054c10922",
+      "quote_text": "I am far more interested in achieving the things in which I believe in than I am in my own personal future. Far more interested.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "reason": "The quote is a general observation about men in politics. The formal portrait is suitable for this general statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "reason": "Unverified men-not-reasonable joke not specifically illustrated.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "quote_text": "One of the things being in politics has taught me is that men are not a reasoned or reasonable sex.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher (1983)",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "7cdcd67a8066a3b12d28:f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62",
+          "reason": "The quote is from 1986. The image is from 1983.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62",
+          "reason": "Determined 1980s portrait can support if-you-want-someone-weak resolve.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "f7c575da081f9e6d85c348eb9c5766bb0a9c1e6ce46bb3dad0604932cbcabb62",
+      "quote_text": "Let me say this, if you want someone weak you don't want me, there are plenty of others to choose from.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "The quote is about her sharp judgment. The formal portrait is suitable for this general statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+          "reason": "Warm smile mismatches ten-second hard judgment claim.",
+          "risk_flags": [
+            "tone_mismatch"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+      "quote_text": "I usually make up my mind about a man in ten seconds, and I very rarely change it.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+          "reason": "The quote is from her 1993 memoirs. The image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+          "reason": "Calibration-style formal portrait can accompany Jewish cabinet merit admiration.",
+          "risk_flags": []
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+      "quote_text": "I have enormous admiration for the Jewish people, inside or outside Israel. There have always been Jewish members of my staff and indeed my Cabinet. In fact I just wanted a Cabinet of clever, energetic people - and frequently that turned out to be the same thing.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "The quote is from 1983. The image is from 1975.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        },
+        "grok": {
+          "confidence": "low",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "reason": "Warm personal portrait can loosely humanise weaknesses admission.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "quote_text": "Oh, I have lots of human weaknesses, who hasn't?",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "The quote is a general statement about ambition. The formal portrait is suitable for this general philosophical statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "medium",
+          "decision": "unsuitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "reason": "Unverified Everest line only generic with smiling portrait.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "quote_text": "People think that at the top there isn't much room. They tend to think of it as an Everest. My message is that there is tons of room at the top.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+          "reason": "The quote is from the early 1970s. The 1975 portrait is from the correct era and its calm tone suits the personal reflection.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+          "reason": "Early-1970s milk-snatcher remark wrong moment.",
+          "risk_flags": [
+            "wrong_period"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c",
+      "quote_text": "I've no idea why people keep attacking me. I don't deserve it at all.",
+      "unanimous_suitable": false
+    },
+    {
+      "available_provider_majority_suitable": false,
+      "candidate_id": "86953c03fd343ef6fcc1",
+      "four_provider_majority_suitable": false,
+      "image_source_event": "Margaret Thatcher , former UK PM.",
+      "majority_suitable": false,
+      "named_people": [
+        "Margaret Thatcher"
+      ],
+      "pair_id": "86953c03fd343ef6fcc1:f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+      "provider_assessments": {
+        "gemini": {
+          "confidence": "high",
+          "decision": "suitable",
+          "match_basis": "portrait_general",
+          "quote_hash": "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+          "reason": "The quote is a general observation about platitudes. The formal portrait is suitable for this general statement.",
+          "risk_flags": []
+        },
+        "grok": {
+          "confidence": "high",
+          "decision": "unsuitable",
+          "match_basis": "no_valid_match",
+          "quote_hash": "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+          "reason": "Unverified platitudes quote should not dominate with Thatcher portrait.",
+          "risk_flags": [
+            "generic_topic_only"
+          ]
+        }
+      },
+      "provider_vote_count": 1,
+      "quote_hash": "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+      "quote_text": "Platitudes? Yes, there are platitudes. Platitudes are there because they are true.",
+      "unanimous_suitable": false
+    }
+  ],
+  "schema_version": 1
+}

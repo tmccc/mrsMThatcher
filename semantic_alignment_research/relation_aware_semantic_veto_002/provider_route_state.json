@@ -1,0 +1,11 @@
+{
+  "consecutive_developer_429s": 0,
+  "developer_attempts": 115,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "pause_reason": null,
+  "pause_timestamp": null,
+  "schema_version": 1,
+  "updated_at": "2026-07-16T20:23:42.442464Z",
+  "vertex_attempts": 0
+}

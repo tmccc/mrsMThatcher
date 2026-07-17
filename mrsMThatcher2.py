@@ -252,6 +252,17 @@ reply_strategy = {
         "fail_open": True,
     },
 }
+quote_image_semantic_veto = {
+    "enabled": False,
+    "mode": "shadow",
+    "manifest_path": (
+        "semantic_alignment_research/quote_image_semantic_veto_001/shadow/"
+        "material_veto_v2_shadow_manifest.json"
+    ),
+    "fail_open": True,
+    "record_best_allowed_alternative": True,
+    "maximum_shadow_history": 10_000,
+}
 
 LINES_USED_FILE = BASE_DIR / "lines_used.json"
 IMAGES_USED_FILE = BASE_DIR / "images_used.json"
@@ -522,6 +533,7 @@ LOCAL_CONFIG_ALLOWED_KEYS = {
     "STATE_BACKUP_COUNT",
     "historical_context_reply",
     "reply_strategy",
+    "quote_image_semantic_veto",
 }
 
 LOCAL_CONFIG_NON_NEGATIVE_INT_KEYS = {
@@ -602,6 +614,7 @@ class LocalConfigError(RuntimeError):
 
 
 _PRODUCTION_BOOTSTRAPPED = False
+_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW: object | None = None
 
 
 def _coerce_local_config_value(key: str, value: object, current_value: object) -> object:
@@ -742,6 +755,30 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
                 errors.append("reply_strategy.completed_packets_only must remain true when enabled")
             if strategy_config.get("no_hashtags") is not True:
                 errors.append("reply_strategy.no_hashtags must remain true when enabled")
+
+    veto_config = values.get("quote_image_semantic_veto", globals().get("quote_image_semantic_veto"))
+    veto_keys = {
+        "enabled", "mode", "manifest_path", "fail_open",
+        "record_best_allowed_alternative", "maximum_shadow_history",
+    }
+    if not isinstance(veto_config, dict) or set(veto_config) != veto_keys:
+        errors.append("quote_image_semantic_veto fields mismatch")
+    else:
+        if type(veto_config.get("enabled")) is not bool:
+            errors.append("quote_image_semantic_veto.enabled must be boolean")
+        if veto_config.get("mode") not in {"disabled", "shadow"}:
+            errors.append("quote_image_semantic_veto.mode must be disabled or shadow")
+        if veto_config.get("enabled") and veto_config.get("mode") != "shadow":
+            errors.append("enabled quote_image_semantic_veto must use shadow mode")
+        if not isinstance(veto_config.get("manifest_path"), str) or not veto_config["manifest_path"].strip():
+            errors.append("quote_image_semantic_veto.manifest_path must be non-empty")
+        if veto_config.get("fail_open") is not True:
+            errors.append("quote_image_semantic_veto.fail_open must remain true")
+        if type(veto_config.get("record_best_allowed_alternative")) is not bool:
+            errors.append("quote_image_semantic_veto.record_best_allowed_alternative must be boolean")
+        maximum_history = veto_config.get("maximum_shadow_history")
+        if type(maximum_history) is not int or not 100 <= maximum_history <= 100_000:
+            errors.append("quote_image_semantic_veto.maximum_shadow_history must be 100..100000")
 
     def int_value(key: str) -> int:
         return int(values.get(key, globals().get(key, 0)))
@@ -916,6 +953,37 @@ if SOURCE_DEFAULT_CONFIG_ERRORS:
     raise RuntimeError("Invalid source default config: " + "; ".join(SOURCE_DEFAULT_CONFIG_ERRORS))
 
 
+def initialise_quote_image_semantic_veto_shadow() -> None:
+    """Load the corrected local manifest once; failure disables only observation."""
+    global _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW
+    if not quote_image_semantic_veto.get("enabled"):
+        _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW = None
+        return
+    if _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW is not None:
+        return
+    from semantic_alignment.quote_image_semantic_veto import ShadowRuntime
+
+    runtime = ShadowRuntime.load(BASE_DIR, quote_image_semantic_veto, verify_source_hashes=True)
+    _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW = runtime
+    if runtime.available:
+        log.info(
+            "Quote/image semantic-veto shadow manifest loaded. policy=%s sha256=%s pairs=%d "
+            "load_ms=%.3f memory_bytes=%d active_enforcement=false",
+            runtime.policy_version,
+            runtime.manifest_sha256,
+            len(runtime.pairs or {}),
+            runtime.load_time_ms,
+            runtime.memory_bytes,
+        )
+    else:
+        log.warning(
+            "Quote/image semantic-veto shadow unavailable; production selection remains unchanged. "
+            "status=%s reason=%s",
+            runtime.status,
+            runtime.reason,
+        )
+
+
 def production_bootstrap(
     *,
     log_path: Path | None = None,
@@ -941,6 +1009,7 @@ def production_bootstrap(
         if not strategy_path.is_absolute():
             strategy_path = BASE_DIR / strategy_path
         load_and_validate_corpus(strategy_path)
+    initialise_quote_image_semantic_veto_shadow()
     if not SELF_TEST_REQUESTED and not INITIALISE_REQUESTED:
         validate_production_credentials()
     _PRODUCTION_BOOTSTRAPPED = True
@@ -6323,6 +6392,69 @@ def log_regular_image_selection(choice: dict) -> None:
     )
 
 
+def log_quote_image_semantic_veto_shadow(
+    quote_choice: dict,
+    production_choice: dict,
+    scored_candidates: list[dict],
+    *,
+    selection_rng_state: object | None = None,
+) -> None:
+    """Observe the completed production decision without influencing it."""
+    if not quote_image_semantic_veto.get("enabled") or quote_image_semantic_veto.get("mode") != "shadow":
+        return
+    runtime = _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW
+    if runtime is None:
+        return
+    rng_before = random.getstate()
+    selected_before = (
+        id(production_choice),
+        production_choice.get("basename"),
+        production_choice.get("image_hash"),
+        production_choice.get("score"),
+    )
+    candidates_before = tuple(
+        (id(item), item.get("basename"), item.get("image_hash"), item.get("score"))
+        for item in scored_candidates
+    )
+    try:
+        observed_selected = {
+            key: production_choice.get(key)
+            for key in ("basename", "image_hash", "image_source", "score")
+        }
+        observed_candidates = [
+            {key: item.get(key) for key in ("basename", "image_hash", "image_source", "score")}
+            for item in scored_candidates
+        ]
+        event = runtime.evaluate(
+            quote_hash=str(quote_choice.get("quote_hash") or ""),
+            selected=observed_selected,
+            candidates=observed_candidates,
+            quote_preview=str(quote_choice.get("text") or ""),
+            tie_break_state=selection_rng_state,
+        )
+        selected_after = (
+            id(production_choice),
+            production_choice.get("basename"),
+            production_choice.get("image_hash"),
+            production_choice.get("score"),
+        )
+        candidates_after = tuple(
+            (id(item), item.get("basename"), item.get("image_hash"), item.get("score"))
+            for item in scored_candidates
+        )
+        if selected_after != selected_before or candidates_after != candidates_before:
+            raise RuntimeError("semantic-veto shadow observer mutated the production decision")
+        if random.getstate() != rng_before:
+            raise RuntimeError("semantic-veto shadow observer consumed production RNG state")
+        event["production_selection_changed"] = False
+        event_name = str(event.pop("event"))
+        log_event(event_name, **event)
+    except Exception:
+        if random.getstate() != rng_before:
+            random.setstate(rng_before)
+        log.exception("Quote/image semantic-veto shadow lookup failed; production selection remains unchanged")
+
+
 def choose_matched_unused_image(
     images_used: set,
     quote_choice: dict,
@@ -6462,6 +6594,7 @@ def choose_matched_unused_image(
     baseline_tied = [item for item in scored if float(item["score"]) == baseline_best_score]
     baseline_winner = min(baseline_tied, key=lambda item: str(item["basename"]))
     policy_rows: list[dict] | None = None
+    production_candidates = scored
     if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
         policy_rows, policy_candidates = generated_identity_policy_selection(scored)
         if not policy_candidates:
@@ -6474,9 +6607,11 @@ def choose_matched_unused_image(
             raise QuoteSpecificImageMismatch("Generated identity policy excluded all phase-specific candidates")
         best_score = max(float(item["score"]) for item in policy_candidates)
         tied = [item for item in policy_candidates if float(item["score"]) == best_score]
+        production_candidates = policy_candidates
     else:
         best_score = baseline_best_score
         tied = baseline_tied
+    selection_rng_state = random.getstate()
     chosen = random.choice(tied)
 
     log.info(
@@ -6503,6 +6638,12 @@ def choose_matched_unused_image(
         )
     else:
         log_generated_identity_policy_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
+    log_quote_image_semantic_veto_shadow(
+        quote_choice,
+        chosen,
+        production_candidates,
+        selection_rng_state=selection_rng_state,
+    )
     for item in sorted(scored, key=lambda entry: float(entry["score"]), reverse=True)[:5]:
         log.debug(
             "Image match candidate basename=%s score=%.2f components=%s",

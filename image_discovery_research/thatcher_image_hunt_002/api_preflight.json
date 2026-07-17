@@ -1,0 +1,40 @@
+{
+  "adc_readable": true,
+  "developer_configured": true,
+  "estimated_cost_usd": {
+    "expected": 2.5,
+    "maximum": 20.0,
+    "minimum": 0.75
+  },
+  "generated_at": "2026-07-16T04:03:20.125339Z",
+  "hard_cost_limits_usd": {
+    "combined": 20.0,
+    "developer_api": 12.0,
+    "vertex": 12.0
+  },
+  "logical_call_limits": {
+    "grounded_discovery": 6,
+    "multimodal_triage": 6,
+    "total": 12
+  },
+  "model": "gemini-3.1-pro-preview",
+  "output_directory": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002",
+  "planned_full_maximum": {
+    "grounded_discovery_calls": 6,
+    "multimodal_triage_calls": 6
+  },
+  "planned_pilot": {
+    "grounded_discovery_calls": 2,
+    "multimodal_triage_calls": 1
+  },
+  "production_image_directory_used": false,
+  "provider_order": [
+    "gemini_developer_api",
+    "vertex_ai_gemini"
+  ],
+  "run_id": "thatcher_image_hunt_002",
+  "same_model_family_required": true,
+  "schema_version": 1,
+  "vertex_location": "global",
+  "vertex_project_configured": true
+}

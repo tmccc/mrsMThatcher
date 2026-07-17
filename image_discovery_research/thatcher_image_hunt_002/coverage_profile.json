@@ -1,0 +1,186 @@
+{
+  "baseline_hash": "cec41ec489e6f608a791679ea8b7f79b922f74375cf505c95d8271866dc94542",
+  "baseline_image_count": 69,
+  "baseline_schema_version": 3,
+  "counts": {
+    "activities": {
+      "addressing audience": 1,
+      "contemplative pose": 1,
+      "direct gaze": 2,
+      "facing camera": 3,
+      "facing forward": 1,
+      "filming": 1,
+      "gazing downward": 1,
+      "gazing slightly off-camera": 1,
+      "gazing upward": 2,
+      "gesturing": 5,
+      "gesturing with pen": 1,
+      "gesturing with raised hand": 1,
+      "hand to face": 1,
+      "handling papers": 1,
+      "hands clasped": 2,
+      "hands clasped in lap": 1,
+      "hands on document": 1,
+      "holding flower": 1,
+      "holding papers": 1,
+      "holding pen over papers": 1,
+      "holding teacup": 1,
+      "listening attentively": 1,
+      "looking aside": 1,
+      "making V-sign gesture": 1,
+      "photographing": 1,
+      "pointing": 1,
+      "posed": 1,
+      "posed for portrait": 1,
+      "posed portrait": 2,
+      "posing": 7,
+      "posing for portrait": 13,
+      "posing formally": 1,
+      "posing with hands clasped": 1,
+      "posing with hands clasped under chin": 1,
+      "public address": 2,
+      "raising hand in gesture": 1,
+      "reading documents": 1,
+      "referring to papers": 1,
+      "resting chin on hand": 1,
+      "resting chin on hands": 1,
+      "resting hand near chin": 1,
+      "seated": 2,
+      "seated at desk": 1,
+      "seated posing": 1,
+      "seated with hands clasped": 2,
+      "sitting": 3,
+      "smiling": 8,
+      "smiling at camera": 1,
+      "speaking": 18,
+      "speaking at podium": 1,
+      "standing": 3,
+      "waving": 4,
+      "writing": 1
+    },
+    "location_type": {
+      "indoor": 60,
+      "outdoor": 8,
+      "unknown": 1
+    },
+    "moods": {
+      "animated": 1,
+      "determined": 19,
+      "forceful": 3,
+      "neutral": 9,
+      "reflective": 11,
+      "serious": 58,
+      "smiling": 12,
+      "warm": 11
+    },
+    "orientation": {
+      "landscape": 17,
+      "portrait": 52
+    },
+    "pairing_topics": {
+      "defence": 2,
+      "democracy": 3,
+      "family": 2,
+      "foreign_policy": 1,
+      "government": 43,
+      "history": 5,
+      "individual_liberty": 1,
+      "law_and_order": 3,
+      "leadership": 63,
+      "morality": 1,
+      "national_identity": 7,
+      "opportunity": 1,
+      "parliament": 8,
+      "patriotism": 8,
+      "personal_reflection": 25,
+      "responsibility": 8,
+      "state_power": 1,
+      "women": 4,
+      "work": 3
+    },
+    "people_count": {
+      "crowd": 1,
+      "one": 66,
+      "small_group": 2
+    },
+    "scene_types": {
+      "crowd": 1,
+      "formal_portrait": 47,
+      "generic_statesmanlike": 4,
+      "informal_portrait": 10,
+      "office_or_working": 4,
+      "other": 2,
+      "outdoor_public_event": 8,
+      "parliament": 1,
+      "patriotic_flags": 3,
+      "podium_speech": 12,
+      "press_or_media": 4
+    },
+    "seasonality": {
+      "moderate": 2,
+      "none": 67
+    },
+    "shot_type": {
+      "close_up": 31,
+      "full_body": 1,
+      "half_body": 24,
+      "head_and_shoulders": 13
+    },
+    "tone": {
+      "authoritative": 39,
+      "celebratory": 1,
+      "combative": 2,
+      "defiant": 1,
+      "optimistic": 4,
+      "patriotic": 1,
+      "personal": 1,
+      "reflective": 12,
+      "serious": 59,
+      "warm": 11
+    },
+    "visible_symbols": {
+      "Union Jack": 2,
+      "Union Jack flag": 1,
+      "V-sign gesture": 1,
+      "police uniforms": 1,
+      "rosette": 1,
+      "royal ER cipher on dispatch box": 1
+    },
+    "visual_energy": {
+      "high": 1,
+      "low": 50,
+      "medium": 18
+    }
+  },
+  "generated_at": "2026-07-16T04:03:20.121380Z",
+  "historical_specificity": {
+    "general": 66,
+    "suggestive": 3
+  },
+  "observed_concentrations": {
+    "authoritative_tone_assignments": 39,
+    "formal_portrait_scene_assignments": 47,
+    "indoor_images": 60,
+    "low_energy_images": 50,
+    "one_person_images": 66,
+    "serious_tone_assignments": 59
+  },
+  "quality": {
+    "maximum": 93,
+    "mean": 86.23,
+    "median": 85,
+    "minimum": 65
+  },
+  "schema_version": 1,
+  "search_priorities": [
+    "early career, Finchley campaigning and Education Secretary years",
+    "election canvassing, crowds, rallies and active outdoor campaigning",
+    "factories, shops, farms, schools and industrial visits",
+    "conversations with workers and members of the public",
+    "Cabinet, parliamentary, desk-work and behind-the-scenes working scenes",
+    "international diplomacy with source-identified Reagan, Gorbachev and Cold War context",
+    "Falklands, defence, European Council and Bruges-era settings",
+    "warm, humorous, laughing, informal and later-life book-event scenes",
+    "group photographs and high visual-energy compositions"
+  ]
+}

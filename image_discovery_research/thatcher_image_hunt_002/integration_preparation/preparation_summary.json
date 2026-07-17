@@ -1,0 +1,72 @@
+{
+  "ambiguous_possible_exposure_usd": 0.15,
+  "analysis_cost_usd": 0.28212145,
+  "analysis_count": 24,
+  "analysis_model": "grok-4.3",
+  "analysis_prompt_version": "source-grounded-image-analysis-2026-07-16-v1",
+  "analysis_source": "source_grounded_image_analysis.json",
+  "approved_pairing_count": 17,
+  "broad_dominance_candidate_ids": [
+    "3abe0be95aa60233f374"
+  ],
+  "broad_dominance_count": 1,
+  "duplicate_classifications": {
+    "visually_distinct": 24
+  },
+  "filename_range": [
+    "t71.jpg",
+    "t94.jpg"
+  ],
+  "generated_at": "2026-07-16T10:38:35.573425Z",
+  "material_coverage_improvement_candidate_ids": [
+    "00f4566964e0c88838ad",
+    "0b15f11312a31033907d",
+    "0b42b54c4148ee2562fb",
+    "0fe7ed6333faf654b062",
+    "149e63869f481474a798",
+    "168392f289b5df25f16b",
+    "253f9adb9e67db0a67d7",
+    "36d6b17bedd4345d223e",
+    "47898be6bfefc5d49c03",
+    "5202e374b764482c4cda",
+    "5ac817d960fb7eb0f974",
+    "62fe0c8d105bf2ad7c95",
+    "7c9a2b387a67c9bd858c",
+    "f8872af0e0d18261b23e"
+  ],
+  "material_coverage_improvement_count": 14,
+  "maybe_count": 2,
+  "metadata_validation_status": "passed",
+  "never_competitive_candidate_ids": [
+    "08fe3d43c27bece23076",
+    "0c4634d8356f42dc4e0c",
+    "305d002e01745c0acd9b",
+    "3e16363d7234c33cd75e",
+    "6966b6853551436e849b",
+    "7720de19eda682fe608d",
+    "7cdcd67a8066a3b12d28",
+    "86953c03fd343ef6fcc1"
+  ],
+  "never_competitive_count": 8,
+  "original_production_ready_count": 22,
+  "pairing_decision_counts": {
+    "approve_pairing": 17,
+    "prefer_existing_image": 83,
+    "reject_pairing": 1
+  },
+  "pairing_review_complete": true,
+  "pairing_review_count": 101,
+  "pairing_reviewed_count": 101,
+  "production_files_unchanged": true,
+  "production_ready_count": 24,
+  "promoted_maybe_candidate_ids": [
+    "47898be6bfefc5d49c03",
+    "7cdcd67a8066a3b12d28"
+  ],
+  "promoted_maybe_count": 2,
+  "review_url": "http://127.0.0.1:8769",
+  "rights_pending_count": 4,
+  "schema_version": 2,
+  "source_grounded_incremental_cost_usd": 0.1522461,
+  "suspicious_pairing_count": 0
+}

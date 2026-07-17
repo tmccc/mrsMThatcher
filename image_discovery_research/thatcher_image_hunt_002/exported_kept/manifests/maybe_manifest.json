@@ -1,0 +1,288 @@
+{
+  "records": [
+    {
+      "archive_or_collection": "Wikimedia Commons",
+      "candidate_id": "47898be6bfefc5d49c03",
+      "caption": "Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/0/0a/Montagem_de_Margaret_Thatcher.jpg",
+      "export_group": "maybe",
+      "export_relative_path": "maybe/candidate-47898be6bfefc5d49c03.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 50,
+          "orientation": "square",
+          "shot_type": "other",
+          "subject_prominence": 60
+        },
+        "description": "A collage of several different photos of the woman.",
+        "pairing": {
+          "best_for_tones": [],
+          "best_for_topics": [],
+          "general_reusability": 20,
+          "matching_summary": "Collages are generally rejected.",
+          "semantic_specificity": 20,
+          "weak_for_topics": [
+            "all"
+          ]
+        },
+        "people": {
+          "count_category": "unclear",
+          "formality": "mixed",
+          "primary_subject_activities": [],
+          "primary_subject_moods": []
+        },
+        "quality": {
+          "composition": 30,
+          "crop_suitability_for_x": 20,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 30,
+          "subject_clarity": 50,
+          "technical_quality": 40,
+          "too_small": false
+        },
+        "scene_summary": "A collage of various portraits.",
+        "scene_types": [
+          "collage"
+        ],
+        "setting": {
+          "details": [],
+          "location_type": "unknown"
+        },
+        "themes": [],
+        "tone": [],
+        "visible_elements": [
+          "multiple faces"
+        ],
+        "visible_symbols": [],
+        "visible_text": {
+          "present": true,
+          "summary": "PRIME MINISTER"
+        },
+        "visual_energy": "low"
+      },
+      "height": 500,
+      "identity_basis": "archive_record",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Montagem de Margaret Thatcher.jpg Montagem de Margaret Thatcher Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "licence_text": "Public domain Montagem de Margaret Thatcher, com fotos do período em que era primeira-ministra.",
+      "licence_url": "",
+      "original_filename": "47898be6bfefc5d49c03.jpg",
+      "original_relative_path": "downloaded/47898be6bfefc5d49c03.jpg",
+      "original_sha256": "9888bc660f59740dba7d723ecd63618d34dc7633ffe2244b757522d6b2e33ab2",
+      "photographer_or_credit": "This image has been extracted from another file",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "47898be6bfefc5d49c03",
+        "decision": "maybe",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:25:40.506565Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 37,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:25:40.508656Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "maybe",
+      "rights_status": "public_domain",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [],
+        "editorial_redundancy": "medium",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t48.jpg; visual duplicate class visually_distinct.",
+            "filename": "t48.jpg",
+            "semantic_similarity": 0.886003,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t69.jpg; visual duplicate class visually_distinct.",
+            "filename": "t69.jpg",
+            "semantic_similarity": 0.878579,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t59.jpg; visual duplicate class visually_distinct.",
+            "filename": "t59.jpg",
+            "semantic_similarity": 0.876793,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "location_type:unknown",
+          "people_count:unclear",
+          "scene_types:collage"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 206569,
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Montagem_de_Margaret_Thatcher.jpg",
+      "width": 500
+    },
+    {
+      "archive_or_collection": "",
+      "candidate_id": "7cdcd67a8066a3b12d28",
+      "caption": "",
+      "direct_image_url": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Margaret_Thatcher_(1983).jpg/500px-Margaret_Thatcher_(1983).jpg?_=20130731155231",
+      "export_group": "maybe",
+      "export_relative_path": "maybe/candidate-7cdcd67a8066a3b12d28.jpg",
+      "gemini_triage": {
+        "composition": {
+          "background_complexity": 10,
+          "orientation": "portrait",
+          "shot_type": "head_and_shoulders",
+          "subject_prominence": 95
+        },
+        "description": "A black and white close-up portrait of a woman looking slightly off-camera.",
+        "pairing": {
+          "best_for_tones": [
+            "serious",
+            "contemplative",
+            "formal"
+          ],
+          "best_for_topics": [
+            "biography",
+            "profiles",
+            "general politics"
+          ],
+          "general_reusability": 90,
+          "matching_summary": "A strong, versatile portrait for general editorial use.",
+          "semantic_specificity": 20,
+          "weak_for_topics": [
+            "action",
+            "specific events"
+          ]
+        },
+        "people": {
+          "count_category": "one",
+          "formality": "formal",
+          "primary_subject_activities": [
+            "looking away"
+          ],
+          "primary_subject_moods": [
+            "serious",
+            "thoughtful"
+          ]
+        },
+        "quality": {
+          "composition": 90,
+          "crop_suitability_for_x": 85,
+          "damaged": false,
+          "heavily_watermarked": false,
+          "overall": 85,
+          "subject_clarity": 95,
+          "technical_quality": 85,
+          "too_small": false
+        },
+        "scene_summary": "A formal black and white portrait of a woman.",
+        "scene_types": [
+          "portrait"
+        ],
+        "setting": {
+          "details": [
+            "plain background"
+          ],
+          "location_type": "indoor"
+        },
+        "themes": [
+          "leadership",
+          "politics"
+        ],
+        "tone": [
+          "serious",
+          "dignified"
+        ],
+        "visible_elements": [
+          "woman",
+          "pearl earrings",
+          "patterned blouse"
+        ],
+        "visible_symbols": [
+          "pearls"
+        ],
+        "visible_text": {
+          "present": false,
+          "summary": ""
+        },
+        "visual_energy": "low"
+      },
+      "height": 667,
+      "identity_basis": "source_metadata",
+      "identity_confidence": "high",
+      "identity_evidence": "File:Margaret Thatcher (1983).jpg",
+      "licence_text": "Archief , the Dutch National Archives, donated in the context of a partnership program . This tag does not indicate the copyright status of the attached work. A normal copyright tag is still required. See Commons:Licensing . العربية ∙ Deutsch ∙ English ∙ français ∙ galego ∙ Bahasa Indonesia ∙ italiano ∙ 日本語  | Bahasa Indonesia ∙ 日本語 ∙ македонски ∙ Nederlands ∙ português ∙ русский ∙ 中文 ∙ +/− This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication . The person who associated a work with this deed has dedicated the work to the public domain by waiving all of their rights to the work |  worldwide under copyright law, including all related and neighboring rights, to the extent allowed by law. You can copy, modify, distribute and perform the work, even for commercial purposes, all without a | sking permission. http://creativecommons.org/publicdomain/zero/1.0/deed.en CC0 Creative Commons Zero, Public Domain Dedication false false File history Click on a date/time to view the file as it appeared at that time. Date/Time Thumbnail Dimensions User Comment current 15:52, 31 July 2013 2,44 |  the camera, and it may be completely wrong. Image title Premier Thatcher 19 september 1983 Author Rob Bogaerts / Anefo Copyright holder http://proxy.handle.net/10648/ad2e0288-d0b4-102d-bcf8-003048976d84 Short title Margaret Thatcher Online copyright statement http://www.gahetna.nl/over-ons/open-data Orienta | age height 3,259 px Date and time of digitizing 14",
+      "licence_url": "",
+      "original_filename": "7cdcd67a8066a3b12d28.jpg",
+      "original_relative_path": "downloaded/7cdcd67a8066a3b12d28.jpg",
+      "original_sha256": "7f78b0ac87e7be10c4ce4f9d2874454e064e2af138389da03ced3b213fa29b27",
+      "photographer_or_credit": "",
+      "publisher": "Wikimedia Commons",
+      "required_attribution_wording": "",
+      "review": {
+        "candidate_id": "7cdcd67a8066a3b12d28",
+        "decision": "maybe",
+        "note": "",
+        "reviewed_at": "2026-07-16T05:29:35.875387Z",
+        "revision": 1
+      },
+      "review_audit_reference": {
+        "entries": [
+          {
+            "line_number": 54,
+            "revision": 1,
+            "timestamp": "2026-07-16T05:29:35.877937Z"
+          }
+        ],
+        "latest_revision": 1,
+        "path": "review_audit.jsonl"
+      },
+      "review_decision": "maybe",
+      "rights_status": "public_domain",
+      "semantic_novelty": {
+        "coverage_gaps_filled": [],
+        "editorial_redundancy": "high",
+        "embedding_model": "intfloat/multilingual-e5-small@614241f622f53c4eeff9890bdc4f31cfecc418b3",
+        "nearest_existing_images": [
+          {
+            "comparison_summary": "Semantic comparison with t27.jpg; visual duplicate class visually_distinct.",
+            "filename": "t27.jpg",
+            "semantic_similarity": 0.942229,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t32.jpg; visual duplicate class visually_distinct.",
+            "filename": "t32.jpg",
+            "semantic_similarity": 0.940742,
+            "visual_duplicate_class": "visually_distinct"
+          },
+          {
+            "comparison_summary": "Semantic comparison with t69.jpg; visual duplicate class visually_distinct.",
+            "filename": "t69.jpg",
+            "semantic_similarity": 0.936615,
+            "visual_duplicate_class": "visually_distinct"
+          }
+        ],
+        "novel_attributes": [
+          "activities:looking away",
+          "moods:thoughtful",
+          "scene_types:portrait",
+          "tone:dignified"
+        ],
+        "possible_replacement": false
+      },
+      "source_file_size": 87046,
+      "source_page_url": "https://commons.wikimedia.org/wiki/File:Margaret_Thatcher_(1983).jpg",
+      "width": 500
+    }
+  ],
+  "schema_version": 2
+}
