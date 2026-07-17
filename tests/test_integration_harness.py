@@ -5883,6 +5883,23 @@ def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
     assert "| 2026-07-14 12:00:00 | unavailable | historical_context | dry | medium | 1 | True | True |  |" in digest.stdout
 
 
+def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categories(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "digest-principle-strategy"
+    write_digest_log(base, [
+        '2026-07-14 12:00:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","target_id":"1","lane":"mention","mode":"principle_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":""}',
+        '2026-07-14 12:00:01 INFO log_event:420 - EVENT {"event":"reply_strategy_outcome","status":"confirmed","target_id":"1","reply_post_id":"9","lane":"mention","mode":"principle_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":""}',
+        '2026-07-14 12:01:00 INFO log_event:420 - EVENT {"event":"reply_strategy_decision","target_id":"2","lane":"quote_tweet","mode":"no_reply","humour_tone":"none","evidence_confidence":"none","retrieved_quote_ids":[],"factual_claim_made":false,"grounded":false,"no_reply_reason":"no_reply_due_to_unverifiable_claim"}',
+    ])
+
+    result = run_digest(base)
+
+    assert result.returncode == 0, result.stderr
+    assert "principle_reply=1" in result.stdout
+    assert "No-reply categories: no_reply_due_to_unverifiable_claim=1" in result.stdout
+
+
 def test_digest_reports_xai_usage_unknown_context_and_malformed_records(tmp_path: Path) -> None:
     base = tmp_path / "digest-xai-usage-unknown-malformed"
     write_digest_log(

@@ -6819,6 +6819,42 @@ def test_reply_target_eligibility_uses_only_target_author_or_direct_mention(
     })
 
 
+def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher guaranteed profit!!!!!",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: pytest.fail("context must not be built"))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: pytest.fail("media must not be prepared"))
+    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda *_args, **_kwargs: pytest.fail("retrieval/xAI must not be called"))
+    monkeypatch.setattr(bot, "create_post", lambda *_args, **_kwargs: pytest.fail("X write must not be called"))
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert state["daily_reply_count"] == 0
+
+
 def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

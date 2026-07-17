@@ -115,6 +115,37 @@ def test_reply_strategy_separates_editorial_rejections_and_routine_skips():
     assert result["routine_skip_reason_counts"] == {"author_daily_cap": 1}
 
 
+def test_reply_strategy_reports_principle_mode_and_stable_no_reply_categories():
+    result = digest.reply_strategy_summary([
+        event("reply_strategy_decision", lane="mention", target_id="principle", mode="principle_reply",
+              humour_tone="none", evidence_confidence="none", retrieved_count=0,
+              factual_claim=False, grounded=False, no_reply_reason=""),
+        event("reply_strategy_outcome", status="confirmed", lane="mention", target_id="principle",
+              reply_post_id="99", mode="principle_reply", humour_tone="none",
+              evidence_confidence="none", retrieved_count=0, factual_claim=False, grounded=False),
+        event("reply_strategy_decision", lane="quote_tweet", target_id="unsupported", mode="no_reply",
+              humour_tone="none", evidence_confidence="none", retrieved_count=0,
+              factual_claim=False, grounded=False,
+              no_reply_reason="no_reply_due_to_unverifiable_claim"),
+        event("reply_strategy_decision", lane="mention", target_id="bait", mode="no_reply",
+              humour_tone="none", evidence_confidence="none", retrieved_count=0,
+              factual_claim=False, grounded=False,
+              no_reply_reason="Abusive bait would prolong conflict."),
+        event("reply_strategy_decision", lane="mention", target_id="gibberish", mode="no_reply",
+              humour_tone="none", evidence_confidence="none", retrieved_count=0,
+              factual_claim=False, grounded=False,
+              no_reply_reason="The post is incoherent gibberish."),
+    ])
+
+    assert result["mode_counts"]["principle_reply"] == 1
+    assert result["generated_mode_counts"]["principle_reply"] == 1
+    assert result["no_reply_category_counts"] == {
+        "no_reply_due_to_unverifiable_claim": 1,
+        "no_reply_due_to_bait_or_abuse": 1,
+        "no_reply_due_to_incoherent": 1,
+    }
+
+
 def test_strategy_metadata_is_correlated_by_target_not_just_lane_count():
     result = digest.reply_strategy_summary([
         event("reply_strategy_decision", lane="mention", target_id="draft-only", mode="wry_reply",

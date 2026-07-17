@@ -14,11 +14,17 @@ from historical_context_formatter import load_and_validate_corpus
 
 MODES = {
     "historical_correction", "historical_context", "researched_principle",
-    "wry_reply", "playful_reply", "deadpan_reply", "warm_reply", "no_reply",
+    "principle_reply", "wry_reply", "playful_reply", "deadpan_reply", "warm_reply",
+    "no_reply",
 }
 HUMOUR_TONES = {"dry", "wry", "playful", "deadpan", "warm", "none"}
 CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1, "none": 0}
 HISTORICAL_MODES = {"historical_correction", "historical_context", "researched_principle"}
+NO_REPLY_REASON_CATEGORIES = {
+    "no_reply_due_to_unverifiable_claim",
+    "no_reply_due_to_bait_or_abuse",
+    "no_reply_due_to_incoherent",
+}
 REPLY_DECISION_FIELDS = frozenset({
     "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
     "evidence_summary", "factual_claim_made", "grounded", "reply_text",
@@ -42,6 +48,15 @@ ABSTRACT_ANSWER_OPENINGS = (
     "history shows",
     "the lesson is",
     "the principle is",
+)
+PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE = re.compile(
+    r"(?:https?://|@[A-Za-z0-9_]+|\b\d+(?:[.,]\d+)?%?\b|"
+    r"\b(?:the\s+)?(?:government|cabinet|prime minister|president|ministers?|"
+    r"politicians?|officials?|civil service|courts?|media|they|he|she)\s+"
+    r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|believes?|"
+    r"knows?|understands?|refuses?|intends?|lied|lies|covered|conspired|betrayed|"
+    r"failed|fails)\b)",
+    re.IGNORECASE,
 )
 RETRIEVAL_FIELDS = (
     "quote_text", "verified_text", "source_event", "historical_context",
@@ -178,7 +193,7 @@ def validate_reply_strategy_config(value: Any) -> list[str]:
 
 
 def allowed_modes_from_config(config: dict[str, Any]) -> set[str]:
-    modes = {"no_reply"}
+    modes = {"principle_reply", "no_reply"}
     if config.get("allow_historical_correction"):
         modes.add("historical_correction")
     if config.get("allow_historical_context"):
@@ -251,11 +266,11 @@ def reply_decision_json_schema(
             "type": "array",
             "items": {"type": "string", "pattern": "[0-9a-f]{64}"},
             "maxItems": maximum_retrieved_ids,
-            "description": "Selected completed-corpus evidence IDs; empty for no_reply.",
+            "description": "Selected completed-corpus evidence IDs; empty for principle_reply and no_reply.",
         },
         "evidence_summary": {
             "type": "string",
-            "description": "Grounding summary for a posted factual reply; empty for no_reply.",
+            "description": "Grounding summary for a posted factual reply; empty for principle_reply and no_reply.",
         },
         "factual_claim_made": {"type": "boolean"},
         "grounded": {"type": "boolean"},
@@ -287,6 +302,24 @@ def reply_decision_json_schema(
                 "no_reply_reason": {"minLength": 1},
             },
         },
+        "allOf": [{
+            "if": {
+                "properties": {"mode": {"const": "principle_reply"}},
+                "required": ["mode"],
+            },
+            "then": {
+                "properties": {
+                    "humour_tone": {"const": "none"},
+                    "evidence_confidence": {"const": "none"},
+                    "retrieved_quote_ids": {"maxItems": 0},
+                    "evidence_summary": {"maxLength": 0},
+                    "factual_claim_made": {"const": False},
+                    "grounded": {"const": False},
+                    "reply_text": {"minLength": 1},
+                    "no_reply_reason": {"maxLength": 0},
+                },
+            },
+        }],
     }
 
 
@@ -330,6 +363,17 @@ def decision_schema_instruction() -> str:
         "reply_text": "",
         "no_reply_reason": "No useful response.",
     }
+    principle_reply_example = {
+        "mode": "principle_reply",
+        "humour_tone": "none",
+        "evidence_confidence": "none",
+        "retrieved_quote_ids": [],
+        "evidence_summary": "",
+        "factual_claim_made": False,
+        "grounded": False,
+        "reply_text": "Institutions endure only when people are prepared to defend their purpose.",
+        "no_reply_reason": "",
+    }
     return (
         'Return exactly one JSON object with fields: '
         'mode, humour_tone, evidence_confidence, retrieved_quote_ids, evidence_summary, '
@@ -338,8 +382,14 @@ def decision_schema_instruction() -> str:
         'Confidence must be high, medium, low, or none. For no_reply, put the explanation only in '
         'no_reply_reason and use humour_tone="none", evidence_confidence="none", '
         'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
-        'and reply_text="". Never return bare SKIP. Valid no_reply example: '
+        'and reply_text="". Use the exact no_reply_reason values '
+        'no_reply_due_to_unverifiable_claim, no_reply_due_to_bait_or_abuse, or '
+        'no_reply_due_to_incoherent when they apply. Never return bare SKIP. Valid no_reply example: '
         + json.dumps(no_reply_example, ensure_ascii=False, separators=(",", ":"))
+        + '. For principle_reply, use humour_tone="none", evidence_confidence="none", '
+        'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
+        'and no_reply_reason="". Valid principle_reply example: '
+        + json.dumps(principle_reply_example, ensure_ascii=False, separators=(",", ":"))
         + "."
     )
 
@@ -351,10 +401,25 @@ def strategy_mode_guidance() -> str:
         "Otherwise use historical_context when a grounded qualification materially improves a claim that is not clearly false. "
         "Use researched_principle for a concise evidence-backed summary of Thatcher's argument without pretending it is a direct quotation. "
         "Set factual_claim_made=true whenever the final reply states a historical or policy fact; every historical mode must set it true. "
-        "If history adds no material value, choose the most fitting humour mode: wry_reply, playful_reply, deadpan_reply, or warm_reply. "
-        "Use no_reply for weak evidence, unclear or unrelated posts, repetition, needless conflict, or when no useful response exists. "
+        "When uncertain or unsupported details are not needed to answer the broader political or moral point, use principle_reply: "
+        "write one concise general sentence that stands independently without repeating, endorsing, or implying those details, "
+        "without speculating about anyone's motives, and with no factual claim, evidence, or humour metadata. "
+        "For example, 'Why doesn't anyone in government understand this?' may be answered with "
+        "'Understanding is not always the same as having the courage to act.' "
+        "If history and principle_reply add no material value, choose the most fitting humour mode: wry_reply, playful_reply, deadpan_reply, or warm_reply. "
+        "Use no_reply_due_to_unverifiable_claim when any meaningful answer would endorse an unsupported claim; "
+        "use no_reply_due_to_bait_or_abuse for abuse or bait that would prolong conflict; use "
+        "no_reply_due_to_incoherent for gibberish or an incoherent post. Use no_reply for other weak evidence, "
+        "unclear or unrelated posts, repetition, needless conflict, or when no useful response exists. "
         "Do not force history. Do not force humour."
     )
+
+
+def principle_reply_assertion_error(text: str) -> str | None:
+    """Reject obvious concrete allegations disguised as an ungrounded principle."""
+    if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(str(text or "")):
+        return "principle_reply cannot contain a specific unsupported factual assertion"
+    return None
 
 
 def concrete_factual_question_word(text: str) -> str | None:
@@ -512,6 +577,14 @@ def validate_reply_decision(
         raise ValueError(
             "no_reply requires tone/confidence none, empty evidence and reply text, and false flags"
         )
+    if mode == "principle_reply" and (
+        tone != "none" or confidence != "none" or ids != []
+        or value["evidence_summary"] != "" or value["factual_claim_made"]
+        or value["grounded"] or value["no_reply_reason"] != ""
+    ):
+        raise ValueError(
+            "principle_reply requires tone/confidence none, empty evidence and no-reply reason, and false flags"
+        )
     evidence_ids = {item.quote_id for item in evidence}
     if not isinstance(ids, list) or any(
         not isinstance(item, str) or item not in allowed_quote_ids or item not in evidence_ids
@@ -557,6 +630,10 @@ def validate_reply_decision(
             raise ValueError("hashtags are not allowed")
         if _contains_emoji(reply):
             raise ValueError("emoji are not allowed")
+        if mode == "principle_reply":
+            assertion_error = principle_reply_assertion_error(reply)
+            if assertion_error:
+                raise ValueError(assertion_error)
         if not _quotes_are_verified(reply, selected_evidence):
             raise ValueError("quotation marks require verified exact text")
         repetition_reason = reply_repetition_reason(reply, recent_replies)

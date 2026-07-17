@@ -22,6 +22,7 @@ from reply_strategy import (
     direct_question_prompt_guidance,
     normalise_reply_decision,
     parse_decision_json,
+    principle_reply_assertion_error,
     reply_decision_json_schema,
     reply_is_repetitive,
     strategy_mode_guidance,
@@ -150,6 +151,40 @@ def test_strategy_request_uses_conditional_structured_output_schema(
     assert schema["if"]["properties"]["mode"] == {"const": "no_reply"}
     assert schema["then"]["properties"]["reply_text"] == {"maxLength": 0}
     assert schema["properties"]["retrieved_quote_ids"]["maxItems"] == 7
+    principle_rule = schema["allOf"][0]
+    assert principle_rule["if"]["properties"]["mode"] == {"const": "principle_reply"}
+    assert principle_rule["then"]["properties"]["factual_claim_made"] == {"const": False}
+
+
+def test_strategy_model_response_accepts_principle_reply_without_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    value = decision(
+        mode="principle_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="The case still has to be made and acted upon.",
+    )
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": json.dumps(value)}}],
+    }).encode("utf-8")
+    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
+    )
+
+    result = bot.ask_grok_for_reply(
+        "Incoming post/comment to answer:\nWhy doesn't anyone in government understand this?",
+        direct_question_text="Why doesn't anyone in government understand this?",
+    )
+
+    assert result == value["reply_text"]
+    assert isinstance(result, ReplyDecision)
+    assert result.strategy_metadata["mode"] == "principle_reply"
 
 
 def test_strategy_schema_defines_factual_claim_flag_for_historical_modes() -> None:
@@ -354,6 +389,112 @@ def test_historical_correction_rejects_low_confidence_packet():
 def test_humour_remains_available_without_forced_history():
     result = validate_reply_decision(decision(), [], allowed_quote_ids=set())
     assert result["mode"] == "wry_reply" and not result["grounded"]
+
+
+@pytest.mark.parametrize(
+    ("incoming", "reply"),
+    [
+        (
+            "Why doesn't anyone in government understand this?",
+            "Understanding is not always the same as having the courage to act.",
+        ),
+        (
+            "The institutions have failed because the government is acting in bad faith.",
+            "Institutions endure only when people are prepared to defend their purpose.",
+        ),
+    ],
+)
+def test_uncertain_claim_can_receive_a_non_factual_principle_reply(
+    incoming: str,
+    reply: str,
+) -> None:
+    result = validate_reply_decision(
+        decision(
+            mode="principle_reply",
+            humour_tone="none",
+            evidence_confidence="none",
+            reply_text=reply,
+        ),
+        [],
+        allowed_quote_ids=set(),
+        direct_question_text=incoming,
+    )
+
+    assert result["mode"] == "principle_reply"
+    assert result["retrieved_quote_ids"] == []
+    assert result["factual_claim_made"] is False
+    assert result["grounded"] is False
+    assert result["humour_tone"] == "none"
+
+
+def test_principle_reply_rejects_unsupported_actor_specific_assertion() -> None:
+    reply = "The government is deliberately concealing the truth."
+    assert principle_reply_assertion_error(reply) is not None
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode="principle_reply",
+                humour_tone="none",
+                evidence_confidence="none",
+                reply_text=reply,
+            ),
+            [],
+            allowed_quote_ids=set(),
+        )
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        "no_reply_due_to_unverifiable_claim",
+        "no_reply_due_to_bait_or_abuse",
+        "no_reply_due_to_incoherent",
+    ],
+)
+def test_stable_editorial_no_reply_categories_remain_valid(reason: str) -> None:
+    result = validate_reply_decision(
+        decision(
+            mode="no_reply",
+            humour_tone="none",
+            evidence_confidence="none",
+            reply_text="",
+            no_reply_reason=reason,
+        ),
+        [],
+        allowed_quote_ids=set(),
+    )
+    assert result["no_reply_reason"] == reason
+
+
+def test_principle_reply_cannot_smuggle_factual_or_research_metadata() -> None:
+    value = decision(
+        mode="principle_reply",
+        humour_tone="none",
+        evidence_confidence="medium",
+        factual_claim_made=True,
+        reply_text="Institutions require courage.",
+    )
+    with pytest.raises(JsonSchemaValidationError):
+        validate_json_schema(value, reply_decision_json_schema())
+    with pytest.raises(ValueError, match="principle_reply requires"):
+        validate_reply_decision(
+            value,
+            [],
+            allowed_quote_ids=set(),
+        )
+
+
+def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> None:
+    text = "Responsibility matters most when excuses are easiest."
+    metadata = decision(
+        mode="principle_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text=text,
+    )
+    assert bot.strategy_metadata_is_semantically_valid(metadata, text)
+    unsafe = {**metadata, "reply_text": "The government is concealing the truth."}
+    assert not bot.strategy_metadata_is_semantically_valid(unsafe, unsafe["reply_text"])
 
 
 def test_weak_factual_evidence_requires_no_reply():
@@ -641,7 +782,7 @@ def test_no_reply_prompt_contains_one_explicit_valid_example() -> None:
     instruction = decision_schema_instruction()
     marker = 'Valid no_reply example: '
     assert instruction.count(marker) == 1
-    example = instruction.split(marker, 1)[1].removesuffix(".")
+    example = instruction.split(marker, 1)[1].split(". For principle_reply", 1)[0]
     value = json.loads(example)
     assert value == decision(
         mode="no_reply",
@@ -649,6 +790,20 @@ def test_no_reply_prompt_contains_one_explicit_valid_example() -> None:
         evidence_confidence="none",
         reply_text="",
         no_reply_reason="No useful response.",
+    )
+
+
+def test_principle_reply_prompt_contains_one_explicit_valid_example() -> None:
+    instruction = decision_schema_instruction()
+    marker = "Valid principle_reply example: "
+    assert instruction.count(marker) == 1
+    example = instruction.split(marker, 1)[1].removesuffix(".")
+    value = json.loads(example)
+    assert value == decision(
+        mode="principle_reply",
+        humour_tone="none",
+        evidence_confidence="none",
+        reply_text="Institutions endure only when people are prepared to defend their purpose.",
     )
 
 

@@ -7986,7 +7986,8 @@ def ask_grok_for_reply(
             "Never sacrifice factual accuracy for a clever line. Never invent a quotation or put paraphrased ideas in quotation marks. "
             "Do not sound like a footnote unless the user asks for evidence. Do not expose quote IDs, citations, URLs, or research metadata. "
             "Historical correction requires high-confidence supplied evidence. Historical context and researched principle require at least medium confidence. "
-            "Use no_reply when evidence is weak or a reply would add little. Humour remains welcome when it makes no unsupported factual claim. "
+            "An unsupported allegation does not automatically require no_reply: use principle_reply when a concise response to the broader point can stand without repeating or endorsing the allegation. "
+            "Use no_reply when every meaningful response would depend on the unsupported claim, or when a reply would add little. Humour remains welcome when it makes no unsupported factual claim. "
             "Prefer one or two sentences and 40-220 characters; never exceed 270 characters. No hashtags or emojis. "
             "Avoid canned slogans, repetitive socialism punchlines, cruelty, abuse, and invented Thatcher quotations. "
             + strategy_mode_guidance()
@@ -8327,7 +8328,12 @@ def record_terminal_reply_evaluation(
 
 
 def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: object) -> bool:
-    from reply_strategy import CONFIDENCE_LEVELS, HUMOUR_TONES, MODES
+    from reply_strategy import (
+        CONFIDENCE_LEVELS,
+        HUMOUR_TONES,
+        MODES,
+        principle_reply_assertion_error,
+    )
     required = {
         "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
         "evidence_summary", "factual_claim_made", "grounded", "reply_text", "no_reply_reason",
@@ -8365,6 +8371,17 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
     if mode in {"historical_correction", "historical_context", "researched_principle"}:
         if not factual or not grounded or not ids or not strategy_metadata["evidence_summary"].strip():
             return False
+    if mode == "principle_reply" and (
+        humour_tone != "none"
+        or evidence_confidence != "none"
+        or ids
+        or strategy_metadata["evidence_summary"] != ""
+        or factual
+        or grounded
+        or strategy_metadata["no_reply_reason"] != ""
+        or principle_reply_assertion_error(str(text or "")) is not None
+    ):
+        return False
     if grounded and (not ids or not strategy_metadata["evidence_summary"].strip()):
         return False
     if factual and (not grounded or not ids or not strategy_metadata["evidence_summary"].strip()):

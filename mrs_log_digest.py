@@ -1660,6 +1660,26 @@ def _normalise_lane(value: Any) -> str:
     return {"hot-post": "hot-post", "quote-tweet": "quote-tweet", "mention": "mention"}.get(lane, "unavailable")
 
 
+def _no_reply_category(value: Any) -> str | None:
+    reason = " ".join(str(value or "").lower().replace("-", "_").split())
+    if not reason:
+        return None
+    exact = {
+        "no_reply_due_to_unverifiable_claim",
+        "no_reply_due_to_bait_or_abuse",
+        "no_reply_due_to_incoherent",
+    }
+    if reason in exact:
+        return reason
+    if any(term in reason for term in ("unverifiable", "unverified", "unsupported claim", "endorse")):
+        return "no_reply_due_to_unverifiable_claim"
+    if any(term in reason for term in ("bait", "abuse", "abusive", "prolong conflict", "needless conflict")):
+        return "no_reply_due_to_bait_or_abuse"
+    if any(term in reason for term in ("incoherent", "gibberish", "unintelligible")):
+        return "no_reply_due_to_incoherent"
+    return None
+
+
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     raw_decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
     decision_by_id: Dict[str, Dict[str, Any]] = {}
@@ -1727,7 +1747,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         observations.append({"kind": "reply_strategy_unavailable", "lane": lane, "target_id": target})
 
     modes = Counter({key: 0 for key in (
-        "historical_correction", "historical_context", "researched_principle", "wry_reply",
+        "historical_correction", "historical_context", "researched_principle", "principle_reply", "wry_reply",
         "playful_reply", "deadpan_reply", "warm_reply", "no_reply", "strategy metadata unavailable",
     )})
     valid_modes = set(modes) - {"strategy metadata unavailable"}
@@ -1767,6 +1787,11 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         if type(event.get("retrieved_count")) is int
     ]
     rejection_reasons = Counter()
+    no_reply_categories = Counter({key: 0 for key in (
+        "no_reply_due_to_unverifiable_claim",
+        "no_reply_due_to_bait_or_abuse",
+        "no_reply_due_to_incoherent",
+    )})
     routine_reasons = Counter()
     repetition_controls = Counter({key: 0 for key in (
         "exact_duplicate_rejected", "highly_similar_reply_rejected", "canned_formulation_rejected",
@@ -1801,7 +1826,11 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             (routine_reasons if reason in routine else rejection_reasons)[reason] += 1
     for event in decisions:
         if event.get("mode") == "no_reply":
-            rejection_reasons[str(event.get("no_reply_reason") or "model-selected no_reply")] += 1
+            reason = str(event.get("no_reply_reason") or "model-selected no_reply")
+            rejection_reasons[reason] += 1
+            category = _no_reply_category(reason)
+            if category:
+                no_reply_categories[category] += 1
     humour_counts = _count_optional(observations, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
     confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
     generated_humour_counts = _count_optional(decisions, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
@@ -1846,6 +1875,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "no_retrieved_packets_count": sum(value == 0 for value in retrieved),
         "retrieved_packet_metadata_unavailable_count": sum(type(event.get("retrieved_count")) is not int for event in observations),
         "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "no_reply_category_counts": dict(no_reply_categories),
         "routine_skip_reason_counts": dict(routine_reasons.most_common()),
         "repetition_control_counts": dict(repetition_controls),
     }
@@ -4495,6 +4525,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     )
     out.append("Published/terminal evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
     out.append("Published/terminal humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
+    out.append("No-reply categories: " + compact_counts(strategy.get("no_reply_category_counts") or {}))
     out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
     if strategy.get("rejection_reason_counts"):
         out.append("Editorial no-reply/rejections:")
