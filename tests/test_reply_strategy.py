@@ -17,6 +17,8 @@ from reply_strategy import (
     audit_digest,
     build_strategy_prompt_context,
     decision_schema_instruction,
+    direct_factual_answer_error,
+    direct_question_prompt_guidance,
     normalise_reply_decision,
     parse_decision_json,
     reply_decision_json_schema,
@@ -217,6 +219,94 @@ def test_historical_correction_precedes_humour_and_requires_high_confidence():
     assert valid["mode"] == "historical_correction"
     with pytest.raises(ValueError, match="requires high confidence"):
         validate_reply_decision({**valid, "evidence_confidence": "medium"}, evidence, allowed_quote_ids={item.quote_id for item in evidence})
+
+
+def test_berlin_wall_question_requires_a_direct_east_to_west_answer() -> None:
+    question = "Where did people run towards when the Berlin Wall fell?"
+    evidence = retrieve_research_packets(question, RESEARCH, maximum=5)
+    selected = evidence[:2]
+    ids = [item.quote_id for item in selected]
+    value = decision(
+        mode="historical_context",
+        humour_tone="none",
+        evidence_confidence="high",
+        retrieved_quote_ids=ids,
+        evidence_summary="The Berlin Wall divided the communist East from the free West.",
+        factual_claim_made=True,
+        grounded=True,
+        reply_text="People moved from East Berlin and East Germany towards West Berlin and West Germany.",
+    )
+
+    result = validate_reply_decision(
+        value,
+        evidence,
+        allowed_quote_ids={item.quote_id for item in evidence},
+        direct_question_text=question,
+    )
+
+    assert result["reply_text"].startswith("People moved from East Berlin")
+    assert direct_factual_answer_error(question, result["reply_text"]) is None
+
+
+def test_berlin_wall_abstract_non_answer_is_rejected() -> None:
+    question = "Where did people run towards when the Berlin Wall fell?"
+    evidence = retrieve_research_packets(question, RESEARCH, maximum=5)
+    selected = evidence[0]
+    with pytest.raises(ValueError, match="abstract principle"):
+        validate_reply_decision(
+            decision(
+                mode="historical_context",
+                humour_tone="none",
+                evidence_confidence="high",
+                retrieved_quote_ids=[selected.quote_id],
+                evidence_summary="People rejected communist rule.",
+                factual_claim_made=True,
+                grounded=True,
+                reply_text="When free to choose, people choose freedom.",
+            ),
+            evidence,
+            allowed_quote_ids={item.quote_id for item in evidence},
+            direct_question_text=question,
+        )
+
+
+def test_concrete_question_guidance_forbids_rhetorical_substitution() -> None:
+    guidance = direct_question_prompt_guidance(
+        "Where did people run towards when the Berlin Wall fell?",
+        clarification=True,
+    )
+    assert "directly in the first sentence" in guidance
+    assert "Do not substitute an ideological summary" in guidance
+    assert "one permitted clarification repair" in guidance
+
+
+def test_clarification_without_grounded_packets_makes_no_model_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "post",
+        lambda *_args, **_kwargs: pytest.fail("xAI must not be called without repair evidence"),
+    )
+    outcome: dict[str, str] = {}
+
+    result = bot.ask_grok_for_reply(
+        "A correction in the same thread.",
+        direct_question_text="Where did people run towards when the Berlin Wall fell?",
+        clarification_reply=True,
+        evaluation_outcome=outcome,
+    )
+
+    assert result is None
+    assert outcome == {
+        "status": "no_reply",
+        "reason": "clarification_insufficient_grounded_evidence",
+    }
 
 
 def test_historical_correction_rejects_low_confidence_packet():

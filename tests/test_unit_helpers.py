@@ -5101,6 +5101,228 @@ def test_confirmed_reply_receipt_reconciliation_is_idempotent(
     assert state["last_seen_mention_id"] == "100"
 
 
+def test_same_thread_clarification_bypasses_author_cap_once_and_becomes_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
+    state["daily_reply_count"] = 1
+    state["daily_replied_author_ids"] = ["200"]
+    state["daily_replied_author_counts"] = {"200": 1}
+    state["own_auto_reply_ids"] = ["900"]
+    state["tweet_cache"] = {
+        "100": {
+            "id": "100", "author_id": "200", "conversation_id": "700",
+            "text": "@MrsMThatcher Where did people run towards when the Berlin Wall fell?",
+            "referenced_tweets": [{"type": "replied_to", "id": "700"}],
+        },
+        "900": {
+            "id": "900", "author_id": "12345", "conversation_id": "700",
+            "text": "When free to choose, people choose freedom.",
+            "post_type": "auto_reply",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+    }
+    correction = {
+        "id": "101", "author_id": "200", "conversation_id": "700",
+        "text": "@MrsMThatcher That did not answer my question.",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+    }
+    second_follow_up = {
+        "id": "102", "author_id": "200", "conversation_id": "700",
+        "text": "@MrsMThatcher And again?",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "900001"}],
+    }
+    calls: list[dict] = []
+    metadata = {
+        "mode": "historical_context", "humour_tone": "none",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "The Berlin Wall divided East from West.",
+        "factual_claim_made": True, "grounded": True,
+        "reply_text": "People moved from East Berlin and East Germany towards West Berlin and West Germany.",
+        "no_reply_reason": "",
+    }
+
+    def answer(_context: str, _media: object = None, **kwargs: object) -> ReplyDecision:
+        calls.append(dict(kwargs))
+        return ReplyDecision(metadata["reply_text"], metadata)
+
+    current_candidates = [correction]
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply.json")
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 1)
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: list(current_candidates))
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: ("thread context", True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(bot, "ask_grok_for_reply", answer)
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "900001"}})
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": True},
+    )
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_POSTED
+    assert len(calls) == 1
+    assert calls[0]["clarification_reply"] is True
+    assert calls[0]["direct_question_text"].startswith("@MrsMThatcher Where did people run")
+    assert state["daily_reply_count"] == 2
+    assert state["clarification_reply_records"]["700"]["status"] == "repair_reply_completed"
+    assert state["clarification_reply_records"]["700"]["thread_terminal"] is True
+
+    current_candidates[:] = [second_follow_up]
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert len(calls) == 1
+
+
+def test_unrelated_follow_up_does_not_bypass_author_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
+    state["daily_reply_count"] = 1
+    state["daily_replied_author_counts"] = {"200": 1}
+    state["own_auto_reply_ids"] = ["900"]
+    state["tweet_cache"] = {
+        "100": {
+            "id": "100", "author_id": "200", "conversation_id": "700",
+            "text": "@MrsMThatcher Where did people run towards when the Berlin Wall fell?",
+            "referenced_tweets": [],
+        },
+        "900": {
+            "id": "900", "author_id": "12345", "conversation_id": "700",
+            "text": "A prior reply.", "post_type": "auto_reply",
+            "referenced_tweets": [{"type": "replied_to", "id": "100"}],
+        },
+    }
+    follow_up = {
+        "id": "101", "author_id": "200", "conversation_id": "700",
+        "text": "@MrsMThatcher What is your favourite film?",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "900"}],
+    }
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 1)
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [follow_up])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "ask_grok_for_reply", lambda *_args, **_kwargs: pytest.fail("xAI must not be called"))
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": True})
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+
+
+def test_clarification_ledger_survives_state_restart_and_blocks_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    state = bot.default_state()
+    receipt = {
+        "schema_version": 1,
+        "target_id": "101",
+        "reply_post_id": "900001",
+        "author_id": "200",
+        "reply_epoch": fixed_epoch,
+        "daily_reply_date": datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d"),
+        "candidate_source": "mention",
+        "conversation_id": "700",
+        "reply_text": "People moved from East Berlin towards West Berlin.",
+        "strategy_metadata": {
+            "mode": "historical_context", "humour_tone": "none",
+            "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+            "evidence_summary": "The Berlin Wall divided East from West.",
+            "factual_claim_made": True, "grounded": True,
+            "reply_text": "People moved from East Berlin towards West Berlin.",
+            "no_reply_reason": "",
+        },
+        "clarification_reply": {
+            "thread_id": "700",
+            "prior_bot_reply_id": "900",
+            "original_question_id": "100",
+            "trigger": "explicit_correction",
+        },
+    }
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot.save_state(state, durable=True)
+
+    recovered = bot.load_state()
+    candidate = {"id": "102", "conversation_id": "700"}
+    assert recovered["clarification_reply_records"]["700"]["clarification_reply_used"] is True
+    assert bot.clarification_thread_is_terminal(recovered, candidate) is True
+    assert bot.author_used_clarification_recently(recovered, "200", current=fixed_epoch + 60) is True
+
+
+def test_clarification_receipt_requires_grounded_direct_reply_metadata() -> None:
+    receipt = {
+        "schema_version": 1,
+        "target_id": "101",
+        "reply_post_id": "900001",
+        "author_id": "200",
+        "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18",
+        "candidate_source": "mention",
+        "conversation_id": "700",
+        "reply_text": "A rhetorical diversion.",
+        "clarification_reply": {
+            "thread_id": "700",
+            "prior_bot_reply_id": "900",
+            "original_question_id": "100",
+            "trigger": "explicit_correction",
+        },
+    }
+
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is False
+
+
+def test_stale_abstract_pending_reply_is_not_valid_for_direct_question() -> None:
+    from reply_strategy import ReplyDecision
+    metadata = {
+        "mode": "historical_context", "humour_tone": "none",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "People rejected communist rule.",
+        "factual_claim_made": True, "grounded": True,
+        "reply_text": "When free to choose, people choose freedom.",
+        "no_reply_reason": "",
+    }
+    reply = ReplyDecision(metadata["reply_text"], metadata)
+
+    assert bot.pending_reply_is_valid_direct_answer(
+        reply,
+        "Where did people run towards when the Berlin Wall fell?",
+    ) is False
+
+
 def test_confirmed_reply_receipt_preserves_strategy_metadata_after_reconciliation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

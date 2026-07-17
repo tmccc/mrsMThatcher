@@ -28,6 +28,21 @@ CANNED_PATTERNS = (
     "the lesson remains unlearned", "socialism promised", "history has a habit",
     "one system",
 )
+CONCRETE_QUESTION_RE = re.compile(
+    r"^(?:@[A-Za-z0-9_]+\s+)*(?:(?:please\s+)?(?:(?:(?:can|could|would)\s+you\s+)?"
+    r"tell\s+me|do\s+you\s+know)\s+)?"
+    r"(?P<word>who|what|where|when)\b",
+    re.IGNORECASE,
+)
+ABSTRACT_ANSWER_OPENINGS = (
+    "when free to choose",
+    "when people are free",
+    "freedom is",
+    "liberty is",
+    "history shows",
+    "the lesson is",
+    "the principle is",
+)
 RETRIEVAL_FIELDS = (
     "quote_text", "verified_text", "source_event", "historical_context",
     "immediate_subject", "intended_argument", "literal_meaning", "broader_principle",
@@ -342,6 +357,59 @@ def strategy_mode_guidance() -> str:
     )
 
 
+def concrete_factual_question_word(text: str) -> str | None:
+    """Return the leading who/what/where/when word for a concrete question."""
+    value = " ".join(str(text or "").split())
+    if "?" not in value:
+        return None
+    match = CONCRETE_QUESTION_RE.match(value)
+    return match.group("word").lower() if match else None
+
+
+def direct_factual_answer_error(question: str, reply: str) -> str | None:
+    """Conservatively reject rhetoric in place of a concrete first-sentence answer."""
+    question_word = concrete_factual_question_word(question)
+    if question_word is None:
+        return None
+    first_sentence = re.split(r"(?<=[.!?])\s+", str(reply or "").strip(), maxsplit=1)[0]
+    lowered = " ".join(first_sentence.lower().split())
+    if not lowered or first_sentence.endswith("?"):
+        return "concrete factual questions require a direct answer in the first sentence"
+    if any(lowered.startswith(opening) for opening in ABSTRACT_ANSWER_OPENINGS):
+        return "concrete factual questions cannot be answered with an abstract principle"
+
+    question_lower = question.lower()
+    if "berlin wall" in question_lower and question_word == "where":
+        if not (
+            "east" in lowered
+            and "west" in lowered
+            and ("berlin" in lowered or "germany" in lowered)
+        ):
+            return "the Berlin Wall direction question must directly distinguish East from West"
+    return None
+
+
+def direct_question_prompt_guidance(question: str, *, clarification: bool = False) -> str:
+    """Build deterministic provider guidance for a concrete factual question."""
+    if concrete_factual_question_word(question) is None:
+        return ""
+    prefix = (
+        "This is the one permitted clarification repair. "
+        if clarification else
+        "The incoming post asks a concrete factual question. "
+    )
+    return (
+        prefix
+        + "Answer the requested who, what, where, or when fact directly in the first sentence. "
+        "Do not substitute an ideological summary, researched principle, joke, or rhetorical flourish. "
+        "Use historical_context or historical_correction with grounded evidence, humour_tone=none, "
+        "and at most one brief contextual sentence after the answer. If the supplied evidence is "
+        "insufficient, select no_reply. For the question 'Where did people run towards when the "
+        "Berlin Wall fell?', a valid direct answer is 'People moved from East Berlin and East Germany "
+        "towards West Berlin and West Germany.'"
+    )
+
+
 def parse_decision_json(raw: str) -> dict[str, Any]:
     text = str(raw or "").strip()
     if text.upper() == "SKIP":
@@ -410,6 +478,8 @@ def validate_reply_decision(
     allowed_modes: set[str] | None = None,
     allowed_humour_tones: set[str] | None = None,
     minimum_grounded_confidence: str = "medium",
+    direct_question_text: str | None = None,
+    clarification_reply: bool = False,
 ) -> dict[str, Any]:
     value = normalise_reply_decision(value)
     if set(value) != REPLY_DECISION_FIELDS:
@@ -489,6 +559,17 @@ def validate_reply_decision(
         repetition_reason = reply_repetition_reason(reply, recent_replies)
         if repetition_reason:
             raise ValueError(repetition_reason)
+        question = str(direct_question_text or "")
+        if concrete_factual_question_word(question) is not None:
+            if mode not in {"historical_correction", "historical_context"}:
+                raise ValueError("concrete factual questions require a direct grounded historical answer")
+            if tone != "none" or not value["factual_claim_made"] or not value["grounded"]:
+                raise ValueError("direct factual answers require grounded factual metadata and no humour")
+            direct_error = direct_factual_answer_error(question, reply)
+            if direct_error:
+                raise ValueError(direct_error)
+        if clarification_reply and concrete_factual_question_word(question) is None:
+            raise ValueError("clarification replies require the original concrete factual question")
     return {
         **value,
         "reply_text": reply,

@@ -117,6 +117,7 @@ ENABLE_AUTO_REPLIES = True
 REPLY_CHECK_EVERY_SECONDS = 900
 MAX_AUTO_REPLIES_PER_DAY = 24
 MAX_REPLIES_PER_AUTHOR_PER_DAY = 1
+CLARIFICATION_REPLY_WINDOW_SECONDS = 24 * 60 * 60
 MAX_MENTIONS_PER_CHECK = 5
 MENTIONS_MAX_PAGES_PER_CHECK = 3
 
@@ -1889,6 +1890,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
         "skipped_hot_reply_records",
         "pending_reply_drafts",
         "reply_evaluation_records",
+        "clarification_reply_records",
     }
     optional_scalar_keys = {
         "daily_reply_date",
@@ -2207,6 +2209,120 @@ def mark_daily_author_replied(state: dict, author_id: str) -> None:
         author_id,
         1000,
     )
+
+
+CLARIFICATION_CUE_RE = re.compile(
+    r"\b(?:you\s+)?(?:did(?:n't|\s+not)|does(?:n't|\s+not)|have(?:n't|\s+not))\s+answer(?:ed)?\b"
+    r"|\b(?:your|that|the)\s+(?:reply|answer)\s+(?:did(?:n't|\s+not)|does(?:n't|\s+not))\s+answer\b"
+    r"|\b(?:that(?:'s|\s+is|\s+was)\s+)?not\s+(?:what|the\s+question)\s+(?:i\s+)?asked\b"
+    r"|\banswer\s+(?:my|the)\s+question\b"
+    r"|\b(?:you\s+)?(?:avoided|evaded)\s+(?:my|the)\s+question\b",
+    re.IGNORECASE,
+)
+CLARIFICATION_TOKEN_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'-]{2,}")
+CLARIFICATION_TOKEN_STOPWORDS = {
+    "answer", "asked", "did", "does", "from", "have", "people", "question",
+    "that", "the", "their", "then", "they", "this", "towards", "what", "when",
+    "where", "which", "who", "with", "you", "your",
+}
+
+
+def clarification_thread_id(candidate: dict) -> str:
+    return str(candidate.get("conversation_id") or candidate.get("id") or "")
+
+
+def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
+    records = state.get("clarification_reply_records", {})
+    return isinstance(records, dict) and clarification_thread_id(candidate) in records
+
+
+def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
+    records = state.get("clarification_reply_records", {})
+    if not isinstance(records, dict):
+        return False
+    cutoff = int(current) - CLARIFICATION_REPLY_WINDOW_SECONDS
+    for record in records.values():
+        if not isinstance(record, dict) or str(record.get("author_id") or "") != str(author_id):
+            continue
+        try:
+            if int(record.get("completed_epoch", 0) or 0) >= cutoff:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _clarification_tokens(text: object) -> set[str]:
+    without_handles = re.sub(r"(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", str(text or ""))
+    return {
+        token.lower() for token in CLARIFICATION_TOKEN_RE.findall(without_handles)
+        if token.lower() not in CLARIFICATION_TOKEN_STOPWORDS
+    }
+
+
+def clarification_reply_context(
+    state: dict,
+    candidate: dict,
+    *,
+    current: int,
+) -> dict | None:
+    """Return bounded repair metadata only for a direct follow-up to our confirmed reply."""
+    if not reply_strategy.get("enabled") or clarification_thread_is_terminal(state, candidate):
+        return None
+    author_id = str(candidate.get("author_id") or "")
+    if not author_id or author_used_clarification_recently(state, author_id, current=current):
+        return None
+
+    try:
+        prior_bot_reply_id = get_immediate_parent_id(candidate)
+    except ApiError:
+        return None
+    if not prior_bot_reply_id or prior_bot_reply_id not in {
+        str(item) for item in state.get("own_auto_reply_ids", [])
+    }:
+        return None
+
+    cache = state.get("tweet_cache", {})
+    if not isinstance(cache, dict):
+        return None
+    prior_bot_reply = cache.get(prior_bot_reply_id)
+    if not is_our_auto_reply(prior_bot_reply, state):
+        return None
+    try:
+        original_question_id = get_immediate_parent_id(prior_bot_reply)
+    except ApiError:
+        return None
+    original_question = cache.get(str(original_question_id or ""))
+    if not isinstance(original_question, dict):
+        return None
+    if str(original_question.get("author_id") or "") != author_id:
+        return None
+
+    thread_id = clarification_thread_id(candidate)
+    if not thread_id or str(original_question.get("conversation_id") or original_question_id) != thread_id:
+        return None
+    question_text = str(original_question.get("text") or "")
+    incoming_text = str(candidate.get("text") or "")
+    from reply_strategy import concrete_factual_question_word
+    if concrete_factual_question_word(question_text) is None:
+        return None
+
+    explicit_correction = bool(CLARIFICATION_CUE_RE.search(incoming_text))
+    restated_question = concrete_factual_question_word(incoming_text) is not None
+    if restated_question:
+        restated_question = bool(
+            _clarification_tokens(question_text) & _clarification_tokens(incoming_text)
+        )
+    if not explicit_correction and not restated_question:
+        return None
+
+    return {
+        "thread_id": thread_id,
+        "prior_bot_reply_id": prior_bot_reply_id,
+        "original_question_id": str(original_question_id),
+        "question_text": question_text,
+        "trigger": "explicit_correction" if explicit_correction else "restated_question",
+    }
 
 
 # ---------------------------------------------------------------------
@@ -7680,6 +7796,22 @@ def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -
     return ReplyDecision(text, metadata)
 
 
+def pending_reply_is_valid_direct_answer(reply: str, question: str) -> bool:
+    metadata = getattr(reply, "strategy_metadata", None)
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("mode") not in {"historical_correction", "historical_context"}:
+        return False
+    if (
+        metadata.get("humour_tone") != "none"
+        or metadata.get("factual_claim_made") is not True
+        or metadata.get("grounded") is not True
+    ):
+        return False
+    from reply_strategy import direct_factual_answer_error
+    return direct_factual_answer_error(question, str(reply)) is None
+
+
 def clear_pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> None:
     drafts = state.get("pending_reply_drafts")
     if not isinstance(drafts, dict):
@@ -7746,6 +7878,8 @@ def ask_grok_for_reply(
     shadow_parent_context: str = "",
     shadow_thread_context: str = "",
     evaluation_outcome: dict | None = None,
+    direct_question_text: str | None = None,
+    clarification_reply: bool = False,
     _shadow_submitted: bool = False,
 ) -> str | None:
     log.info("Asking Grok for reply. context_text=%r", context_text)
@@ -7778,6 +7912,14 @@ def ask_grok_for_reply(
                 production_lexical=evidence,
                 event_logger=log_event,
             )
+    if clarification_reply and not evidence:
+        log.info("Skipping clarification repair: no completed-corpus evidence was retrieved")
+        if evaluation_outcome is not None:
+            evaluation_outcome.update({
+                "status": "no_reply",
+                "reason": "clarification_insufficient_grounded_evidence",
+            })
+        return None
 
     system_prompt = (
         "You write replies for a Margaret Thatcher quotation account on X. "
@@ -7791,8 +7933,17 @@ def ask_grok_for_reply(
         "Return only the reply text, or exactly SKIP."
     )
 
+    direct_guidance = ""
     if strategy_enabled:
-        from reply_strategy import decision_schema_instruction, strategy_mode_guidance
+        from reply_strategy import (
+            decision_schema_instruction,
+            direct_question_prompt_guidance,
+            strategy_mode_guidance,
+        )
+        direct_guidance = direct_question_prompt_guidance(
+            str(direct_question_text or ""),
+            clarification=clarification_reply,
+        )
         system_prompt = (
             "You select and write concise replies for a Margaret Thatcher quotation account on X. "
             "Accuracy comes before relevance. Relevance comes before wit. Wit should sharpen a correct reply, not replace one. "
@@ -7806,6 +7957,7 @@ def ask_grok_for_reply(
             + strategy_mode_guidance()
             + " "
             + decision_schema_instruction()
+            + (" " + direct_guidance if direct_guidance else "")
         )
 
     skip_instruction = (
@@ -7863,7 +8015,7 @@ def ask_grok_for_reply(
                 "content": xai_user_content(user_prompt, media_context),
             },
         ],
-        "temperature": 0.7,
+        "temperature": 0 if direct_guidance else 0.7,
         "max_tokens": max(MAX_GROK_OUTPUT_TOKENS, 400) if strategy_enabled else MAX_GROK_OUTPUT_TOKENS,
     }
     if strategy_enabled:
@@ -7924,6 +8076,8 @@ def ask_grok_for_reply(
                 shadow_parent_context=shadow_parent_context,
                 shadow_thread_context=shadow_thread_context,
                 evaluation_outcome=evaluation_outcome,
+                direct_question_text=direct_question_text,
+                clarification_reply=clarification_reply,
                 _shadow_submitted=True,
             )
 
@@ -7982,6 +8136,8 @@ def ask_grok_for_reply(
                 allowed_modes=allowed_modes_from_config(reply_strategy),
                 allowed_humour_tones=set(reply_strategy["preferred_humour_tones"]),
                 minimum_grounded_confidence=str(reply_strategy["minimum_grounded_confidence"]),
+                direct_question_text=direct_question_text,
+                clarification_reply=clarification_reply,
             )
         except (ValueError, json.JSONDecodeError) as exc:
             log.warning("Rejected structured reply decision: %s", exc)
@@ -8224,6 +8380,28 @@ def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     strategy_metadata = data.get("strategy_metadata")
     if strategy_metadata is not None and not strategy_metadata_is_semantically_valid(strategy_metadata, text):
         return False
+    clarification = data.get("clarification_reply")
+    if clarification is not None:
+        if source not in {"mention", "hot_post_reply"} or not isinstance(clarification, dict):
+            return False
+        if set(clarification) != {
+            "thread_id", "prior_bot_reply_id", "original_question_id", "trigger",
+        }:
+            return False
+        if any(
+            not valid_post_id(clarification.get(field))
+            for field in ("thread_id", "prior_bot_reply_id", "original_question_id")
+        ):
+            return False
+        if clarification.get("trigger") not in {"explicit_correction", "restated_question"}:
+            return False
+        if not isinstance(strategy_metadata, dict) or (
+            strategy_metadata.get("mode") not in {"historical_correction", "historical_context"}
+            or strategy_metadata.get("humour_tone") != "none"
+            or strategy_metadata.get("factual_claim_made") is not True
+            or strategy_metadata.get("grounded") is not True
+        ):
+            return False
     return True
 
 
@@ -8299,6 +8477,14 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     reply_text = str(receipt.get("reply_text") or "")
     receipt_reply_date = str(receipt.get("daily_reply_date") or epoch_date_str(reply_epoch))
     receipt_quote_reply_date = str(receipt.get("daily_quote_reply_date") or receipt_reply_date)
+    clarification = receipt.get("clarification_reply")
+    if isinstance(clarification, dict):
+        existing_records = state.get("clarification_reply_records", {})
+        existing = existing_records.get(str(clarification["thread_id"])) if isinstance(existing_records, dict) else None
+        if isinstance(existing, dict) and str(existing.get("reply_post_id") or "") != reply_post_id:
+            raise InvalidConfirmedReplyReceipt(
+                f"clarification thread {clarification['thread_id']} already has a different completed repair"
+            )
     clear_pending_strategy_reply(state, target_id, candidate_source)
 
     if candidate_source == "quote_tweet":
@@ -8382,6 +8568,49 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
             grounded=strategy_metadata.get("grounded"),
             no_reply_reason=strategy_metadata.get("no_reply_reason", ""),
         )
+    if isinstance(clarification, dict):
+        thread_id = str(clarification["thread_id"])
+        records = state.get("clarification_reply_records", {})
+        if not isinstance(records, dict):
+            records = {}
+        existing = records.get(thread_id)
+        if not isinstance(existing, dict):
+            records = dict(records)
+            records[thread_id] = {
+                "thread_id": thread_id,
+                "author_id": author_id,
+                "target_id": target_id,
+                "reply_post_id": reply_post_id,
+                "prior_bot_reply_id": str(clarification["prior_bot_reply_id"]),
+                "original_question_id": str(clarification["original_question_id"]),
+                "trigger": str(clarification["trigger"]),
+                "completed_epoch": reply_epoch,
+                "status": "repair_reply_completed",
+                "clarification_reply_used": True,
+                "thread_terminal": True,
+            }
+            if len(records) > 2000:
+                ordered = sorted(
+                    records.items(),
+                    key=lambda item: (int(item[1].get("completed_epoch", 0) or 0), item[0]),
+                )
+                records = dict(ordered[-2000:])
+            state["clarification_reply_records"] = records
+            log_event(
+                "clarification_reply_used",
+                thread_id=thread_id,
+                author_id=author_id,
+                target_id=target_id,
+                reply_post_id=reply_post_id,
+                trigger=clarification["trigger"],
+            )
+            log_event(
+                "repair_reply_completed",
+                thread_id=thread_id,
+                author_id=author_id,
+                target_id=target_id,
+                reply_post_id=reply_post_id,
+            )
 
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
@@ -8570,6 +8799,23 @@ def maybe_reply_to_mentions(state: dict) -> str:
             mark_mention_seen_if_applicable(state, mention)
             continue
 
+        if clarification_thread_is_terminal(state, mention):
+            log.info(
+                "Skipping %s %s: clarification already completed and thread is terminal",
+                candidate_source,
+                mention_id,
+            )
+            maybe_mark_hot_post_reply_skipped(state, mention, reason="clarification_thread_terminal")
+            log_event(
+                "candidate_skipped",
+                lane=candidate_log_source,
+                id=mention_id,
+                reason="clarification_thread_terminal",
+            )
+            mark_mention_seen_if_applicable(state, mention)
+            save_state(state)
+            continue
+
         if not reply_target_is_directly_eligible(mention):
             reason = "target_does_not_directly_mention_account"
             log.warning(
@@ -8610,7 +8856,9 @@ def maybe_reply_to_mentions(state: dict) -> str:
             save_state(state, durable=True)
             continue
 
-        if daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY:
+        clarification = clarification_reply_context(state, mention, current=current)
+        author_cap_reached = daily_author_reply_count(state, author_id) >= MAX_REPLIES_PER_AUTHOR_PER_DAY
+        if author_cap_reached and clarification is None:
             log.info(
                 "Skipping mention %s: already reached per-author daily cap for author_id=%s",
                 mention_id,
@@ -8621,6 +8869,20 @@ def maybe_reply_to_mentions(state: dict) -> str:
             mark_mention_seen_if_applicable(state, mention)
             save_state(state)
             continue
+        if author_cap_reached:
+            log.info(
+                "Permitting one clarification reply past per-author cap target_id=%s thread_id=%s author_id=%s",
+                mention_id,
+                clarification["thread_id"],
+                author_id,
+            )
+            log_event(
+                "clarification_reply_cap_override",
+                target_id=mention_id,
+                thread_id=clarification["thread_id"],
+                author_id=author_id,
+                bypassed_cap="per_author_daily",
+            )
 
         if is_probably_spam_or_not_worth_replying(incoming_text):
             log.info("Skipping %s %s: spam/not worth replying", candidate_source, mention_id)
@@ -8656,6 +8918,20 @@ def maybe_reply_to_mentions(state: dict) -> str:
             pending_strategy_reply(state, mention_id, str(candidate_source))
             if reply_strategy.get("enabled") else None
         )
+        direct_question = clarification["question_text"] if clarification is not None else incoming_text
+        from reply_strategy import concrete_factual_question_word
+        if (
+            reply_text is not None
+            and concrete_factual_question_word(direct_question) is not None
+            and not pending_reply_is_valid_direct_answer(reply_text, direct_question)
+        ):
+            log.warning(
+                "Discarding stale non-direct pending draft for factual question target_id=%s",
+                mention_id,
+            )
+            clear_pending_strategy_reply(state, mention_id, str(candidate_source))
+            save_state(state, durable=True)
+            reply_text = None
         evaluation_outcome: dict[str, str] = {}
         try:
             if reply_text is None:
@@ -8666,6 +8942,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     shadow_incoming_text=incoming_text,
                     shadow_parent_context=context_text,
                     evaluation_outcome=evaluation_outcome,
+                    direct_question_text=direct_question,
+                    clarification_reply=clarification is not None,
                 )
             else:
                 log.info("Reusing persisted reply strategy draft target_id=%s source=%s", mention_id, candidate_source)
@@ -8829,6 +9107,11 @@ def maybe_reply_to_mentions(state: dict) -> str:
         strategy_metadata = getattr(reply_text, "strategy_metadata", None)
         if strategy_metadata is not None:
             receipt["strategy_metadata"] = strategy_metadata
+        if clarification is not None:
+            receipt["clarification_reply"] = {
+                key: clarification[key]
+                for key in ("thread_id", "prior_bot_reply_id", "original_question_id", "trigger")
+            }
         try:
             write_confirmed_reply_receipt(receipt)
         except Exception as exc:
@@ -9412,6 +9695,19 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 pending_strategy_reply(state, quote_id, "quote_tweet")
                 if reply_strategy.get("enabled") else None
             )
+            from reply_strategy import concrete_factual_question_word
+            if (
+                reply_text is not None
+                and concrete_factual_question_word(quote_text) is not None
+                and not pending_reply_is_valid_direct_answer(reply_text, quote_text)
+            ):
+                log.warning(
+                    "Discarding stale non-direct pending quote-tweet draft for factual question target_id=%s",
+                    quote_id,
+                )
+                clear_pending_strategy_reply(state, quote_id, "quote_tweet")
+                save_state(state, durable=True)
+                reply_text = None
             try:
                 if reply_text is None:
                     reply_text = ask_grok_for_reply(
@@ -9420,6 +9716,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         recent_replies=recent_auto_reply_texts(state),
                         shadow_incoming_text=quote_text,
                         shadow_parent_context=context_text,
+                        direct_question_text=quote_text,
                     )
                 else:
                     log.info("Reusing persisted reply strategy draft target_id=%s source=quote_tweet", quote_id)
