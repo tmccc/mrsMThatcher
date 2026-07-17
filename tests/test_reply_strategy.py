@@ -16,6 +16,7 @@ from reply_strategy import (
     ReplyDecision,
     audit_digest,
     build_strategy_prompt_context,
+    concrete_factual_question_word,
     decision_schema_instruction,
     direct_factual_answer_error,
     direct_question_prompt_guidance,
@@ -246,6 +247,33 @@ def test_berlin_wall_question_requires_a_direct_east_to_west_answer() -> None:
 
     assert result["reply_text"].startswith("People moved from East Berlin")
     assert direct_factual_answer_error(question, result["reply_text"]) is None
+
+
+def test_misspelled_production_berlin_wall_question_requires_direct_answer() -> None:
+    question = "Were did people ram towards when the Berlin Wall fell?"
+    reply = "People moved from East Berlin and East Germany towards West Berlin and West Germany."
+    evidence = retrieve_research_packets("Berlin Wall East West Germany", RESEARCH, maximum=5)
+    selected = evidence[0]
+
+    assert concrete_factual_question_word(question) == "where"
+    result = validate_reply_decision(
+        decision(
+            mode="historical_context",
+            humour_tone="none",
+            evidence_confidence="high",
+            retrieved_quote_ids=[selected.quote_id],
+            evidence_summary="The Berlin Wall divided East Berlin from West Berlin.",
+            factual_claim_made=True,
+            grounded=True,
+            reply_text=reply,
+        ),
+        evidence,
+        allowed_quote_ids={item.quote_id for item in evidence},
+        direct_question_text=question,
+    )
+
+    assert result["reply_text"] == reply
+    assert direct_factual_answer_error(question, reply) is None
 
 
 def test_berlin_wall_abstract_non_answer_is_rejected() -> None:

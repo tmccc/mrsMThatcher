@@ -5283,6 +5283,151 @@ def test_clarification_ledger_survives_state_restart_and_blocks_replay(
     assert bot.author_used_clarification_recently(recovered, "200", current=fixed_epoch + 60) is True
 
 
+def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_reset(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    completed_epoch = 2_000_000_000
+    later_epoch = completed_epoch + (2 * 24 * 60 * 60)
+    state = bot.default_state()
+    receipt = {
+        "schema_version": 1,
+        "target_id": "101",
+        "reply_post_id": "900001",
+        "author_id": "200",
+        "reply_epoch": completed_epoch,
+        "daily_reply_date": datetime.fromtimestamp(completed_epoch).strftime("%Y-%m-%d"),
+        "candidate_source": "mention",
+        "conversation_id": "700",
+        "reply_text": "People moved from East Berlin towards West Berlin.",
+        "strategy_metadata": {
+            "mode": "historical_context", "humour_tone": "none",
+            "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+            "evidence_summary": "The Berlin Wall divided East from West.",
+            "factual_claim_made": True, "grounded": True,
+            "reply_text": "People moved from East Berlin towards West Berlin.",
+            "no_reply_reason": "",
+        },
+        "clarification_reply": {
+            "thread_id": "700",
+            "prior_bot_reply_id": "900",
+            "original_question_id": "100",
+            "trigger": "explicit_correction",
+        },
+    }
+    bot.apply_confirmed_reply_receipt(state, receipt)
+    bot.save_state(state, durable=True)
+    recovered = bot.load_state()
+
+    terminal_thread_candidate = {
+        "id": "102", "author_id": "200", "conversation_id": "700",
+        "text": "@MrsMThatcher What happened next?",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "900001"}],
+    }
+    unrelated_thread_candidate = {
+        "id": "103", "author_id": "200", "conversation_id": "800",
+        "text": "@MrsMThatcher A thoughtful observation in a different thread.",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "referenced_tweets": [{"type": "replied_to", "id": "800"}],
+    }
+    context_ids: list[str] = []
+    media_ids: list[str] = []
+    model_contexts: list[str] = []
+
+    def build_context(candidate: dict, _state: dict) -> tuple[str, bool]:
+        context_ids.append(str(candidate["id"]))
+        return f"context-{candidate['id']}", True
+
+    def prepare_media(candidate: dict, **_kwargs: object) -> dict:
+        media_ids.append(str(candidate["id"]))
+        return {}
+
+    metadata = {
+        "mode": "warm_reply", "humour_tone": "warm",
+        "evidence_confidence": "none", "retrieved_quote_ids": [],
+        "evidence_summary": "", "factual_claim_made": False, "grounded": False,
+        "reply_text": "Quite so.", "no_reply_reason": "",
+    }
+
+    def answer(context: str, _media: object = None, **_kwargs: object) -> ReplyDecision:
+        model_contexts.append(context)
+        return ReplyDecision(metadata["reply_text"], metadata)
+
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MARK_AI_REPLIES_AS_AI", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 1)
+    monkeypatch.setattr(bot, "now_epoch", lambda: later_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(later_epoch))
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(
+        bot,
+        "get_mentions",
+        lambda _state: [terminal_thread_candidate, unrelated_thread_candidate],
+    )
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", build_context)
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", prepare_media)
+    monkeypatch.setattr(bot, "ask_grok_for_reply", answer)
+    monkeypatch.setattr(bot, "create_post", lambda **_kwargs: {"data": {"id": "900002"}})
+    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": True})
+
+    assert bot.maybe_reply_to_mentions(recovered) == bot.NORMAL_CHECK_STATUS_POSTED
+    assert context_ids == ["103"]
+    assert media_ids == ["103"]
+    assert model_contexts == ["context-103"]
+    assert recovered["daily_reply_count"] == 1
+    assert recovered["daily_replied_author_counts"] == {"200": 1}
+    assert recovered["clarification_reply_records"]["700"]["thread_terminal"] is True
+
+
+def test_completed_clarification_threads_are_not_evicted_from_terminal_ledger() -> None:
+    state = bot.default_state()
+    state["clarification_reply_records"] = {
+        str(thread_id): {
+            "thread_id": str(thread_id),
+            "author_id": str(thread_id),
+            "reply_post_id": str(900_000 + thread_id),
+            "completed_epoch": thread_id,
+            "status": "repair_reply_completed",
+            "clarification_reply_used": True,
+            "thread_terminal": True,
+        }
+        for thread_id in range(1, 2001)
+    }
+    receipt = {
+        "schema_version": 1,
+        "target_id": "3001",
+        "reply_post_id": "903001",
+        "author_id": "3001",
+        "reply_epoch": 3001,
+        "daily_reply_date": "1970-01-01",
+        "candidate_source": "mention",
+        "conversation_id": "3001",
+        "reply_text": "A grounded direct answer.",
+        "clarification_reply": {
+            "thread_id": "3001",
+            "prior_bot_reply_id": "903000",
+            "original_question_id": "3000",
+            "trigger": "explicit_correction",
+        },
+    }
+
+    bot.apply_confirmed_reply_receipt(state, receipt)
+
+    assert "1" in state["clarification_reply_records"]
+    assert "3001" in state["clarification_reply_records"]
+    assert len(state["clarification_reply_records"]) == 2001
+
+
 def test_clarification_receipt_requires_grounded_direct_reply_metadata() -> None:
     receipt = {
         "schema_version": 1,

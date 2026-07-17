@@ -31,7 +31,7 @@ CANNED_PATTERNS = (
 CONCRETE_QUESTION_RE = re.compile(
     r"^(?:@[A-Za-z0-9_]+\s+)*(?:(?:please\s+)?(?:(?:(?:can|could|would)\s+you\s+)?"
     r"tell\s+me|do\s+you\s+know)\s+)?"
-    r"(?P<word>who|what|where|when)\b",
+    r"(?P<word>who|what|where|when|were(?=\s+did\b))\b",
     re.IGNORECASE,
 )
 ABSTRACT_ANSWER_OPENINGS = (
@@ -363,7 +363,10 @@ def concrete_factual_question_word(text: str) -> str | None:
     if "?" not in value:
         return None
     match = CONCRETE_QUESTION_RE.match(value)
-    return match.group("word").lower() if match else None
+    if not match:
+        return None
+    word = match.group("word").lower()
+    return "where" if word == "were" else word
 
 
 def direct_factual_answer_error(question: str, reply: str) -> str | None:

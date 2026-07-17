@@ -8589,12 +8589,6 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
                 "clarification_reply_used": True,
                 "thread_terminal": True,
             }
-            if len(records) > 2000:
-                ordered = sorted(
-                    records.items(),
-                    key=lambda item: (int(item[1].get("completed_epoch", 0) or 0), item[0]),
-                )
-                records = dict(ordered[-2000:])
             state["clarification_reply_records"] = records
             log_event(
                 "clarification_reply_used",
