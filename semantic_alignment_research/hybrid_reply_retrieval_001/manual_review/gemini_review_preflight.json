@@ -1,0 +1,18 @@
+{
+  "batch_count": 20,
+  "case_count": 100,
+  "combined_limit_usd": 3.0,
+  "conservative_maximum_cost_usd": 1.8262,
+  "developer_limit_usd": 2.0,
+  "estimated_input_tokens": 193113,
+  "expected_cost_usd": 1.1062,
+  "expected_output_tokens": 60000,
+  "generated_at": "2026-07-15T18:59:48.517907Z",
+  "human_reviews_will_be_modified": false,
+  "maximum_output_tokens": 120000,
+  "model": "gemini-3.1-pro-preview",
+  "schema_version": 1,
+  "search_grounding_enabled": false,
+  "tools_enabled": false,
+  "vertex_limit_usd": 2.0
+}

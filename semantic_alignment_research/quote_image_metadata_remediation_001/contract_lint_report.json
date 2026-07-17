@@ -1,0 +1,10 @@
+{
+  "errors": [],
+  "image_contract_count": 91,
+  "passed": true,
+  "quote_contract_count": 626,
+  "schema_version": 1,
+  "source_date_only_visual_restriction_count": 0,
+  "unsupported_identity_count": 0,
+  "unsupported_relationship_count": 0
+}

@@ -1,0 +1,25 @@
+{
+  "absent_literal_depiction_only_veto_count": 0,
+  "affirmative_contradiction_veto_count": 0,
+  "alternative_scope_note": "Alternatives are restricted to scored v2 research candidates confirmed allow by v3.",
+  "alternative_score_loss_max": null,
+  "alternative_score_loss_median": null,
+  "alternative_score_loss_p95": null,
+  "decision_counts": {
+    "allow": 3510
+  },
+  "distinct_images_selected": 14,
+  "distinct_quotations": 23,
+  "known_pair_count": 3510,
+  "known_pair_coverage": 1.0,
+  "missing_evidence_only_veto_count": 0,
+  "mode": "seasonal_boundary_stress",
+  "quotations_with_no_allowed_observed_image": 0,
+  "semantic_veto_count": 0,
+  "semantic_veto_rate": 0.0,
+  "total_simulations": 3510,
+  "unknown_production_winner_rate": 0.0,
+  "veto_reason_counts": {},
+  "vetoes_with_research_candidate_alternatives": 0,
+  "vetoes_without_research_candidate_alternatives": 0
+}

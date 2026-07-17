@@ -1,0 +1,40 @@
+{
+  "absent_literal_depiction_only_veto_count": 0,
+  "affirmative_contradiction_veto_count": 1340,
+  "alternative_scope_note": "Alternatives are restricted to scored v2 research candidates confirmed allow by v3.",
+  "alternative_score_loss_max": 33.51433914833873,
+  "alternative_score_loss_median": 3.4683503111768275,
+  "alternative_score_loss_p95": 33.51433914833873,
+  "decision_counts": {
+    "allow": 47158,
+    "unknown": 330,
+    "veto": 1340
+  },
+  "distinct_images_selected": 51,
+  "distinct_quotations": 626,
+  "known_pair_count": 48498,
+  "known_pair_coverage": 0.9932415826984518,
+  "missing_evidence_only_veto_count": 0,
+  "mode": "full_corpus_sweep",
+  "quotations_with_no_allowed_observed_image": 10,
+  "semantic_veto_count": 1340,
+  "semantic_veto_rate": 0.02744327025477185,
+  "total_simulations": 48828,
+  "unknown_production_winner_rate": 0.006758417301548292,
+  "veto_reason_counts": {
+    "insufficient_actor_count": 112,
+    "misleading_dominant_message": 97,
+    "missing_relationship_evidence": 60,
+    "missing_transition": 60,
+    "non_thatcher_speaker_portrait_substitution": 702,
+    "portrait_substitution": 91,
+    "required_participant_identity_not_source_grounded": 78,
+    "required_relationship_not_source_grounded": 60,
+    "wrong_action": 403,
+    "wrong_before_after_state": 52,
+    "wrong_event": 52,
+    "wrong_named_entity": 195
+  },
+  "vetoes_with_research_candidate_alternatives": 560,
+  "vetoes_without_research_candidate_alternatives": 780
+}

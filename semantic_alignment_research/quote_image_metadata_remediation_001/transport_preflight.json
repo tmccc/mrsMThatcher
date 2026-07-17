@@ -1,0 +1,22 @@
+{
+  "availability_checked": true,
+  "developer_api": {
+    "available": true,
+    "configured": true,
+    "requested_model": "gemini-3.1-pro-preview",
+    "returned_name": "models/gemini-3.1-pro-preview",
+    "transport": "developer_api"
+  },
+  "generated_at": "2026-07-17T19:39:36.600661Z",
+  "model": "gemini-3.1-pro-preview",
+  "no_generation_request_made": true,
+  "schema_version": 1,
+  "settings_parity": true,
+  "vertex_ai": {
+    "available": true,
+    "configured": true,
+    "requested_model": "gemini-3.1-pro-preview",
+    "returned_name": "publishers/google/models/gemini-3.1-pro-preview",
+    "transport": "vertex_ai"
+  }
+}

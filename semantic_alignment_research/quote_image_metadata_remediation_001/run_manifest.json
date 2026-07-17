@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-07-17T17:04:32.084028Z",
+  "hard_spend_limit_usd": 100.0,
+  "harness_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001",
+  "live_shadow_manifest_sha256": "3e08320ffa8955e4bbad46444077ee0726e49dee90c29874a81cc872eb3751b0",
+  "network_calls": 0,
+  "planned_spend_limit_usd": 85.0,
+  "production_write_count": 0,
+  "project_dir": "/disks/disk1/etc/mrsMThatcher",
+  "repair_reserve_usd": 15.0,
+  "run_id": "quote_image_metadata_remediation_001",
+  "schema_version": 1,
+  "simulator_occurrence_count": 247331,
+  "simulator_unique_pair_count": 18767,
+  "source_snapshot_sha256": "20f045c77eabea6870b68877c1d51a6b1105a73f5cac4e660dfb60ad1ae71004"
+}

@@ -75,6 +75,49 @@ image_discovery_research/**/triage_batches/raw/
 image_discovery_research/**/triage_batches/thumbnails/
 image_discovery_research/**/exported_kept/images/
 simulation_runs/
+semantic_alignment_research/quote_image_selection_harness_*/simulation.sqlite3*
+semantic_alignment_research/quote_image_selection_harness_*/source_snapshot/
+semantic_alignment_research/quote_image_selection_harness_*/runtime/
+semantic_alignment_research/quote_image_selection_harness_*/harness.log
+semantic_alignment_research/**/simulation.sqlite3*
+semantic_alignment_research/**/source_snapshot/
+semantic_alignment_research/**/runtime/
+semantic_alignment_research/**/harness.log
+semantic_alignment_research/**/normalised_responses/
+semantic_alignment_research/**/providers/
+
+# Frozen superseded semantic-veto runs retain only files already versioned.
+semantic_alignment_research/relation_aware_semantic_veto_001/
+semantic_alignment_research/relation_aware_semantic_veto_002/
+
+# Image-discovery transport/runtime and non-production review material.
+image_discovery_research/**/grounded_discovery/
+image_discovery_research/**/triage_batches/
+image_discovery_research/**/review_state*.json
+image_discovery_research/**/exported_kept/maybe/
+image_discovery_research/**/exported_kept/rights_pending/
+image_discovery_research/**/integration_preparation/source_grounded_raw_responses/
+image_discovery_research/**/*_pre_source_grounded.*
+image_discovery_research/thatcher_image_hunt_001/
+image_discovery_research/**/commons_*state.json
+image_discovery_research/**/commons_*titles.json
+image_discovery_research/**/download_failures.jsonl
+image_discovery_research/**/raw_candidates.jsonl
+generated_review_approved_images/grok_face_corrected/
+generated_review_approved_images/grok_face_rejected_candidates/
+generated_review_approved_images/pre_face_correction_backup_*/
+review/
+
+# Superseded one-off experiments; maintained replacements are versioned.
+analyse_mrs_assets_xai.py
+analyse_mrs_assets_xai_v2.py
+analyse_mrs_assets_xai_v3.py
+check_and_fix_thatcher_faces_xai_revised.py
+generate_first10_from_quote_analysis.py
+generate_openai_low_first10.py
+vertex_test.py
+veto.json
+digest*.txt
 
 # Local image-generation trials and reproducible large outputs.
 grok_image_test_first10/

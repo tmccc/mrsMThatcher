@@ -1,0 +1,11 @@
+{
+  "decision_counts": {
+    "allow": 19837,
+    "unknown": 272,
+    "veto": 321
+  },
+  "live_manifest_modified": false,
+  "pair_count": 20430,
+  "pair_id_unique": true,
+  "unknown_treated_as_safe": false
+}

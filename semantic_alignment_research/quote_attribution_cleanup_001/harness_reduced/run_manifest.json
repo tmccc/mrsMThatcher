@@ -1,0 +1,41 @@
+{
+  "commands_completed": [
+    {
+      "completed_at": "2026-07-17T22:29:29.435911Z",
+      "mode": "full_corpus_sweep",
+      "status": "interrupted"
+    },
+    {
+      "completed_at": "2026-07-17T21:33:35.332798Z",
+      "mode": "full_corpus_sweep",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-07-17T22:27:34.884106Z",
+      "mode": "monte_carlo",
+      "status": "completed"
+    },
+    {
+      "completed_at": "2026-07-17T22:28:39.989190Z",
+      "mode": "seasonal_boundary_stress",
+      "status": "completed"
+    }
+  ],
+  "completed_quote_count": 613,
+  "created_at": "2026-07-17T21:27:48.014120Z",
+  "database_sha256": "6203ac6b155eb242b3c5dd9ba232705fd75fbd9ed08089cfe04e6a7ceadf12fd",
+  "harness_version": "quote-image-selection-harness-v1",
+  "network_allowed": false,
+  "network_calls": 0,
+  "production_writes": 0,
+  "production_writes_allowed": false,
+  "project_dir": "/disks/disk1/etc/mrsMThatcher",
+  "provider_calls_allowed": false,
+  "run_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_attribution_cleanup_001/harness_reduced",
+  "schema_version": 1,
+  "snapshot_manifest_sha256": "75f0c1fb86e67e8e76b6d4ad26f91308cc19e790b44fe88462762b602c115d50",
+  "unresolved_quote_count": 6,
+  "updated_at": "2026-07-17T22:29:52.778381Z",
+  "workers_default": 1,
+  "workers_maximum": 2
+}

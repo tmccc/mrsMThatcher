@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-07-15T18:13:37.222388Z",
+  "items": [
+    {
+      "case_id": "shadow-review-001-2071868785946943509",
+      "reasons": [
+        "incoming_text_ends_with_unresolved_truncation_marker"
+      ],
+      "target_id": "2071868785946943509"
+    },
+    {
+      "case_id": "shadow-review-015-2073042712811462676",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2073042712811462676"
+    },
+    {
+      "case_id": "shadow-review-053-2071521752987898034",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2071521752987898034"
+    },
+    {
+      "case_id": "shadow-review-069-2071495768603501030",
+      "reasons": [
+        "quoted_post_context_unavailable"
+      ],
+      "target_id": "2071495768603501030"
+    },
+    {
+      "case_id": "shadow-review-074-2075756147743564069",
+      "reasons": [
+        "source_record_unavailable_for_low_substance_post"
+      ],
+      "target_id": "2075756147743564069"
+    },
+    {
+      "case_id": "shadow-review-091-2076446399139299486",
+      "reasons": [
+        "direct_parent_context_unavailable"
+      ],
+      "target_id": "2076446399139299486"
+    },
+    {
+      "case_id": "shadow-review-100-2073206842243580217",
+      "reasons": [
+        "quoted_post_context_unavailable"
+      ],
+      "target_id": "2073206842243580217"
+    }
+  ],
+  "note": "Removed from the ordinary blind preference sample; retained for local-context follow-up only.",
+  "schema_version": 2
+}

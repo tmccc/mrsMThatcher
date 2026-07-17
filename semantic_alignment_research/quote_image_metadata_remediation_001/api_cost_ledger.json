@@ -1,0 +1,2223 @@
+{
+  "ambiguous_exposure_usd": 0.110796,
+  "batch_spend_usd": 2.725217,
+  "created_at": "2026-07-17T18:36:38.104641Z",
+  "hard_combined_ceiling_usd": 100.0,
+  "interactive_spend_usd": 2.074226,
+  "known_spend_by_class": {
+    "planned": 2.725217,
+    "repair": 2.074226
+  },
+  "known_spend_by_transport": {
+    "developer_api": 4.799443,
+    "vertex_ai": 0.0
+  },
+  "known_spend_usd": 4.799443,
+  "normalised_result_counts_by_transport": {
+    "developer_api": 129,
+    "developer_api_batch": 97,
+    "developer_api_batch_partial_salvage": 168,
+    "interactive_split_recovery": 13
+  },
+  "operations": [
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.278119,
+      "operation_id": "batch:metadata-remediation-v3-pilot-001",
+      "timestamp": "2026-07-17T18:36:41.629485Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.036163,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-pilot-001",
+      "timestamp": "2026-07-17T18:38:51.892169Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 3.33954,
+      "operation_id": "batch:metadata-remediation-v3-first-pass-001",
+      "timestamp": "2026-07-17T18:38:51.903005Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 1.41835,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-first-pass-001",
+      "timestamp": "2026-07-17T18:43:07.880016Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.132258,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-batch-repair:developer_api:1",
+      "timestamp": "2026-07-17T18:43:07.882442Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.12574,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-batch-repair:developer_api:1",
+      "timestamp": "2026-07-17T18:43:56.834990Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110892,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:52:35.210043Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01519,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:52:44.520705Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11095,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:52:44.533337Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01713,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:52:51.422974Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110932,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:52:51.436104Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01708,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:53:01.783647Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111022,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-04:developer_api:1",
+      "timestamp": "2026-07-17T18:53:01.794351Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016882,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-04:developer_api:1",
+      "timestamp": "2026-07-17T18:53:10.572824Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110888,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-05:developer_api:1",
+      "timestamp": "2026-07-17T18:53:10.583943Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01687,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-05:developer_api:1",
+      "timestamp": "2026-07-17T18:53:20.690328Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110944,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-06:developer_api:1",
+      "timestamp": "2026-07-17T18:53:20.701099Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01155,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-06:developer_api:1",
+      "timestamp": "2026-07-17T18:53:27.088840Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110858,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-07:developer_api:1",
+      "timestamp": "2026-07-17T18:53:27.100223Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016736,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-07:developer_api:1",
+      "timestamp": "2026-07-17T18:53:36.276601Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110772,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-08:developer_api:1",
+      "timestamp": "2026-07-17T18:53:36.287755Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017426,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-08:developer_api:1",
+      "timestamp": "2026-07-17T18:53:45.726659Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110912,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-09:developer_api:1",
+      "timestamp": "2026-07-17T18:53:45.739351Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017754,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-09:developer_api:1",
+      "timestamp": "2026-07-17T18:53:55.697890Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110948,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-10:developer_api:1",
+      "timestamp": "2026-07-17T18:53:55.708805Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014912,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-10:developer_api:1",
+      "timestamp": "2026-07-17T18:54:04.092883Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-11:developer_api:1",
+      "timestamp": "2026-07-17T18:54:04.104389Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014546,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-11:developer_api:1",
+      "timestamp": "2026-07-17T18:54:11.583708Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110788,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-12:developer_api:1",
+      "timestamp": "2026-07-17T18:54:11.590155Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011842,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-12:developer_api:1",
+      "timestamp": "2026-07-17T18:54:18.048189Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11101,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-13:developer_api:1",
+      "timestamp": "2026-07-17T18:54:18.059799Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011992,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-13:developer_api:1",
+      "timestamp": "2026-07-17T18:54:25.086664Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110822,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-14:developer_api:1",
+      "timestamp": "2026-07-17T18:54:25.098367Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014704,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-14:developer_api:1",
+      "timestamp": "2026-07-17T18:54:32.888504Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110986,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-15:developer_api:1",
+      "timestamp": "2026-07-17T18:54:32.909082Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.021468,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-15:developer_api:1",
+      "timestamp": "2026-07-17T18:54:45.553904Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110706,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-16:developer_api:1",
+      "timestamp": "2026-07-17T18:54:45.566133Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016316,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-16:developer_api:1",
+      "timestamp": "2026-07-17T18:54:55.094644Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111008,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-17:developer_api:1",
+      "timestamp": "2026-07-17T18:54:55.106771Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016346,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-17:developer_api:1",
+      "timestamp": "2026-07-17T18:55:05.215135Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110894,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-18:developer_api:1",
+      "timestamp": "2026-07-17T18:55:05.226970Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017752,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-18:developer_api:1",
+      "timestamp": "2026-07-17T18:55:15.967155Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111026,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-19:developer_api:1",
+      "timestamp": "2026-07-17T18:55:15.979316Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015172,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-19:developer_api:1",
+      "timestamp": "2026-07-17T18:55:24.459497Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110662,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-20:developer_api:1",
+      "timestamp": "2026-07-17T18:55:24.472066Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017114,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-20:developer_api:1",
+      "timestamp": "2026-07-17T18:55:34.679799Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110988,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-21:developer_api:1",
+      "timestamp": "2026-07-17T18:55:34.691767Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.018376,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-21:developer_api:1",
+      "timestamp": "2026-07-17T18:55:45.518661Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110878,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-22:developer_api:1",
+      "timestamp": "2026-07-17T18:55:45.524923Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014792,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-22:developer_api:1",
+      "timestamp": "2026-07-17T18:55:52.829125Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11101,
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-23:developer_api:1",
+      "timestamp": "2026-07-17T18:55:52.840702Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011648,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-04db47bd4c09-000-f80339d8f646-split-23:developer_api:1",
+      "timestamp": "2026-07-17T18:55:58.775794Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110784,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:55:58.791342Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015226,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:56:05.201942Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11084,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:56:05.216153Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01577,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:56:15.521654Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11096,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:56:15.534694Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013312,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:56:22.947310Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110772,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-04:developer_api:1",
+      "timestamp": "2026-07-17T18:56:22.960543Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015266,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-04:developer_api:1",
+      "timestamp": "2026-07-17T18:56:32.313091Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11084,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-05:developer_api:1",
+      "timestamp": "2026-07-17T18:56:32.320156Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014202,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-05:developer_api:1",
+      "timestamp": "2026-07-17T18:56:40.121953Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110996,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-06:developer_api:1",
+      "timestamp": "2026-07-17T18:56:40.134964Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012308,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-06:developer_api:1",
+      "timestamp": "2026-07-17T18:56:47.256391Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11108,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-07:developer_api:1",
+      "timestamp": "2026-07-17T18:56:47.269113Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014916,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-07:developer_api:1",
+      "timestamp": "2026-07-17T18:56:55.003648Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11091,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-08:developer_api:1",
+      "timestamp": "2026-07-17T18:56:55.018076Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014984,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-08:developer_api:1",
+      "timestamp": "2026-07-17T18:57:04.339334Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110766,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-09:developer_api:1",
+      "timestamp": "2026-07-17T18:57:04.353313Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014006,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-09:developer_api:1",
+      "timestamp": "2026-07-17T18:57:11.210933Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111036,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-10:developer_api:1",
+      "timestamp": "2026-07-17T18:57:11.224311Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011216,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-10:developer_api:1",
+      "timestamp": "2026-07-17T18:57:16.218258Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111024,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-11:developer_api:1",
+      "timestamp": "2026-07-17T18:57:16.227397Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015328,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-11:developer_api:1",
+      "timestamp": "2026-07-17T18:57:24.511680Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110952,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-12:developer_api:1",
+      "timestamp": "2026-07-17T18:57:24.525016Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015988,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-12:developer_api:1",
+      "timestamp": "2026-07-17T18:57:32.843536Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110918,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-13:developer_api:1",
+      "timestamp": "2026-07-17T18:57:32.860695Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014782,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-13:developer_api:1",
+      "timestamp": "2026-07-17T18:57:40.797136Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110756,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-14:developer_api:1",
+      "timestamp": "2026-07-17T18:57:40.810735Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013754,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-14:developer_api:1",
+      "timestamp": "2026-07-17T18:57:48.045679Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110992,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-15:developer_api:1",
+      "timestamp": "2026-07-17T18:57:48.058653Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015088,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-15:developer_api:1",
+      "timestamp": "2026-07-17T18:57:56.550326Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111046,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-16:developer_api:1",
+      "timestamp": "2026-07-17T18:57:56.564124Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014678,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-16:developer_api:1",
+      "timestamp": "2026-07-17T18:58:03.895959Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110996,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-17:developer_api:1",
+      "timestamp": "2026-07-17T18:58:03.909195Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012246,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-17:developer_api:1",
+      "timestamp": "2026-07-17T18:58:10.164176Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110812,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-18:developer_api:1",
+      "timestamp": "2026-07-17T18:58:10.177474Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015006,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-18:developer_api:1",
+      "timestamp": "2026-07-17T18:58:17.857947Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110816,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-19:developer_api:1",
+      "timestamp": "2026-07-17T18:58:17.873366Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016072,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-19:developer_api:1",
+      "timestamp": "2026-07-17T18:58:27.205616Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110858,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-20:developer_api:1",
+      "timestamp": "2026-07-17T18:58:27.232511Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011724,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-20:developer_api:1",
+      "timestamp": "2026-07-17T18:58:33.264407Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110788,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-21:developer_api:1",
+      "timestamp": "2026-07-17T18:58:33.277746Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011036,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-21:developer_api:1",
+      "timestamp": "2026-07-17T18:58:39.177316Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110918,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-22:developer_api:1",
+      "timestamp": "2026-07-17T18:58:39.191537Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01513,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-22:developer_api:1",
+      "timestamp": "2026-07-17T18:58:47.178266Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110878,
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-23:developer_api:1",
+      "timestamp": "2026-07-17T18:58:47.192614Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015036,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-000-fa2bce7eb1b7-split-23:developer_api:1",
+      "timestamp": "2026-07-17T18:58:55.372087Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110936,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:58:55.389877Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011922,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-01:developer_api:1",
+      "timestamp": "2026-07-17T18:59:00.895129Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110976,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:59:00.908740Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013846,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-02:developer_api:1",
+      "timestamp": "2026-07-17T18:59:08.057204Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110842,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:59:08.071586Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01543,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-03:developer_api:1",
+      "timestamp": "2026-07-17T18:59:16.754586Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110796,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-04:developer_api:1",
+      "timestamp": "2026-07-17T18:59:16.837411Z",
+      "transport": "developer_api"
+    },
+    {
+      "event": "ambiguous",
+      "maximum_usd": 0.110796,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-04:developer_api:1",
+      "reason": "",
+      "timestamp": "2026-07-17T18:59:23.426612Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110916,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-06:developer_api:1",
+      "timestamp": "2026-07-17T19:04:06.236868Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01452,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-06:developer_api:1",
+      "timestamp": "2026-07-17T19:04:14.073735Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111042,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-07:developer_api:1",
+      "timestamp": "2026-07-17T19:04:14.087617Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014956,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-07:developer_api:1",
+      "timestamp": "2026-07-17T19:04:20.197383Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110888,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-08:developer_api:1",
+      "timestamp": "2026-07-17T19:04:20.231131Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011516,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-08:developer_api:1",
+      "timestamp": "2026-07-17T19:04:26.120966Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.1108,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-09:developer_api:1",
+      "timestamp": "2026-07-17T19:04:26.136570Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012736,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-09:developer_api:1",
+      "timestamp": "2026-07-17T19:04:32.553993Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111046,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-10:developer_api:1",
+      "timestamp": "2026-07-17T19:04:32.568695Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015832,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-10:developer_api:1",
+      "timestamp": "2026-07-17T19:04:39.038639Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111086,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-11:developer_api:1",
+      "timestamp": "2026-07-17T19:04:39.054218Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.02052,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-11:developer_api:1",
+      "timestamp": "2026-07-17T19:04:50.674246Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110938,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:04:50.695202Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015456,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:04:58.560638Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110942,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:04:58.575735Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014248,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:05:06.564031Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110988,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:05:06.579294Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0156,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:05:14.654256Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110892,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:05:14.668977Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014392,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:05:20.984814Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111006,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:05:20.999413Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0171,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:05:30.554715Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110932,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:05:30.571538Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013784,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:05:36.940723Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111106,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:05:36.975738Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013466,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:05:44.253910Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110798,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:05:44.268869Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013862,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:05:51.849474Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111062,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:05:51.863928Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017756,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:06:02.418413Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111112,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:06:02.433649Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01217,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:06:08.820599Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110932,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:06:08.838462Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01216,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:06:16.479218Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110824,
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:06:16.494658Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013572,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-001-b188e2abcbaf-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:06:23.834028Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11096,
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:06:23.858027Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01536,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:06:30.061423Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11074,
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:06:30.077490Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012422,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:06:37.298288Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110714,
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:06:37.314055Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014944,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:06:46.077318Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.1108,
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:06:46.093452Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014714,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-002-6107f23db9ea-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:06:52.288334Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11107,
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:06:52.310473Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01589,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:07:01.298290Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11119,
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:07:01.318852Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015738,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:07:10.997547Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111036,
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:07:11.017406Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014222,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:07:18.743894Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110894,
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:07:18.775021Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016402,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-003-ef6ba25c35d9-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:07:27.482949Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110818,
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:07:27.506786Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.018376,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:07:39.579024Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110894,
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:07:39.594857Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01483,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:07:45.687971Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11085,
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:07:45.698654Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.010936,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:07:51.844844Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111012,
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:07:51.861537Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016214,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-004-f9cc940c30ec-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:08:00.087557Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111038,
+      "operation_id": "v3-first-38527605ae68-005-16d2a28bb27a-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:08:00.112536Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015302,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-005-16d2a28bb27a-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:08:07.940616Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110808,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:08:07.963580Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016356,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:08:17.967837Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111006,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:08:17.987165Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01462,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:08:25.690557Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111154,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:08:25.717538Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014914,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:08:33.515960Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110968,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:08:33.533671Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015074,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:08:41.358233Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110984,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:08:41.375600Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015908,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:08:50.074830Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110884,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:08:50.091197Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012594,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:08:59.388651Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110852,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:08:59.404918Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0168,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:09:08.988905Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110794,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:09:09.005340Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015266,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:09:18.478025Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11103,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:09:18.495749Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01516,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:09:27.712111Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110938,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:09:27.720823Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015132,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:09:35.851964Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111098,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:09:35.870595Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017102,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:09:45.543033Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11087,
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:09:45.560864Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.011158,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-006-acba98826dbc-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:09:50.419176Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110774,
+      "operation_id": "v3-first-38527605ae68-007-6e6df21b0fcd-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:09:50.439417Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015582,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-38527605ae68-007-6e6df21b0fcd-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:09:59.548892Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110874,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:09:59.580819Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013586,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:10:08.309859Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110846,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:10:08.353586Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014794,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:10:16.774357Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110728,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:10:16.792907Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016216,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:10:26.971057Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110838,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:10:26.989490Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015284,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:10:37.247303Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110716,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:10:37.265423Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016504,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:10:47.597601Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110908,
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:10:47.642946Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014162,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-000-8e8f2815bfde-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:10:55.811103Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.1108,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:10:55.836204Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015572,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:11:04.271020Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110766,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:11:04.288832Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.016512,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:11:13.284849Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110996,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:11:13.302922Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.019804,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:11:24.890160Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110984,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:11:24.910048Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017612,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:11:36.565324Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110866,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:11:36.582521Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013516,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:11:44.661191Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11086,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:11:44.676045Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01408,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:11:52.887765Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110998,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:11:52.905071Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01783,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:12:03.395378Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110946,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:12:03.413301Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014266,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:12:13.582557Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111098,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:12:13.601865Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012186,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:12:20.528273Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110892,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:12:20.548560Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.017778,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:12:31.038926Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110816,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:12:31.058721Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01246,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:12:37.403419Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110878,
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:12:37.414846Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012532,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-001-6a06e1902a23-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:12:45.345938Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110816,
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:12:45.368869Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01471,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:12:57.370939Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110928,
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:12:57.389266Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01693,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:13:07.577588Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110796,
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:13:07.586576Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.018936,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-002-5dad6b9ecadc-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:13:18.914637Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111084,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-09:developer_api:1",
+      "timestamp": "2026-07-17T19:13:18.939074Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.021908,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-09:developer_api:1",
+      "timestamp": "2026-07-17T19:13:34.747483Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110906,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-10:developer_api:1",
+      "timestamp": "2026-07-17T19:13:34.769284Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.0171,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-10:developer_api:1",
+      "timestamp": "2026-07-17T19:13:44.782308Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110882,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-11:developer_api:1",
+      "timestamp": "2026-07-17T19:13:44.802445Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013012,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-11:developer_api:1",
+      "timestamp": "2026-07-17T19:13:52.777163Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110876,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:13:52.803455Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.02093,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-12:developer_api:1",
+      "timestamp": "2026-07-17T19:14:06.132601Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111066,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:14:06.151863Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.012874,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-13:developer_api:1",
+      "timestamp": "2026-07-17T19:14:13.587757Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110946,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:14:13.608361Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01694,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-14:developer_api:1",
+      "timestamp": "2026-07-17T19:14:23.570671Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.11076,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:14:23.590972Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014108,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-15:developer_api:1",
+      "timestamp": "2026-07-17T19:14:32.226661Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110978,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:14:32.246366Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014426,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-16:developer_api:1",
+      "timestamp": "2026-07-17T19:14:41.081747Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110822,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:14:41.102739Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015572,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-17:developer_api:1",
+      "timestamp": "2026-07-17T19:14:50.426125Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111112,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:14:50.435638Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015258,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-18:developer_api:1",
+      "timestamp": "2026-07-17T19:14:57.827472Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.111102,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:14:57.840179Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015012,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-19:developer_api:1",
+      "timestamp": "2026-07-17T19:15:06.207283Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110888,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:15:06.226328Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.01522,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-20:developer_api:1",
+      "timestamp": "2026-07-17T19:15:14.462832Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110888,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:15:14.481911Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.015918,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-21:developer_api:1",
+      "timestamp": "2026-07-17T19:15:24.460444Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110862,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:15:24.479459Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.013742,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-22:developer_api:1",
+      "timestamp": "2026-07-17T19:15:32.507684Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "repair",
+      "event": "reserved",
+      "maximum_usd": 0.110878,
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:15:32.527847Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014664,
+      "class": "repair",
+      "event": "completed",
+      "operation_id": "v3-first-ff3f0e8fd7c6-003-7a71b062b5a3-split-23:developer_api:1",
+      "timestamp": "2026-07-17T19:15:39.327787Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 2.456228,
+      "operation_id": "batch:metadata-remediation-v3-second-pass-001",
+      "timestamp": "2026-07-17T19:15:39.572396Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 1.179384,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-second-pass-001",
+      "timestamp": "2026-07-17T19:21:26.353919Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.167305,
+      "operation_id": "batch:metadata-remediation-v3-post-literalism-fix-first-001",
+      "timestamp": "2026-07-17T19:30:56.660900Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.031923,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-post-literalism-fix-first-001",
+      "timestamp": "2026-07-17T19:34:07.406160Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.111078,
+      "operation_id": "batch:metadata-remediation-v3-post-literalism-fix-second-001",
+      "timestamp": "2026-07-17T19:34:07.464643Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.014969,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-post-literalism-fix-second-001",
+      "timestamp": "2026-07-17T19:36:17.055743Z",
+      "transport": "developer_api"
+    },
+    {
+      "class": "planned",
+      "event": "reserved",
+      "maximum_usd": 0.1688,
+      "operation_id": "batch:metadata-remediation-v3-source-policy-second-002",
+      "timestamp": "2026-07-17T19:39:38.397383Z",
+      "transport": "developer_api"
+    },
+    {
+      "actual_usd": 0.044428,
+      "class": "planned",
+      "event": "completed",
+      "operation_id": "batch:metadata-remediation-v3-source-policy-second-002",
+      "timestamp": "2026-07-17T19:41:48.742759Z",
+      "transport": "developer_api"
+    }
+  ],
+  "pending_reservations": {},
+  "planned_execution_ceiling_usd": 85.0,
+  "pricing_version": "gemini-3.1-pro-preview-public-pricing-2026-07-17-v1",
+  "repair_reserve_usd": 15.0,
+  "schema_version": 1,
+  "spend_classification_source": "authoritative_cost_ledger_operations",
+  "updated_at": "2026-07-17T19:50:32.039212Z"
+}

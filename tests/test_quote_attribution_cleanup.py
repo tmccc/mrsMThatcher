@@ -1,0 +1,182 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+import quote_attribution_cleanup as cleanup
+
+
+def test_structured_attribution_partition_is_exact() -> None:
+    rows = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
+    assert len(rows) == 13
+    assert sum(row["classification"] == "confirmed_non_thatcher_or_misattributed" for row in rows) == 9
+    assert sum(row["classification"] == "canonical_speaker_not_grounded" for row in rows) == 4
+    assert len({row["quote_id"] for row in rows}) == 13
+
+
+def test_relative_remediation_directory_is_supported(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(cleanup.ROOT)
+    rows = cleanup.load_attribution_targets(Path("semantic_alignment_research/quote_image_metadata_remediation_001"))
+    assert len(rows) == 13
+
+
+def test_all_targets_map_uniquely_to_exact_source_records() -> None:
+    rows = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
+    before = cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt"
+    records, mapped = cleanup.map_targets(before.read_bytes(), rows)
+    assert len(records) == 633
+    assert len(mapped) == 13
+    assert all(row["exact_quote_text"] == records[row["physical_line"] - 1]["text"] for row in mapped)
+
+
+def test_ambiguous_target_mapping_fails_closed() -> None:
+    text = "A test quotation."
+    target = {
+        "quote_id": cleanup.quote_id(text),
+        "exact_quote_text": text,
+    }
+    with pytest.raises(cleanup.CleanupError, match="does not map uniquely"):
+        cleanup.map_targets(f"{text}\n{text}\n".encode(), [target])
+
+
+def test_candidate_deletion_preserves_retained_bytes_order_and_newline() -> None:
+    before = (cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt").read_bytes() if (
+        cleanup.DEFAULT_RUN / "mrsMThatcher_before.txt"
+    ).exists() else (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
+    rows = cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)
+    _, mapped = cleanup.map_targets(before, rows)
+    after = cleanup.build_after_payload(before, mapped)
+    remove = {row["quote_id"] for row in rows}
+    expected = b"".join(row["raw"] for row in cleanup.source_records(before) if row["quote_id"] not in remove)
+    assert after == expected
+    assert after.endswith(b"\n") == before.endswith(b"\n")
+    assert len(cleanup.source_records(after)) == 620
+    assert len({row["quote_id"] for row in cleanup.source_records(after)}) == 619
+
+
+def test_atomic_write_replaces_complete_file(tmp_path: Path) -> None:
+    path = tmp_path / "source.txt"
+    path.write_bytes(b"before\n")
+    cleanup.atomic_write_bytes(path, b"after\n")
+    assert path.read_bytes() == b"after\n"
+    assert not list(tmp_path.glob(".source.txt.*"))
+
+
+def test_current_reduced_source_or_before_snapshot_has_expected_identity_partition() -> None:
+    source = cleanup.ROOT / cleanup.SOURCE_NAME
+    ids = {row["quote_id"] for row in cleanup.source_records(source.read_bytes())}
+    targets = {row["quote_id"] for row in cleanup.load_attribution_targets(cleanup.DEFAULT_REMEDIATION)}
+    assert len(ids) in {632, 619}
+    assert (len(ids & targets) == 13) if len(ids) == 632 else not (ids & targets)
+
+
+def test_six_unresolved_records_remain_source_retained_and_ineligible() -> None:
+    status = cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")
+    unresolved = set(status["unresolved_quote_ids"])
+    source_ids = {row["exact_quote_id"] for row in cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())}
+    contracts = cleanup.jsonl(cleanup.DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl")
+    confirmed = {row["quote_id"] for row in contracts if row.get("thatcher_attribution_status") == "confirmed_thatcher"}
+    assert len(unresolved) == 6
+    assert unresolved <= source_ids
+    assert not (unresolved & confirmed)
+
+
+def test_five_established_whitespace_aliases_are_preserved() -> None:
+    rows = cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
+    contracts = cleanup.jsonl(cleanup.DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl")
+    confirmed = {row["quote_id"] for row in contracts if row.get("thatcher_attribution_status") == "confirmed_thatcher"}
+    aliases = {
+        row["quote_id"]: row["exact_quote_id"]
+        for row in rows
+        if row["exact_quote_id"] in confirmed and row["quote_id"] != row["exact_quote_id"]
+    }
+    assert len(aliases) == 5
+
+
+def test_deployment_candidate_contains_only_confirmed_active_quotes_when_built() -> None:
+    path = cleanup.DEFAULT_RUN / "deployment_candidate/active_quote_manifest.json"
+    if not path.exists():
+        pytest.skip("deployment candidate not built yet")
+    active = cleanup.read_json(path)
+    shadow = cleanup.read_json(cleanup.DEFAULT_RUN / "deployment_candidate/semantic_veto_shadow_manifest.json")
+    tombstones = cleanup.read_json(cleanup.DEFAULT_RUN / "deployment_candidate/attribution_exclusion_tombstones.json")
+    active_ids = set(active["active_quote_ids"])
+    removed_ids = {row["quote_id"] for row in tombstones["records"]}
+    assert len(active_ids) == 613
+    assert not (active_ids & removed_ids)
+    assert shadow["quote_count"] == 613
+    assert {row["quote_id"] for row in shadow["pairs"].values()} == active_ids
+    assert all(
+        "non_thatcher_speaker_portrait_substitution" not in row.get("veto_reason_codes", [])
+        for row in shadow["pairs"].values()
+    )
+
+
+def test_unknown_category_is_total_and_explicit() -> None:
+    manifest = cleanup.read_json(cleanup.DEFAULT_REMEDIATION / "candidate_manifest_v3.json")
+    unknown = [row for row in manifest["records"].values() if row["decision"] == "unknown"]
+    counts = {}
+    for row in unknown:
+        category = cleanup.unknown_category(row)
+        counts[category] = counts.get(category, 0) + 1
+    assert sum(counts.values()) == len(unknown) == 272
+    assert "canonical_speaker_not_grounded" in counts
+
+
+def test_production_history_uses_quote_hashes_not_shifted_line_indices() -> None:
+    source = (cleanup.ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
+    assert "lines_used.add(quote_hash)" in source
+    assert "def normalise_quote_used_hashes" in source
+
+
+def test_production_regular_selector_has_completed_research_gate() -> None:
+    source = (cleanup.ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
+    assert "def completed_research_quote_hashes" in source
+    assert "research_ineligible_hashes" in source
+    assert "excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)" in source
+
+
+def test_completed_research_gate_yields_613_source_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    import mrsMThatcher2 as bot
+
+    monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", cleanup.RESEARCH_RUN / "research_packets.json")
+    completed = bot.completed_research_quote_hashes()
+    source_hashes = {
+        bot.quote_text_hash(row["text"])
+        for row in cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())
+    }
+    unresolved = set(
+        cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")["unresolved_quote_ids"]
+    )
+    assert len(source_hashes & completed) == 613
+    assert len(source_hashes - completed) == 6
+    assert unresolved == source_hashes - completed
+
+
+def test_no_network_or_provider_code_in_cleanup_tool() -> None:
+    source = (cleanup.ROOT / "quote_attribution_cleanup.py").read_text(encoding="utf-8")
+    forbidden = ("requests.", "httpx.", "google.genai", "openai", "anthropic", "xai")
+    assert not any(token in source.lower() for token in forbidden)
+
+
+def test_validator_queries_only_real_harness_columns() -> None:
+    connection = sqlite3.connect(f"file:{cleanup.HARNESS_RUN / 'simulation.sqlite3'}?mode=ro", uri=True)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(simulation_events)")}
+    connection.close()
+    assert {"quote_id", "production_image_hash", "mode"} <= columns
+    source = (cleanup.ROOT / "quote_attribution_cleanup.py").read_text(encoding="utf-8")
+    assert "SELECT quote_id,production_image_hash FROM simulation_events" in source
+
+
+def test_frozen_current_winner_manifest_covers_all_reduced_active_quotes() -> None:
+    path = cleanup.ROOT / "semantic_alignment_research/relation_aware_semantic_veto_002/production_top8_pair_candidates_v2_postrun_corrected.json"
+    rows = cleanup.read_json(path)["records"]
+    active_path = cleanup.DEFAULT_RUN / "deployment_candidate/active_quote_manifest.json"
+    if not active_path.exists():
+        pytest.skip("deployment candidate not built yet")
+    active = set(cleanup.read_json(active_path)["active_quote_ids"])
+    assert {row["quote_id"] for row in rows if row["quote_id"] in active} == active

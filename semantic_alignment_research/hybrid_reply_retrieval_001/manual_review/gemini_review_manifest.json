@@ -1,0 +1,253 @@
+{
+  "batch_size": 5,
+  "batches": [
+    {
+      "batch_id": "gemini-review-001",
+      "case_ids": [
+        "shadow-review-001-2071845062179184658",
+        "shadow-review-002-2071964217347883162",
+        "shadow-review-003-2077394632489705521",
+        "shadow-review-004-2073226751308648763",
+        "shadow-review-005-2077374435078689197"
+      ],
+      "estimated_input_tokens": 10820,
+      "prompt_sha256": "cf23fbee62928321f676d312cad51c07a13ff2bde835aa0ead281066eea7c5fc"
+    },
+    {
+      "batch_id": "gemini-review-002",
+      "case_ids": [
+        "shadow-review-006-2075522429074510038",
+        "shadow-review-007-2075134932746227734",
+        "shadow-review-008-2075634498604065278",
+        "shadow-review-009-2072611852001951841",
+        "shadow-review-010-2076355743566159875"
+      ],
+      "estimated_input_tokens": 5751,
+      "prompt_sha256": "e5b3de58db064caf90bd4068775e39be86b7403a356a1eeaf9d76842abcf9ab2"
+    },
+    {
+      "batch_id": "gemini-review-003",
+      "case_ids": [
+        "shadow-review-011-2072416075711475779",
+        "shadow-review-012-2073937957896012049",
+        "shadow-review-013-2072348373181452376",
+        "shadow-review-014-2073778200711192847",
+        "shadow-review-015-2077261276850610377"
+      ],
+      "estimated_input_tokens": 6636,
+      "prompt_sha256": "bd87bb0c673e7eab64b4a19f0a93e5eb96a97c9bb4e2972d06c32f1fdb54a6b0"
+    },
+    {
+      "batch_id": "gemini-review-004",
+      "case_ids": [
+        "shadow-review-016-2072677725626597643",
+        "shadow-review-017-2077391717389467952",
+        "shadow-review-018-2075932830983483670",
+        "shadow-review-019-2076817230201852209",
+        "shadow-review-020-2072596996494385570"
+      ],
+      "estimated_input_tokens": 14835,
+      "prompt_sha256": "a38575b48c42fb0c739c7eb3e67011ec86620f7dc75d80143c0d2beca3349615"
+    },
+    {
+      "batch_id": "gemini-review-005",
+      "case_ids": [
+        "shadow-review-021-2077079178847891937",
+        "shadow-review-022-2072372822609912129",
+        "shadow-review-023-2075661706290733251",
+        "shadow-review-024-2072042353121222832",
+        "shadow-review-025-2071906899256050015"
+      ],
+      "estimated_input_tokens": 11278,
+      "prompt_sha256": "b5a1514bc63d77aeca5f4741848b484429bed8550564f3e3000bf36f610a7b85"
+    },
+    {
+      "batch_id": "gemini-review-006",
+      "case_ids": [
+        "shadow-review-026-2073017105578967158",
+        "shadow-review-027-2076536022096380098",
+        "shadow-review-028-2073819291862835380",
+        "shadow-review-029-2071942401271226685",
+        "shadow-review-030-2077128719504707904"
+      ],
+      "estimated_input_tokens": 10385,
+      "prompt_sha256": "1fd420bcc625813923e6a3efb83d1d3450fc6221cbee6167bb0a61744998203f"
+    },
+    {
+      "batch_id": "gemini-review-007",
+      "case_ids": [
+        "shadow-review-031-2077373693160784280",
+        "shadow-review-032-2072851828882956321",
+        "shadow-review-033-2071943179494985853",
+        "shadow-review-034-2076139325687771232",
+        "shadow-review-035-2072383576255959126"
+      ],
+      "estimated_input_tokens": 11714,
+      "prompt_sha256": "ca3be71c59065f9b5968fa24b1615da0b8df948e12a07d12569925e181eb00d0"
+    },
+    {
+      "batch_id": "gemini-review-008",
+      "case_ids": [
+        "shadow-review-036-2077156577958613207",
+        "shadow-review-037-2075481893659611489",
+        "shadow-review-038-2072355951957475520",
+        "shadow-review-039-2073935667520770507",
+        "shadow-review-040-2071778569098056048"
+      ],
+      "estimated_input_tokens": 6892,
+      "prompt_sha256": "5a89017d04fcd180b1e2ef4b4e734bb4fb5d901c9a3c5c87e258407f39c3ae23"
+    },
+    {
+      "batch_id": "gemini-review-009",
+      "case_ids": [
+        "shadow-review-041-2076282467204395249",
+        "shadow-review-042-2073833766905171987",
+        "shadow-review-043-2076338296053989604",
+        "shadow-review-044-1925397645738012799",
+        "shadow-review-045-2075708197575217660"
+      ],
+      "estimated_input_tokens": 12490,
+      "prompt_sha256": "bc00d504bf546b649de7b5c624824672bdfd2da9d337cb1b305470853d1df780"
+    },
+    {
+      "batch_id": "gemini-review-010",
+      "case_ids": [
+        "shadow-review-046-2075729332878692788",
+        "shadow-review-047-2071867739409695037",
+        "shadow-review-048-2075254629089050837",
+        "shadow-review-049-2073583100819587388",
+        "shadow-review-050-2071877957899993561"
+      ],
+      "estimated_input_tokens": 13301,
+      "prompt_sha256": "cc45b5809a4297f4e8178280e36e7a12bdd08d46562d897a77408fbb2d2f5985"
+    },
+    {
+      "batch_id": "gemini-review-011",
+      "case_ids": [
+        "shadow-review-051-2071824597884764388",
+        "shadow-review-052-2076991235798040616",
+        "shadow-review-053-2075445315700691374",
+        "shadow-review-054-2073826588899061883",
+        "shadow-review-055-2073335888994611372"
+      ],
+      "estimated_input_tokens": 6483,
+      "prompt_sha256": "ac6e827a4c9ade6db0a5a24797a64a6989d3335c8762becdae41ddb99ec351da"
+    },
+    {
+      "batch_id": "gemini-review-012",
+      "case_ids": [
+        "shadow-review-056-2072988990756811241",
+        "shadow-review-057-2075209997462433858",
+        "shadow-review-058-2072363358611730652",
+        "shadow-review-059-2077361037599277246",
+        "shadow-review-060-2076995783354982779"
+      ],
+      "estimated_input_tokens": 6733,
+      "prompt_sha256": "222d8da8d678996935bd98dd5455ef7b8def13ec7b2337b60c5b3c511fec485f"
+    },
+    {
+      "batch_id": "gemini-review-013",
+      "case_ids": [
+        "shadow-review-061-2076770300306301133",
+        "shadow-review-062-2073062359728591054",
+        "shadow-review-063-2075722731731976345",
+        "shadow-review-064-2074913676675731762",
+        "shadow-review-065-2073002002343174253"
+      ],
+      "estimated_input_tokens": 13050,
+      "prompt_sha256": "888840d6de8458b782bbaae36321ba0e07b4eda9bb32949b608adf227c4fff1e"
+    },
+    {
+      "batch_id": "gemini-review-014",
+      "case_ids": [
+        "shadow-review-066-2076546794746413390",
+        "shadow-review-067-2077367799458967991",
+        "shadow-review-068-2076961554881192216",
+        "shadow-review-069-2071636422910505207",
+        "shadow-review-070-2074012382213677523"
+      ],
+      "estimated_input_tokens": 9427,
+      "prompt_sha256": "e943c90c22a20f1ff3ba49649f99cc0ad4bea9c6911f7443765cbec0dd46c6f4"
+    },
+    {
+      "batch_id": "gemini-review-015",
+      "case_ids": [
+        "shadow-review-071-2072369767134937465",
+        "shadow-review-072-2071750385182621727",
+        "shadow-review-073-2073630276475838785",
+        "shadow-review-074-2073616113594765661",
+        "shadow-review-075-2073112811622846819"
+      ],
+      "estimated_input_tokens": 6020,
+      "prompt_sha256": "1f6c9f10d782084a1abb6ef074217fce381bf5dda9793f03ce04c2fa16188799"
+    },
+    {
+      "batch_id": "gemini-review-016",
+      "case_ids": [
+        "shadow-review-076-2071803465207042202",
+        "shadow-review-077-2075196216871174347",
+        "shadow-review-078-2075969637611680229",
+        "shadow-review-079-2075983973532958822",
+        "shadow-review-080-2071754866477961644"
+      ],
+      "estimated_input_tokens": 5465,
+      "prompt_sha256": "40b096ca9a7a3cefa9b10a0725994ef04e897d110cdfd7d410a0814d2821212e"
+    },
+    {
+      "batch_id": "gemini-review-017",
+      "case_ids": [
+        "shadow-review-081-2075445268577759459",
+        "shadow-review-082-2072854398426927352",
+        "shadow-review-083-2071811510377066832",
+        "shadow-review-084-2071750563172061445",
+        "shadow-review-085-2076770032613310588"
+      ],
+      "estimated_input_tokens": 10703,
+      "prompt_sha256": "2f59dfa715c5140c49adf953ae8d2621e39e7c0b161e9a3f5e05dc12de4ef7ec"
+    },
+    {
+      "batch_id": "gemini-review-018",
+      "case_ids": [
+        "shadow-review-086-2075572727453208857",
+        "shadow-review-087-2075482138325942555",
+        "shadow-review-088-2077136984901050499",
+        "shadow-review-089-2071746481263132842",
+        "shadow-review-090-2075882071621501249"
+      ],
+      "estimated_input_tokens": 11870,
+      "prompt_sha256": "34eb94790cd4faf8d0838611f681403e6b19544a3023a3b581d5bc167cba8eff"
+    },
+    {
+      "batch_id": "gemini-review-019",
+      "case_ids": [
+        "shadow-review-091-2073622520780169243",
+        "shadow-review-092-2071697717382762915",
+        "shadow-review-093-2076961341865156984",
+        "shadow-review-094-2071850983345279315",
+        "shadow-review-095-2072959347898958333"
+      ],
+      "estimated_input_tokens": 6832,
+      "prompt_sha256": "c337d60eb2b873fe35871abb33e11317c79c67e3bce8add340ae93fd21e129a5"
+    },
+    {
+      "batch_id": "gemini-review-020",
+      "case_ids": [
+        "shadow-review-096-2076285591075901750",
+        "shadow-review-097-2072443568828956991",
+        "shadow-review-098-2071705969256546707",
+        "shadow-review-099-2072172601724567987",
+        "shadow-review-100-2073425817179496527"
+      ],
+      "estimated_input_tokens": 12428,
+      "prompt_sha256": "edef8c2818c28a1658c5204a5ee7a574b0ceafc8bead125799c726717e05d723"
+    }
+  ],
+  "blind_assignment_sha256": "c2014dc038765288cd0951ef33532046666c8eb67c33cce01f8fa5f08fdfe74f",
+  "case_count": 100,
+  "generated_at": "2026-07-15T18:59:35.311248Z",
+  "manifest_sha256": "77767bc274316e2bd902dbbd7d20105eb910a91bf748ede70a33aec416d9e061",
+  "model": "gemini-3.1-pro-preview",
+  "prompt_version": "retrieval-blind-gemini-review-v1",
+  "review_sample_sha256": "8dfc5eab7722feff7127b0d9180c366f5338061dc28c8591f0e81acbd51e9b3d",
+  "schema_version": 1
+}

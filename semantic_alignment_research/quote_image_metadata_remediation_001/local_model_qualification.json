@@ -1,0 +1,13 @@
+{
+  "api_fallback_required": true,
+  "cases_run": 0,
+  "generated_at": "2026-07-17T17:05:20.960984Z",
+  "model_downloaded": false,
+  "reason": [
+    "no supported GPU/accelerator detected",
+    "available RAM is below the 1.25x expected-peak safety margin",
+    "swap is already materially occupied"
+  ],
+  "schema_version": 1,
+  "status": "skipped_hardware_safety_gate"
+}

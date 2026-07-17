@@ -61,6 +61,22 @@ def write_minimal_asset_analysis(base_dir: Path) -> None:
             },
         },
     )
+    research_file = base_dir / "semantic_alignment_research/quote_research_full_001/research_packets.json"
+    research_file.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        research_file,
+        {
+            "schema_version": 1,
+            "items": {
+                quote_hash: {
+                    "quote_id": quote_hash,
+                    "quote_text": quote_text,
+                    "research_confidence": "high",
+                    "verification_status": "exact",
+                }
+            },
+        },
+    )
     write_json(base_dir / "quote_analysis_overrides.json", {"quote_overrides": {}})
     image_path = base_dir / "images" / "t01.jpg"
     image_hash = sha256_bytes(image_path.read_bytes())

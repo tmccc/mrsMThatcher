@@ -1,0 +1,15 @@
+{
+  "active_pid": null,
+  "developer_paused": false,
+  "direct_to_vertex_count": 0,
+  "fallback_enabled": true,
+  "finished_at": "2026-07-15T19:07:36.708489Z",
+  "model": "gemini-3.1-pro-preview",
+  "pause_reason": null,
+  "paused_at": null,
+  "run_active": false,
+  "schema_version": 1,
+  "started_at": "2026-07-15T18:59:50.060860Z",
+  "trigger_attempts": [],
+  "unresolved_batches": {}
+}

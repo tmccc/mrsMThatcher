@@ -40,6 +40,9 @@ def build_simulator_snapshot(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
     for name in static_files:
         (snapshot / name).symlink_to(ROOT / name)
+    (snapshot / "research_packets.json").symlink_to(
+        ROOT / "semantic_alignment_research/quote_research_full_001/research_packets.json"
+    )
     (snapshot / "images").symlink_to(ROOT / "images", target_is_directory=True)
     (snapshot / "generated_images").symlink_to(
         ROOT / "generated_review_approved_images",
@@ -133,6 +136,7 @@ def configure_real_selector(
         monkeypatch.setattr(bot, key, value)
     monkeypatch.setattr(bot, "LINES_FILE", snapshot / "mrsMThatcher.txt")
     monkeypatch.setattr(bot, "QUOTE_ANALYSIS_FILE", snapshot / "quote_analysis.json")
+    monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", snapshot / "research_packets.json")
     monkeypatch.setattr(bot, "IMAGE_ANALYSIS_FILE", snapshot / "image_analysis.json")
     monkeypatch.setattr(bot, "GENERATED_IMAGE_ANALYSIS_FILE", str(snapshot / "generated_image_analysis.json"))
     monkeypatch.setattr(bot, "IMAGE_GLOB", str(snapshot / "images" / "t*"))
@@ -286,6 +290,25 @@ def test_shadow_evaluation_does_not_consume_production_rng(
         bot.choose_regular_quote_image_pair(set(lines_used), set(images_used), copy.deepcopy(state))
     assert bot.random.getstate() == after_shadow
     assert selection["image"]["basename"]
+
+
+def test_exact_candidate_capture_supports_active_identity_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    simulator_snapshot: Path,
+) -> None:
+    state, images_used, lines_used = configure_real_selector(
+        monkeypatch, tmp_path, simulator_snapshot,
+    )
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", True)
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
+    bot.random.seed(8451)
+    quote = bot.choose_unused_line_candidate(lines_used)
+    result = sim.select_policy_image_with_recovery(
+        bot, quote, images_used, state, "production",
+    )
+    assert result["image"] in result["scored"]
+    assert result["selection_phase"] in {"normal", "forced_cycle_reset", "last_image_fallback"}
 
 
 def test_generated_spacing_transitions_match_production(monkeypatch: pytest.MonkeyPatch) -> None:

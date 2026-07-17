@@ -1,0 +1,8 @@
+{
+  "distinct_production_paths_read": 161,
+  "forbidden_write_attempt_count": 0,
+  "forbidden_write_attempts": [],
+  "production_paths_opened_for_writing": [],
+  "production_read_open_count": 161,
+  "schema_version": 1
+}

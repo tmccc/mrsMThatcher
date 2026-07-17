@@ -1,0 +1,10 @@
+{
+  "credentials_recorded": false,
+  "developer_configured": true,
+  "generated_at": "2026-07-17T19:39:36.599934Z",
+  "schema_version": 1,
+  "vertex_client_constructed": true,
+  "vertex_error": null,
+  "vertex_location": "global",
+  "vertex_project_configured": true
+}

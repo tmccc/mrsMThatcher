@@ -1219,8 +1219,9 @@ def calculate_cost(usage: dict[str, int], *, batch: bool) -> float:
 
 def maximum_cost(prompt: str, max_output_tokens: int, *, batch: bool) -> float:
     factor = BATCH_PRICE_FACTOR if batch else INTERACTIVE_PRICE_FACTOR
+    extra_input_tokens = int(getattr(prompt, "estimated_extra_input_tokens", 0) or 0)
     return round(factor * (
-        estimate_tokens(prompt) * PRICES["gemini"]["input"]
+        (estimate_tokens(prompt) + extra_input_tokens) * PRICES["gemini"]["input"]
         + max_output_tokens * PRICES["gemini"]["output"]
     ) / 1_000_000, 10)
 
@@ -2709,7 +2710,7 @@ class GeminiRelationClient:
         started = time.monotonic()
         response = self.client.models.generate_content(
             model=MODEL,
-            contents=prompt,
+            contents=getattr(prompt, "gemini_contents", prompt),
             config=self.config(schema, max_output_tokens),
         )
         elapsed = time.monotonic() - started
@@ -3113,7 +3114,7 @@ class DeveloperBatchRunner:
             requests_list = [
                 types.InlinedRequest(
                     model=MODEL,
-                    contents=item["prompt"],
+                    contents=getattr(item["prompt"], "gemini_contents", item["prompt"]),
                     metadata={"logical_call_id": item["logical_id"]},
                     config=self.router.developer.config(
                         item["schema"], item["max_output_tokens"], batch=True,

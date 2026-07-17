@@ -218,6 +218,7 @@ GENERATED_IDENTITY_SHADOW_SMALL_PENALTY = 6.0
 GENERATED_IDENTITY_SHADOW_STRONG_PENALTY = 15.0
 QUOTE_ANALYSIS_OVERRIDES_FILE = BASE_DIR / "quote_analysis_overrides.json"
 HISTORICAL_CONTEXT_RESEARCH_DIR = BASE_DIR / "semantic_alignment_research" / "quote_research_full_001"
+COMPLETED_QUOTE_RESEARCH_FILE = HISTORICAL_CONTEXT_RESEARCH_DIR / "research_packets.json"
 HISTORICAL_CONTEXT_REPLY_HISTORY_FILE = BASE_DIR / "historical_context_reply_history.json"
 HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE = BASE_DIR / "historical_context_reply_receipt.json"
 historical_context_reply = {
@@ -6169,11 +6170,45 @@ def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
     return lines, quote_analysis, current_datetime().strftime("%m-%d")
 
 
+def completed_research_quote_hashes() -> set[str]:
+    """Return production-canonical hashes for completed research packets."""
+    payload = load_json_object(COMPLETED_QUOTE_RESEARCH_FILE, label="completed quotation research")
+    if payload is None:
+        raise RuntimeError(
+            f"Completed quotation research unavailable; refusing regular quote posting: {COMPLETED_QUOTE_RESEARCH_FILE}"
+        )
+    items = payload.get("items") if isinstance(payload, dict) else None
+    if not isinstance(items, dict) or not items:
+        raise RuntimeError(
+            f"Completed quotation research is invalid; refusing regular quote posting: {COMPLETED_QUOTE_RESEARCH_FILE}"
+        )
+    result: set[str] = set()
+    for packet_id, packet in items.items():
+        if not isinstance(packet, dict):
+            raise RuntimeError(f"Completed quotation research packet is invalid: {packet_id}")
+        text = str(packet.get("quote_text") or "")
+        if not text or str(packet.get("quote_id") or packet_id) != str(packet_id):
+            raise RuntimeError(f"Completed quotation research packet identity is invalid: {packet_id}")
+        exact_id = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        if exact_id != str(packet_id):
+            raise RuntimeError(f"Completed quotation research packet text hash is invalid: {packet_id}")
+        result.add(quote_text_hash(text))
+    return result
+
+
 def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> list[dict]:
     log.debug("Choosing unused line. Already used=%d", len(lines_used))
 
     lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
     hashes_by_line = current_quote_hashes_by_line(lines)
+    completed_hashes = completed_research_quote_hashes()
+    research_ineligible_hashes = set(hashes_by_line.values()).difference(completed_hashes)
+    excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)
+    if research_ineligible_hashes:
+        log.info(
+            "Excluded %d source quotation(s) without completed canonical research packets",
+            len(research_ineligible_hashes),
+        )
     available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
 
     log.debug("Available unused lines=%d", len(available_lines))

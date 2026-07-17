@@ -1,0 +1,22 @@
+{
+  "additional_invalidated_modes": {
+    "pilot_monte_carlo": 20,
+    "seasonal_boundary_stress": 3510
+  },
+  "after": {
+    "checkpoints": 0,
+    "events": 0
+  },
+  "before": {
+    "candidate_sets": 194923,
+    "checkpoints": 50,
+    "events": 194923,
+    "runs": 4
+  },
+  "corrected_at": "2026-07-17T13:32:58.594441Z",
+  "old_summary_sha256": "71cb9cf9df6c9313503b7ddc0941f2040bdac15359c98b3a984d546a769d0b93",
+  "production_files_modified": [],
+  "reason": "Current-production quote history filtered canonical research IDs instead of the five proven production whitespace aliases; three used runtime IDs were dropped.",
+  "schema_version": 1,
+  "scope": "isolated monte_carlo events/checkpoints only"
+}

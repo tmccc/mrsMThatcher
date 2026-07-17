@@ -1,0 +1,155 @@
+{
+  "ally_enemy_failures": 0,
+  "case_count": 5,
+  "failures": [],
+  "passed": true,
+  "records": {
+    "01041f47f42942c9e7aa79468b724e7d90fb97946c70aba79631feee2ca465d7": {
+      "confidence": "high",
+      "contradiction_types": [
+        "insufficient_actor_count",
+        "missing_relationship_evidence",
+        "missing_transition"
+      ],
+      "cost_usd": 0.007928,
+      "decision": "veto",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "Formal studio portrait of Margaret Thatcher.",
+      "final_decision": "veto",
+      "final_reason": "model_veto_or_uncertainty",
+      "image_id": "original:t01.jpg",
+      "logical_call_id": "v3-first-2c16ce452b28-000-8d1a9f328ce6",
+      "materially_misleading": true,
+      "pair_id": "01041f47f42942c9e7aa79468b724e7d90fb97946c70aba79631feee2ca465d7",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "reason": "The quote requires a multi-person image demonstrating a relationship transformation from enemy to friend, but the image is a single-person neutral portrait.",
+      "relationship_supported": "no",
+      "transport": "developer_api_batch",
+      "usage": {
+        "cached_tokens": 0,
+        "input_tokens": 2684,
+        "output_tokens": 294,
+        "thinking_tokens": 580
+      }
+    },
+    "327a77ccabba2c6605c4d6f20b6a83366a81bfa952c539df9c649eb3f34d3219": {
+      "confidence": "high",
+      "contradiction_types": [
+        "ally_adversary_confusion",
+        "missing_transition"
+      ],
+      "cost_usd": 0.007001,
+      "decision": "veto",
+      "deterministic_contradictions": [
+        {
+          "detail": "Source-grounded allies cannot depict the required adversarial starting relationship.",
+          "rule": "ally_adversary_confusion"
+        },
+        {
+          "detail": "A routine allied relationship affirmatively tells the wrong transformation story.",
+          "rule": "missing_transition"
+        }
+      ],
+      "dominant_visual_message": "Margaret Thatcher and Ronald Reagan, established allies, posing together.",
+      "final_decision": "veto",
+      "final_reason": "deterministic_contradiction",
+      "image_id": "discovered:0b15f11312a31033907d",
+      "logical_call_id": "v3-first-52b43a3e0d9a-000-bd10a7e5e722",
+      "materially_misleading": true,
+      "pair_id": "327a77ccabba2c6605c4d6f20b6a83366a81bfa952c539df9c649eb3f34d3219",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "reason": "The image depicts established allies, which contradicts the quote's requirement for an adversarial relationship or a transition from enemy to friend.",
+      "relationship_supported": "no",
+      "transport": "developer_api_batch",
+      "usage": {
+        "cached_tokens": 0,
+        "input_tokens": 2963,
+        "output_tokens": 302,
+        "thinking_tokens": 371
+      }
+    },
+    "b1eab36a9f74ac1c25c2a91ef549ec34d247790f3eefe94f2ff1dd31c7483723": {
+      "confidence": "high",
+      "contradiction_types": [
+        "none"
+      ],
+      "cost_usd": 0.007409,
+      "decision": "allow",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "Margaret Thatcher waving to a crowd of media and police in an outdoor setting.",
+      "final_decision": "allow",
+      "final_reason": "model_allow_no_deterministic_conflict",
+      "image_id": "original:t35.jpg",
+      "logical_call_id": "v3-first-ff3f0e8fd7c6-000-f9599b1b4fe2",
+      "materially_misleading": false,
+      "pair_id": "b1eab36a9f74ac1c25c2a91ef549ec34d247790f3eefe94f2ff1dd31c7483723",
+      "quote_id": "8e201b015ae260e8f05dde687bc5b813ae2ec92d5dfa9742e2ab62a875d67975",
+      "reason": "The image shows Margaret Thatcher in a public political setting, which provides a suitable non-contradictory illustration for her general political statement about an election.",
+      "relationship_supported": "not_required",
+      "transport": "developer_api_batch",
+      "usage": {
+        "cached_tokens": 0,
+        "input_tokens": 2723,
+        "output_tokens": 281,
+        "thinking_tokens": 500
+      }
+    },
+    "e374c22fe6fb2029572ba2c9a9d5d74dd974218c269e00c443a0fa97ef8a5541": {
+      "confidence": "high",
+      "contradiction_types": [
+        "wrong_event"
+      ],
+      "cost_usd": 0.006334,
+      "decision": "veto",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "Margaret Thatcher smiling and gesturing outdoors.",
+      "final_decision": "veto",
+      "final_reason": "model_veto_or_uncertainty",
+      "image_id": "original:t33.jpg",
+      "logical_call_id": "v3-first-2468c1ee08aa-000-7e362b538e89",
+      "materially_misleading": true,
+      "pair_id": "e374c22fe6fb2029572ba2c9a9d5d74dd974218c269e00c443a0fa97ef8a5541",
+      "quote_id": "c748bcf2c3e7304875dbeebc43d02084393225e0ca9c48a668375c1d276751e7",
+      "reason": "The quote contract strictly requires an image of the Statement to the House of Commons on the Falkland Islands and forbids neutral portraits, but the image is an outdoor portrait.",
+      "relationship_supported": "not_required",
+      "transport": "developer_api_batch",
+      "usage": {
+        "cached_tokens": 0,
+        "input_tokens": 2746,
+        "output_tokens": 285,
+        "thinking_tokens": 313
+      }
+    },
+    "e9a14256da1de460ef0ede623e3e90e05ead43135ded9bda7e265256e71ce79e": {
+      "confidence": "high",
+      "contradiction_types": [
+        "none"
+      ],
+      "cost_usd": 0.007491,
+      "decision": "allow",
+      "deterministic_contradictions": [],
+      "dominant_visual_message": "Margaret Thatcher and Mikhail Gorbachev smiling together during a diplomatic visit.",
+      "final_decision": "allow",
+      "final_reason": "model_allow_no_deterministic_conflict",
+      "image_id": "discovered:62fe0c8d105bf2ad7c95",
+      "logical_call_id": "v3-first-f271019f2226-000-5027492fe966",
+      "materially_misleading": false,
+      "pair_id": "e9a14256da1de460ef0ede623e3e90e05ead43135ded9bda7e265256e71ce79e",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "reason": "The image depicts Margaret Thatcher and Mikhail Gorbachev, whose documented relationship transitioned from adversaries to partners, perfectly illustrating the quote's theme of turning an enemy into a friend.",
+      "relationship_supported": "yes",
+      "transport": "developer_api_batch",
+      "usage": {
+        "cached_tokens": 0,
+        "input_tokens": 3087,
+        "output_tokens": 292,
+        "thinking_tokens": 442
+      }
+    }
+  },
+  "schema_complete": true,
+  "schema_version": 1,
+  "unsupported_identity_assertions": 0,
+  "unsupported_relationship_assertions": 0,
+  "wrong_counterparty_failures": 0
+}

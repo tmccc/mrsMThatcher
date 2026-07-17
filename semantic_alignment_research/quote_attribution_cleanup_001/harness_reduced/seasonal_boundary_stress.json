@@ -1,0 +1,41 @@
+{
+  "alternative_score_loss_max": null,
+  "alternative_score_loss_median": null,
+  "alternative_score_loss_p95": null,
+  "distinct_boundaries": 78,
+  "distinct_images_selected": 17,
+  "distinct_quotations": 23,
+  "forced_whitespace_analysis_alias_event_count": 0,
+  "generated_image_share": 0.0,
+  "globally_no_safe_quotation_count": 1,
+  "image_cycle_reset_count": 0,
+  "image_repetition_count": 0,
+  "known_pair_count": 3159,
+  "known_pair_coverage": 0.9,
+  "mode": "seasonal_boundary_stress",
+  "no_candidate_event_count": 0,
+  "no_safe_image_count": 459,
+  "production_editorial_disagreement_count": 0,
+  "production_editorial_disagreement_rate": 0.0,
+  "quote_cycle_reset_count": 0,
+  "quote_repetition_count": 0,
+  "schema_version": 1,
+  "seasonal_state_coverage": 13,
+  "selection_errors": 0,
+  "semantic_veto_count": 108,
+  "semantic_veto_rate": 0.03076923076923077,
+  "semantic_veto_status_counts": {
+    "allow": 3051,
+    "unknown_unjudged": 351,
+    "veto": 108
+  },
+  "total_simulations": 3510,
+  "veto_lookup_latency_ms_max": 0.227738,
+  "veto_lookup_latency_ms_p50": 0.061993999999999994,
+  "veto_lookup_latency_ms_p95": 0.08185474999999999,
+  "veto_reason_counts": {
+    "wrong_named_entity": 108
+  },
+  "vetoes_with_alternatives": 0,
+  "vetoes_without_alternatives": 108
+}

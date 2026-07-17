@@ -1,0 +1,215 @@
+{
+  "count": 42,
+  "records": [
+    {
+      "pair_id": "374f17ca33c4ecaeb1474b0cafcba750236f4a9d80a86b8edcc9b7da7ab20a48",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "e1be9b3dbdc70e7c670b9c05c41bcec407949d4de82f6f0c13b68dd4e7184874"
+    },
+    {
+      "pair_id": "420e0f903f7c70a49e922d8656ae8512ef20b0ed07f70571eb281576bd85b70c",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "800a37f2cba052883dc1ad188103d96c7f180d7f9340556c3070aee830584e9d"
+    },
+    {
+      "pair_id": "892780be4709627e705dbb2c8f3184fdc3741e68993e456eac59e55ad30d5d9b",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "e6bad4743499ba3899a2314ea75567c7052bf5ad18bc98d45b3a007dda3672fe"
+    },
+    {
+      "pair_id": "0b19e4c386751707f2da9f5094846756a161e426821259b4b6ab477c51f21d52",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "581d3076f11610ae40a3dfa94d50f1635da757454902a6d84ffd7e5a6af7790c"
+    },
+    {
+      "pair_id": "a59191e5a0479cc2ab53a17c4c1c7d2bfb882b99bfb66336a6380288067e9f7b",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "d57690e367d3508e8f6e8688e41bb211bdee19ff30caf87b9b8ad8e5056fe5da"
+    },
+    {
+      "pair_id": "1e5c1b26b534b7362e23a2d5eb4cc93e76e62998411c82829d65609ce6610937",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "0d0f064aee106742495c1c6b617abb986034316a8c75bee73992c08bb464f616"
+    },
+    {
+      "pair_id": "ee8e2e80c49109b77363dc7390d3738b97297d3cf0cb1ee99ee8f0485e54fa40",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "efa8099119ec5d3d59db24602792ad5ac335ff0e74d32b87cb0632e531873d67"
+    },
+    {
+      "pair_id": "8fc30bf0d0f049bfbc5bae0741367e9183c6481411a707c56158c99aacea0226",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "593664e70a6419b4cba104d95d8156a2e6e87967953fe1bf0a5ee3b9ab49d1df"
+    },
+    {
+      "pair_id": "83ee84c4304efd24c4b76d30afee07a17bcdcc203604ab39e2e3816ed61d116e",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "69e22d4b2f679d5a2312df7fe56103a9ca34674145a5939df6693e30492089fe"
+    },
+    {
+      "pair_id": "2692fabdb1fba7716294915204cd749232569662007eac1fbf39185c0c330ac6",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "738adb9ab9f0caab65618f5ad55f0a354f09a37086c393ea7b9da2154d4e36fc"
+    },
+    {
+      "pair_id": "b1eab36a9f74ac1c25c2a91ef549ec34d247790f3eefe94f2ff1dd31c7483723",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "cec22f4dab4d7b5d8bd511925374ca90387a00dbe6da8ecd1cb4f13794a75a1e"
+    },
+    {
+      "pair_id": "e4d7af81190488c936af9f5c793b974e5d5a36305275f1daacc2e775beefacd4",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "3ec0e995bb2e827770c5ba1f1e11204cfb8a09ce69cf93bb831d75acfa93c684"
+    },
+    {
+      "pair_id": "9a5f964580f08d41822f4a036ae7436bcfcd2107336fbe81b8ed24e6c1f79982",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "7c72302965164e2f5bcacd7414d7cf64d889a44b875ba894c1fd6ae56c5ff5ed"
+    },
+    {
+      "pair_id": "e2230b7ebc29df729ddc346d9a611c3c3a14d5f09dddd031621dc3f38e141438",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "24bdc65407be7bb71118d03bf30094b08490897a3ef527510fdc72480d36eff8"
+    },
+    {
+      "pair_id": "adb2a5c4fe34dba1a0c162fa0c487ca07d1c81eb5f59fcdb2ade1fee619a77dc",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "0e5cdfb05365f2ad28cdcf0e5f2f738886614a068395bb9cc29770bc6d0fb712"
+    },
+    {
+      "pair_id": "a7a78872c48401f4637db1523f25828fce83060cd7e1796666ba7da4d121902f",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "32d3ac1ca74ee5d2692da5b47e9b4756474969587dbce71c87b7127468280738"
+    },
+    {
+      "pair_id": "20bf7a8713efbbe2848daf034b3c9a84d52cf3061fe21fcd747c63c9516a02e4",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "4a95ba65c185ab1ff69728b3f6b414f7b108810636519738c169a55850aa5d6a"
+    },
+    {
+      "pair_id": "ae61bd02090296ca2d57163c5544e7a51e97513e34955cf2cfd7dee3d0663144",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "ffb0c7ecfb7811f15d2914bafa9f33ef09a058995d004712b56f02a6e7b8ad1d"
+    },
+    {
+      "pair_id": "c058ed6fea23b43bb345b5ad66067ffa5e9aceaf6d65b0cbb2da5f951558ccf7",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "8c12c799abc17d5d4d9d6e92264dc076f1055826c0cca5654777e71ed886bd1b"
+    },
+    {
+      "pair_id": "ae310e9886fb48561284fd23bbd420aa69db06ea65f8ff06f9c8fb64596f44ea",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "9a2bcf24efa6932699c629a2cd369973baaae61a77f8150697e5bab039cb53ca"
+    },
+    {
+      "pair_id": "8689b1d57803207ec3048f527ddc2a657737c5ea34dbfaa08390dca5d3d3c859",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "b38b3e9a73b6e1e3efe2072ad164d9a6d8913fed95b766e6359fe7ab6201a4a2"
+    },
+    {
+      "pair_id": "49bc7f03f9d384ae4772b57e7666e3051e9eb71c05237e2c6816222a75985ec1",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "8432ae4cb5a9e40d4b2c2fd4229a86c8970211da7f11e76e10459f8d7cdd25fd"
+    },
+    {
+      "pair_id": "d7948235491930dc38b48f5cc3c4ed56f474bedb23b9d48d4ceac48d8144e60b",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "b4931c0b9e1c07c1ecac36c3fb02f6664ebca1d829b6a8c3bc5ff2834b007c33"
+    },
+    {
+      "pair_id": "b1d91de530353c4e01a2659c6c755e6d02582451f672f0a751a90b94d807dc91",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "4d8262871e52aa357a9a6623c5eb88e996c8126065784768ef12df640c69c022"
+    },
+    {
+      "pair_id": "944915d9474f48354056b5eae423dbc558d821ce13e89cfdaf9693279631d115",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "a1f6e92cd5995489450a9f64406c0c204a28f20c285b5e709f3b0d513088d171"
+    },
+    {
+      "pair_id": "5c6b2f4b2d053436048f38f7e766997f6ce46c9d0bb6c5baaf08c479a6cfb228",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "deafc57e98eab3632fc8e444c85d079f674ca88fb34a61a57ec8fd583d1d72d9"
+    },
+    {
+      "pair_id": "0a2f5125795b6441f785ffce154d0bd0599d442b43be5a63ce8261143726a5c4",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "1ace84747375e06dcfc26bd0bfd09f8243eed1d5e29d6b2f9a24315aee9149d3"
+    },
+    {
+      "pair_id": "9b3c56d8ec723c420209c0a565b5f8e276a6f5c3b8a4d65af059162a8c4ee365",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "fafd8fcd8a65c213087052279781dcd76b657b36c91fb6c5eed80b621a519795"
+    },
+    {
+      "pair_id": "b6ffc5e7e0b95e10960cb712b5513a98c85203c548272c988400233b384a98aa",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "853fece5dfbcb6f2a76f08d0302ace2f248f2b48613ff5868a6799700c86bc52"
+    },
+    {
+      "pair_id": "a7b5c690a748362f60f7849076108a574c23e3333611c9ce2f465ebb0317d9dc",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "baea7a044f3417b9602b064261432aea2d21b5357feb5ce7a33605f6ad106dc0"
+    },
+    {
+      "pair_id": "eebee47a459eaa8e0d41f43b62b145f0312641bf1e8742d29e4958232542693c",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "5ea3f83fc2d86af3ddc47873830eae42b632d1e9211cf71e8ceb97deb0c92693"
+    },
+    {
+      "pair_id": "62bb90540f43961ba202bee226bed4442919be5afd3db1e6fb35b87ea25afce2",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "8e0ef091e54aa688ca02de4d21856582dd9380af1869301248db8ae28fec24f3"
+    },
+    {
+      "pair_id": "32ef37a24c4c73489c2dbe9c9153dd7287c92231709776f49d6f6a44753c44f0",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "1ff7ce8a06f4e04f1d5e070c9c08b7e498e129febb5956546dd994f61978bba4"
+    },
+    {
+      "pair_id": "b655eaae62e574371686fa8cc0b8f76b48ea50dbd4e18cb7f12adf7ea1cb6839",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "236dcdfb6781e9d2b9a5f42808450ca10b68928d263c886501fbd92fed08594a"
+    },
+    {
+      "pair_id": "c7a3d70dff64bdd8c8505aba0d80fc6024829155e16182dadc10d0d253950c51",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "2bfb1b9f3f19558ce7f357458488b37b0a10b52cdcdf9c86772522968904f051"
+    },
+    {
+      "pair_id": "4567a7228582de61b180e3fe3f9a309d72e8ca9ac7746414fc743a39bdc5ca42",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "26d2be9db73b043e18cacd97ff3f32ec5c5865eeb64f56a2255e43061cbc50e4"
+    },
+    {
+      "pair_id": "3acd644e0477c166d71239845e3cb9980c7875fd84c32ab7efec75bdafe259ab",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "4fe5f79b063abaeab20d8e5d8923a27b63f595d3f93bd8816eab999e193f2bdd"
+    },
+    {
+      "pair_id": "8f22217e57aee0044f5973cc0e54af95bd0bdcd87e0269c9261927bb036234bd",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "6befbb600086be27c63d0e94e8ddc08d6888916d88420e23e83721494f1bffcc"
+    },
+    {
+      "pair_id": "a51ab5405acd2a9dda50ea6f0e570015f5b1e166e2bd0ed649ac6b69920be62a",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "08e06d81f307d7d44db4932d33e91227cb7048f85cdbe1545d831d897712b410"
+    },
+    {
+      "pair_id": "fa4f6bfc84c16078d6f957492e77bb99928aae2a6edc7c560efee944950914c6",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "5e64879115c3fb15188cd01c0c48f5f05e979e7f1c1facf5d1b2252bb5ef6d6e"
+    },
+    {
+      "pair_id": "5dfceb111b8e33718276061f2a911c52e8ab13ca80d373a4e8025465a04d7ec2",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "684c9152531dcf3b9f649cccf8efffbd6159396abe97544928c55ed522b54d45"
+    },
+    {
+      "pair_id": "6b57add9fdc829927ef198b19cde38b2fbc7f1ab3354868b768eba048d02af19",
+      "reason": "pair_verdict_stale_after_contract_change",
+      "source_pair_id": "97dc26a0c7c400a6dc5fb3960d97c42b6b4be799f25297d7760c8a2cc9978eeb"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "compatible_categorical_agreement": null,
+  "critical_safety_differences": null,
+  "deterministic_conflicts": 0,
+  "exact_agreement": null,
+  "gemini_only_errors": null,
+  "gemini_pilot_cases": 5,
+  "generated_at": "2026-07-17T19:50:48.798517Z",
+  "interpretation": "No local-versus-Gemini accuracy comparison is claimed because the local model was not safe to run on this NAS.",
+  "local_latency": null,
+  "local_memory": null,
+  "local_model_cases": 0,
+  "local_only_errors": null,
+  "schema_version": 1,
+  "status": "local_model_not_run_hardware_safety_gate",
+  "unsupported_identity_assertions": 0,
+  "unsupported_relationship_assertions": 0
+}

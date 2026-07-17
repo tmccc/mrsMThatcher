@@ -1,0 +1,65 @@
+{
+  "items": {
+    "shadow-review-001-2071845062179184658": {
+      "case_id": "shadow-review-001-2071845062179184658",
+      "choice": "no_historical_evidence",
+      "intervention": "no_reply_preferable",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:35:32.056818Z",
+      "revision": 1
+    },
+    "shadow-review-002-2071964217347883162": {
+      "case_id": "shadow-review-002-2071964217347883162",
+      "choice": "no_historical_evidence",
+      "intervention": "humour_preferable",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:36:48.900265Z",
+      "revision": 1
+    },
+    "shadow-review-003-2077394632489705521": {
+      "case_id": "shadow-review-003-2077394632489705521",
+      "choice": "no_historical_evidence",
+      "intervention": "humour_preferable",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:37:13.536591Z",
+      "revision": 1
+    },
+    "shadow-review-004-2073226751308648763": {
+      "case_id": "shadow-review-004-2073226751308648763",
+      "choice": "insufficient_context",
+      "intervention": "",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:37:41.395378Z",
+      "revision": 1
+    },
+    "shadow-review-005-2077374435078689197": {
+      "case_id": "shadow-review-005-2077374435078689197",
+      "choice": "no_historical_evidence",
+      "intervention": "researched_principle",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:39:03.509966Z",
+      "revision": 1
+    },
+    "shadow-review-006-2075522429074510038": {
+      "case_id": "shadow-review-006-2075522429074510038",
+      "choice": "no_historical_evidence",
+      "intervention": "no_reply_preferable",
+      "note": "",
+      "packet_ratings": {},
+      "reason_tags": [],
+      "reviewed_at": "2026-07-15T18:39:23.408100Z",
+      "revision": 1
+    }
+  },
+  "schema_version": 2
+}

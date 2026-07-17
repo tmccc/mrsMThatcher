@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-07-17T14:12:56.067617Z",
+  "records": {
+    "candidate_pair_manifest": {
+      "reused": true,
+      "sha256": "b8f58f1f5b8e149760cf119f6e55d91db98480febb8b5f6584957ca2aafbbc4c",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/production_top8_pair_candidates_v2_postrun_corrected.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/production_top8_pair_candidates_v2_postrun_corrected.json"
+    },
+    "corrected_evaluation": {
+      "reused": true,
+      "sha256": "2e929c043bbff79c5590d5d1227da4211a84750bdbf3def61f41a7e6ee17e7c7",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_evaluation_postrun_corrected.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_evaluation_postrun_corrected.json"
+    },
+    "corrected_final_status": {
+      "reused": true,
+      "sha256": "e57d7890b4369c62f3fdea90bde2aee7ee7578d63edd88f81d7a838ff6451e23",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_status_postrun_corrected.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_status_postrun_corrected.json"
+    },
+    "correction_audit": {
+      "reused": true,
+      "sha256": "42c6d850f79bb410e6bcd7fc878e3bdf14567702ccc524fb282c21f642a81aed",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/v2_postrun_correction_audit.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/v2_postrun_correction_audit.json"
+    },
+    "image_contracts": {
+      "reused": true,
+      "sha256": "d3e0f92f665200f5d3e7c76cc90b5dbc6d069cd45148e6b00ea3ea0db22b3115",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/attested_image_corpus_manifest_postrun_corrected.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/attested_image_corpus_manifest_postrun_corrected.json"
+    },
+    "image_corpus": {
+      "reused": true,
+      "sha256": "251cc8e1f3054c7042ae1d1969f58ca057470ce72e62f74be0f4e70e2dc23c17",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_001/image_corpus_manifest.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_001/image_corpus_manifest.json"
+    },
+    "pair_decisions": {
+      "reused": true,
+      "sha256": "44e5c22053b332c92f3a863f0fee19967cb8a8a6fc2f13d77a4bb53aea47d064",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/pair_judgements_v2_postrun_corrected.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/pair_judgements_v2_postrun_corrected.json"
+    },
+    "quotation_corpus": {
+      "reused": true,
+      "sha256": "3af44e85fa2259e50d049210ca7152817eb9f2bd1e267837afbfb5eb98eb14c1",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_001/quote_corpus_manifest.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_001/quote_corpus_manifest.json"
+    },
+    "quote_contracts": {
+      "reused": true,
+      "sha256": "4ac5e3093224519864759554fdb8339bdecc7806fa3eae858535db577763dc96",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_002/semantic_contracts_v2.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/semantic_contracts_v2.json"
+    },
+    "run_manifest": {
+      "reused": true,
+      "sha256": "44076a13aef1ce92a520d8727325e363e48e6a173660b08e8212d08c1b65ce70",
+      "snapshot_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_selection_harness_001/runtime/replay_project/semantic_alignment_research/relation_aware_semantic_veto_001/run_manifest.json",
+      "source_path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_001/run_manifest.json"
+    }
+  },
+  "schema_version": 1,
+  "source_manifest_sha256": "3e08320ffa8955e4bbad46444077ee0726e49dee90c29874a81cc872eb3751b0"
+}

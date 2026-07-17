@@ -1,0 +1,19 @@
+{
+  "changed_image_count": 0,
+  "changed_quote_count": 55,
+  "decision_counts": {
+    "allow": 18036,
+    "unknown": 508,
+    "veto": 223
+  },
+  "deterministic_count": 14423,
+  "invalidated_count": 42,
+  "monte_carlo_weighted_counts": {
+    "allow": 186965,
+    "unknown": 3974,
+    "veto": 3994
+  },
+  "pair_count": 18767,
+  "residual_count": 508,
+  "reused_count": 3836
+}

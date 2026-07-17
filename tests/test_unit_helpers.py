@@ -56,6 +56,15 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+    monkeypatch.setattr(
+        bot,
+        "completed_research_quote_hashes",
+        lambda: {
+            bot.quote_text_hash(line)
+            for line in Path(bot.LINES_FILE).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        },
+    )
 
 
 def quote_analysis_for_lines(lines: list[str], analyses: dict[int, dict] | None = None) -> dict:

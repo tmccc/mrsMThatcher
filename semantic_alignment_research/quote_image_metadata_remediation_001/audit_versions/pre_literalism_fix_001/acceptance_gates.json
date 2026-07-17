@@ -1,0 +1,297 @@
+{
+  "current_winner_counts": {
+    "allow": 608,
+    "veto": 18
+  },
+  "full_corpus_summary": {
+    "alternative_scope_note": "Alternatives are restricted to scored v2 research candidates confirmed allow by v3.",
+    "alternative_score_loss_max": 33.51433914833873,
+    "alternative_score_loss_median": 3.4683503111768275,
+    "alternative_score_loss_p95": 33.51433914833873,
+    "decision_counts": {
+      "allow": 47834,
+      "unknown": 18,
+      "veto": 976
+    },
+    "distinct_images_selected": 51,
+    "distinct_quotations": 626,
+    "known_pair_count": 48810,
+    "known_pair_coverage": 0.9996313590562792,
+    "mode": "full_corpus_sweep",
+    "quotations_with_no_allowed_observed_image": 4,
+    "semantic_veto_count": 976,
+    "semantic_veto_rate": 0.019988531170639798,
+    "total_simulations": 48828,
+    "unknown_production_winner_rate": 0.00036864094372081595,
+    "veto_reason_counts": {
+      "required_relationship_not_source_grounded": 60
+    },
+    "vetoes_with_research_candidate_alternatives": 599,
+    "vetoes_without_research_candidate_alternatives": 377
+  },
+  "gates": {
+    "authorised_historical_image_contracts": {
+      "actual": 91,
+      "passed": true,
+      "required": 91
+    },
+    "combined_api_exposure_usd": {
+      "actual": 4.818918999999999,
+      "passed": true,
+      "required_maximum": 100.0
+    },
+    "completed_quotation_contracts": {
+      "actual": 626,
+      "passed": true,
+      "required": 626
+    },
+    "critical_ally_enemy_failures": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "current_production_winners_known": {
+      "actual": 1.0,
+      "counts": {
+        "allow": 608,
+        "veto": 18
+      },
+      "passed": true,
+      "required": 1.0
+    },
+    "human_pairing_decisions_required": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "production_files_modified": {
+      "actual": 0,
+      "changed": [],
+      "passed": true,
+      "required": 0
+    },
+    "production_selection_invariant_failures": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "seasonal_boundary_winners_known": {
+      "actual": 1.0,
+      "passed": true,
+      "required": 1.0
+    },
+    "simulator_network_calls": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "source_date_only_visual_restrictions": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "stateful_unknown_winner_rate": {
+      "actual": 0.000959303965978054,
+      "passed": true,
+      "required_maximum": 0.01
+    },
+    "stateful_weighted_winner_coverage": {
+      "actual": 0.9990406960340219,
+      "passed": true,
+      "required": 0.99
+    },
+    "unknown_pairs_treated_as_safe": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "unresolved_quotations_included": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "unsupported_participant_identities": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "unsupported_relationships": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    },
+    "wrong_counterparty_failures": {
+      "actual": 0,
+      "passed": true,
+      "required": 0
+    }
+  },
+  "generated_at": "2026-07-17T19:21:53.381925Z",
+  "generated_profiles": {
+    "generated_at": "2026-07-17T19:21:52.913099Z",
+    "network_calls": 0,
+    "note": "Generated images remain outside the historical-photo semantic manifest.",
+    "production_configuration_changed": false,
+    "profiles": [
+      {
+        "cycle_boundary": false,
+        "generated_candidate_eligible_by_spacing": false,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "cross_quote_policy_applies",
+        "no_valid_candidate": true,
+        "origin_quote_match": false,
+        "original_posts_since_generated": 1,
+        "production_generated_pool_enabled": false,
+        "profile": "generated_spacing_blocked",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": false,
+        "generated_candidate_eligible_by_spacing": true,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "cross_quote_policy_applies",
+        "no_valid_candidate": false,
+        "origin_quote_match": false,
+        "original_posts_since_generated": 2,
+        "production_generated_pool_enabled": false,
+        "profile": "generated_spacing_exactly_satisfied",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": false,
+        "generated_candidate_eligible_by_spacing": true,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "origin_quote_match",
+        "no_valid_candidate": false,
+        "origin_quote_match": true,
+        "original_posts_since_generated": 2,
+        "production_generated_pool_enabled": false,
+        "profile": "origin_quote_generated_candidate",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": false,
+        "generated_candidate_eligible_by_spacing": true,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "cross_quote_policy_applies",
+        "no_valid_candidate": false,
+        "origin_quote_match": false,
+        "original_posts_since_generated": 2,
+        "production_generated_pool_enabled": false,
+        "profile": "cross_quote_generated_candidate",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": false,
+        "generated_candidate_eligible_by_spacing": false,
+        "generated_image_just_used": true,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "origin_quote_match",
+        "no_valid_candidate": true,
+        "origin_quote_match": true,
+        "original_posts_since_generated": 0,
+        "production_generated_pool_enabled": false,
+        "profile": "generated_image_just_used",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": true,
+        "generated_candidate_eligible_by_spacing": true,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "cross_quote_policy_applies",
+        "no_valid_candidate": false,
+        "origin_quote_match": false,
+        "original_posts_since_generated": 2,
+        "production_generated_pool_enabled": false,
+        "profile": "generated_original_cycle_boundary",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      },
+      {
+        "cycle_boundary": true,
+        "generated_candidate_eligible_by_spacing": true,
+        "generated_image_just_used": false,
+        "generated_metadata_count": 79,
+        "generated_pool_enabled_in_isolated_profile": true,
+        "identity_policy_effect": "cross_quote_policy_applies",
+        "no_valid_candidate": false,
+        "origin_quote_match": false,
+        "original_posts_since_generated": 2,
+        "production_generated_pool_enabled": false,
+        "profile": "generated_pool_near_exhaustion",
+        "required_original_posts_between": 2,
+        "semantic_veto_status": "out_of_scope_generated"
+      }
+    ],
+    "schema_version": 1
+  },
+  "network_calls": 0,
+  "passed": true,
+  "production_selection_changed": false,
+  "schema_version": 1,
+  "seasonal_boundary_summary": {
+    "alternative_scope_note": "Alternatives are restricted to scored v2 research candidates confirmed allow by v3.",
+    "alternative_score_loss_max": null,
+    "alternative_score_loss_median": null,
+    "alternative_score_loss_p95": null,
+    "decision_counts": {
+      "allow": 3510
+    },
+    "distinct_images_selected": 14,
+    "distinct_quotations": 23,
+    "known_pair_count": 3510,
+    "known_pair_coverage": 1.0,
+    "mode": "seasonal_boundary_stress",
+    "quotations_with_no_allowed_observed_image": 0,
+    "semantic_veto_count": 0,
+    "semantic_veto_rate": 0.0,
+    "total_simulations": 3510,
+    "unknown_production_winner_rate": 0.0,
+    "veto_reason_counts": {},
+    "vetoes_with_research_candidate_alternatives": 0,
+    "vetoes_without_research_candidate_alternatives": 0
+  },
+  "stateful_summary": {
+    "alternative_scope_note": "Alternatives are restricted to scored v2 research candidates confirmed allow by v3.",
+    "alternative_score_loss_max": 33.51433914833873,
+    "alternative_score_loss_median": 1.145988837161898,
+    "alternative_score_loss_p95": 19.168350311176823,
+    "decision_counts": {
+      "allow": 192111,
+      "unknown": 187,
+      "veto": 2635
+    },
+    "distinct_images_selected": 69,
+    "distinct_quotations": 626,
+    "known_pair_count": 194746,
+    "known_pair_coverage": 0.9990406960340219,
+    "mode": "monte_carlo",
+    "quotations_with_no_allowed_observed_image": 4,
+    "semantic_veto_count": 2635,
+    "semantic_veto_rate": 0.013517464975145306,
+    "total_simulations": 194933,
+    "unknown_production_winner_rate": 0.000959303965978054,
+    "veto_reason_counts": {
+      "required_relationship_not_source_grounded": 133
+    },
+    "vetoes_with_research_candidate_alternatives": 1155,
+    "vetoes_without_research_candidate_alternatives": 1480
+  },
+  "validation_method": "Exact replay of the frozen harness event identities and deterministic state schedule through v3; production selections are not recomputed or changed."
+}

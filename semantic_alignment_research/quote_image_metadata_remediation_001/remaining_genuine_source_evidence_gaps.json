@@ -1,0 +1,37 @@
+{
+  "human_review_required": false,
+  "pair_count": 188,
+  "reason_counts": {
+    "canonical_speaker_not_source_grounded": 140,
+    "required_participant_identity_not_source_grounded": 25,
+    "required_relationship_not_source_grounded": 23
+  },
+  "schema_version": 1,
+  "stopping_reason": "genuine_source_evidence_gaps_remain",
+  "unavailable_speaker_contracts": [
+    {
+      "canonical_speaker": "Unknown",
+      "quote_id": "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+      "quote_text": "I am appalled that the countries of the west have taken no effective action to deal with the massacres taking place in the midst of Europe. It isn't that we can't, it's that we won't.",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_speaker": "Unknown",
+      "quote_id": "a752b6119dd88e3c2e886ef3d694e027ba6eaeed0154d9944d09f7e67b2cf40c",
+      "quote_text": "Socialists claim that all they want is to re-distribute income and wealth from the rich to the poor. This is not the effect of high taxation. The effect of high taxation is to switch income and wealth from the people to the State.",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_speaker": "unknown",
+      "quote_id": "ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da",
+      "quote_text": "We must take care to distinguish between the reality of Socialism and the language of Socialism, because they are completely different.",
+      "verification_status": "unverified"
+    },
+    {
+      "canonical_speaker": "unknown",
+      "quote_id": "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+      "quote_text": "We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO.",
+      "verification_status": "unverified"
+    }
+  ]
+}

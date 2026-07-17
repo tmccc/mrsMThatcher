@@ -1,0 +1,514 @@
+{
+  "aggregate_sha256": "13709a8d09188b491b50c9b3cdb14166ca14bc3f4fc3e1c234d4beb64846617a",
+  "generated_at": "2026-07-17T17:04:19.135980Z",
+  "original_images": [
+    {
+      "mtime_ns": 1518028372982381640,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t01.jpg",
+      "sha256": "2c16ce452b28dbd067b4419981a3d4f92099cc8c60964bf291c7e4955d74ed7c",
+      "size": 19388
+    },
+    {
+      "mtime_ns": 1518028372958381656,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t02.jpg",
+      "sha256": "0092a3540800c4373236d1ee7a09812f51ac1a2e742b32c2ee49e0f0ced965ff",
+      "size": 20383
+    },
+    {
+      "mtime_ns": 1518028372970381648,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t03.jpg",
+      "sha256": "305d7a0023859204cf243c918268ba53b00e5b934c505ba3c2ae11e6a2003dc6",
+      "size": 52948
+    },
+    {
+      "mtime_ns": 1518028373006381623,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t04.jpg",
+      "sha256": "28e0b8a92e5cf025fda52a6f22fe326fadac6cf7d6d9598649dcdb8c51619472",
+      "size": 44036
+    },
+    {
+      "mtime_ns": 1518028373042381598,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t05.jpg",
+      "sha256": "38527605ae6890331049ae7212d80a9be068816bc393c95fa629ef981152814c",
+      "size": 28692
+    },
+    {
+      "mtime_ns": 1518028373066381581,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t06.jpg",
+      "sha256": "aa06ccc1d4df46d3c6c9e57cc28c04ae6dde82686ad0ac7833895898b5d167b4",
+      "size": 41990
+    },
+    {
+      "mtime_ns": 1518028373058381587,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t07.jpg",
+      "sha256": "35c6800c53d580ae8e72bc9092baef4731d406f6cdce4434bf1f34e7f253bb92",
+      "size": 24241
+    },
+    {
+      "mtime_ns": 1518028373290381427,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t08.jpg",
+      "sha256": "afb14c66ed09557ee7fd0669b205191a1bd852944111e34fc5cfc3134402973f",
+      "size": 15282
+    },
+    {
+      "mtime_ns": 1518028373298381421,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t09.jpg",
+      "sha256": "a73c566e7c58b5383b9b4d444982035651bac72bb6aa171ed049069d47614534",
+      "size": 13498
+    },
+    {
+      "mtime_ns": 1518028373018381615,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t10.jpg",
+      "sha256": "042cd4436753acb607fe997305ceb40349e4c8f0e46e417be996d8e3fb851717",
+      "size": 70200
+    },
+    {
+      "mtime_ns": 1518028373034381603,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t11.jpg",
+      "sha256": "6234d9985e55740aff9452c57b125ef384bfa3d14bf0733edcb0f84b3d3cc940",
+      "size": 86098
+    },
+    {
+      "mtime_ns": 1674380726000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t12.jpg",
+      "sha256": "a5cc03d6433cbff4f38e72da66ce4299532a0bdc981b248af1adb063ffa79105",
+      "size": 496508
+    },
+    {
+      "mtime_ns": 1518028373046381595,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t13.jpg",
+      "sha256": "733c5de83000b8e5b6c41df43bd76a410e12a22fc763ce0b49e57a4068bf01d7",
+      "size": 16958
+    },
+    {
+      "mtime_ns": 1518028372998381628,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t14.jpg",
+      "sha256": "eb250a4534412da58fbbf2247c7c041041972ccde4f77ce86888523d86e648c3",
+      "size": 20236
+    },
+    {
+      "mtime_ns": 1518028372990381634,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t15.jpg",
+      "sha256": "2d769e4504dd9800d571d9022f155adab1fffe6f2a4fcc4f58a05565ee9895fe",
+      "size": 15135
+    },
+    {
+      "mtime_ns": 1518028372950381661,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t16.jpg",
+      "sha256": "d0c84994ae123cdaa5baaf53f531e992fa25467923d70d0f2cb5833cabc46478",
+      "size": 45917
+    },
+    {
+      "mtime_ns": 1518028372974381645,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t17.jpg",
+      "sha256": "43c655262ddc429feac725570ca76e916d9c2d3148c737aa19255f96d005c3b5",
+      "size": 21854
+    },
+    {
+      "mtime_ns": 1518028373314381410,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t18.jpg",
+      "sha256": "c7c812e932fafa159457dd7ae6df43ebce92242bd531ab0693ee62813fa702d3",
+      "size": 24152
+    },
+    {
+      "mtime_ns": 1518028373306381416,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t19.jpg",
+      "sha256": "542ff5edee3aadb388a4e37ac45fb06d750406dd21954b8cf22bace338560516",
+      "size": 39247
+    },
+    {
+      "mtime_ns": 1518028373282381433,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t20.jpg",
+      "sha256": "069289b13ed357f51e34f078304ebdf000764320511cf442fcac1b52ce0e4acc",
+      "size": 8438
+    },
+    {
+      "mtime_ns": 1781745437401634711,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t21.jpg",
+      "sha256": "4bd5163e3713dae425c903b57647366faaf9d6ea69917d4e529c914f3a400f03",
+      "size": 65791
+    },
+    {
+      "mtime_ns": 1518028373274381438,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t22.jpg",
+      "sha256": "17d2965e855668f27e3d4e17ede3ed92b7da21333a01b4805e59d295155af1df",
+      "size": 11872
+    },
+    {
+      "mtime_ns": 1518283712000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t23.jpg",
+      "sha256": "bbece6db8c9d9ce3c40786fd7b192af27b9a1856614ab293c6b0e7b40c4c10e5",
+      "size": 32476
+    },
+    {
+      "mtime_ns": 1518288623000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t24.jpg",
+      "sha256": "726d569db22d10bb3d8c4f2914d92cf07dc0dc756ffd9d03b38eeaab5bc69826",
+      "size": 795627
+    },
+    {
+      "mtime_ns": 1518288830000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t25.jpg",
+      "sha256": "338db418e3dcaf95a16d4d91a63fe7570a55ca32b0653d62a8420dac672bc78e",
+      "size": 69926
+    },
+    {
+      "mtime_ns": 1518387473786837586,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t26.jpg",
+      "sha256": "63f51478a1a7b87e1052477d0c7d7d70d3dfcf498b893eaa58e6c91d79ad9f50",
+      "size": 93449
+    },
+    {
+      "mtime_ns": 1518387570847295618,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t27.jpg",
+      "sha256": "4c9c764d5f28f0846a9c64f8b69381cd4a96c7d6d92ded935ac60c9c5e743513",
+      "size": 375377
+    },
+    {
+      "mtime_ns": 1674380875000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t28.jpg",
+      "sha256": "ddfc763dea0887cb9b806899f36044af52d1c2b920d1e97dd2e7e3dcc74fa965",
+      "size": 26697
+    },
+    {
+      "mtime_ns": 1518387793922174113,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t29.jpg",
+      "sha256": "fc03c6a7d115641c5837f4e1d7ecfb1fdbcb561bb2b42c801573f02da477e8e2",
+      "size": 36517
+    },
+    {
+      "mtime_ns": 1518387846695548142,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t30.jpg",
+      "sha256": "e9fe1f70f928e3a715b55807fa4d421374ae1e6c746121639fcf574abb17477e",
+      "size": 44686
+    },
+    {
+      "mtime_ns": 1558387000934117765,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t31.jpg",
+      "sha256": "76c80b0c25a492efea705a2ce0a74c9914c3deab18505826f23eae815d96ee05",
+      "size": 120883
+    },
+    {
+      "mtime_ns": 1674647085000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t32.jpg",
+      "sha256": "faf154698368de9516208123d224394cd201748dfc1ec150d33656a800eae719",
+      "size": 958854
+    },
+    {
+      "mtime_ns": 1674647067000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t33.jpg",
+      "sha256": "2468c1ee08aa57a0164cf5903c80de8169da597bc9ce922d9fc29e27739ac968",
+      "size": 707799
+    },
+    {
+      "mtime_ns": 1674647101000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t34.jpg",
+      "sha256": "3f446ece7bcc1727e81b7301a8eca188f38c7a5ea0c0ddcdb5d92866a4f0beae",
+      "size": 637548
+    },
+    {
+      "mtime_ns": 1674647037000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t35.jpg",
+      "sha256": "ff3f0e8fd7c6f77d80f40b38d85d09872fccaed8b14577a3d67e4e5dea371d09",
+      "size": 1065897
+    },
+    {
+      "mtime_ns": 1674647051000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t36.jpg",
+      "sha256": "a00d5add6f791a77a856b04b32459781047384718d119dfb94e028f673f986b4",
+      "size": 709227
+    },
+    {
+      "mtime_ns": 1674717113000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t37.jpg",
+      "sha256": "bda197fb2f3bb6ccc4e3323ffdc9ba9106d48f9fc929d8741865cdd52f1e574a",
+      "size": 773367
+    },
+    {
+      "mtime_ns": 1674717157000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t38.jpg",
+      "sha256": "f174bce4483b8db3af79ae2c500222c822177abdffb666c93b867e0c6cacfeb3",
+      "size": 197536
+    },
+    {
+      "mtime_ns": 1674717335000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t39.jpg",
+      "sha256": "a6976f8aae0c9194cbe4dcd01b9eb668a89975a19c1a762be86edc8228eceb36",
+      "size": 111655
+    },
+    {
+      "mtime_ns": 1674717277000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t40.jpg",
+      "sha256": "3428b9875d945d196f3eb3509a4bc297fba7ac4082689cabf023441f49955c0e",
+      "size": 100751
+    },
+    {
+      "mtime_ns": 1674717169000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t41.jpg",
+      "sha256": "90e6483abb5c742b1c8405b09089aff7d0e64894fe3e7f8953b3e4fcb8498e66",
+      "size": 210846
+    },
+    {
+      "mtime_ns": 1674717098000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t42.jpg",
+      "sha256": "fe3d58fe35fba3c157cb713dd5f5bc04add0697287f4bc1e4804efb019fac707",
+      "size": 256425
+    },
+    {
+      "mtime_ns": 1674717139000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t43.jpg",
+      "sha256": "813562e46bbcb273fe4f048e6386c6f4b93edc2936a4603d4eb3d650f8d73bd8",
+      "size": 154484
+    },
+    {
+      "mtime_ns": 1781745457909722811,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t44.jpg",
+      "sha256": "04db47bd4c09a6e14a236bee9abe5664b8bb5775a0bebc920cf6ea0827711e08",
+      "size": 259959
+    },
+    {
+      "mtime_ns": 1674717469000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t45.jpg",
+      "sha256": "36e0cd3c8ea049b5b13f3454d810cea946c64088bbc4ca878f299f3c19047b34",
+      "size": 241348
+    },
+    {
+      "mtime_ns": 1678254524447242143,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t46.jpg",
+      "sha256": "14d156f4febfb21f37ca4979e72389891b4a7998c66d4c744fb3fcf28830c578",
+      "size": 13106
+    },
+    {
+      "mtime_ns": 1678254647080002715,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t47.jpg",
+      "sha256": "b730e1f1a28fd71e01cb5e2b9aaabfa0412d1bcd679cec3f3f522fec39df3070",
+      "size": 251982
+    },
+    {
+      "mtime_ns": 1678254802317374738,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t48.jpg",
+      "sha256": "cb889a2809a3d405dcb12c65cc6be1bbb8fca57954f6dc9ef9fc7f11278c50fe",
+      "size": 81342
+    },
+    {
+      "mtime_ns": 1678254848210699092,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t49.jpg",
+      "sha256": "b8e19c84b69244075e60a1061e8991274dd4a318d31a5fe06fd150bfa7bddf27",
+      "size": 157215
+    },
+    {
+      "mtime_ns": 1678374826000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t50.jpg",
+      "sha256": "b451e351209765f900c04226f8ac40cf76f84b84318e3a912d1334f1cac46194",
+      "size": 78434
+    },
+    {
+      "mtime_ns": 1678255289299181302,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t51.jpg",
+      "sha256": "f94e47bb3153c28dd5b7bbd5b6717f8273b3b727f4377a5840c9deded25351e4",
+      "size": 69263
+    },
+    {
+      "mtime_ns": 1678255351833212930,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t52.jpg",
+      "sha256": "7662dcedac7c09dc94c8aeee994847a7e86fc5efb8cd8334eaff23df4bb6da07",
+      "size": 193045
+    },
+    {
+      "mtime_ns": 1678255462000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t54.jpg",
+      "sha256": "4ef39fce6b4ed901674b1e1e5fe8c601f1930c6c9ecf826de052c354267414ca",
+      "size": 26551
+    },
+    {
+      "mtime_ns": 1695157151000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t55.jpg",
+      "sha256": "537f0347e30c75290ee1150a80fe5b962b46d145243268969723e41845dc6c9c",
+      "size": 514135
+    },
+    {
+      "mtime_ns": 1695157391000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t56.jpg",
+      "sha256": "6731ce7fd2770587f1a805c8f48c87b65cd3a37217f6b74d6eaa4c0b1b3d56e4",
+      "size": 7178
+    },
+    {
+      "mtime_ns": 1695157612000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t57.jpg",
+      "sha256": "cd8d960a563f22936248b1306f29014f443a206bb8aef901802016462810e359",
+      "size": 456002
+    },
+    {
+      "mtime_ns": 1695157894000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t58.jpg",
+      "sha256": "2a12403a4a2b5e6d7c40d71b27c96ff17ae9a238f75765ec5909527ecf6b0100",
+      "size": 524489
+    },
+    {
+      "mtime_ns": 1695158004000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t59.jpg",
+      "sha256": "28b3b58a5984c882f62864356b76e1c2b7a7ba3af408fb9e3999017398ba5584",
+      "size": 549243
+    },
+    {
+      "mtime_ns": 1695158054000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t60.jpg",
+      "sha256": "d7b6414a5d2ea0fc0ca84696be252865eb3b6519d3301d1a21d5fa2cca88cb84",
+      "size": 230105
+    },
+    {
+      "mtime_ns": 1695158095000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t61.jpg",
+      "sha256": "0be5cd1d5483155fab478c23deb5777020dd0fa64d87732c94e16dec95839818",
+      "size": 5033923
+    },
+    {
+      "mtime_ns": 1695158182000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t62.jpg",
+      "sha256": "ec1f2c768e0548992c6779859cbf8bcceb9809a8b391bc1b204f918943b277d5",
+      "size": 121402
+    },
+    {
+      "mtime_ns": 1695158274000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t63.jpg",
+      "sha256": "384e0173b083e13ad2904be7d3fe8c6700a2cc04dea5637f97d85de7a9dc4d3b",
+      "size": 26055
+    },
+    {
+      "mtime_ns": 1695158390000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t64.jpg",
+      "sha256": "401a3a65f2213cbce26f660c8d5953698103271e0f392582cd26e08536c7bf06",
+      "size": 287674
+    },
+    {
+      "mtime_ns": 1695158489000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t65.jpg",
+      "sha256": "cafdf84e431c64a2461c8ca7ef4ef16847b8dfb1636b983aaebb32bfc5d6e938",
+      "size": 23577
+    },
+    {
+      "mtime_ns": 1695158568000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t66.jpg",
+      "sha256": "9beb16b2e7151f1282d31a06a4c4cecb246f1d7e21deecfcc2fe6205a63134fa",
+      "size": 18349
+    },
+    {
+      "mtime_ns": 1695158913000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t67.jpg",
+      "sha256": "b24222b6a77a8ddc632fa047e8ad112b703280d37531da779adcb600de13c73f",
+      "size": 352141
+    },
+    {
+      "mtime_ns": 1695158699000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t68.jpg",
+      "sha256": "60335b8f439aedaa74d8a1192d37c3b10b60d2edf6ac855580c9d1ccb78a6446",
+      "size": 141122
+    },
+    {
+      "mtime_ns": 1695158857000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t69.jpg",
+      "sha256": "ff9695ec8f50f6cd17f52de431bb4e063c6a83d01e7c9a2b84a2e0f37d55ce29",
+      "size": 48692
+    },
+    {
+      "mtime_ns": 1695159085000000000,
+      "path": "/disks/disk1/etc/mrsMThatcher/images/t70.jpg",
+      "sha256": "c727dc524a2da35c98978891db588b393805fa87cbadb0c16dc9958ec7e97acd",
+      "size": 476790
+    }
+  ],
+  "schema_version": 1,
+  "snapshot_protocol": "stat-hash-stat with bounded retry; no source write",
+  "sources": {
+    "discovered_analysis": {
+      "mtime_ns": 1784181888253200273,
+      "path": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/integration_preparation/canonical_image_analysis.json",
+      "sha256": "fc879d875b95b41fd365598f7746ea38b4f47fc82540a681c7dde25881cfd689",
+      "size": 105824
+    },
+    "discovered_production_ready": {
+      "mtime_ns": 1784183196058160233,
+      "path": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/integration_preparation/production_ready_manifest.json",
+      "sha256": "15266b79105f5c3a08e7e72c2390f84f026b0739ca6895b581db430af0031838",
+      "size": 138007
+    },
+    "discovered_sources": {
+      "mtime_ns": 1784183196062160244,
+      "path": "/disks/disk1/etc/mrsMThatcher/image_discovery_research/thatcher_image_hunt_002/integration_preparation/source_and_attribution_manifest.json",
+      "sha256": "7f9931b2d22e335adb608108b697affe320c26a253cffe3d97a8d849f07d6443",
+      "size": 60314
+    },
+    "image_analysis": {
+      "mtime_ns": 1783282500389958450,
+      "path": "/disks/disk1/etc/mrsMThatcher/image_analysis.json",
+      "sha256": "47ed1d9f4ef111eacfc175bbcdc088fb4352fce357ed5a69c05ec5ef36687983",
+      "size": 297705
+    },
+    "live_shadow_manifest": {
+      "mtime_ns": 1784237006544413418,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json",
+      "sha256": "3e08320ffa8955e4bbad46444077ee0726e49dee90c29874a81cc872eb3751b0",
+      "size": 4780936
+    },
+    "production_code": {
+      "mtime_ns": 1784275800180461304,
+      "path": "/disks/disk1/etc/mrsMThatcher/mrsMThatcher2.py",
+      "sha256": "6f44ce37f2d08e702d109331cab80e30ba2b65447e9bc293f7bb027407b54873",
+      "size": 427644
+    },
+    "production_config": {
+      "mtime_ns": 1784238912770728406,
+      "path": "/disks/disk1/etc/mrsMThatcher/mrsMThatcher.local.json",
+      "sha256": "815c1ace73eca2309e8070f14268c09c509b02d8386cf3c78d76401aa3baf4a5",
+      "size": 2742
+    },
+    "quote_research_manifest": {
+      "mtime_ns": 1783963515512240503,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/corpus_manifest.json",
+      "sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+      "size": 398842
+    },
+    "quote_research_packets": {
+      "mtime_ns": 1784024013782331215,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/research_packets.json",
+      "sha256": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+      "size": 6174464
+    },
+    "v2_candidates": {
+      "mtime_ns": 1784234347934527768,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/production_top8_pair_candidates_v2_postrun_corrected.json",
+      "sha256": "b8f58f1f5b8e149760cf119f6e55d91db98480febb8b5f6584957ca2aafbbc4c",
+      "size": 25980889
+    },
+    "v2_correction_audit": {
+      "mtime_ns": 1784234348094528478,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/v2_postrun_correction_audit.json",
+      "sha256": "42c6d850f79bb410e6bcd7fc878e3bdf14567702ccc524fb282c21f642a81aed",
+      "size": 39138
+    },
+    "v2_images": {
+      "mtime_ns": 1784230919454786977,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/attested_image_corpus_manifest.json",
+      "sha256": "17b24a683566cea2f822983790ef1e6ac5a086cdeeb5171966c4a0a5edece9ce",
+      "size": 243300
+    },
+    "v2_pairs": {
+      "mtime_ns": 1784234348070528372,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/pair_judgements_v2_postrun_corrected.json",
+      "sha256": "44e5c22053b332c92f3a863f0fee19967cb8a8a6fc2f13d77a4bb53aea47d064",
+      "size": 5944130
+    },
+    "v2_quote_contracts": {
+      "mtime_ns": 1784230919566787331,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/semantic_contracts_v2.json",
+      "sha256": "4ac5e3093224519864759554fdb8339bdecc7806fa3eae858535db577763dc96",
+      "size": 1838010
+    },
+    "v2_status": {
+      "mtime_ns": 1784234348098528495,
+      "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/relation_aware_semantic_veto_002/v2_final_status_postrun_corrected.json",
+      "sha256": "e57d7890b4369c62f3fdea90bde2aee7ee7578d63edd88f81d7a838ff6451e23",
+      "size": 3885
+    }
+  }
+}

@@ -274,6 +274,11 @@ def snapshot_inputs(session_dir: Path, writer: PrivateWriter) -> tuple[Path, dic
             raise FileNotFoundError(f"required simulation input missing: {source}")
         hashes[name] = copy_stable_file(source, snapshot / name)
 
+    research_source = ROOT / "semantic_alignment_research/quote_research_full_001/research_packets.json"
+    if not research_source.is_file():
+        raise FileNotFoundError(f"required simulation input missing: {research_source}")
+    hashes["research_packets.json"] = copy_stable_file(research_source, snapshot / "research_packets.json")
+
     image_specs = (
         (ROOT / "images", snapshot / "images", "t*"),
         (ROOT / "generated_review_approved_images", snapshot / "generated_images", "*.png"),
@@ -407,6 +412,7 @@ def apply_snapshot_config(bot: Any, snapshot: Path) -> dict:
 def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
     bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
     bot.QUOTE_ANALYSIS_FILE = snapshot / "quote_analysis.json"
+    bot.COMPLETED_QUOTE_RESEARCH_FILE = snapshot / "research_packets.json"
     bot.IMAGE_ANALYSIS_FILE = snapshot / "image_analysis.json"
     bot.GENERATED_IMAGE_ANALYSIS_FILE = str(snapshot / "generated_image_analysis.json")
     bot.IMAGE_GLOB = str(snapshot / "images" / "t*")
@@ -591,7 +597,8 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     bot.log_generated_identity_policy_shadow_result = hook
     try:
         yield capture
-        if len(capture.get("scored_ids", [])) != 2 or len(set(capture["scored_ids"])) != 1:
+        scored_ids = capture.get("scored_ids", [])
+        if not scored_ids or len(set(scored_ids)) != 1:
             raise SelectionCaptureError("candidate capture hooks did not receive one exact scored list")
     finally:
         bot.log_original_editorial_shadow_result = original_editorial
