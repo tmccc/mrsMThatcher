@@ -180,3 +180,35 @@ Before adding this report, the implementation diff was:
 
 No production configuration, reply budget, author cap, lane schedule, receipt
 format, or posting behaviour outside structured reply selection was changed.
+
+## Deployment record
+
+The implementation was committed as `377e67f` (`Add safe principle replies for
+uncertain claims`) and pushed normally to `origin/master` on 18 July 2026.
+
+Deployment used the established wrapper-managed procedure:
+
+- the installed `/usr/local/bin/mrsMThatcher2.py` remained a symlink to the
+  reviewed repository script;
+- the installed script and imported reply/digest modules passed `py_compile`;
+- the production self-test completed successfully without an X or xAI call;
+- regular-post, meme-post, historical-context, conversational-reply, and
+  ambiguous-outcome barriers were absent at the restart gate;
+- wrapper PID `3631076` remained running and was not signalled;
+- exactly one `SIGTERM` was sent to old Python child PID `387455`;
+- the wrapper started replacement child PID `2905742` after its configured
+  delay;
+- exactly one replacement child was running after restart;
+- `mrsMThatcher.lock` recorded `pid=2905742`;
+- startup loaded the existing local configuration and semantic-veto shadow
+  manifest successfully;
+- active semantic-veto enforcement remained false;
+- existing quote and meme schedules were preserved;
+- the bot logged `Bot started successfully` and completed a subsequent normal
+  loop tick;
+- no startup error, traceback, lock conflict, receipt barrier, or restart loop
+  was observed.
+
+No test post or reply was created. No production state, history, receipt, local
+configuration, or posting schedule was manually edited. The replacement process
+performed only its normal startup state maintenance.
