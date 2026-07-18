@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 import socket
@@ -243,7 +242,6 @@ def build_unresolved_dossier(run_dir: Path) -> dict[str, Any]:
     for quote_id in sorted(unresolved):
         history = sorted(histories[quote_id], key=lambda row: (row.get("request_timestamp") or "", row["run"]))
         attempt_lines.extend(history)
-        failures = [row.get("failure") or {} for row in history]
         missing = sum((row.get("failure") or {}).get("kind") in {"missing_grounding", "validation_failure"}
                       and "ground" in str(row.get("failure")).casefold() for row in history)
         transport_failures = sum((row.get("failure") or {}).get("kind") in {"quota_429", "transient", "ambiguous"}

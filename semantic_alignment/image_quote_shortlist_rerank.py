@@ -38,7 +38,6 @@ PROMPT_VERSION = "image-quote-focused-shortlist-rerank-v1"
 SHORTLIST_VERSION = "local-image-quote-shortlist-v1"
 TRIAL_NAME = "image_quote_shortlist_rerank_001"
 PROVIDERS = ("grok", "openai", "anthropic", "gemini")
-EXPECTED_IMAGES = 24
 EXPECTED_QUOTES = 626
 SHORTLIST_SIZE = 25
 BATCH_SIZE = 6
@@ -572,7 +571,7 @@ def total_ambiguous_exposure(output_dir: Path) -> float:
     ), 10)
 
 
-def _load_batch(output_dir: Path, manifest: dict[str, Any], batch_row: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+def _load_batch(output_dir: Path, batch_row: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     prompt = (output_dir / batch_row["prompt_path"]).read_text(encoding="utf-8")
     if text_hash(prompt) != batch_row["prompt_sha256"]:
         raise RuntimeError("prompt hash mismatch")
@@ -609,7 +608,7 @@ def run_http_provider(output_dir: Path, manifest: dict[str, Any], provider: str,
         batch_id = batch_row["batch_id"]
         if batch_id in state["completed_batches"]:
             continue
-        prompt, batch = _load_batch(output_dir, manifest, batch_row)
+        prompt, batch = _load_batch(output_dir, batch_row)
         failed_item = state["failed_batches"].get(batch_id) or {}
         if "ReadTimeout" in str(failed_item.get("error") or "") and not failed_item.get("ambiguous_outcome"):
             exposure = _next_maximum_cost(provider, prompt)
@@ -756,7 +755,7 @@ def run_gemini(output_dir: Path, manifest: dict[str, Any]) -> None:
         batch_id = batch_row["batch_id"]
         if batch_id in state["completed_batches"]:
             continue
-        prompt, batch = _load_batch(output_dir, manifest, batch_row)
+        prompt, batch = _load_batch(output_dir, batch_row)
         _guard_cost(output_dir, provider, prompt)
         try:
             result = router.run(

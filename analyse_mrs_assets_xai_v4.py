@@ -31,7 +31,6 @@ import fcntl
 import hashlib
 import json
 import logging
-import mimetypes
 import os
 import random
 import re

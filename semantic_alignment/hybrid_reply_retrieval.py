@@ -248,14 +248,6 @@ def _policy_topics(packet: dict[str, Any]) -> list[str]:
     return sorted(topic for topic, needles in TOPIC_RULES.items() if any(needle in text for needle in needles))
 
 
-DOCUMENT_FIELDS = (
-    "quote_text", "verified_text", "verification_status", "research_confidence",
-    "source_event", "date", "immediate_subject", "intended_argument", "literal_meaning",
-    "broader_principle", "mechanism", "claimed_consequence", "themes", "entities",
-    "people", "places", "organisations", "policy_topics", "historical_period",
-)
-
-
 def build_retrieval_document(quote_id: str, packet: dict[str, Any]) -> dict[str, Any]:
     entities = _normalise_list(packet.get("entities"))
     document: dict[str, Any] = {

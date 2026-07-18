@@ -2,14 +2,12 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import io
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from semantic_alignment.io import atomic_write_json, atomic_write_text
+from semantic_alignment.io import atomic_write_json
 from semantic_alignment.gemini_fallback import clear_expired_quota_pause, fallback_status, format_fallback_status
 from semantic_alignment.reporting import write_execution_report
 from semantic_alignment.pipeline import (
@@ -195,7 +193,7 @@ def main(argv=None) -> int:
         summary = dry_summary(project, research)
         atomic_write_json(research / "dry_run_summary.json", summary)
         print(json.dumps(summary, indent=2)); return 0
-    run_id, run = selected_run(research, args)
+    _, run = selected_run(research, args)
     quote_db, image_db, critic_db, validation = load_all(run)
     if args.command == "report":
         write_execution_report(run)

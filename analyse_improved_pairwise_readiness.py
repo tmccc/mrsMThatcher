@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse,csv,hashlib,json,os,random
+import argparse,csv,hashlib,json,os
 from pathlib import Path
 
 from semantic_alignment.io import atomic_write_json
 from semantic_alignment.pairwise_correction import eligible_trace_runner_up,load_trace_records,validate_pilot_readiness
 
 ROOT=Path(__file__).resolve().parent
-SOURCE=ROOT/'semantic_alignment_research/pairwise_validation_001_corrected'
 DEFAULT_OUT=ROOT/'semantic_alignment_research/pairwise_improved_pilot_20260713_readiness_failed'
 FIRST=ROOT/'semantic_alignment_research/first_impression/v1_20260712'
 TRACE_ROOT=ROOT/'simulation_runs/audit_evidence_20x250_20260710'
@@ -58,7 +57,7 @@ def main():
     summary={'schema_version':1,'status':readiness['status'],'credible_cases':readiness['credible_cases'],'minimum_required':20,'prepared_manifest_cases':25,'surviving_exact_runner_up_cases':len(items),'regressions':regressions,'original_prepared_manifest_audit':{'declared_cases':25,'actual_exact_or_simulator_runner_ups':9,'lower_rank_substitutions':10,'unmatched_trace_pairs':5,'lexical_regression_padding':1},'reason':('all strict provenance and regression gates pass' if readiness['ready'] else 'Everest and free-trade lack exact runner-ups with all cached inputs and documented floors; prepared pilot provenance was overstated'),'fingerprint_supplement':str(args.fingerprint_supplement) if args.fingerprint_supplement else None,'external_calls_during_rebuild':0};atomic_write_json(OUT/'readiness_summary.json',summary)
     atomic_write_json(OUT/'pairwise_improved_pilot_summary.json',summary)
     if readiness['ready']:
-        from semantic_alignment.bakeoff import PRICES,estimate_tokens
+        from semantic_alignment.bakeoff import PRICES
         calls=len(items);estimated_input=calls*3200;estimated_output=calls*700
         estimates={p:{'calls':calls,'estimated_input_tokens':estimated_input,'estimated_output_tokens':estimated_output,'estimated_cost_usd':estimated_input*PRICES[p]['input']/1e6+estimated_output*PRICES[p]['output']/1e6} for p in ('grok','openai','anthropic','gemini')}
         atomic_write_json(OUT/'cost_estimate.json',{'schema_version':1,'case_count':calls,'providers':estimates,'combined_estimated_cost_usd':sum(x['estimated_cost_usd'] for x in estimates.values()),'not_executed':True,'tools_enabled':False})

@@ -27,7 +27,7 @@ def test_soft_penalty_curves_are_predefined():
 def test_false_replace_classification_prefers_semantic_indirectness():
     assert classify_false_replace({'image_basename':'x'},20,50,70,50,{'x':{}},False)=='acceptable indirectness'
 def test_known_bad_classification_tone():
-    assert classify_bad({'image_basename':'x'},20,20,60,{'x':{'visual_competition_score':10,'first_impression_message':'scene','visual_clutter_score':10}})=='tone mismatch'
+    assert classify_bad({'image_basename':'x'},20,60,{'x':{'visual_competition_score':10,'first_impression_message':'scene','visual_clutter_score':10}})=='tone mismatch'
 def test_pairwise_no_labels_remain_missing():
     data=read_json(RUN/'pairwise_human_reviews.json',{'items':{}});assert len(data['items'])==0
 def test_everest_regression_human_replace():

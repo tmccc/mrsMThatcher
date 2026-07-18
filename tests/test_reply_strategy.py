@@ -11,7 +11,6 @@ from jsonschema import validate as validate_json_schema
 
 import mrsMThatcher2 as bot
 from reply_strategy import (
-    DEFAULT_REPLY_STRATEGY,
     RetrievedEvidence,
     ReplyDecision,
     audit_digest,
@@ -25,11 +24,9 @@ from reply_strategy import (
     principle_reply_assertion_error,
     reply_topical_relevance_error,
     reply_decision_json_schema,
-    reply_is_repetitive,
     strategy_mode_guidance,
     retrieve_research_packets,
     validate_reply_decision,
-    validate_reply_strategy_config,
 )
 
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
@@ -892,7 +889,6 @@ def test_no_hashtags_two_sentence_limit_and_repetition_controls():
         validate_reply_decision(decision(reply_text="A point. #history"), [], allowed_quote_ids=set())
     with pytest.raises(ValueError, match="one or two sentences"):
         validate_reply_decision(decision(reply_text="One. Two. Three."), [], allowed_quote_ids=set())
-    assert reply_is_repetitive("History has a habit of answering that.", [])
     with pytest.raises(ValueError, match="exact duplicate"):
         validate_reply_decision(decision(), [], allowed_quote_ids=set(), recent_replies=[decision()["reply_text"]])
 
@@ -1117,15 +1113,6 @@ def test_digest_audit_reports_no_rows_for_supplied_digest(tmp_path: Path):
     assert result["auditable_reply_count"] == 0
     assert result["finding"] == "no auditable replies in digest"
     assert result["network_calls"] == 0
-
-
-def test_enabled_strategy_requires_accuracy_and_completed_packets_only():
-    config = dict(DEFAULT_REPLY_STRATEGY)
-    config.update(enabled=True, accuracy_first=False, completed_packets_only=False, no_hashtags=False)
-    errors = validate_reply_strategy_config(config)
-    assert "reply_strategy.accuracy_first must remain true when enabled" in errors
-    assert "reply_strategy.completed_packets_only must remain true when enabled" in errors
-    assert "reply_strategy.no_hashtags must remain true when enabled" in errors
 
 
 def test_disabled_modes_and_configured_confidence_are_enforced():

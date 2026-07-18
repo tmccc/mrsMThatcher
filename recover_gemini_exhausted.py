@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import time
 from pathlib import Path
 
@@ -53,7 +52,7 @@ def preflight(cases,q,i):
             'conservative_base_cost_usd':maximum,'maximum_two_attempt_exposure_usd':maximum*2,
             'ceiling_usd':CEILING,'pacing_seconds':12,'max_attempts_per_case':2,'tools_enabled':False}
 
-def merge(cases):
+def merge():
     original=json.load(open(SOURCE_RUN/'gemini_results.json')); recovered=read_json(RECOVERY/'gemini_results.json',{}) or {'items':{}}
     merged=json.loads(json.dumps(original)); merged['items'].update(recovered.get('items',{}))
     merged['recovery_provenance']={'original_results':str(SOURCE_RUN/'gemini_results.json'),'recovery_results':str(RECOVERY/'gemini_results.json'),'recovered_case_ids':sorted(recovered.get('items',{}))}
@@ -72,7 +71,7 @@ def report(cases,pf,summary,merged):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('command',choices=('dry-run','execute','report'));parser.add_argument('--confirm-cost-limit-usd',type=float);args=parser.parse_args()
-    q,i,manifest,cases=inputs();RECOVERY.mkdir(parents=True,exist_ok=True)
+    q,i,_,cases=inputs();RECOVERY.mkdir(parents=True,exist_ok=True)
     atomic_write_json(RECOVERY/'cases.json',{'schema_version':1,'source_manifest':str(SOURCE_RUN/'cases.json'),'case_count':23,'items':cases})
     pf=preflight(cases,q,i);atomic_write_json(RECOVERY/'preflight.json',pf)
     if pf['maximum_two_attempt_exposure_usd']>CEILING:raise SystemExit('preflight exceeds recovery ceiling')
@@ -82,7 +81,7 @@ def main():
         key=os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY')
         client=PacedClient(ProviderClient('gemini',key),12)
         summary=Worker('gemini',cases,q,i,RECOVERY,client,RecoveryBudget(RECOVERY)).run()
-        merged=merge(cases);report(cases,pf,summary,merged);print(json.dumps(summary,indent=2));return
-    summary=read_json(RECOVERY/'gemini_worker_summary.json',{}) or {};merged=merge(cases);report(cases,pf,summary,merged)
+        merged=merge();report(cases,pf,summary,merged);print(json.dumps(summary,indent=2));return
+    summary=read_json(RECOVERY/'gemini_worker_summary.json',{}) or {};merged=merge();report(cases,pf,summary,merged)
 
 if __name__=='__main__':main()

@@ -16,8 +16,6 @@ from google.genai import errors
 from .bakeoff import (
     BAKEOFF_PROMPT_VERSION,
     BAKEOFF_SCHEMA_VERSION,
-    MAX_OUTPUT_TOKENS,
-    PRICES,
     common_prompt,
     validate_bakeoff_result,
 )
@@ -26,7 +24,6 @@ from .large_bakeoff import _http_error_details, maximum_attempt_cost
 from .vertex_recovery import GeminiVertexClient, VERTEX_MODEL, error_details
 
 DAILY_QUOTA_THRESHOLD = 3
-DEFAULT_VERTEX_FALLBACK_LIMIT = 3.0
 RESET_HEADERS = ("Retry-After", "X-RateLimit-Reset", "RateLimit-Reset")
 
 
@@ -292,27 +289,6 @@ def clear_expired_quota_pause(run_dir: Path, *, now: datetime | None = None) -> 
                   "reset_time_confidence": "unknown", "trigger_evidence": []})
     atomic_write_json(state_path, state)
     return audit
-
-
-def mark_interrupted_sending_ambiguous(run_dir: Path, *, transport: str = "vertex_ai") -> int:
-    """Finalize interrupted local lifecycle state without sending or retrying a request."""
-    path = run_dir / ("gemini_vertex_fallback_ledger.json" if transport == "vertex_ai" else "gemini_ledger.json")
-    ledger = read_json(path, None)
-    if not isinstance(ledger, dict):
-        raise RuntimeError(f"missing Gemini {transport} ledger")
-    completed = {(row.get("case_id"), row.get("transport_attempt_number")) for row in ledger.get("calls", [])}
-    changed = 0
-    for attempt in ledger.get("attempts", []):
-        key = (attempt.get("case_id"), attempt.get("transport_attempt_number"))
-        if attempt.get("lifecycle_state") == "sending" and key not in completed:
-            attempt["lifecycle_state"] = "ambiguous_outcome"
-            ledger.setdefault("ambiguous_outcomes", []).append({"case_id": key[0],
-                "transport_attempt_number": key[1], "reason": "operator interrupted hung research request",
-                "recorded_at": utc_iso(datetime.now(timezone.utc))})
-            changed += 1
-    if changed:
-        atomic_write_json(path, ledger)
-    return changed
 
 
 class GeminiFallbackWorker:

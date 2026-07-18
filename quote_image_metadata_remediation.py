@@ -22,16 +22,14 @@ import socket
 import sqlite3
 import statistics
 import subprocess
-import sys
 import time
 from collections import Counter, defaultdict
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Sequence
+from typing import Any, Iterable, Iterator, Sequence
 from urllib.parse import parse_qs, urlparse
 
 from google.genai import types
@@ -40,17 +38,12 @@ from semantic_alignment.io import atomic_write_json, atomic_write_text, read_jso
 from semantic_alignment.relation_aware_veto import (
     CostLedger,
     DeveloperBatchRunner,
-    GeminiRelationClient,
     RelationRouter,
-    V2_PAIR_PROMPT_VERSION,
-    calculate_cost,
-    load_project_environment,
     maximum_cost,
     pair_response_schema,
     require_transport_parity,
     transport_preflight,
     validate_pair_response,
-    value_hash,
 )
 from semantic_alignment.thatcher_image_hunt import append_jsonl
 
@@ -79,7 +72,6 @@ EXPECTED_QUOTES = 626
 EXPECTED_UNRESOLVED = 6
 EXPECTED_IMAGES = 91
 EXPECTED_ORIGINAL = 69
-EXPECTED_DISCOVERED = 22
 HARD_SPEND_LIMIT_USD = 100.0
 PLANNED_SPEND_LIMIT_USD = 85.0
 REPAIR_RESERVE_USD = 15.0
@@ -111,29 +103,7 @@ SOURCE_FILES = {
     "discovered_sources": DISCOVERED_DIR / "source_and_attribution_manifest.json",
 }
 
-MUTABLE_PRODUCTION_PATTERNS = (
-    "state", "history", "receipt", "log", "mrsMThatcher.env", "used_", "posted_",
-)
-
-CLAIM_TYPES = {
-    "abstract_principle", "relationship", "relationship_transformation", "concrete_action",
-    "named_event", "named_entity", "causal_claim", "comparison", "warning",
-    "personal_reflection", "other",
-}
-GENERAL_PORTRAIT_CLAIMS = {
-    "abstract_principle", "causal_claim", "warning", "comparison", "personal_reflection", "other",
-}
 STRICT_TRANSITIONS = {"enemy_to_friend", "opponent_to_partner", "conflict_to_peace"}
-DEFECT_CODES = {
-    "quote_entity_overreach", "quote_event_overreach", "quote_period_overreach",
-    "quote_actor_count_overreach", "quote_relationship_overreach", "quote_literalism_overreach",
-    "neutral_portrait_policy_missing", "image_primary_identity_missing",
-    "image_secondary_identity_missing", "image_relationship_inferred_from_cooccurrence",
-    "image_event_missing", "image_action_incorrect", "image_dominant_story_incorrect",
-    "pair_absent_from_manifest", "pair_verdict_stale_after_contract_change",
-    "model_identity_hallucination", "model_relationship_hallucination", "source_evidence_gap",
-    "genuine_pair_uncertainty",
-}
 
 
 class RemediationError(RuntimeError):
@@ -197,14 +167,6 @@ def jsonl(path: Path) -> Iterator[dict[str, Any]]:
         for line in handle:
             if line.strip():
                 yield json.loads(line)
-
-
-def file_identity(path: Path) -> dict[str, Any]:
-    stat = path.stat()
-    return {
-        "path": str(path.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns,
-        "sha256": sha256_file(path),
-    }
 
 
 def stable_identity(path: Path, attempts: int = 8) -> dict[str, Any]:
@@ -314,7 +276,7 @@ def aggregate_simulator(harness_dir: Path, run_dir: Path) -> dict[str, Any]:
     connection.row_factory = sqlite3.Row
     if connection.execute("pragma quick_check").fetchone()[0] != "ok":
         raise RemediationError("harness database integrity check failed")
-    globally_safe, globally_no_safe = _global_safe_quotes()
+    _, globally_no_safe = _global_safe_quotes()
     query = """
         SELECT quote_id, production_image_hash, production_image,
                COUNT(*) AS occurrence_count,
@@ -1355,7 +1317,6 @@ def pilot_rows(run_dir: Path, eligible: Sequence[dict[str, Any]]) -> tuple[list[
         quote_id for quote_id, row in quotes.items()
         if row.get("required_transition") == "enemy_to_friend"
     )
-    by_image_id = {row["image_id"]: image_hash for image_hash, row in images.items()}
     reagan = next(image_hash for image_hash, row in images.items() if "Ronald Reagan" in row["known_participants"])
     gorbachev = next(image_hash for image_hash, row in images.items() if "Mikhail Gorbachev" in row["known_participants"])
     neutral = next(image_hash for image_hash, row in images.items() if row["image_id"] == "original:t01.jpg")
@@ -1871,10 +1832,6 @@ def enhance_and_judge(
     }
 
 
-def markdown_escape(value: Any) -> str:
-    return str(value).replace("|", "\\|").replace("\n", " ")
-
-
 def audit(project_dir: Path, harness_dir: Path, run_dir: Path) -> dict[str, Any]:
     if project_dir.resolve() != ROOT:
         raise RemediationError("project directory must be the current repository")
@@ -2385,7 +2342,6 @@ def render_report(run_dir: Path) -> dict[str, Any]:
     invalidated = read_json(run_dir / "invalidated_judgements.json", {})
     qualification = read_json(run_dir / "local_model_qualification.json", {})
     test_results = read_json(run_dir / "test_results.json", {})
-    attempts = list(jsonl(run_dir / "provider_attempts.jsonl"))
     quote_contracts = list(jsonl(run_dir / "quote_contracts_v3.jsonl"))
     neutral_count = sum(bool(row.get("neutral_portrait_allowed")) for row in quote_contracts)
     attribution_counts = Counter(row.get("thatcher_attribution_status") for row in quote_contracts)

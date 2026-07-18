@@ -8,7 +8,6 @@ import io
 import json
 import os
 import random
-import tempfile
 import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -88,7 +87,6 @@ def select_quality_packets(packets: dict[str, dict[str, Any]], excluded: set[str
     for category, keywords in CATEGORIES:
         category_rows = []
         for qid, packet in pool:
-            quote = packet["quote_text"]
             haystack = " ".join(" ".join(str(packet.get(key) or "").split()) for key in ("quote_text", "historical_context", "intended_argument", "broader_principle", "mechanism")).lower()
             hits = sum(1 for word in keywords if word in haystack)
             specificity = int(bool(packet.get("date"))) + int(bool(packet.get("source_event"))) + min(len(packet.get("entities") or []), 3) / 3

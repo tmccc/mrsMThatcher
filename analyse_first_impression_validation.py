@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse,hashlib,json
+import argparse,json
 from collections import Counter
 from pathlib import Path
 from semantic_alignment.first_impression import EVEREST_IMAGE,EVEREST_QUOTE_HASH

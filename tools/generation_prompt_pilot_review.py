@@ -48,7 +48,8 @@ def serve(run: Path, host: str = "127.0.0.1", port: int = 8772) -> None:
             if cid not in cases:return self.send(404,"not found")
             form=parse_qs(self.rfile.read(int(self.headers.get("Content-Length","0"))).decode())
             if form.get("csrf",[""])[0]!=csrf:return self.send(403,"invalid csrf")
-            choice=form.get("preferred_candidate",[""])[0]; match=form.get("message_match",[""])[0]
+            choice=form.get("preferred_candidate",[""])[0]
+            match=form.get("message_match",[""])[0]
             if choice not in {"A","B","C","none","unsure"} or match not in {"yes","partly","no"}:return self.send(400,"invalid review")
             data=reviews(); data["items"][cid]={"case_id":cid,"preferred_candidate":choice,"message_match":match,"notes":form.get("notes",[""])[0].strip(),"updated_at":datetime.now(timezone.utc).isoformat()}; atomic_write_json(reviews_path,data)
             idx=order.index(cid); self.send_response(303); self.send_header("Location","/case/"+order[min(len(order)-1,idx+1)]); self.end_headers()

@@ -35,7 +35,7 @@ def main() -> None:
     editorial_doc = load(ROOT / "generated_image_analysis.json")
     editorial_by_name = {}
     paths = {}
-    for name, metadata in editorial_doc["file_metadata"].items():
+    for name in editorial_doc["file_metadata"]:
         item_hash = editorial_doc["path_index"][name]
         editorial_by_name[name] = editorial_doc["items"][item_hash]
         paths[name] = ROOT / "generated_review_approved_images" / name

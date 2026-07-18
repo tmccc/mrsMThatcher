@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 import pytest
 from google.genai import errors
 from semantic_alignment.bakeoff import common_prompt

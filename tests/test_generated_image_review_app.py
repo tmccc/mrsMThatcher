@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import copy
 import json
 import socket
 from pathlib import Path

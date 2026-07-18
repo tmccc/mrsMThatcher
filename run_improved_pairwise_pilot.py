@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse,json,os,shutil
+import argparse,json
 from concurrent.futures import ThreadPoolExecutor,as_completed
 from pathlib import Path
 
@@ -36,7 +36,7 @@ def rendered_prompts(manifest):
   out[row['case_id']]=pairwise_model_prompt(intents[row['quote_hash']],quotes[row['quote_hash']],*candidates)
  return out
 
-def preflight(run,manifest,prompts):
+def preflight(run,prompts):
  tokens=sum(estimate_tokens(x) for x in prompts.values());providers={}
  for p,limit in LIMITS.items():
   expected=tokens*PRICES[p]['input']/1e6+25*700*PRICES[p]['output']/1e6;maximum=tokens*PRICES[p]['input']/1e6+25*1200*PRICES[p]['output']/1e6
@@ -45,7 +45,7 @@ def preflight(run,manifest,prompts):
  doc={'schema_version':1,'cases':25,'providers':providers,'combined_expected_cost_usd':sum(x['expected_cost_usd'] for x in providers.values()),'combined_conservative_maximum_cost_usd':sum(x['conservative_maximum_cost_usd'] for x in providers.values()),'combined_limit_usd':16.0,'prompt_parity':True,'human_labels_in_prompts':False,'winner_identity_in_prompts':False};atomic_write_json(run/'preflight.json',doc);return doc
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,default=DEFAULT_RUN);p.add_argument('--dry-run',action='store_true');p.add_argument('--execute-grok',action='store_true');p.add_argument('--execute-openai',action='store_true');p.add_argument('--execute-claude',action='store_true');p.add_argument('--execute-gemini',action='store_true');p.add_argument('--enable-gemini-vertex-fallback',action='store_true');p.add_argument('--confirm-grok-limit-usd',type=float);p.add_argument('--confirm-openai-limit-usd',type=float);p.add_argument('--confirm-claude-limit-usd',type=float);p.add_argument('--confirm-gemini-developer-limit-usd',type=float);p.add_argument('--confirm-gemini-vertex-fallback-limit-usd',type=float);p.add_argument('--confirm-combined-limit-usd',type=float);p.add_argument('--resume',action='store_true');a=p.parse_args();run=a.run_dir.resolve();manifest=prepare(run);prompts=rendered_prompts(manifest);pf=preflight(run,manifest,prompts);print(json.dumps(pf,indent=2))
+ p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,default=DEFAULT_RUN);p.add_argument('--dry-run',action='store_true');p.add_argument('--execute-grok',action='store_true');p.add_argument('--execute-openai',action='store_true');p.add_argument('--execute-claude',action='store_true');p.add_argument('--execute-gemini',action='store_true');p.add_argument('--enable-gemini-vertex-fallback',action='store_true');p.add_argument('--confirm-grok-limit-usd',type=float);p.add_argument('--confirm-openai-limit-usd',type=float);p.add_argument('--confirm-claude-limit-usd',type=float);p.add_argument('--confirm-gemini-developer-limit-usd',type=float);p.add_argument('--confirm-gemini-vertex-fallback-limit-usd',type=float);p.add_argument('--confirm-combined-limit-usd',type=float);p.add_argument('--resume',action='store_true');a=p.parse_args();run=a.run_dir.resolve();manifest=prepare(run);prompts=rendered_prompts(manifest);pf=preflight(run,prompts);print(json.dumps(pf,indent=2))
  if a.dry_run:return
  flags=[a.execute_grok,a.execute_openai,a.execute_claude,a.execute_gemini]
  confirmed={'grok':a.confirm_grok_limit_usd,'openai':a.confirm_openai_limit_usd,'anthropic':a.confirm_claude_limit_usd,'gemini':a.confirm_gemini_developer_limit_usd}

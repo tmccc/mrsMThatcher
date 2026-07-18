@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .first_impression import EVEREST_QUOTE_HASH
-from .io import atomic_write_json, sha256_file
+from .io import atomic_write_json
 
 SCHEMA_VERSION = 1
 DEFAULT_SEED = 20260712

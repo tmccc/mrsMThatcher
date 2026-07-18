@@ -11,7 +11,7 @@ from typing import Any
 from .io import atomic_write_json, atomic_write_text, read_json, read_jsonl, sha256_file
 from .quote_research_corpus import CorpusRunner
 from .quote_research_gemini import (
-    EDITORIAL_FIELDS, PACKET_SCHEMA, PROMPT_VERSION, TOP_LEVEL_FIELDS,
+    PACKET_SCHEMA,
 )
 
 RETRY_RUN_VERSION = 1
@@ -205,8 +205,7 @@ def bind_immutable_identity(content: dict[str, Any], record: dict[str, Any]) -> 
     return value
 
 
-def _retry_run_dir(parent_run: Path, manifest_path: Path,
-                   retry: dict[str, Any]) -> Path:
+def _retry_run_dir(manifest_path: Path, retry: dict[str, Any]) -> Path:
     if retry.get("record_kind") == "quote_research_retry_validation_manifest":
         return manifest_path.parent / "retry_validation_20"
     desired = manifest_path.parent / f"{manifest_path.stem}_run"
@@ -233,7 +232,7 @@ def validate_retry_manifest(run_dir: Path, manifest_path: Path, combined_ceiling
         raise RuntimeError(f"retry validation composition mismatch: {dict(counts)}")
     completed = set((read_json(run_dir / "research_packets.json") or {}).get("items", {}))
     overlap = sorted(completed & set(ids))
-    expected_run_dir = _retry_run_dir(run_dir, manifest_path, retry)
+    expected_run_dir = _retry_run_dir(manifest_path, retry)
     expected_retry_run = str(expected_run_dir.relative_to(run_dir))
     initial_validation = retry.get("record_kind") == "quote_research_retry_validation_manifest"
     if initial_validation:
@@ -275,7 +274,7 @@ def validate_retry_manifest(run_dir: Path, manifest_path: Path, combined_ceiling
 def prepare_retry_run(parent_run: Path, retry_manifest: Path) -> tuple[Path, dict[str, Any]]:
     preflight = validate_retry_manifest(parent_run, retry_manifest)
     source = read_json(retry_manifest)
-    run_dir = _retry_run_dir(parent_run, retry_manifest, source)
+    run_dir = _retry_run_dir(retry_manifest, source)
     run_dir.mkdir(parents=True, exist_ok=True)
     manifest = {
         "schema_version": 1, "record_kind": "quote_research_retry_validation_run",
@@ -345,123 +344,6 @@ def apply_retry_results(parent_run: Path, retry_run: Path) -> dict[str, Any]:
     return audit
 
 
-def write_retry_validation_report(parent_run: Path, retry_run: Path, retry_manifest: Path) -> dict[str, Any]:
-    manifest = read_json(retry_manifest)
-    records = {row["quote_id"]: row for row in manifest["records"]}
-    packets = (read_json(retry_run / "research_packets.json") or {}).get("items", {})
-    permanent = (read_json(retry_run / "permanent_failures.json") or {}).get("items", {})
-    attempts = read_jsonl(retry_run / "attempts.jsonl")
-    costs = read_json(retry_run / "cost_ledger.json")
-    transport = read_json(retry_run / "transport_status.json")
-    completed_groups = Counter(records[q]["retry_group"] for q in packets)
-    unresolved_groups = Counter(records[q]["retry_group"] for q in permanent)
-    completed_subgroups = Counter(records[q]["retry_subgroup"] for q in packets)
-    unresolved_subgroups = Counter(records[q]["retry_subgroup"] for q in permanent)
-    developer_429 = sum(
-        row.get("transport") == "developer_api" and (row.get("failure") or {}).get("kind") == "quota_429"
-        for row in attempts
-    )
-    vertex_429 = sum(
-        row.get("transport") == "vertex_ai" and (row.get("failure") or {}).get("kind") == "quota_429"
-        for row in attempts
-    )
-    identity_rejections = sum(
-        "identity" in str(row.get("failure") or {}).casefold() for row in attempts
-    )
-    timestamps = [datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")) for row in attempts if row.get("timestamp")]
-    elapsed = (max(timestamps) - min(timestamps)).total_seconds() if timestamps else 0.0
-    spend = float(costs.get("combined_known_spend_usd") or 0)
-    recovered = len(packets)
-    prior_summaries = []
-    for path in sorted(parent_run.glob("retry_analysis/**/retry_validation_summary.json")) + sorted(
-            parent_run.glob("retry_batches/**/retry_validation_summary.json")):
-        if path.parent.resolve() != retry_run.resolve():
-            prior_summaries.append(read_json(path))
-    executed_manifest_paths = []
-    initial_manifest = parent_run / "retry_analysis/retry_manifest_20.json"
-    if (parent_run / "retry_analysis/retry_validation_20/retry_validation_summary.json").exists():
-        executed_manifest_paths.append(initial_manifest)
-    for path in sorted(parent_run.glob("retry_batches/retry_batch_*.json")):
-        candidate_run = path.parent / f"{path.stem}_run"
-        if (candidate_run / "retry_validation_summary.json").exists() or candidate_run.resolve() == retry_run.resolve():
-            executed_manifest_paths.append(path)
-    attempted_ids = {row["quote_id"] for path in executed_manifest_paths for row in read_json(path)["records"]}
-    main_packets = set((read_json(parent_run / "research_packets.json") or {}).get("items", {}))
-    cumulative_attempted = len(attempted_ids)
-    cumulative_recovered = len(attempted_ids & main_packets)
-    cumulative_spend = spend + sum(float(row.get("actual_spend_usd") or 0) for row in prior_summaries)
-    untouched_remaining = max(0, 170 - cumulative_attempted)
-    projected_remaining = cumulative_spend / cumulative_attempted * untouched_remaining
-    summary = {
-        "schema_version": 1, "record_kind": "quote_research_retry_validation_summary",
-        "manifest_count": len(records),
-        "manifest_composition": dict(Counter(row["retry_group"] for row in records.values())),
-        "completed": recovered, "completed_by_failure_class": dict(completed_groups),
-        "completed_by_failure_subclass": dict(completed_subgroups),
-        "unresolved": len(permanent), "unresolved_by_failure_class": dict(unresolved_groups),
-        "unresolved_by_failure_subclass": dict(unresolved_subgroups),
-        "developer_completions": sum(row.get("transport") == "developer_api" for row in packets.values()),
-        "vertex_completions": sum(row.get("transport") == "vertex_ai" for row in packets.values()),
-        "developer_429_count": developer_429, "vertex_429_count": vertex_429,
-        "developer_pause_activated": bool(transport.get("developer_paused")),
-        "developer_pause_reason": transport.get("pause_reason"),
-        "direct_to_vertex_count": int(transport.get("direct_to_vertex_count") or 0),
-        "grounding_success_rate": recovered / len(records),
-        "quote_identity_rejection_count": identity_rejections,
-        "actual_spend_usd": spend,
-        "ambiguous_possible_exposure_usd": float(costs.get("ambiguous_possible_exposure_usd") or 0),
-        "average_cost_per_recovered_quote_usd": spend / recovered if recovered else None,
-        "elapsed_seconds": elapsed,
-        "untouched_retry_candidates": untouched_remaining,
-        "projected_cost_remaining_usd": projected_remaining,
-        "projected_recoveries_at_observed_rate": round(
-            untouched_remaining * cumulative_recovered / cumulative_attempted),
-        "cumulative_retry_batches": {"attempted": cumulative_attempted, "recovered": cumulative_recovered,
-                                       "spend_usd": cumulative_spend,
-                                       "recovery_rate": cumulative_recovered / cumulative_attempted},
-        "recommendation": ("authorise_next_30_item_batch" if recovered / len(records) >= .6
-                           else "defer_next_batch_until_vertex_capacity_recovers"),
-        "main_packet_count_after_apply": len((read_json(parent_run / "research_packets.json") or {}).get("items", {})),
-    }
-    atomic_write_json(retry_run / "retry_validation_summary.json", summary)
-    def group_line(values: dict[str, int]) -> str:
-        return ", ".join(f"{key} {value}" for key, value in sorted(values.items())) or "none"
-    report = f"""# Quote Research Retry Validation Report
-
-## Manifest
-
-The immutable validation manifest contained exactly {len(records)} unique unresolved quotes: {summary['manifest_composition'].get('transport_failures', 0)} transport failures, {summary['manifest_composition'].get('missing_grounding', 0)} missing-grounding cases, and {summary['manifest_composition'].get('identity_and_structured_output', 0)} identity/structured-output cases. It had no overlap with completed, offline-recovered, or previously attempted retry-batch packets.
-
-## Results
-
-- Recovered: {recovered}/{len(records)} ({recovered/len(records):.0%})
-- Unresolved: {len(permanent)}/{len(records)}
-- Recovered by class: {group_line(dict(completed_groups))}
-- Unresolved by class: {group_line(dict(unresolved_groups))}
-- Developer completions: {summary['developer_completions']}
-- Vertex completions: {summary['vertex_completions']}
-- Developer 429 responses: {developer_429}
-- Vertex 429 responses: {vertex_429}
-- Run-wide Developer pause activated: {summary['developer_pause_activated']} ({summary['developer_pause_reason']})
-- Direct-to-Vertex cases after pause: {summary['direct_to_vertex_count']}
-- Quote-identity rejections: {identity_rejections}
-- Actual spend: ${spend:.4f}
-- Possible ambiguous exposure: ${summary['ambiguous_possible_exposure_usd']:.4f}
-- Cost per recovered quote: ${summary['average_cost_per_recovered_quote_usd']:.4f}
-- Elapsed time: {elapsed/60:.1f} minutes
-
-All {recovered} accepted packets have at least one provider-linked grounding source and support. Search-entry HTML and model-written URLs were not accepted independently. The {len(permanent)} unresolved cases comprise {group_line(dict(unresolved_groups))}.
-
-## Recommendation
-
-Across the staged retry batches, {cumulative_recovered}/{cumulative_attempted} cases recovered ({cumulative_recovered/cumulative_attempted:.0%}) at a cumulative cost of ${cumulative_spend:.4f}. {('This supports another bounded 30-item batch, not an unchecked remainder run.' if summary['recommendation'] == 'authorise_next_30_item_batch' else 'This batch should not be followed immediately: wait for Vertex capacity to recover, then reassess a bounded next batch.')} The untouched {untouched_remaining} candidates project to approximately ${projected_remaining:.2f} and about {summary['projected_recoveries_at_observed_rate']} recoveries. Preserve the same grounding, identity, timeout, pause and ceiling controls.
-
-No production behavior was changed. No candidate outside this {len(records)}-item manifest was called.
-"""
-    atomic_write_text(retry_run / "retry_validation_report.md", report)
-    return summary
-
-
 def write_recovery_stage_meta_report(parent_run: Path) -> dict[str, Any]:
     manifest_runs: list[tuple[Path, Path]] = []
     initial = parent_run / "retry_analysis/retry_manifest_20.json"
@@ -470,7 +352,7 @@ def write_recovery_stage_meta_report(parent_run: Path) -> dict[str, Any]:
         manifest_runs.append((initial, initial_run))
     for manifest_path in sorted((parent_run / "retry_batches").glob("retry_batch_*.json")):
         retry = read_json(manifest_path)
-        retry_run = _retry_run_dir(parent_run, manifest_path, retry)
+        retry_run = _retry_run_dir(manifest_path, retry)
         if (retry_run / "retry_validation_summary.json").exists():
             manifest_runs.append((manifest_path, retry_run))
 

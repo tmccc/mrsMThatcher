@@ -22,11 +22,6 @@ MODES = {
 HUMOUR_TONES = {"dry", "wry", "playful", "deadpan", "warm", "none"}
 CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1, "none": 0}
 HISTORICAL_MODES = {"historical_correction", "historical_context", "researched_principle"}
-NO_REPLY_REASON_CATEGORIES = {
-    "no_reply_due_to_unverifiable_claim",
-    "no_reply_due_to_bait_or_abuse",
-    "no_reply_due_to_incoherent",
-}
 REPLY_DECISION_FIELDS = frozenset({
     "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
     "evidence_summary", "factual_claim_made", "grounded", "reply_text",
@@ -99,34 +94,6 @@ TOPICAL_CONCEPTS = {
 }
 
 
-DEFAULT_REPLY_STRATEGY = {
-    "enabled": False,
-    "accuracy_first": True,
-    "research_corpus_enabled": True,
-    "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
-    "completed_packets_only": True,
-    "allow_historical_correction": True,
-    "allow_historical_context": True,
-    "allow_researched_principle": True,
-    "allow_humour": True,
-    "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
-    "maximum_retrieved_packets": 5,
-    "minimum_grounded_confidence": "medium",
-    "no_hashtags": True,
-    "hybrid_retrieval": {
-        "enabled": False,
-        "mode": "shadow",
-        "index_path": "semantic_alignment_research/hybrid_reply_retrieval_001",
-        "maximum_results": 5,
-        "semantic_candidate_count": 20,
-        "lexical_candidate_count": 20,
-        "query_timeout_ms": 1000,
-        "maximum_shadow_history": 5000,
-        "fail_open": True,
-    },
-}
-
-
 @dataclass(frozen=True)
 class RetrievedEvidence:
     quote_id: str
@@ -161,63 +128,6 @@ class ReplyDecision(str):
         instance = str.__new__(cls, value)
         instance.strategy_metadata = strategy_metadata
         return instance
-
-
-def validate_reply_strategy_config(value: Any) -> list[str]:
-    if not isinstance(value, dict):
-        return ["reply_strategy must be an object"]
-    if set(value) != set(DEFAULT_REPLY_STRATEGY):
-        return ["reply_strategy fields mismatch"]
-    errors: list[str] = []
-    for key in (
-        "enabled", "accuracy_first", "research_corpus_enabled", "completed_packets_only",
-        "allow_historical_correction", "allow_historical_context",
-        "allow_researched_principle", "allow_humour", "no_hashtags",
-    ):
-        if type(value.get(key)) is not bool:
-            errors.append(f"reply_strategy.{key} must be boolean")
-    if not isinstance(value.get("research_corpus_path"), str) or not value["research_corpus_path"].strip():
-        errors.append("reply_strategy.research_corpus_path must be a non-empty string")
-    maximum = value.get("maximum_retrieved_packets")
-    if type(maximum) is not int or not 1 <= maximum <= 10:
-        errors.append("reply_strategy.maximum_retrieved_packets must be an integer from 1 to 10")
-    tones = value.get("preferred_humour_tones")
-    if not isinstance(tones, list) or not tones or any(tone not in HUMOUR_TONES - {"none"} for tone in tones):
-        errors.append("reply_strategy.preferred_humour_tones contains unsupported values")
-    if value.get("minimum_grounded_confidence") not in {"medium", "high"}:
-        errors.append("reply_strategy.minimum_grounded_confidence must be medium or high")
-    shadow = value.get("hybrid_retrieval")
-    expected_shadow = {
-        "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
-        "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
-    }
-    if not isinstance(shadow, dict) or set(shadow) != expected_shadow:
-        errors.append("reply_strategy.hybrid_retrieval fields mismatch")
-    else:
-        if type(shadow.get("enabled")) is not bool:
-            errors.append("reply_strategy.hybrid_retrieval.enabled must be boolean")
-        if shadow.get("mode") != "shadow":
-            errors.append("reply_strategy.hybrid_retrieval.mode must be shadow")
-        if not isinstance(shadow.get("index_path"), str) or not shadow["index_path"].strip():
-            errors.append("reply_strategy.hybrid_retrieval.index_path must be non-empty")
-        for key, low, high in (
-            ("maximum_results", 1, 5), ("semantic_candidate_count", 5, 100),
-            ("lexical_candidate_count", 5, 100), ("query_timeout_ms", 50, 10_000),
-            ("maximum_shadow_history", 100, 100_000),
-        ):
-            number = shadow.get(key)
-            if type(number) is not int or not low <= number <= high:
-                errors.append(f"reply_strategy.hybrid_retrieval.{key} must be an integer from {low} to {high}")
-        if shadow.get("fail_open") is not True:
-            errors.append("reply_strategy.hybrid_retrieval.fail_open must remain true")
-    if value.get("enabled"):
-        if value.get("accuracy_first") is not True:
-            errors.append("reply_strategy.accuracy_first must remain true when enabled")
-        if value.get("completed_packets_only") is not True:
-            errors.append("reply_strategy.completed_packets_only must remain true when enabled")
-        if value.get("no_hashtags") is not True:
-            errors.append("reply_strategy.no_hashtags must remain true when enabled")
-    return errors
 
 
 def allowed_modes_from_config(config: dict[str, Any]) -> set[str]:
@@ -748,10 +658,6 @@ def reply_repetition_reason(text: str, recent_replies: Iterable[str]) -> str | N
         if union and len(tokens & previous_tokens) / len(union) >= 0.8:
             return "highly similar reply"
     return None
-
-
-def reply_is_repetitive(text: str, recent_replies: Iterable[str]) -> bool:
-    return reply_repetition_reason(text, recent_replies) is not None
 
 
 def validate_reply_decision(

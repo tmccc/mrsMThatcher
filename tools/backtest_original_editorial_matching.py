@@ -70,7 +70,6 @@ EXPECTED_ANALYSIS_KIND = "original_editorial_experiment"
 DEFAULT_SEED = 20260709
 DIAGNOSTIC_T70_QUOTE = "There is an increasing belief that freedom is divisible. No myth is more dangerous. Freedom is indivisible."
 VARIANT_C_WEIGHTS = {"low": 0.18, "medium": 0.32, "high": 0.50}
-CONSERVATIVE_WEIGHT = "medium"
 BROKEN_RUN_BASELINE = {
     "scale_bug": "previous run incorrectly treated editorial dimension_scores and overall_editorial_utility as 0..100 instead of 0..10",
     "winner_changes": {"low": 0, "medium": 0, "high": 3},
@@ -456,7 +455,6 @@ def quote_records(lines: list[str], quote_analysis: dict[str, Any]) -> list[Quot
 
 def parse_recent_posts(log_dir: Path, quote_by_hash: dict[str, QuoteRecord], limit: int) -> list[QuoteRecord]:
     candidates: dict[str, dict[str, Any]] = {}
-    selected: dict[str, dict[str, Any]] = {}
     posts = []
     for path in sorted(log_dir.glob("*.log*")):
         try:
@@ -642,7 +640,7 @@ def build_outputs(args: argparse.Namespace) -> dict[str, Any]:
     recent = parse_recent_posts(Path(args.log_dir), by_hash, args.recent_limit)
     broad = deterministic_broad_sample(all_quotes, args.broad_sample, args.seed)
     diagnostic = diagnostic_quote_record(all_quotes)
-    editorial_idf, editorial_df = build_editorial_idf(images)
+    editorial_idf, _ = build_editorial_idf(images)
 
     sample_records = recent + [q for q in broad if q.quote_hash not in {r.quote_hash for r in recent}]
     if diagnostic and diagnostic.quote_hash not in {q.quote_hash for q in sample_records}:
@@ -745,7 +743,6 @@ def write_report(output: dict[str, Any], path: Path) -> None:
     results = output["results"]
     recent = [r for r in results if r["sample"] == "recent"]
     broad = [r for r in results if r["sample"] == "broad"]
-    diagnostic = [r for r in results if r["sample"] == "diagnostic"]
     changed = [r for r in results if r["baseline_top10"] and r["combined_top10_medium"] and r["baseline_top10"][0]["basename"] != r["combined_top10_medium"][0]["basename"]]
     unchanged = [r for r in results if r["baseline_top10"] and r["combined_top10_medium"] and r["baseline_top10"][0]["basename"] == r["combined_top10_medium"][0]["basename"]]
     potentially_worse = [

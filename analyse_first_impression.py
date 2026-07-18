@@ -7,7 +7,6 @@ import json
 import os
 import statistics
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 
 from semantic_alignment.bakeoff import PROVIDER_MODELS, ProviderClient
@@ -68,7 +67,7 @@ def image_db(run):return read_json(run/'image_first_impressions.json') or {"sche
 
 
 def dry(run,project,no_write=False):
-    quotes,image_semantics,human,active,validation,intents=prepare(run,project,no_write)
+    _,_,_,active,validation,intents=prepare(run,project,no_write)
     db=image_db(run);pending=pending_images(validation['items'],active,db);pf=preflight(validation['items'],intents,db['items'],vision_calls=len(pending));pf.update({"active_pool":len(active),"quarantined_included":0,"everest_present":any(x['quote_hash']==EVEREST_QUOTE_HASH and x['image_basename']==EVEREST_IMAGE for x in validation['items']),"free_trade_present":any(x['inclusion_reason']=='forced_free_trade_indirect_case' for x in validation['items']),"pending_images":len(pending),"pairwise_cases":len(pairwise_cases(validation['items']))})
     if not no_write:atomic_write_json(run/'preflight.json',pf)
     return pf
@@ -77,7 +76,7 @@ def dry(run,project,no_write=False):
 def run_vision(args,run,project):
     if not args.execute_vision:raise RuntimeError('vision execution requires --execute-vision')
     if args.confirm_cost_limit_usd is None or not 0<args.confirm_cost_limit_usd<=3:raise RuntimeError('vision cost limit must be within $3')
-    quotes,image_semantics,human,active,validation,intents=prepare(run,project);db=image_db(run);rows=pending_images(validation['items'],active,db)
+    _,_,_,active,validation,_=prepare(run,project);db=image_db(run);rows=pending_images(validation['items'],active,db)
     if args.only_image:rows=[x for x in rows if x['image_basename']==args.only_image]
     rows=rows[:args.max_items]
     client=XAIClient(api_key=os.getenv('XAI_API_KEY',''));ledger=CostLedger(run/'vision_cost_ledger.json',run_id=run.name)
@@ -100,7 +99,7 @@ def run_critics(args,run,project):
     if not selected or any(p not in limits for p in selected):raise RuntimeError('invalid critic providers')
     if any(limits[p] is None or not 0<limits[p]<=CEILINGS[p] for p in selected):raise RuntimeError('provider limits must be explicitly confirmed within ceilings')
     if args.confirm_combined_cost_limit_usd is None or not 0<args.confirm_combined_cost_limit_usd<=14:raise RuntimeError('combined limit must be within $14')
-    quotes,image_semantics,human,active,validation,intents=prepare(run,project);images=image_db(run)['items'];cases=[x for x in validation['items'] if x['image_basename'] in images]
+    _,_,_,_,validation,intents=prepare(run,project);images=image_db(run)['items'];cases=[x for x in validation['items'] if x['image_basename'] in images]
     if args.only_quote_hash:cases=[x for x in cases if x['quote_hash']==args.only_quote_hash]
     cases=[{**case,"normalised_input_hash":hashlib.sha256(critic_prompt(intents[case['quote_hash']],images[case['image_basename']]).encode()).hexdigest(),"estimated_input_tokens":2500} for case in cases[:args.max_items]]
     keys={"grok":"XAI_API_KEY","openai":"OPENAI_API_KEY","anthropic":"ANTHROPIC_API_KEY","gemini":"GEMINI_API_KEY"};clients={p:StructuredProviderAdapter(ProviderClient(p,os.getenv(keys[p]) or (os.getenv('GOOGLE_API_KEY','') if p=='gemini' else '')),ALIGNMENT_OUTPUT_SCHEMA,'first_impression_alignment',1200) for p in selected}
@@ -115,7 +114,7 @@ def run_critics(args,run,project):
 def run_pairwise(args,run,project):
     if not args.pairwise_only or not args.execute_critics:raise RuntimeError('pairwise execution requires --pairwise-only --execute-critics')
     if args.confirm_cost_limit_usd is None or not 0<args.confirm_cost_limit_usd<=3:raise RuntimeError('pairwise limit must be within $3')
-    quotes,image_semantics,human,active,validation,intents=prepare(run,project);images=image_db(run)['items'];pairs=pairwise_cases(validation['items'])[:args.max_items];out=read_json(run/'pairwise_rankings.json') or {"schema_version":1,"analysis_kind":"first_impression_pairwise_rankings","provider":args.provider,"items":{},"failures":{}}
+    _,_,_,_,validation,intents=prepare(run,project);images=image_db(run)['items'];pairs=pairwise_cases(validation['items'])[:args.max_items];out=read_json(run/'pairwise_rankings.json') or {"schema_version":1,"analysis_kind":"first_impression_pairwise_rankings","provider":args.provider,"items":{},"failures":{}}
     key={'grok':'XAI_API_KEY','openai':'OPENAI_API_KEY','anthropic':'ANTHROPIC_API_KEY','gemini':'GEMINI_API_KEY'}[args.provider];client=StructuredProviderAdapter(ProviderClient(args.provider,os.getenv(key) or (os.getenv('GOOGLE_API_KEY','') if args.provider=='gemini' else '')),PAIRWISE_OUTPUT_SCHEMA,'first_impression_pairwise',1000);spent=0.0
     for pair in pairs:
         if pair['pair_id'] in out['items'] or pair['candidate_a'] not in images or pair['candidate_b'] not in images:continue
@@ -127,7 +126,7 @@ def run_pairwise(args,run,project):
 
 
 def report(run,project):
-    quotes,image_semantics,human,active,validation,intents=prepare(run,project);images=image_db(run)['items'];providers={p:(read_json(run/f'{p}_first_impression_results.json') or read_json(run/f'{p}_results.json') or {}).get('items',{}) for p in ('grok','openai','anthropic','gemini')};all_results={cid:[rows[cid] for rows in providers.values() if cid in rows] for cid in {x['case_id'] for x in validation['items']}}
+    _,_,human,_,validation,intents=prepare(run,project);images=image_db(run)['items'];providers={p:(read_json(run/f'{p}_first_impression_results.json') or read_json(run/f'{p}_results.json') or {}).get('items',{}) for p in ('grok','openai','anthropic','gemini')};all_results={cid:[rows[cid] for rows in providers.values() if cid in rows] for cid in {x['case_id'] for x in validation['items']}}
     consensus={cid:{"provider_count":len(rows),"alignment_median":statistics.median([r['dominant_visual_message_alignment_score'] for r in rows]) if rows else None,"tone_median":statistics.median([r['tone_alignment_score'] for r in rows]) if rows else None,"risk":dict(Counter(r['editorial_risk'] for r in rows))} for cid,rows in all_results.items()}
     alignments={cid:rows[0] for cid,rows in all_results.items() if rows};strategies=strategy_comparison(validation['items'],alignments,human);atomic_write_json(run/'strategy_comparison.json',strategies);atomic_write_json(run/'first_impression_alignment_results.json',{"schema_version":1,"providers":providers,"consensus":consensus})
     everest=next(x for x in validation['items'] if x['quote_hash']==EVEREST_QUOTE_HASH and x['image_basename']==EVEREST_IMAGE);free=next(x for x in validation['items'] if x['inclusion_reason']=='forced_free_trade_indirect_case');pairwise=read_json(run/'pairwise_rankings.json',{"items":{}})

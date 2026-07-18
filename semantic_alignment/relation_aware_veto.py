@@ -216,14 +216,6 @@ def _clean_list(value: Any, maximum_items: int = 12, maximum_text: int = 240) ->
     return [text for item in value[:maximum_items] if (text := _clean(item, maximum_text))]
 
 
-def _sha256_directory(path: Path) -> str:
-    rows = []
-    for item in sorted(path.rglob("*")):
-        if item.is_file() and item.name != ".DS_Store" and not item.name.startswith("._"):
-            rows.append((str(item.relative_to(path)), sha256_file(item)))
-    return value_hash(rows)
-
-
 def compact_contract_input(packet: dict[str, Any]) -> dict[str, Any]:
     editorial = packet["editorial_guidance"]
     return {
@@ -593,13 +585,6 @@ def load_image_corpus(
         "image_content_set_sha256": text_hash("\n".join(sorted(row["image_sha256"] for row in rows)) + "\n"),
     }
     return rows, metadata
-
-
-def _normal_terms(value: Any) -> set[str]:
-    return {
-        word for word in re.findall(r"[a-z0-9]+", str(value or "").casefold())
-        if len(word) >= 4
-    }
 
 
 def _entity_matches_image(entity: str, image: dict[str, Any]) -> bool:
@@ -4153,155 +4138,6 @@ def run_production_top5(
         "retired v1 production-top5 execution: the v1 contract boundary failed positive-retention "
         "and corpus-coverage requirements; prepare the material-veto v2 revision instead"
     )
-    # The implementation below is retained solely to preserve the completed
-    # run's audit trail while v2 is developed. It is intentionally unreachable.
-    if not execute or confirmed_limit != HARD_COMBINED_CEILING_USD:
-        raise RuntimeError("production top-five run requires --execute and exact --confirm-combined-limit-usd 60")
-    prepared = prepare_production_top5(project_dir, output_dir)
-    if not prepared["preflight"]["within_expected_ceiling"]:
-        raise RuntimeError("production top-five preflight did not pass")
-    developer, vertex, _transport = transport_preflight(
-        project_dir, output_dir, inspect_availability=True,
-    )
-    ledger = CostLedger(output_dir)
-    router = RelationRouter(output_dir, developer, vertex, ledger)
-    batch = DeveloperBatchRunner(output_dir, router, ledger, poll_seconds=poll_seconds)
-    candidates = read_json(output_dir / "production_top5_pair_candidates.json")
-    manifest = read_json(output_dir / "production_top5_batch_manifest.json")
-    image_by_id = {
-        row["image_id"]: row
-        for row in read_json(output_dir / "image_corpus_manifest.json")["records"]
-    }
-    pair_db = read_json(output_dir / "pair_judgements.json")
-    ambiguous_logical_ids = {
-        str(row.get("logical_call_id") or "").removesuffix("-batch-repair")
-        for row in _read_jsonl(output_dir / "attempts.jsonl")
-        if row.get("ambiguous_outcome") is True
-        and str(row.get("logical_call_id") or "").startswith("production-pairs-")
-        and str(row.get("logical_call_id") or "").endswith("-batch-repair")
-    }
-    runnable = []
-    validators: dict[str, Callable[[Any], Any]] = {}
-    ambiguous_records = []
-    for saved in manifest["items"]:
-        pairs = saved["pairs"]
-        if all(row["pair_id"] in pair_db["records"] for row in pairs):
-            continue
-        image = image_by_id[saved["image_id"]]
-        logical_id = saved["logical_id"]
-        if logical_id in ambiguous_logical_ids:
-            recovered = conservative_ambiguous_pair_vetoes(image, pairs)
-            for judgement in recovered:
-                pair_db["records"][judgement["pair_id"]] = judgement
-            ambiguous_records.extend(recovered)
-            continue
-        item = {
-            "logical_id": logical_id,
-            "image": image,
-            "prompt": pair_prompt(image, pairs),
-            "schema": pair_response_schema(len(pairs)),
-            "max_output_tokens": PAIR_MAX_OUTPUT_TOKENS,
-            "expected_pair_ids": [row["pair_id"] for row in pairs],
-            "recovery_splits": [{
-                "logical_id": f"{logical_id}-split-{split_number:02d}",
-                "prompt": pair_prompt(image, [pair]),
-                "schema": pair_response_schema(1),
-                "max_output_tokens": PAIR_MAX_OUTPUT_TOKENS,
-                "pair": pair,
-                "validator": (
-                    lambda value, image=image, pair=pair:
-                    validate_pair_response(value, image, [pair])
-                ),
-            } for split_number, pair in enumerate(pairs, 1)],
-        }
-        runnable.append(item)
-        validators[logical_id] = (
-            lambda value, image=image, pairs=pairs: validate_pair_response(value, image, pairs)
-        )
-    if ambiguous_records:
-        pair_db["updated_at"] = utc_now()
-        atomic_write_json(output_dir / "pair_judgements.json", pair_db)
-        atomic_write_json(output_dir / "production_top5_ambiguous_pair_vetoes.json", {
-            "schema_version": SCHEMA_VERSION,
-            "policy": "ambiguous transmitted outcomes are never resubmitted; affected pairs are conservatively vetoed",
-            "logical_call_ids": sorted(ambiguous_logical_ids),
-            "records": ambiguous_records,
-            "generated_at": utc_now(),
-        })
-    for block_number, start in enumerate(
-        range(0, len(runnable), PRODUCTION_BATCH_MAX_ITEMS), 1,
-    ):
-        block = runnable[start:start + PRODUCTION_BATCH_MAX_ITEMS]
-        results = batch.run(
-            batch_id=f"production-top5-pair-judgements-001-{block_number:02d}",
-            items=block,
-            validators={row["logical_id"]: validators[row["logical_id"]] for row in block},
-        )
-        for item in block:
-            for judgement in results[item["logical_id"]]["response"]:
-                pair_db["records"][judgement["pair_id"]] = judgement
-        pair_db["pair_schema_version"] = PAIR_SCHEMA_VERSION
-        pair_db["updated_at"] = utc_now()
-        atomic_write_json(output_dir / "pair_judgements.json", pair_db)
-    required_pair_ids = {
-        pair["pair_id"] for quote in candidates["records"] for pair in quote["pairs"]
-    }
-    missing = required_pair_ids - set(pair_db["records"])
-    if missing:
-        raise RuntimeError(f"production top-five judgement set is incomplete ({len(missing)} missing)")
-    simulation = simulate_production_top5(output_dir)
-    isolation = production_hashes(project_dir)
-    before = read_json(output_dir / "production_hashes_before.json")
-    unchanged = isolation["aggregate_sha256"] == before["aggregate_sha256"]
-    if not unchanged:
-        raise RuntimeError("production files changed during production-oriented veto research")
-    final_ledger = read_json(output_dir / "cost_ledger.json")
-    initial_known = float(prepared["preflight"]["known_spend_before_usd"])
-    incremental = float(final_ledger["known_spend_usd"]) - initial_known
-    expanded = simulation["metrics"]["expanded_91"]
-    status_value = {
-        "schema_version": SCHEMA_VERSION,
-        "quote_count": candidates["quote_count"],
-        "union_pair_count": candidates["union_pair_count"],
-        "reused_pair_count": manifest["reused_pair_count"],
-        "new_pair_count": manifest["missing_pair_count"],
-        "current_69": simulation["metrics"]["current_69"],
-        "expanded_91": expanded,
-        "incremental_known_spend_usd": round(incremental, 6),
-        "total_known_spend_usd": final_ledger["known_spend_usd"],
-        "ambiguous_exposure_usd": final_ledger["ambiguous_exposure_usd"],
-        "production_files_unchanged": unchanged,
-        "ready_for_shadow_observation": True,
-        "ready_for_live_enforcement": False,
-        "live_production_enabled": False,
-        "generated_at": utc_now(),
-    }
-    atomic_write_json(output_dir / "production_top5_final_status.json", status_value)
-    atomic_write_text(output_dir / "production_top5_veto_report.md", "\n".join([
-        "# Production-Oriented Relation-Aware Veto Report", "",
-        f"- Quotations: {status_value['quote_count']}",
-        f"- Unique top-five current/expanded pairs: {status_value['union_pair_count']}",
-        f"- Reused judgements: {status_value['reused_pair_count']}",
-        f"- New judgements: {status_value['new_pair_count']}",
-        f"- Incremental known spend: US${status_value['incremental_known_spend_usd']:.4f}",
-        f"- Total known spend: US${float(status_value['total_known_spend_usd']):.4f}", "",
-        "## Current 69", "",
-        f"- Selector winners vetoed: {status_value['current_69']['selector_winner_veto_count']}",
-        f"- Fallbacks used: {status_value['current_69']['fallback_used_count']}",
-        f"- Quotations with at least one allowed image: {status_value['current_69']['at_least_one_allowed_count']}",
-        f"- Quotations with no allowed image: {status_value['current_69']['no_allowed_image_count']}", "",
-        "## Expanded 91", "",
-        f"- Selector winners vetoed: {expanded['selector_winner_veto_count']}",
-        f"- Fallbacks used: {expanded['fallback_used_count']}",
-        f"- Quotations with at least one allowed image: {expanded['at_least_one_allowed_count']}",
-        f"- Quotations with no allowed image: {expanded['no_allowed_image_count']}",
-        f"- Discovered images selected after veto: {simulation['metrics']['expanded_selected_discovered_count']}", "",
-        "The system remains offline. Passing safety gates does not authorise live enforcement; coverage must be assessed first.",
-    ]) + "\n")
-    build_report(output_dir)
-    return status_value
-
-
 def finalise(output_dir: Path, project_dir: Path, evaluation: dict[str, Any]) -> dict[str, Any]:
     contracts = _contract_db(output_dir)
     pair_db = read_json(output_dir / "pair_judgements.json")

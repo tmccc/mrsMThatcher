@@ -65,7 +65,7 @@ def provider_usage(output,provider):
     return {"calls":len(rows),"input_tokens":sum(x.get("input_tokens",0) for x in rows),"cached_tokens":sum(x.get("cached_tokens",0) for x in rows),"reasoning_tokens":sum(x.get("reasoning_tokens",0) for x in rows),"output_tokens":sum(x.get("output_tokens",0) for x in rows),"cost_usd":sum(x.get("cost_usd",0) for x in rows),"latency_mean":statistics.mean([x["latency_seconds"] for x in rows]) if rows else None,"latency_median":statistics.median([x["latency_seconds"] for x in rows]) if rows else None,"latency_total":sum(x.get("latency_seconds",0) for x in rows),"blocked":ledger.get("blocked",False),"ambiguous_requests":len(ledger.get("ambiguous_requests",[])),"retries":sum(x.get("retry_count",0) for x in rows)}
 
 
-def write_report(output,comparison,cases,quotes,images):
+def write_report(output,comparison,cases):
     usage={p:provider_usage(output,p) for p in ("grok","openai")}; free=next(x for x in cases if (x["quote_hash"],x["image_basename"])==FREE_TRADE_KEY); grok=read_json(output/"grok_results.json")["items"][free["case_id"]]; openai=read_json(output/"openai_results.json")["items"][free["case_id"]]
     mapping=read_json(output/"sealed_provider_mapping.json"); provider_to_critic={provider:critic for critic,provider in mapping.items()}; results={"grok":grok,"openai":openai}
     def blinded(value):
@@ -82,7 +82,7 @@ def write_report(output,comparison,cases,quotes,images):
 
 
 def main(argv=None):
-    args=parser().parse_args(argv); source=args.source_run.resolve(); output=args.output_dir.resolve(); quotes,images,old,cases=ensure_prepared(source,output)
+    args=parser().parse_args(argv); source=args.source_run.resolve(); output=args.output_dir.resolve(); quotes,images,_,cases=ensure_prepared(source,output)
     if args.command=="prepare": print(f"cases={len(cases)}"); return 0
     estimate=preflight(cases,quotes,images); atomic_write_json(output/"preflight_four_provider.json",estimate)
     if args.command=="dry-run": verify_pricing(output); verify_anthropic(output); verify_gemini(output); print(json.dumps(estimate,indent=2)); return 0
@@ -98,7 +98,7 @@ def main(argv=None):
         if limit is None or limit>PROVIDER_CEILINGS[provider] or estimate["providers"][provider]["conservative_maximum_cost_usd"]>limit: raise RuntimeError("provider estimate exceeds confirmed/hard limit")
         env={"grok":"XAI_API_KEY","openai":"OPENAI_API_KEY","anthropic":"ANTHROPIC_API_KEY","gemini":"GEMINI_API_KEY"}[provider]; key=os.getenv(env,"") or (os.getenv("GOOGLE_API_KEY","") if provider=="gemini" else ""); client=ProviderClient(provider,key); run_provider(provider,cases,quotes,images,output,client,limit); return 0
     if args.command=="compare":
-        grok=read_json(output/"grok_results.json"); openai=read_json(output/"openai_results.json"); comparison=compare_results(cases,grok,openai); atomic_write_json(output/"comparison.json",comparison); write_report(output,comparison,cases,quotes,images); print(json.dumps(comparison,indent=2)); return 0
+        grok=read_json(output/"grok_results.json"); openai=read_json(output/"openai_results.json"); comparison=compare_results(cases,grok,openai); atomic_write_json(output/"comparison.json",comparison); write_report(output,comparison,cases); print(json.dumps(comparison,indent=2)); return 0
     if args.command=="compare-three":
         results={p:read_json(output/f"{p}_results.json") for p in ("grok","openai","anthropic")}; comparison=compare_n_results(cases,results); atomic_write_json(output/"comparison_three_provider.json",comparison); create_three_way_blinding(output); print(json.dumps(comparison,indent=2)); return 0
     if args.command=="compare-four":

@@ -239,58 +239,12 @@ def test_used_history_missing_without_legacy_pickle_returns_empty_set(tmp_path: 
     assert bot.load_used_set(json_path) == set()
 
 
-def test_choose_unused_line_returns_non_empty_line_and_marks_empty_lines(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    lines_file = tmp_path / "mrsMThatcher.txt"
-    lines_file.write_text("\nA usable quote.\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["", "A usable quote."]))
-    monkeypatch.setattr(bot.random, "shuffle", lambda values: values.sort())
-
-    used: set[str] = set()
-    line_no, text = bot.choose_unused_line(used)
-
-    assert (line_no, text) == (1, "A usable quote.")
-    assert used == set()
-
-
-def test_choose_unused_line_resets_when_all_lines_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    lines_file = tmp_path / "mrsMThatcher.txt"
-    lines_file.write_text("Only quote.\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
-    only_hash = bot.quote_text_hash("Only quote.")
-    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(["Only quote."]))
-
-    used = {only_hash}
-    line_no, text = bot.choose_unused_line(used)
-
-    assert (line_no, text) == (0, "Only quote.")
-    assert used == set()
-
-
-def test_choose_unused_image_resets_when_all_images_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    image_dir = tmp_path / "images"
-    image_dir.mkdir()
-    image_path = image_dir / "t01.jpg"
-    image_path.write_bytes(b"fake")
-    monkeypatch.setattr(bot, "IMAGE_GLOB", str(image_dir / "t*"))
-
-    used = {"t01.jpg"}
-    image_no, selected = bot.choose_unused_image(used)
-
-    assert image_no == 0
-    assert selected == str(image_path)
-    assert used == set()
-
-
-def test_quote_metadata_uses_current_quote_hash_not_stale_line_index(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    lines_file = tmp_path / "quotes.txt"
-    lines_file.write_text("Quote text\n", encoding="utf-8")
-    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+def test_quote_metadata_uses_current_quote_hash_not_stale_line_index() -> None:
     quote_hash = bot.quote_text_hash("Quote text")
     analysis = {"primary_topics": ["government"]}
     data = {"line_index": {"1": "stale"}, "items": {quote_hash: {"text": "Quote text", "analysis": analysis}}}
 
-    assert bot.quote_metadata_for_line(data, 0) == (quote_hash, analysis)
+    assert bot.quote_metadata_for_hash(data, quote_hash, "Quote text") == analysis
 
 
 def test_quote_override_deep_merges_only_requested_field() -> None:
@@ -483,26 +437,6 @@ def test_image_used_history_mixed_entries_migrate_and_preserve_missing_basenames
 
     assert migrated == {"t01.jpg", "t02.jpg", "missing.jpg"}
     assert changed is True
-
-
-def test_image_cycle_remaining_set_prevents_repeat_until_unused_exhausted(tmp_path: Path) -> None:
-    images = [str(tmp_path / "t01.jpg"), str(tmp_path / "t02.jpg")]
-
-    available, reset = bot.available_image_basenames(images, {"t01.jpg"}, {})
-
-    assert available == ["t02.jpg"]
-    assert reset is False
-
-
-def test_image_cycle_resets_only_after_all_images_used_and_avoids_boundary_duplicate(tmp_path: Path) -> None:
-    images = [str(tmp_path / "t01.jpg"), str(tmp_path / "t02.jpg")]
-    used = {"t01.jpg", "t02.jpg"}
-
-    available, reset = bot.available_image_basenames(images, used, {"last_regular_image_filename": "t02.jpg"})
-
-    assert reset is True
-    assert used == set()
-    assert available == ["t01.jpg"]
 
 
 def test_currently_eligible_image_cycle_resets_without_marking_seasonal_image_used(
@@ -800,6 +734,27 @@ def test_runtime_config_validation_rejects_negative_generated_spacing() -> None:
     errors = bot.validate_runtime_config_values({"GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": -1})
 
     assert "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be non-negative" in errors
+
+
+@pytest.mark.parametrize(
+    ("field", "expected_error"),
+    [
+        ("accuracy_first", "reply_strategy.accuracy_first must remain true when enabled"),
+        ("completed_packets_only", "reply_strategy.completed_packets_only must remain true when enabled"),
+        ("no_hashtags", "reply_strategy.no_hashtags must remain true when enabled"),
+    ],
+)
+def test_active_reply_strategy_validator_requires_fail_closed_safety_flags(
+    field: str,
+    expected_error: str,
+) -> None:
+    strategy = json.loads(json.dumps(bot.reply_strategy))
+    strategy["enabled"] = True
+    strategy[field] = False
+
+    errors = bot.validate_runtime_config_values({"reply_strategy": strategy})
+
+    assert expected_error in errors
 
 
 def test_original_image_selection_returns_observability_and_logs(
@@ -2844,8 +2799,6 @@ def test_image_history_preserves_missing_basenames_and_reuses_when_file_reappear
 
     used = bot.load_image_used_basenames([str(t01)])
     assert used == {"t01.jpg", "temporarily_missing.jpg"}
-    assert "temporarily_missing.jpg" not in bot.available_image_basenames([str(t01)], used, {})[0]
-
     missing = image_dir / "temporarily_missing.jpg"
     missing.write_bytes(b"two")
     used = bot.load_image_used_basenames([str(t01), str(missing)])

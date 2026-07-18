@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import html
 import json
 import math
 import os
 import re
-import tempfile
-from collections import Counter, defaultdict
+from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -391,7 +389,7 @@ def serve(audit_dir:Path,host:str,port:int)->None:
             if qid not in ids: ids=list(base); index=ids.index(qid)
             else:index=ids.index(qid)
             prev=ids[max(0,index-1)];nxt=ids[min(len(ids)-1,index+1)]
-            unreviewed=[x for x in ids if x not in reviews];prev_u=next((x for x in reversed(ids[:index]) if x not in reviews),qid);next_u=next((x for x in ids[index+1:] if x not in reviews),qid)
+            prev_u=next((x for x in reversed(ids[:index]) if x not in reviews),qid);next_u=next((x for x in ids[index+1:] if x not in reviews),qid)
             qs=urlencode({k:v[0] for k,v in query.items()}); suffix=("?"+qs if qs else ""); selected=(review or {}).get("human_grade")
             decisions="".join(f'<button type="button" class="decision {"selected" if selected==grade else ""}" data-grade="{grade}"><span>{i}</span> {label}</button>' for i,(grade,(label,_)) in enumerate(HUMAN_DECISIONS.items(),1))
             scores="".join(f'<label>{f.replace("_"," ")} <input type="number" min="1" max="5" name="score_{f}" value="{row["scores"][f]}"></label>' for f in SCORE_FIELDS)

@@ -6,7 +6,6 @@ import threading
 import time
 from pathlib import Path
 
-import pytest
 import requests
 
 from semantic_alignment.quote_research_corpus import CorpusRunner, build_corpus_manifest

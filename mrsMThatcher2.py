@@ -4343,17 +4343,6 @@ def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: 
     return analysis
 
 
-def quote_metadata_for_line(quote_analysis: dict | None, line_no: int) -> tuple[str | None, dict | None]:
-    try:
-        with open(LINES_FILE, encoding="utf-8") as f:
-            lines = f.readlines()
-        text = lines[line_no].rstrip()
-    except Exception:
-        return None, None
-    quote_hash = quote_text_hash(text)
-    return quote_hash, quote_metadata_for_hash(quote_analysis, quote_hash, text)
-
-
 def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
     result: dict[int, str] = {}
     for line_no, line in enumerate(lines):
@@ -4781,15 +4770,6 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
     return True
 
 
-def block_if_unresolved_meme_post_receipt() -> None:
-    status, _receipt = load_meme_post_receipt()
-    if status == "absent":
-        return
-    if status == "invalid":
-        raise InvalidMemePostReceipt(f"Invalid meme-post receipt blocks the bot: {MEME_POST_RECEIPT_FILE}")
-    raise UnresolvedMemePostReceipt(f"Unresolved meme-post receipt must be reconciled before another main post: {MEME_POST_RECEIPT_FILE}")
-
-
 def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
     post_id = str(receipt["post_id"])
     quote_hash = str(receipt["quote_hash"])
@@ -5058,18 +5038,6 @@ def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict)
         "regular": reconcile_regular_post_receipt(lines_used, images_used, state),
         "meme": reconcile_meme_post_receipt(state),
     }
-
-
-def block_if_unresolved_main_post_receipt() -> None:
-    if both_main_post_receipts_exist():
-        log.critical(
-            "Both regular and meme confirmed-post receipts exist; refusing main posting until manually inspected: %s %s",
-            REGULAR_POST_RECEIPT_FILE,
-            MEME_POST_RECEIPT_FILE,
-        )
-        raise InvalidRegularPostReceipt("Both main-post receipts exist; manual recovery required")
-    block_if_unresolved_regular_post_receipt()
-    block_if_unresolved_meme_post_receipt()
 
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
@@ -6372,34 +6340,6 @@ def choose_unused_line_candidate(lines_used: set, *, excluded_quote_hashes: set[
     return select_quote_candidate(quote_candidates_for_current_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes))
 
 
-def choose_unused_line(lines_used: set) -> tuple[int, str]:
-    chosen = choose_unused_line_candidate(lines_used)
-    return int(chosen["line_no"]), str(chosen["text"])
-
-
-def available_image_basenames(images: list[str], images_used: set[str], state: dict | None = None) -> tuple[list[str], bool]:
-    if not images:
-        raise RuntimeError(f"No images found matching {IMAGE_GLOB}")
-
-    basenames = [Path(path).name for path in images]
-    all_basenames = set(basenames)
-    available = sorted(all_basenames.difference(images_used))
-    cycle_reset = False
-
-    if not available:
-        log.info("All images used; clearing image history")
-        images_used.clear()
-        available = sorted(all_basenames)
-        cycle_reset = True
-
-        last_name = str((state or {}).get("last_regular_image_filename") or "")
-        if len(available) > 1 and last_name in available:
-            available.remove(last_name)
-            log.info("Temporarily excluded last regular image at cycle boundary: %s", last_name)
-
-    return available, cycle_reset
-
-
 def available_currently_eligible_image_basenames(
     eligible_basenames: set[str],
     images_used: set[str],
@@ -6424,46 +6364,6 @@ def available_currently_eligible_image_basenames(
             log.info("Temporarily excluded last regular image at eligible-cycle boundary: %s", last_name)
 
     return available, cycle_reset
-
-
-def choose_random_unused_image(images_used: set, state: dict | None = None) -> dict:
-    log.debug("Choosing random unused image. Already used=%d", len(images_used))
-
-    images = current_image_paths()
-    log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
-
-    normalised, changed = normalise_image_used_basenames(images_used, images)
-    if changed:
-        images_used.clear()
-        images_used.update(normalised)
-
-    available, cycle_reset = available_image_basenames(images, images_used, state)
-    selected_basename = random.choice(available)
-    image_by_name = {Path(path).name: path for path in images}
-    selected_path = image_by_name[selected_basename]
-    image_no = images.index(selected_path)
-
-    log.info(
-        "Selected random image basename=%s image_no=%d cycle_reset=%s used_count=%d remaining_count=%d",
-        selected_basename,
-        image_no,
-        cycle_reset,
-        len(images_used),
-        len(available),
-    )
-    return {
-        "image_no": image_no,
-        "path": selected_path,
-        "basename": selected_basename,
-        "score": None,
-        "components": {},
-        "cycle_reset": cycle_reset,
-    }
-
-
-def choose_unused_image(images_used: set) -> tuple[int, str]:
-    chosen = choose_random_unused_image(images_used)
-    return int(chosen["image_no"]), str(chosen["path"])
 
 
 def current_image_sha256(path: str) -> str:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse, hashlib, json, os, statistics, time
+import argparse, hashlib, json, os, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 

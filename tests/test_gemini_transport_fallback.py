@@ -4,7 +4,6 @@ import json
 import os
 import hashlib
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest

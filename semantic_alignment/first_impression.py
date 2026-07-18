@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
-import statistics
-import threading
 import time
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -14,7 +11,7 @@ from typing import Any
 import requests
 
 from .bakeoff import FREE_TRADE_KEY, PRICES, PROVIDER_MODELS, estimate_tokens
-from .io import atomic_write_json, sha256_file
+from .io import atomic_write_json
 from .bakeoff import ProviderClient
 
 SCHEMA_VERSION = 1

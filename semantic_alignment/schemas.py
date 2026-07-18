@@ -12,7 +12,6 @@ RELATIONSHIPS = {
     "related_but_not_equivalent", "generic_ideological_substitution",
     "secondary_theme_only", "contradiction", "unrelated", "ambiguous",
 }
-MATCH_TYPES = RELATIONSHIPS
 
 STRING = {"type": "string", "minLength": 1, "maxLength": 1200}
 STRING_LIST = {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 240}, "maxItems": 16}

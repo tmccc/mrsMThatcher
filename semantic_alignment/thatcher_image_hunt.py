@@ -42,9 +42,7 @@ LANCZOS = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
 
 SCHEMA_VERSION = 1
 RUN_ID = "thatcher_image_hunt_001"
-PROMPT_VERSION = "thatcher-image-hunt-v1"
 DISCOVERY_SCHEMA_VERSION = 4
-TRIAGE_SCHEMA_VERSION = 1
 MAX_DISCOVERY_CALLS = 6
 MAX_TRIAGE_CALLS = 6
 MAX_LOGICAL_CALLS = 12
@@ -63,10 +61,6 @@ MAX_OUTPUT_TOKENS_TRIAGE = 24576
 THINKING_BUDGET = 256
 TEMPERATURE = 0.2
 
-RIGHTS_STATUSES = {
-    "public_domain", "clear_reuse", "attribution_required",
-    "editorial_or_licensed_only", "rights_unclear", "do_not_use",
-}
 REVIEW_DECISIONS = {
     "keep", "reject", "maybe", "keep_as_replacement",
     "reject_visual_duplicate", "reject_editorially_redundant",
@@ -1040,10 +1034,6 @@ def validate_public_url(url: str, *, resolve_dns: bool = True) -> str:
                 if not resolved.is_global:
                     raise ValueError("URL resolves to a non-public address")
     return normalised
-
-
-def _title_key(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", html.unescape(value).casefold()).strip()
 
 
 def _url_equivalent(left: str, right: str) -> bool:
@@ -2102,7 +2092,7 @@ def run_triage_batches(
     pending = [candidate_id for candidate_id in retained_ids if candidate_id not in analysed]
     pending = pending[:max(0, TARGET_REVIEWABLE - len(analysed))]
     profile = read_json(research_dir / "coverage_profile.json")
-    for batch_number, start in enumerate(range(0, len(pending), TRIAGE_BATCH_SIZE), 1):
+    for start in range(0, len(pending), TRIAGE_BATCH_SIZE):
         if calls_made >= allowed_calls:
             break
         batch_ids = pending[start:start + TRIAGE_BATCH_SIZE]

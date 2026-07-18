@@ -1,10 +1,10 @@
 from __future__ import annotations
-import csv,hashlib,io,json,math,statistics
-from collections import Counter,defaultdict
+import csv,io,json,math,statistics
+from collections import Counter
 from pathlib import Path
 from typing import Any
-from .first_impression import EVEREST_IMAGE,EVEREST_QUOTE_HASH,case_id
-from .io import atomic_write_json,atomic_write_text,read_json,sha256_file
+from .first_impression import case_id
+from .io import read_json,sha256_file
 
 PROVIDERS=('grok','openai','anthropic','gemini')
 THRESHOLDS=(30,35,40,45,50)
@@ -81,7 +81,7 @@ def classify_false_replace(case,score,tone,semantic,power,images,provider_issue=
     if images[case['image_basename']].get('primary_tone') in {'satirical','reflective'}:return 'tone vocabulary mismatch'
     return 'broader principle'
 
-def classify_bad(case,score,tone,semantic,images):
+def classify_bad(case,tone,semantic,images):
     image=images[case['image_basename']];message=(image.get('first_impression_message') or '').lower()
     if image.get('visual_competition_score',0)>=70:return 'secondary symbol overwhelmed quote'
     if tone<40:return 'tone mismatch'
@@ -96,12 +96,12 @@ def csv_text(rows:list[dict[str,Any]],fields:list[str]|None=None)->str:
     fields=fields or list(rows[0]);buf=io.StringIO();writer=csv.DictWriter(buf,fieldnames=fields,extrasaction='ignore');writer.writeheader();writer.writerows(rows);return buf.getvalue()
 
 def analyse(run:Path,project:Path,semantic_dir:Path)->dict[str,Any]:
-    valid=integrity(run,project);cases=read_json(run/'validation_cases.json')['items'];case_map={x['case_id']:x for x in cases};reviews=read_json(run/'human_reviews.json')['items'];human={cid:x['image_decision'] for cid,x in reviews.items()};match={cid:x['matches_quote'] for cid,x in reviews.items()};images=read_json(run/'image_first_impressions.json')['items'];intents=read_json(run/'quote_visual_intents.json')['items'];provider_rows={p:read_json(run/f'{p}_first_impression_results.json',{}).get('items',{}) for p in ('grok','openai','anthropic')};provider_rows['gemini']=read_json(run/'gemini_results.json',{}).get('items',{})
+    valid=integrity(run,project);cases=read_json(run/'validation_cases.json')['items'];case_map={x['case_id']:x for x in cases};reviews=read_json(run/'human_reviews.json')['items'];human={cid:x['image_decision'] for cid,x in reviews.items()};match_labels={cid:x['matches_quote'] for cid,x in reviews.items()};images=read_json(run/'image_first_impressions.json')['items'];intents=read_json(run/'quote_visual_intents.json')['items'];provider_rows={p:read_json(run/f'{p}_first_impression_results.json',{}).get('items',{}) for p in ('grok','openai','anthropic')};provider_rows['gemini']=read_json(run/'gemini_results.json',{}).get('items',{})
     recovered_gemini=(read_json(semantic_dir/'gemini_results.json',{}) or {}).get('items',{});valid['semantic_recovered_gemini_results']=len(recovered_gemini);valid['semantic_recovery_complete_for_250']=len(recovered_gemini)==250
-    median_alignment=_median_results(provider_rows,'dominant_visual_message_alignment_score');median_tone=_median_results(provider_rows,'tone_alignment_score');semantic,power,semantic_raw=_semantic_scores(cases,semantic_dir)
+    median_alignment=_median_results(provider_rows,'dominant_visual_message_alignment_score');median_tone=_median_results(provider_rows,'tone_alignment_score');semantic,power,_=_semantic_scores(cases,semantic_dir)
     provider_validation=[]
     for provider,rows in provider_rows.items():
-        pred={cid:'replace' if row['dominant_visual_message_alignment_score']<40 else 'keep' for cid,row in rows.items()};metrics=binary_metrics(pred,human);match_ids=[cid for cid in rows if match.get(cid) in {'yes','partly','no'}];match_correct=sum(('yes' if rows[cid]['quote_message_visually_dominant'] else 'partly' if rows[cid]['quote_message_visually_present'] else 'no')==match[cid] for cid in match_ids);provider_validation.append({'provider':provider,'rule':'provider score <40 => replace',**metrics,'match_evaluated':len(match_ids),'match_exact_agreement':match_correct/len(match_ids) if match_ids else None})
+        pred={cid:'replace' if row['dominant_visual_message_alignment_score']<40 else 'keep' for cid,row in rows.items()};metrics=binary_metrics(pred,human);match_ids=[cid for cid in rows if match_labels.get(cid) in {'yes','partly','no'}];match_correct=sum(('yes' if rows[cid]['quote_message_visually_dominant'] else 'partly' if rows[cid]['quote_message_visually_present'] else 'no')==match_labels[cid] for cid in match_ids);provider_validation.append({'provider':provider,'rule':'provider score <40 => replace',**metrics,'match_evaluated':len(match_ids),'match_exact_agreement':match_correct/len(match_ids) if match_ids else None})
     majority={};
     for cid in case_map:
         votes=['replace' if rows[cid]['dominant_visual_message_alignment_score']<40 else 'keep' for rows in provider_rows.values() if cid in rows]
@@ -131,7 +131,7 @@ def analyse(run:Path,project:Path,semantic_dir:Path)->dict[str,Any]:
         if cid not in median_pred:continue
         case=case_map[cid];score=median_alignment[cid];tone=median_tone[cid];sem=semantic.get(cid);powr=power.get(cid)
         if label=='keep' and median_pred[cid]=='replace':false_rows.append({'case_id':cid,'quote_hash':case['quote_hash'],'quote':intents[case['quote_hash']].get('quote_text'),'image_basename':case['image_basename'],'human_decision':label,'first_impression_score':score,'tone_score':tone,'semantic_score':sem,'editorial_power':powr,'category':classify_false_replace(case,score,tone,sem,powr,images,cid in issue_cases),'first_impression':images[case['image_basename']]['first_impression_message'],'provider_explanations':json.dumps({p:rows[cid]['explanation'] for p,rows in provider_rows.items() if cid in rows},sort_keys=True)})
-        if label=='replace' and median_pred[cid]=='replace':bad_rows.append({'case_id':cid,'quote_hash':case['quote_hash'],'image_basename':case['image_basename'],'first_impression_score':score,'tone_score':tone,'semantic_score':sem,'category':classify_bad(case,score,tone,sem,images),'first_impression':images[case['image_basename']]['first_impression_message']})
+        if label=='replace' and median_pred[cid]=='replace':bad_rows.append({'case_id':cid,'quote_hash':case['quote_hash'],'image_basename':case['image_basename'],'first_impression_score':score,'tone_score':tone,'semantic_score':sem,'category':classify_bad(case,tone,sem,images),'first_impression':images[case['image_basename']]['first_impression_message']})
     pair_model=read_json(run/'pairwise_rankings.json',{}).get('items',{});pair_human=read_json(run/'pairwise_human_reviews.json',{}).get('items',{});pair_rows=[]
     for pid,row in pair_model.items():
         choice=pair_human.get(pid,{}).get('preferred');pair_rows.append({'pair_id':pid,'model_preferred':row['preferred_candidate'],'human_preferred':choice,'agreement':row['preferred_candidate']==choice if choice else None,'preference_strength':row['preference_strength']})
@@ -144,4 +144,4 @@ def analyse(run:Path,project:Path,semantic_dir:Path)->dict[str,Any]:
         'G':{cid:'keep' if .5*semantic[cid]+.5*median_alignment[cid]>=40 else 'replace' for cid in semantic if cid in median_alignment},'H':{}}
     for name,pred in strategy_predictions.items():
         m=binary_metrics(pred,human);strategies.append({'strategy':name,'cases_evaluated':m['evaluated'],'winner_changes_or_replace_proxy':sum(x=='replace' for x in pred.values()),'agreement':m['agreement'],'false_keep':m['false_keep'],'false_replace':m['false_replace'],'deferrals':50-len(pred),'no_candidate_cases':'unavailable','known_bad_corrections':sum(pred.get(cid)=='replace' and human.get(cid)=='replace' for cid in pred),'good_winner_retention':sum(pred.get(cid)=='keep' and human.get(cid)=='keep' for cid in pred),'ordinary_case_damage':m['false_replace']})
-    return {'integrity':valid,'human_summary':{'completed':50,'keep':sum(x=='keep' for x in human.values()),'replace':sum(x=='replace' for x in human.values()),'unsure':sum(x=='unsure' for x in human.values()),'matches':dict(Counter(match.values())),'pairwise_completed':len(pair_human)},'provider_validation':provider_validation,'consistency_issues':issues,'hard_thresholds':hard,'soft_penalties':soft,'tone_analysis':tone_rows,'false_replaces':false_rows,'bad_corrections':bad_rows,'pairwise':pair_rows,'strategies':strategies,'median_alignment':median_alignment,'median_tone':median_tone,'semantic_scores':semantic,'case_map':case_map,'reviews':reviews,'intents':intents,'images':images,'provider_rows':provider_rows}
+    return {'integrity':valid,'human_summary':{'completed':50,'keep':sum(x=='keep' for x in human.values()),'replace':sum(x=='replace' for x in human.values()),'unsure':sum(x=='unsure' for x in human.values()),'matches':dict(Counter(match_labels.values())),'pairwise_completed':len(pair_human)},'provider_validation':provider_validation,'consistency_issues':issues,'hard_thresholds':hard,'soft_penalties':soft,'tone_analysis':tone_rows,'false_replaces':false_rows,'bad_corrections':bad_rows,'pairwise':pair_rows,'strategies':strategies,'median_alignment':median_alignment,'median_tone':median_tone,'semantic_scores':semantic,'case_map':case_map,'reviews':reviews,'intents':intents,'images':images,'provider_rows':provider_rows}

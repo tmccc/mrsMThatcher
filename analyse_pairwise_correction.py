@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import csv,hashlib,json,statistics
-from collections import Counter
 from pathlib import Path
 
-from semantic_alignment.bakeoff import ProviderClient,anthropic_output_schema,openai_output_schema
-from semantic_alignment.first_impression import StructuredProviderAdapter
+from semantic_alignment.bakeoff import ProviderClient
 from semantic_alignment.io import atomic_write_json
 from semantic_alignment.pairwise_correction import (build_independent_pilot,load_trace_records,reconstruct_pairs,trace_index,validate_reconciliation,validate_rendered_report)
 from semantic_alignment.pairwise_validation import PAIRWISE_SCHEMA,_candidate_score
@@ -21,7 +19,7 @@ def tone_match(intent,image):return bool(set(intent.get('desired_tone',[])) & {i
 
 def main():
     OUT.mkdir(parents=True,exist_ok=True);manifest=load(OLD/'pairwise_manifest.json')['items'];blind=load(OLD/'candidate_blind_map.json')['items'];human=load(OLD/'human_pairwise_reviews.json')['items'];summary=load(OLD/'pairwise_validation_summary.json');intents=load(FIRST/'quote_visual_intents.json')['items'];first=load(FIRST/'image_first_impressions.json')['items']
-    editorial_doc=load(ROOT/'generated_image_analysis.json');editorial={n:editorial_doc['items'][editorial_doc['path_index'][n]] for n in editorial_doc['path_index']};hashes=editorial_doc['path_index'];active=set(editorial_doc['file_metadata']);identity=load(ROOT/'generated_image_identity_dependence_audit.json')['items']
+    editorial_doc=load(ROOT/'generated_image_analysis.json');editorial={n:editorial_doc['items'][editorial_doc['path_index'][n]] for n in editorial_doc['path_index']};hashes=editorial_doc['path_index'];active=set(editorial_doc['file_metadata'])
     traces=load_trace_records(TRACE_ROOT);indexed=trace_index(traces);reconstructed=reconstruct_pairs(manifest,blind,indexed,active=active,first_impressions=set(first),editorial=editorial,hashes=hashes);atomic_write_json(OUT/'reconstructed_pairs.json',{'schema_version':1,'items':reconstructed})
     recon={x['case_id']:x for x in reconstructed};reviews=[];source_rows=[];inventory=[]
     for case in manifest:
@@ -86,7 +84,7 @@ The pairwise schema uniquely introduced `uniqueItems: true`. Earlier working Ope
     rendered={'grok_calibration_agreement':f"{metrics['grok_calibration_agreement']:.1%}",'gemini_calibration_agreement':f"{metrics['gemini_calibration_agreement']:.1%}",'combined_grok_cost':f"${metrics['combined_grok_cost']:.4f}",'full_exact_count':f"{metrics['full_exact_count']}/50",'model_bad_challenger':str(metrics['model_bad_challenger']),'model_bad_neither':str(metrics['model_bad_neither']),'strong_controls':str(metrics['strong_controls']),'strong_retained':str(metrics['strong_retained']),'strong_damaged':str(metrics['strong_damaged'])}
     reconciliation=[]
     sources={'grok_calibration_agreement':('pairwise_validation_summary.json','provider_calibration.providers.grok.exact_agreement'),'gemini_calibration_agreement':('pairwise_validation_summary.json','provider_calibration.providers.gemini.exact_agreement'),'combined_grok_cost':('pairwise_validation_summary.json','cost_usd.grok + cost_usd.grok_remaining'),'full_exact_count':('pairwise_validation_summary.json','full_grok_validation.exact_agreement * 50'),'model_bad_challenger':('pairwise_validation_summary.json','full_grok_validation.bad_challenger_choices_matched'),'model_bad_neither':('pairwise_validation_summary.json','full_grok_validation.bad_neither_choices_matched'),'strong_controls':('pairwise_validation_summary.json','full_grok_validation.strong_current_controls'),'strong_retained':('pairwise_validation_summary.json','full_grok_validation.strong_controls_retained'),'strong_damaged':('pairwise_validation_summary.json','full_grok_validation.strong_controls_damaged')}
-    for key,value in metrics.items():
+    for key in metrics:
         computed=rendered[key];reconciliation.append({'report_metric':key,'source_file':sources[key][0],'source_field':sources[key][1],'computed_value':computed,'rendered_value':computed,'match':True})
     validate_reconciliation(reconciliation);atomic_write_json(OUT/'pairwise_report_reconciliation.json',{'schema_version':1,'items':reconciliation})
     report=f"""# Pairwise Editorial Validation Report 001 - Corrected

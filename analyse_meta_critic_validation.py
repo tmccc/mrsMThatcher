@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 import csv,json,math,statistics
-from collections import Counter,defaultdict
+from collections import Counter
 from pathlib import Path
 from semantic_alignment.disagreement import evaluation,safeguarded_policies
 from semantic_alignment.io import atomic_write_json,atomic_write_text

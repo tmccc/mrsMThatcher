@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 from pathlib import Path
 
 from semantic_alignment.generation_prompt_pilot import (
-    HARD_CEILING_USD, ImageClient, STYLES, build_brief, build_manifest,
+    ImageClient, STYLES, build_brief, build_manifest,
     execute_generation, preflight, prompt_for_style,
 )
 from semantic_alignment.io import atomic_write_json, read_json
@@ -57,7 +56,7 @@ def main(argv=None):
         generated=read_json(run/"generated_candidates.json"); analyses=read_json(run/"analysis_results.json"); reviews=read_json(run/"human_reviews.json")
         complete_reviews=len(reviews.get("items",{})); complete_analyses=len(analyses.get("items",{}))
         if complete_reviews!=20 or complete_analyses!=60: raise RuntimeError(f"final report requires 20 reviews and 60 analyses; have {complete_reviews} and {complete_analyses}")
-        case_map={row["case_id"]:row for row in manifest["items"]}; by_case={}
+        by_case={}
         for cid,row in generated["items"].items():by_case.setdefault(row["case_id"],[]).append((cid,row))
         summary={style:{"wins":0,"candidates":0,"message_yes":0,"message_partly":0,"message_no":0,"first":[],"semantic":[],"tone":[],"editorial":[]} for style in STYLES}; none=unsure=0
         for case_id,review in reviews["items"].items():

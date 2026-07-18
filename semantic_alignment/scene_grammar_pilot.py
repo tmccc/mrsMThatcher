@@ -13,10 +13,9 @@ from .first_impression import EVEREST_QUOTE_HASH
 from .generation_prompt_pilot import ImageClient, utc_now
 from .io import atomic_write_json, sha256_file
 
-SCHEMA_VERSION=1
 PROMPT_VERSION="scene-grammar-v1"
 STYLES=("scene_grammar_direct","scene_grammar_cinematic")
-MAX_CASES=20;MAX_IMAGES=40;MAX_ATTEMPTS=2;HARD_CEILING_USD=15.0
+MAX_IMAGES=40;HARD_CEILING_USD=15.0
 FAILURE_CATEGORIES={"scene too generic","wrong dominant subject","missing required object","incorrect physical relationship","poor scale","weak composition","wrong camera/viewpoint","tone mismatch","distracting symbolism","identity/likeness problem","visual quality problem","other"}
 SCENE_FIELDS=("primary_subject","secondary_subjects","setting","camera_view","composition","scale_relationships","attention_hierarchy","must_include","must_avoid","forbidden_dominant_messages","desired_first_second_message","desired_tone","lighting","timeline_readability")
 

@@ -40,7 +40,6 @@ from __future__ import annotations
 import argparse
 import io
 import json
-import os
 import tarfile
 from pathlib import Path
 from typing import Any

@@ -5,12 +5,12 @@ import json
 import re
 import statistics
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from .io import atomic_write_json, atomic_write_text, read_json, read_jsonl
-from .quote_research_gemini import MAX_OUTPUT_TOKENS, MODEL, maximum_next_cost, research_prompt
+from .quote_research_gemini import MODEL
 
 RETRY_PLAN_VERSION = 1
 RETRY_PROMPT_VERSION = "quote-research-grounded-v2-retry"

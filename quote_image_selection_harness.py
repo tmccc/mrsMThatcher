@@ -12,9 +12,7 @@ import argparse
 import base64
 import builtins
 import copy
-import csv
 import hashlib
-import html
 import importlib
 import io
 import json
@@ -22,12 +20,10 @@ import os
 import pickle
 import random
 import resource
-import shutil
 import socket
 import sqlite3
 import statistics
 import sys
-import threading
 import time
 import zlib
 from collections import Counter, defaultdict
@@ -36,7 +32,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterator, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
@@ -453,7 +449,6 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
         records[f"logs/{source.name}"]["mutable_source"] = True
 
     eligible, unresolved = write_eligible_quotes(snapshot)
-    status = json.loads((snapshot / "final_research_status.json").read_text(encoding="utf-8"))
     veto = json.loads((snapshot / "material_veto_v2_shadow_manifest.json").read_text(encoding="utf-8"))
     expected_veto = (626, 91, 5862, 5453, 409)
     actual_veto = tuple(veto.get(key) for key in ("quote_count", "image_count", "pair_count", "allow_count", "veto_count"))
@@ -925,7 +920,6 @@ def seasonal_state(ctx: HarnessContext, when: datetime) -> dict[str, Any]:
     cached = ctx.seasonal_cache.get(mm_dd)
     if cached is not None:
         return {**cached, "timestamp": when.isoformat()}
-    quote_analysis = bot.load_quote_analysis()
     image_analysis = bot.load_image_analysis()
     quote_boosts: dict[str, float] = {}
     quote_exclusions: list[str] = []
@@ -1536,7 +1530,7 @@ def run_sweep(
     })
     completed = 0
     errors = 0
-    for season_index, season in enumerate(seasons):
+    for season in seasons:
         when = datetime.fromisoformat(season["timestamp"])
         epoch = int(when.timestamp())
         ctx.bot.now_epoch = lambda value=epoch: value

@@ -4,11 +4,10 @@ import json
 import threading
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
 import pytest
 
-from semantic_alignment.bakeoff import (BAKEOFF_OUTPUT_SCHEMA, FREE_TRADE_KEY,
+from semantic_alignment.bakeoff import (FREE_TRADE_KEY,
     ProviderClient, ProviderLedger, cohens_kappa, common_prompt,
     compare_n_results, compare_results, confusion, create_blinding,
     create_four_way_blinding, create_three_way_blinding, preflight, run_provider, select_cases,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 import json
 from pathlib import Path
-from types import SimpleNamespace
 import pytest
 from semantic_alignment.bakeoff import ProviderClient
 from semantic_alignment.first_impression import *

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse,hashlib,json,os,shutil,statistics,subprocess,time
+import argparse,hashlib,json,shutil,statistics,subprocess,time
 from collections import Counter
 from pathlib import Path
 from semantic_alignment.bakeoff import MAX_OUTPUT_TOKENS,PRICES,common_prompt,estimate_tokens
@@ -33,7 +33,7 @@ def preflight(by,q,i,eligible,target,env):
     return {'parent_run_id':PARENT.name,'eligible_original_cases':23,'already_recovered_developer_api':len(eligible)-len(target),'vertex_target_cases':len(target),'case_ids':target,'original_model':VERTEX_MODEL,'vertex_model':VERTEX_MODEL,'model_available':True,'project':env['project'],'location':env['location'],'adc_verified':True,'prompt_version':'provider-neutral-picture-editor-v1','schema_version':1,'thinking_budget':THINKING_BUDGET,'max_output_tokens':MAX_OUTPUT_TOKENS,'response_mime_type':'application/json','structured_output':'response_json_schema','tools_enabled':False,'estimated_input_tokens':inp,'estimated_output_tokens':out,'expected_cost_usd':expected,'conservative_base_cost_usd':base,'conservative_two_attempt_cost_usd':base*2,'vertex_ceiling_usd':VERTEX_LIMIT,'combined_recovery_ceiling_usd':COMBINED_RECOVERY_LIMIT,'input_price_per_million':2.0,'output_including_thinking_price_per_million':12.0}
 
 def prepare():
-    env=validate_vertex_environment();cases,by,ledger,original,prior,q,i,eligible,target=load();RECOVERY.mkdir(parents=True,exist_ok=True)
+    env=validate_vertex_environment();_,by,_,original,prior,q,i,eligible,target=load();RECOVERY.mkdir(parents=True,exist_ok=True)
     parent_hash=hashlib.sha256((PARENT/'cases.json').read_bytes()).hexdigest();manifest={'schema_version':1,'record_kind':'vertex_gemini_postrun_recovery','parent_run_id':PARENT.name,'parent_manifest_hash':parent_hash,'provider':'gemini_vertex','original_provider':'gemini_developer_api','eligible_cases':23,'case_ids':eligible,'vertex_target_case_ids':target,'original_model':VERTEX_MODEL,'vertex_model':VERTEX_MODEL,'created_at':time.time(),'status':'prepared'};atomic_write_json(RECOVERY/'recovery_manifest.json',manifest)
     pf=preflight(by,q,i,eligible,target,env)
     if pf['conservative_two_attempt_cost_usd']>VERTEX_LIMIT:raise RuntimeError('Vertex preflight exceeds ceiling')

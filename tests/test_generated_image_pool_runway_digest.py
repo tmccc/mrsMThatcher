@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 
 import mrs_log_digest as digest
 import pytest
-from tests.test_generated_image_pool_health_digest import pool, quarantine, report_text
+from tests.test_generated_image_pool_health_digest import pool, quarantine
 
 
 def log_line(ts: datetime, message: str) -> str:

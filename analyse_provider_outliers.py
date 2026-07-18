@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 
 from semantic_alignment.provider_outliers import (

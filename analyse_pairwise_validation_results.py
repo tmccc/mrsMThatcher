@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import csv,json,statistics
+import csv,json
 from collections import Counter
 from pathlib import Path
 

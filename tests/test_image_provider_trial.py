@@ -1,6 +1,5 @@
 import base64
 import json
-from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -101,7 +100,6 @@ def test_generation_requires_exact_flag_ceiling_and_resumes(tmp_path, monkeypatc
 def test_report_calculation(tmp_path):
     research = tmp_path / "research"; research.mkdir(); (research / "research_packets.json").write_text(json.dumps({"items": packet_set()}))
     trial = tmp_path / "trial"; manifest = prepare_trial(research, trial)
-    blind = json.loads((trial / "review/blind_map.json").read_text())["assignments"]
     decisions = {}
     for index, row in enumerate(manifest["items"]):
         decisions[row["quote_id"]] = {"choice": "A" if index < 4 else "B" if index < 7 else "equal" if index < 9 else "neither", "reasons": [], "note": ""}

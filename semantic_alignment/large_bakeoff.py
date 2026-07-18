@@ -1,12 +1,10 @@
 from __future__ import annotations
-import hashlib,json,random,statistics,threading,time
-from collections import Counter
+import hashlib,json,random,threading,time
 from concurrent.futures import ThreadPoolExecutor,as_completed
-from pathlib import Path
 from typing import Any,Callable
 import requests
 from .bakeoff import (BAKEOFF_PROMPT_VERSION,BAKEOFF_SCHEMA_VERSION,MAX_OUTPUT_TOKENS,
-    PRICES,PROVIDER_MODELS,ProviderClient,common_prompt,estimate_tokens,validate_bakeoff_result)
+    PRICES,PROVIDER_MODELS,common_prompt,estimate_tokens,validate_bakeoff_result)
 from .io import atomic_write_json,read_json
 from .pipeline import make_shortlists
 
@@ -141,7 +139,6 @@ def run_concurrent(workers):
     elapsed=time.time()-started;return {'started_at':started,'ended_at':time.time(),'wall_clock_seconds':elapsed,'providers':summaries,'theoretical_sequential_seconds':sum(x.get('elapsed_seconds',0) for x in summaries.values()),'speedup':sum(x.get('elapsed_seconds',0) for x in summaries.values())/elapsed if elapsed else None}
 
 def preflight(manifest,quotes):
-    prompts=[common_prompt(quotes[x['quote_hash']],{}) for x in []] # keeps function explicitly offline
     input_tokens=sum(estimate_tokens_from_case(x) for x in manifest['items'])
     rows={}
     for p in PROVIDERS:

@@ -7,7 +7,7 @@ import os
 import secrets
 import statistics
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 from typing import Any, Callable
 

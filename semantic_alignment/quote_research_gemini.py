@@ -770,7 +770,6 @@ class ResearchWorker:
 
 def report(run_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
     packets = read_json(run_dir / "research_packets.json", {}) or {"items": {}, "validation_failures": {}}
-    grounding = read_json(run_dir / "grounding_sources.json", {}) or {"items": {}}
     costs = read_json(run_dir / "cost_ledger.json", {}) or {"calls": [], "combined_known_spend_usd": 0}
     status = read_json(run_dir / "transport_status.json", {}) or {}
     attempts = ([json.loads(line) for line in (run_dir / "attempts.jsonl").read_text().splitlines()]

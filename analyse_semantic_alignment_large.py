@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse,json,os,statistics,time
+import argparse,json,os,time
 from collections import Counter
 from pathlib import Path
 from semantic_alignment.bakeoff import ProviderClient,compare_n_results,create_four_way_blinding

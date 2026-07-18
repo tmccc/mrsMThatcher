@@ -4,12 +4,11 @@ import json
 import threading
 import urllib.parse
 import urllib.request
-from pathlib import Path
 
 import pytest
 
 from calibrate_semantic_alignment import require_labels
-from semantic_alignment.calibration import (BANDS, RELATIONSHIPS,
+from semantic_alignment.calibration import (RELATIONSHIPS,
     build_review_dataset, decompose_image, decompose_quote, select_review_cases,
     labelled_review_statistics, merge_review_data, migrate_review_dataset,
     review_is_complete, review_progress, spearman, threshold_analysis,

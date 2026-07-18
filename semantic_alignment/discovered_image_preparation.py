@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import html
 import importlib
 import json
 import logging
@@ -12,7 +11,6 @@ import os
 import re
 import shutil
 import statistics
-import tempfile
 from collections import Counter
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,7 +33,6 @@ from .thatcher_image_hunt import (
 )
 
 
-SCHEMA_VERSION = 1
 ANALYSIS_COST_CEILING_USD = 1.0
 CONSERVATIVE_CALL_COST_USD = 0.05
 USD_TICKS_PER_DOLLAR = 10_000_000_000
