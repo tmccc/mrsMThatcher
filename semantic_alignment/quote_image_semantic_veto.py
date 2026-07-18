@@ -21,6 +21,9 @@ from .io import atomic_write_json, atomic_write_text, sha256_file
 
 SCHEMA_VERSION = 1
 POLICY_VERSION = "material-veto-v2-postrun-corrected-shadow-v1"
+ATTRIBUTION_CLEANED_V3_POLICY_VERSION = (
+    "affirmative-material-contradiction-rules-v3-attribution-cleanup-candidate"
+)
 DEFAULT_MANIFEST = (
     "semantic_alignment_research/quote_image_semantic_veto_001/shadow/"
     "material_veto_v2_shadow_manifest.json"
@@ -361,7 +364,13 @@ def compile_shadow_manifest(run_dir: Path, *, strict: bool = True) -> tuple[dict
 
 def validate_compiled_manifest(value: dict[str, Any], *, strict: bool = True) -> dict[str, Any]:
     _expect(value.get("schema_version") == SCHEMA_VERSION, "unsupported shadow manifest schema")
-    _expect(value.get("policy_version") == POLICY_VERSION, "unsupported or stale shadow policy")
+    policy_version = str(value.get("policy_version") or "")
+    _expect(
+        policy_version in {POLICY_VERSION, ATTRIBUTION_CLEANED_V3_POLICY_VERSION},
+        "unsupported or stale shadow policy",
+    )
+    if policy_version == ATTRIBUTION_CLEANED_V3_POLICY_VERSION:
+        return _validate_attribution_cleaned_v3_manifest(value, strict=strict)
     exact = {
         "quote_count": 626,
         "image_count": 91,
@@ -416,6 +425,78 @@ def validate_compiled_manifest(value: dict[str, Any], *, strict: bool = True) ->
         "valid": True,
         "schema_version": SCHEMA_VERSION,
         "policy_version": POLICY_VERSION,
+        "quote_count": len(quote_ids),
+        "image_count": len(image_hashes),
+        "pair_count": len(pairs),
+        "allow_count": counts["allow"],
+        "veto_count": counts["veto"],
+        "source_pair_ids_unique": len(pair_ids) == len(pairs),
+        "strict": bool(strict),
+    }
+
+
+def _validate_attribution_cleaned_v3_manifest(
+    value: dict[str, Any], *, strict: bool
+) -> dict[str, Any]:
+    exact = {
+        "quote_count": 613,
+        "image_count": 91,
+        "pair_count": 22_157,
+        "allow_count": 22_028,
+        "veto_count": 129,
+        "quotes_with_allowed_candidate": 612,
+        "quotes_without_allowed_candidate": 1,
+        "unknown_pair_count_excluded_from_lookup": 167,
+    }
+    for key, expected in exact.items():
+        _expect(value.get(key) == expected, f"v3 manifest {key} mismatch")
+    _expect(value.get("live_production_enabled") is False, "manifest incorrectly marks live enforcement")
+
+    pairs = value.get("pairs")
+    _expect(isinstance(pairs, dict) and len(pairs) == exact["pair_count"], "v3 pair index is incomplete")
+    counts: Counter[str] = Counter()
+    pair_ids: set[str] = set()
+    quote_ids: set[str] = set()
+    image_hashes: set[str] = set()
+    for key, row in pairs.items():
+        _expect(isinstance(row, dict), f"v3 manifest pair {key} is not an object")
+        quote_id = str(row.get("quote_id") or "")
+        image_hash = str(row.get("image_hash") or "")
+        _expect(key == f"{quote_id}:{image_hash}", f"v3 manifest key mismatch {key}")
+        _expect(HEX64.fullmatch(quote_id) is not None, f"invalid v3 quote ID {quote_id}")
+        _expect(HEX64.fullmatch(image_hash) is not None, f"invalid v3 image hash {image_hash}")
+        decision = str(row.get("decision") or "")
+        _expect(decision in {"allow", "veto"}, f"unknown v3 pair verdict {decision!r}")
+        _expect(decision != "veto" or bool(row.get("veto_reason_codes")), f"v3 veto {key} lacks reason")
+        pair_id = str(row.get("source_pair_id") or "")
+        _expect(HEX64.fullmatch(pair_id) is not None and pair_id not in pair_ids, f"duplicate/invalid v3 source pair ID {pair_id}")
+        pair_ids.add(pair_id)
+        quote_ids.add(quote_id)
+        image_hashes.add(image_hash)
+        counts[decision] += 1
+
+    _expect(counts == {"allow": 22_028, "veto": 129}, "v3 manifest decision totals mismatch")
+    _expect(len(quote_ids) == 613, "v3 manifest quotation coverage mismatch")
+    _expect(len(image_hashes) == 91, "v3 manifest authorised image set mismatch")
+    flags = value.get("quote_has_allowed_candidate")
+    _expect(isinstance(flags, dict) and set(flags) == quote_ids, "v3 global quote safety flags are incomplete")
+    _expect(sum(flag is True for flag in flags.values()) == 612, "v3 global quote safety flag totals mismatch")
+    _expect(sum(flag is False for flag in flags.values()) == 1, "v3 no-safe-image flag total mismatch")
+    aliases = value.get("runtime_quote_aliases") or {}
+    _expect(isinstance(aliases, dict) and len(aliases) == 5, "v3 runtime quote aliases mismatch")
+    source_hashes = value.get("source_file_hashes")
+    _expect(isinstance(source_hashes, dict) and source_hashes, "v3 source hashes are missing")
+    for name, source in source_hashes.items():
+        _expect(
+            isinstance(source, dict)
+            and isinstance(source.get("path"), str)
+            and HEX64.fullmatch(str(source.get("sha256") or "")) is not None,
+            f"v3 source hash record is invalid: {name}",
+        )
+    return {
+        "valid": True,
+        "schema_version": SCHEMA_VERSION,
+        "policy_version": ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
         "quote_count": len(quote_ids),
         "image_count": len(image_hashes),
         "pair_count": len(pairs),

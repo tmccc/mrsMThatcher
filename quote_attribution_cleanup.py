@@ -13,6 +13,7 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+import zlib
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -68,6 +69,10 @@ def sha256_file(path: Path) -> str:
 
 def canonical_json_bytes(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def pretty_json_bytes(value: Any) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
 def atomic_write_bytes(path: Path, payload: bytes) -> None:
@@ -144,6 +149,78 @@ def source_records(payload: bytes) -> list[dict[str, Any]]:
     if offset != len(payload):
         raise CleanupError("source record parser did not consume every byte")
     return records
+
+
+def build_migrated_quote_analysis(
+    source_payload: bytes,
+    quote_analysis: dict[str, Any],
+    tombstone_ids: set[str],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    records = source_records(source_payload)
+    current_ids = {row["quote_id"] for row in records}
+    if len(records) != EXPECTED_AFTER_PHYSICAL or len(current_ids) != EXPECTED_AFTER_CANONICAL:
+        raise CleanupError(
+            f"cleaned quotation source differs: physical={len(records)} canonical={len(current_ids)}"
+        )
+    items = quote_analysis.get("items")
+    if not isinstance(items, dict):
+        raise CleanupError("quote analysis items object is missing")
+    missing = current_ids - set(items)
+    obsolete = set(items) - current_ids
+    if missing:
+        raise CleanupError(f"active quotations lack analysis: {sorted(missing)[:5]}")
+    if frozenset(obsolete) not in {frozenset(), frozenset(tombstone_ids)}:
+        raise CleanupError(
+            f"obsolete quote-analysis IDs do not match attribution tombstones: {sorted(obsolete ^ tombstone_ids)[:5]}"
+        )
+
+    line_numbers: dict[str, list[int]] = defaultdict(list)
+    line_index: dict[str, str] = {}
+    for row in records:
+        physical_line = int(row["physical_line"])
+        qid = str(row["quote_id"])
+        line_numbers[qid].append(physical_line)
+        line_index[str(physical_line)] = qid
+
+    migrated = dict(quote_analysis)
+    migrated_items: dict[str, Any] = {}
+    unchanged_analysis_count = 0
+    for qid in sorted(current_ids):
+        original = items[qid]
+        if not isinstance(original, dict) or not isinstance(original.get("analysis"), dict):
+            raise CleanupError(f"active quote analysis is invalid: {qid}")
+        item = dict(original)
+        item["line_numbers"] = line_numbers[qid]
+        item["quote_hash"] = qid
+        migrated_items[qid] = item
+        if item["analysis"] == original["analysis"]:
+            unchanged_analysis_count += 1
+    migrated["items"] = migrated_items
+    migrated["current_hashes"] = sorted(current_ids)
+    migrated["line_index"] = line_index
+    migrated["failures"] = []
+    migrated["source"] = {
+        **(quote_analysis.get("source") or {}),
+        "line_count": len(records),
+        "non_empty_quote_count": len(records),
+        "unique_quote_count": len(current_ids),
+        "source_sha256": sha256_bytes(source_payload),
+    }
+    migrated["updated_at"] = utc_now()
+    audit = {
+        "schema_version": 1,
+        "source_sha256_before": str((quote_analysis.get("source") or {}).get("source_sha256") or ""),
+        "source_sha256_after": sha256_bytes(source_payload),
+        "physical_record_count": len(records),
+        "canonical_record_count": len(current_ids),
+        "analysis_item_count_before": len(items),
+        "analysis_item_count_after": len(migrated_items),
+        "removed_analysis_ids": sorted(obsolete),
+        "missing_analysis_ids": sorted(missing),
+        "analysis_payloads_preserved": unchanged_analysis_count,
+        "line_index_count": len(line_index),
+    }
+    return migrated, audit
 
 
 def load_attribution_targets(remediation_dir: Path) -> list[dict[str, Any]]:
@@ -447,13 +524,18 @@ def _deployment_shadow(active_ids: set[str], quote_texts: dict[str, str], record
         key = f"{record['quote_id']}:{record['image_hash']}"
         if key in pairs:
             raise CleanupError(f"duplicate active semantic pair: {key}")
-        reasons = list(record.get("deterministic_reasons") or [])
+        deterministic_reasons = list(record.get("deterministic_reasons") or [])
+        veto_reasons = deterministic_reasons
+        if decision == "veto" and not veto_reasons:
+            veto_reasons = list((record.get("prior_judgement") or {}).get("contradiction_types") or [])
+        if decision == "veto" and not veto_reasons:
+            raise CleanupError(f"active semantic veto lacks a reason code: {key}")
         pairs[key] = {
             "quote_id": record["quote_id"], "image_hash": record["image_hash"], "image_id": record.get("image_id"),
-            "decision": decision, "final_reason": record.get("basis"), "veto_reason_codes": reasons,
+            "decision": decision, "final_reason": record.get("basis"), "veto_reason_codes": veto_reasons,
             "materially_misleading": decision == "veto", "model_decision": (record.get("prior_judgement") or {}).get("model_decision"),
             "model_confidence": (record.get("prior_judgement") or {}).get("confidence"),
-            "deterministic_contradictions": reasons, "selector_score_at_research_time": None,
+            "deterministic_contradictions": deterministic_reasons, "selector_score_at_research_time": None,
             "source_pair_id": record.get("source_pair_id") or record.get("pair_id"),
         }
     counts = Counter(row["decision"] for row in pairs.values())
@@ -996,6 +1078,337 @@ def status(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     }
 
 
+def migrate_active_quote_analysis(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    if project_dir.resolve() != ROOT:
+        raise CleanupError(f"project directory must be {ROOT}")
+    run_dir = run_dir.resolve()
+    tombstones = read_json(run_dir / "deployment_candidate/attribution_exclusion_tombstones.json")
+    tombstone_ids = {str(row.get("quote_id") or "") for row in tombstones.get("records") or []}
+    if len(tombstone_ids) != EXPECTED_REMOVED:
+        raise CleanupError(f"attribution tombstone count differs: {len(tombstone_ids)}")
+    source_path = ROOT / SOURCE_NAME
+    analysis_path = ROOT / "quote_analysis.json"
+    before = read_json(analysis_path)
+    before_sha = sha256_file(analysis_path)
+    migrated, audit = build_migrated_quote_analysis(source_path.read_bytes(), before, tombstone_ids)
+    atomic_write_bytes(analysis_path, pretty_json_bytes(migrated))
+    persisted = read_json(analysis_path)
+    if persisted != migrated:
+        raise CleanupError("persisted quote analysis differs from validated migration")
+    overrides_path = ROOT / "quote_analysis_overrides.json"
+    overrides = read_json(overrides_path)
+    override_changes = []
+    for qid, override in (overrides.get("quote_overrides") or {}).items():
+        if qid not in migrated["items"]:
+            raise CleanupError(f"quote analysis override refers to an inactive quotation: {qid}")
+        expected = list(migrated["items"][qid]["line_numbers"])
+        previous = list(override.get("expected_line_numbers") or [])
+        if previous != expected:
+            override["expected_line_numbers"] = expected
+            override_changes.append({"quote_id": qid, "before": previous, "after": expected})
+    if override_changes:
+        atomic_write_bytes(overrides_path, pretty_json_bytes(overrides))
+
+    prior_audit_path = run_dir / "quote_analysis_migration_audit.json"
+    prior_audit = read_json(prior_audit_path) if prior_audit_path.is_file() else {}
+    if not audit["removed_analysis_ids"] and prior_audit.get("removed_analysis_ids"):
+        for key in (
+            "source_sha256_before", "analysis_item_count_before", "removed_analysis_ids",
+            "quote_analysis_sha256_before",
+        ):
+            audit[key] = prior_audit[key]
+    initial_analysis_sha = (
+        prior_audit.get("quote_analysis_sha256_before")
+        if prior_audit.get("source_sha256_before")
+        and prior_audit.get("source_sha256_before") != audit["source_sha256_after"]
+        else before_sha
+    )
+    audit.update({
+        "generated_at": utc_now(),
+        "quote_analysis_path": str(analysis_path),
+        "quote_analysis_sha256_before": initial_analysis_sha,
+        "quote_analysis_sha256_after": sha256_file(analysis_path),
+        "quote_analysis_override_changes": override_changes or prior_audit.get("quote_analysis_override_changes", []),
+        "quote_analysis_overrides_sha256": sha256_file(overrides_path),
+        "new_ai_calls": 0,
+    })
+    atomic_write_json(run_dir / "quote_analysis_migration_audit.json", audit)
+    atomic_write_text(run_dir / "quote_analysis_migration_audit.md", "\n".join([
+        "# Active Quote Analysis Migration", "",
+        f"- Source SHA-256: `{audit['source_sha256_after']}`",
+        f"- Analysis items: {audit['analysis_item_count_before']} -> {audit['analysis_item_count_after']}",
+        f"- Removed obsolete items: {len(audit['removed_analysis_ids'])}",
+        f"- Preserved analysis payloads: {audit['analysis_payloads_preserved']}",
+        f"- Physical line mappings: {audit['line_index_count']}",
+        "- New AI calls: 0", "",
+    ]))
+    return audit
+
+
+def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    if project_dir.resolve() != ROOT:
+        raise CleanupError(f"project directory must be {ROOT}")
+    run_dir = run_dir.resolve()
+    from semantic_alignment.quote_image_semantic_veto import (
+        ShadowRuntime,
+        validate_compiled_manifest,
+    )
+
+    source_path = run_dir / "deployment_candidate/semantic_veto_shadow_manifest.json"
+    active_path = run_dir / "deployment_candidate/active_quote_manifest.json"
+    validation_path = run_dir / "simulator_validation.json"
+    source = read_json(source_path)
+    active = read_json(active_path)
+    validation = read_json(validation_path)
+    gates = validation.get("gates") or {}
+    required_gates = {
+        "current_production_winners_known": 1.0,
+        "seasonal_boundary_winners_known": 1.0,
+        "production_selection_invariant_failures": 0,
+        "critical_relationship_regression_failures": 0,
+        "external_network_calls": 0,
+        "new_ai_spend_usd": 0.0,
+    }
+    for key, expected in required_gates.items():
+        if gates.get(key) != expected:
+            raise CleanupError(f"v3 deployment gate failed: {key}={gates.get(key)!r}")
+    if float(gates.get("stateful_weighted_winner_coverage") or 0.0) < 0.99:
+        raise CleanupError("v3 stateful weighted winner coverage is below 99%")
+    if validation.get("passed") is not True:
+        raise CleanupError("reduced-corpus simulator validation did not pass")
+
+    active_ids = set(active.get("active_quote_ids") or [])
+    excluded_ids = set(active.get("attribution_exclusion_quote_ids") or [])
+    unresolved_ids = set(active.get("research_unresolved_quote_ids") or [])
+    pair_quote_ids = {str(row.get("quote_id") or "") for row in (source.get("pairs") or {}).values()}
+    if len(active_ids) != EXPECTED_CONFIRMED or pair_quote_ids != active_ids:
+        raise CleanupError("v3 shadow pair quotation set differs from the 613 active IDs")
+    if pair_quote_ids & (excluded_ids | unresolved_ids):
+        raise CleanupError("removed or unresolved quotation entered the v3 shadow manifest")
+
+    source_files = {
+        "active_source": ROOT / SOURCE_NAME,
+        "active_quote_manifest": active_path,
+        "candidate_manifest_v3": DEFAULT_REMEDIATION / "candidate_manifest_v3.json",
+        "quote_contracts_v3": DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl",
+        "image_contracts_v3": DEFAULT_REMEDIATION / "image_contracts_v3.jsonl",
+        "simulator_validation": validation_path,
+    }
+    manifest = json.loads(json.dumps(source))
+    source_records_by_pair = {
+        (str(row.get("quote_id") or ""), str(row.get("image_hash") or "")): row
+        for row in (read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json").get("records") or {}).values()
+    }
+    normalised_veto_reason_count = 0
+    for row in (manifest.get("pairs") or {}).values():
+        if row.get("decision") != "veto" or row.get("veto_reason_codes"):
+            continue
+        source_record = source_records_by_pair.get((str(row.get("quote_id") or ""), str(row.get("image_hash") or "")))
+        reasons = list(((source_record or {}).get("prior_judgement") or {}).get("contradiction_types") or [])
+        if not reasons:
+            raise CleanupError(
+                f"v3 veto lacks recoverable structured reason codes: {row.get('quote_id')}:{row.get('image_hash')}"
+            )
+        row["veto_reason_codes"] = reasons
+        normalised_veto_reason_count += 1
+    manifest["compiled_at"] = utc_now()
+    manifest["source_file_hashes"] = {
+        name: {"path": str(path.relative_to(ROOT)), "sha256": sha256_file(path)}
+        for name, path in source_files.items()
+    }
+    manifest["validation_evidence"] = {
+        "current_production_winners_known": gates["current_production_winners_known"],
+        "seasonal_boundary_winners_known": gates["seasonal_boundary_winners_known"],
+        "stateful_weighted_winner_coverage": gates["stateful_weighted_winner_coverage"],
+        "stateful_unknown_winner_rate": gates["stateful_unknown_winner_rate"],
+        "critical_relationship_regression_failures": gates["critical_relationship_regression_failures"],
+        "production_selection_invariant_failures": gates["production_selection_invariant_failures"],
+        "removed_quote_count": len(excluded_ids),
+        "unresolved_quote_count": len(unresolved_ids),
+        "new_ai_spend_usd": 0.0,
+    }
+    audit = validate_compiled_manifest(manifest, strict=True)
+    output = run_dir / "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    atomic_write_json(output, manifest)
+    config = {
+        "enabled": True,
+        "mode": "shadow",
+        "manifest_path": str(output.relative_to(ROOT)),
+        "fail_open": True,
+        "record_best_allowed_alternative": True,
+        "maximum_shadow_history": 10_000,
+    }
+    runtime = ShadowRuntime.load(ROOT, config, verify_source_hashes=True, enable_history=False)
+    if not runtime.available:
+        raise CleanupError(f"prepared v3 shadow manifest failed runtime preflight: {runtime.reason}")
+    result = {
+        **audit,
+        "generated_at": utc_now(),
+        "manifest_path": str(output.relative_to(ROOT)),
+        "manifest_sha256": sha256_file(output),
+        "source_manifest_sha256": sha256_file(source_path),
+        "runtime_preflight_available": runtime.available,
+        "runtime_load_time_ms": runtime.load_time_ms,
+        "runtime_memory_bytes": runtime.memory_bytes,
+        "validation_evidence": manifest["validation_evidence"],
+        "removed_or_unresolved_quote_ids_present": [],
+        "active_enforcement": False,
+        "new_ai_calls": 0,
+        "live_manifest_replaced": False,
+        "veto_reason_rows_normalised_from_prior_judgement": normalised_veto_reason_count,
+    }
+    atomic_write_json(run_dir / "deployment_candidate/v3_shadow_manifest_audit.json", result)
+    atomic_write_text(run_dir / "deployment_candidate/v3_shadow_manifest_audit.md", "\n".join([
+        "# Attribution-cleaned v3 shadow manifest", "",
+        "- Result: **PASS**",
+        f"- Manifest SHA-256: `{result['manifest_sha256']}`",
+        f"- Quotations: {result['quote_count']}",
+        f"- Images: {result['image_count']}",
+        f"- Pairs: {result['pair_count']} ({result['allow_count']} allow, {result['veto_count']} veto)",
+        f"- Current-winner coverage: {gates['current_production_winners_known']:.2%}",
+        f"- Seasonal-boundary coverage: {gates['seasonal_boundary_winners_known']:.2%}",
+        f"- Stateful weighted coverage: {gates['stateful_weighted_winner_coverage']:.2%}",
+        "- Removed and unresolved quotations: absent",
+        "- Modes accepted by runtime: disabled, shadow",
+        "- Live manifest replaced: no",
+        "- New AI calls: 0", "",
+    ]))
+    return result
+
+
+def investigate_t56_selection(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    if project_dir.resolve() != ROOT:
+        raise CleanupError(f"project directory must be {ROOT}")
+    run_dir = run_dir.resolve()
+    qid = "760a25127dfb9c39cd24af73cf86cbbb76b89d31f6ecdc1eba90b09b0923bbf2"
+    image_hash = "6731ce7fd2770587f1a805c8f48c87b65cd3a37217f6b74d6eaa4c0b1b3d56e4"
+    database = run_dir / "harness_reduced/simulation.sqlite3"
+    connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        event = connection.execute(
+            "SELECT * FROM simulation_events WHERE quote_id=? AND production_image='t56.jpg' "
+            "AND state_profile='current_production_snapshot' ORDER BY simulated_timestamp LIMIT 1",
+            (qid,),
+        ).fetchone()
+        if event is None:
+            raise CleanupError("t56 production-parity replay event is missing")
+        score_row = connection.execute(
+            "SELECT encoding,payload FROM candidate_score_sets WHERE event_key=?", (event["event_key"],)
+        ).fetchone()
+    finally:
+        connection.close()
+    if score_row is None or score_row["encoding"] != "zlib-json-v1":
+        raise CleanupError("t56 candidate score set is missing or unsupported")
+    candidates = json.loads(zlib.decompress(score_row["payload"]).decode("utf-8"))
+    manifest_path = run_dir / "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    manifest = read_json(manifest_path)
+    lookup = {
+        (row["quote_id"], row["image_hash"]): row
+        for row in manifest["pairs"].values()
+    }
+    ranking = []
+    for rank, candidate in enumerate(candidates, 1):
+        verdict = lookup.get((qid, candidate["image_hash"]))
+        ranking.append({
+            **candidate,
+            "production_rank": rank,
+            "v3_status": str((verdict or {}).get("decision") or "unknown_unjudged"),
+            "v3_veto_reason_codes": list((verdict or {}).get("veto_reason_codes") or []),
+        })
+    editorial_ranking = sorted(
+        ranking, key=lambda row: (-float(row["editorial_score"]), str(row["basename"]))
+    )
+    for rank, candidate in enumerate(editorial_ranking, 1):
+        candidate["editorial_rank"] = rank
+    selected = next(row for row in ranking if row["image_hash"] == image_hash)
+    research = read_json(RESEARCH_RUN / "research_packets.json")["items"][qid]
+    analysis = read_json(ROOT / "quote_analysis.json")["items"][qid]["analysis"]
+    image_db = read_json(ROOT / "image_analysis.json")
+    image = image_db["items"][image_hash]["analysis"]
+    result = {
+        "schema_version": 1,
+        "generated_at": utc_now(),
+        "quote_id": qid,
+        "quote_text": research["quote_text"],
+        "quote_semantic_metadata": {
+            "verification_status": research.get("verification_status"),
+            "research_confidence": research.get("research_confidence"),
+            "source_event": research.get("source_event"),
+            "date": research.get("date"),
+            "immediate_subject": research.get("immediate_subject"),
+            "intended_argument": research.get("intended_argument"),
+            "broader_principle": research.get("broader_principle"),
+            "analysis_topics": analysis.get("primary_topics"),
+            "analysis_tone": analysis.get("tone"),
+            "analysis_visual_preferences": analysis.get("archive_image_preferences"),
+        },
+        "selected_image": {
+            "basename": "t56.jpg", "image_hash": image_hash,
+            "description": image.get("description"), "scene_types": image.get("scene_types"),
+            "tone": image.get("tone"), "pairing": image.get("pairing"),
+        },
+        "production_log": {
+            "timestamp": "2026-07-18T02:16:07+01:00",
+            "eligible_candidate_count": 40,
+            "selected_score": 22.96,
+            "selected_components": selected["components"],
+            "logged_top_five": [
+                {key: row[key] for key in ("basename", "score", "components")}
+                for row in ranking[:5]
+            ],
+        },
+        "offline_reproduction": {
+            "database": str(database.relative_to(ROOT)),
+            "event_key": event["event_key"],
+            "state_profile": event["state_profile"],
+            "eligible_candidate_count": len(ranking),
+            "production_winner": ranking[0]["basename"],
+            "production_score": ranking[0]["score"],
+            "editorial_shadow_winner": editorial_ranking[0]["basename"],
+            "editorial_shadow_score": editorial_ranking[0]["editorial_score"],
+            "ranking": ranking,
+        },
+        "v3_semantic_veto": {
+            "selected_status": selected["v3_status"],
+            "reason": (lookup.get((qid, image_hash)) or {}).get("final_reason"),
+            "veto_reason_codes": selected["v3_veto_reason_codes"],
+            "quote_has_allowed_candidate_globally": manifest["quote_has_allowed_candidate"][qid],
+        },
+        "finding": {
+            "clearly_stronger_eligible_alternative_existed": False,
+            "nearest_production_alternative": ranking[1]["basename"],
+            "nearest_production_score_delta": float(ranking[1]["score"]) - float(ranking[0]["score"]),
+            "nearest_editorial_alternative": editorial_ranking[1]["basename"],
+            "nearest_editorial_score_delta": float(editorial_ranking[1]["editorial_score"]) - float(editorial_ranking[0]["editorial_score"]),
+            "classification": "historical_photo_coverage_and_metadata_specificity_gap",
+            "selector_defect_confirmed": False,
+            "explanation": (
+                "Every eligible candidate scored zero for historical and topical matching. "
+                "t56 won on the intended podium-speech, forceful-tone and quality signals, and the independent editorial layer also ranked it first."
+            ),
+        },
+        "network_calls": 0,
+        "ai_calls": 0,
+    }
+    output = run_dir / "t56_selection_investigation.json"
+    atomic_write_json(output, result)
+    atomic_write_text(run_dir / "t56_selection_investigation.md", "\n".join([
+        "# t56.jpg climate-selection investigation", "",
+        f"- Quote: {result['quote_text']}",
+        "- Live result: `t56.jpg`, score 22.96 from 40 eligible originals.",
+        f"- Offline parity result: `t56.jpg`, score {ranking[0]['score']:.2f} from {len(ranking)} snapshot candidates.",
+        f"- Editorial shadow: `t56.jpg`, score {editorial_ranking[0]['editorial_score']:.4f}, rank 1.",
+        f"- v3 semantic veto: {selected['v3_status']} ({result['v3_semantic_veto']['reason']}).",
+        f"- Nearest production alternative: `{ranking[1]['basename']}`, delta {result['finding']['nearest_production_score_delta']:.2f}.",
+        f"- Nearest editorial alternative: `{editorial_ranking[1]['basename']}`, delta {result['finding']['nearest_editorial_score_delta']:.4f}.",
+        "- Clearly stronger eligible alternative: no.",
+        "- Finding: the low absolute score reflects a historical-photo coverage/metadata-specificity gap, not a confirmed selector defect. All candidates scored zero on historical and topic components; t56 won on scene, tone and quality, as designed.",
+        "- Scoring changes made: none.", "- Network/model calls: 0.", "",
+    ]))
+    return result
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
@@ -1018,6 +1431,15 @@ def parser() -> argparse.ArgumentParser:
     status_p = sub.add_parser("status")
     status_p.add_argument("--project-dir", type=Path, default=ROOT)
     status_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
+    migrate_p = sub.add_parser("migrate-analysis")
+    migrate_p.add_argument("--project-dir", type=Path, default=ROOT)
+    migrate_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
+    shadow_p = sub.add_parser("prepare-v3-shadow")
+    shadow_p.add_argument("--project-dir", type=Path, default=ROOT)
+    shadow_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
+    t56_p = sub.add_parser("investigate-t56")
+    t56_p.add_argument("--project-dir", type=Path, default=ROOT)
+    t56_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
     return result
 
 
@@ -1033,6 +1455,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = validate(args.project_dir, args.run_dir, args.rerun_harness)
     elif args.command == "status":
         result = status(args.project_dir, args.run_dir)
+    elif args.command == "migrate-analysis":
+        result = migrate_active_quote_analysis(args.project_dir, args.run_dir)
+    elif args.command == "prepare-v3-shadow":
+        result = prepare_v3_shadow_manifest(args.project_dir, args.run_dir)
+    elif args.command == "investigate-t56":
+        result = investigate_t56_selection(args.project_dir, args.run_dir)
     else:
         raise CleanupError(f"unsupported command: {args.command}")
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

@@ -180,3 +180,60 @@ def test_frozen_current_winner_manifest_covers_all_reduced_active_quotes() -> No
         pytest.skip("deployment candidate not built yet")
     active = set(cleanup.read_json(active_path)["active_quote_ids"])
     assert {row["quote_id"] for row in rows if row["quote_id"] in active} == active
+
+
+def test_active_quote_analysis_migration_preserves_all_retained_analysis_payloads() -> None:
+    source = (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
+    original = cleanup.read_json(cleanup.ROOT / "quote_analysis.json")
+    tombstones = cleanup.read_json(
+        cleanup.DEFAULT_RUN / "deployment_candidate/attribution_exclusion_tombstones.json"
+    )
+    tombstone_ids = {row["quote_id"] for row in tombstones["records"]}
+    migrated, audit = cleanup.build_migrated_quote_analysis(source, original, tombstone_ids)
+    current_ids = {row["quote_id"] for row in cleanup.source_records(source)}
+    assert set(migrated["items"]) == current_ids
+    assert len(migrated["items"]) == 619
+    assert len(migrated["line_index"]) == 620
+    assert migrated["source"]["source_sha256"] == hashlib.sha256(source).hexdigest()
+    assert all(
+        migrated["items"][qid]["analysis"] == original["items"][qid]["analysis"]
+        for qid in current_ids
+    )
+    assert audit["analysis_payloads_preserved"] == 619
+
+
+def test_live_quote_analysis_and_overrides_match_cleaned_line_map() -> None:
+    source = (cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes()
+    records = cleanup.source_records(source)
+    analysis = cleanup.read_json(cleanup.ROOT / "quote_analysis.json")
+    overrides = cleanup.read_json(cleanup.ROOT / "quote_analysis_overrides.json")
+    expected_lines: dict[str, list[int]] = {}
+    for row in records:
+        expected_lines.setdefault(row["quote_id"], []).append(row["physical_line"])
+    assert analysis["source"]["source_sha256"] == hashlib.sha256(source).hexdigest()
+    assert len(analysis["items"]) == 619
+    assert len(analysis["line_index"]) == 620
+    for qid, override in overrides["quote_overrides"].items():
+        assert override["expected_line_numbers"] == expected_lines[qid]
+
+
+def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> None:
+    path = cleanup.DEFAULT_RUN / "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    if not path.is_file():
+        pytest.skip("digest021 v3 shadow candidate not prepared yet")
+    from semantic_alignment.quote_image_semantic_veto import ShadowRuntime, validate_compiled_manifest
+
+    manifest = cleanup.read_json(path)
+    audit = validate_compiled_manifest(manifest, strict=True)
+    assert audit["quote_count"] == 613
+    assert audit["pair_count"] == 22_157
+    config = {
+        "enabled": True,
+        "mode": "shadow",
+        "manifest_path": str(path.relative_to(cleanup.ROOT)),
+        "fail_open": True,
+        "record_best_allowed_alternative": True,
+        "maximum_shadow_history": 10_000,
+    }
+    runtime = ShadowRuntime.load(cleanup.ROOT, config, verify_source_hashes=True, enable_history=False)
+    assert runtime.available, runtime.reason

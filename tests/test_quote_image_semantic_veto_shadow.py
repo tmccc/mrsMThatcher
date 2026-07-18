@@ -11,6 +11,7 @@ import pytest
 import mrs_log_digest as digest
 from semantic_alignment.io import sha256_file
 from semantic_alignment.quote_image_semantic_veto import (
+    ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
     POLICY_VERSION,
     ShadowManifestError,
     ShadowRuntime,
@@ -82,6 +83,33 @@ def test_manifest_pair_uniqueness_and_basename_independent_lookup(tmp_path: Path
     assert runtime.pair(allow["quote_id"], allow["image_hash"])["decision"] == "allow"
     assert runtime.pair(veto["quote_id"], veto["image_hash"])["decision"] == "veto"
     assert "basename" not in allow
+
+
+def test_attribution_cleaned_v3_policy_is_strictly_validated() -> None:
+    path = PROJECT / (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    )
+    if not path.is_file():
+        pytest.skip("attribution-cleaned v3 candidate has not been prepared")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    assert manifest["policy_version"] == ATTRIBUTION_CLEANED_V3_POLICY_VERSION
+    audit = validate_compiled_manifest(manifest)
+    assert (audit["quote_count"], audit["image_count"]) == (613, 91)
+    assert (audit["allow_count"], audit["veto_count"]) == (22_028, 129)
+
+
+def test_attribution_cleaned_v3_rejects_old_corpus_counts() -> None:
+    path = PROJECT / (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    )
+    if not path.is_file():
+        pytest.skip("attribution-cleaned v3 candidate has not been prepared")
+    manifest = json.loads(path.read_text(encoding="utf-8"))
+    manifest["quote_count"] = 626
+    with pytest.raises(ShadowManifestError, match="v3 manifest quote_count mismatch"):
+        validate_compiled_manifest(manifest)
 
 
 def test_conflicting_pair_decision_is_rejected() -> None:
