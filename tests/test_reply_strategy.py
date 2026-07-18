@@ -23,6 +23,7 @@ from reply_strategy import (
     normalise_reply_decision,
     parse_decision_json,
     principle_reply_assertion_error,
+    reply_topical_relevance_error,
     reply_decision_json_schema,
     reply_is_repetitive,
     strategy_mode_guidance,
@@ -32,6 +33,12 @@ from reply_strategy import (
 )
 
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
+BURNHAM_FAILURE_TEXT = (
+    "@andrewlawrence DON'T FORGET THIS LOW-LIFE @andyburnham HAS NEVER HAD A JOB IN HIS LIFE. "
+    "- 1976 - 1997 Margaret Thatcher @simplysimontfa @MrsMThatcher * First time since the "
+    "1900s economy was left in a positive state. (+£) * Berlin Wall Down * Brighter future "
+    "for generations to"
+)
 
 
 def decision(**overrides):
@@ -39,7 +46,7 @@ def decision(**overrides):
         "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
         "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
         "grounded": False, "reply_text": "A tidy theory. Reality may request amendments.",
-        "no_reply_reason": "",
+        "no_reply_reason": "", "topical_basis": "",
     }
     value.update(overrides)
     return value
@@ -151,7 +158,10 @@ def test_strategy_request_uses_conditional_structured_output_schema(
     assert schema["if"]["properties"]["mode"] == {"const": "no_reply"}
     assert schema["then"]["properties"]["reply_text"] == {"maxLength": 0}
     assert schema["properties"]["retrieved_quote_ids"]["maxItems"] == 7
-    principle_rule = schema["allOf"][0]
+    topical_rule = schema["allOf"][0]
+    assert topical_rule["if"]["properties"]["mode"] == {"enum": ["principle_reply", "researched_principle"]}
+    assert topical_rule["then"]["properties"]["topical_basis"] == {"minLength": 3}
+    principle_rule = schema["allOf"][1]
     assert principle_rule["if"]["properties"]["mode"] == {"const": "principle_reply"}
     assert principle_rule["then"]["properties"]["factual_claim_made"] == {"const": False}
 
@@ -164,6 +174,7 @@ def test_strategy_model_response_accepts_principle_reply_without_evidence(
         humour_tone="none",
         evidence_confidence="none",
         reply_text="The case still has to be made and acted upon.",
+        topical_basis="understand this",
     )
     response = bot.requests.Response()
     response.status_code = 200
@@ -255,6 +266,260 @@ def test_historical_correction_precedes_humour_and_requires_high_confidence():
     assert valid["mode"] == "historical_correction"
     with pytest.raises(ValueError, match="requires high confidence"):
         validate_reply_decision({**valid, "evidence_confidence": "medium"}, evidence, allowed_quote_ids={item.quote_id for item in evidence})
+
+
+def test_burnham_failure_rejects_incidental_wall_researched_principle() -> None:
+    evidence = retrieve_research_packets(BURNHAM_FAILURE_TEXT, RESEARCH, maximum=5)
+    wall = next(item for item in evidence if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434")
+    reply = "No Western nation has to build a wall round itself to keep its people in."
+
+    with pytest.raises(ValueError, match="topical_relevance"):
+        validate_reply_decision(
+            decision(
+                mode="researched_principle",
+                humour_tone="none",
+                evidence_confidence="high",
+                retrieved_quote_ids=[wall.quote_id],
+                evidence_summary=reply,
+                factual_claim_made=True,
+                grounded=True,
+                reply_text=reply,
+                topical_basis="Berlin Wall Down",
+            ),
+            evidence,
+            allowed_quote_ids={item.quote_id for item in evidence},
+            incoming_text=BURNHAM_FAILURE_TEXT,
+        )
+
+
+def test_burnham_failure_is_rejected_through_production_reply_call_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import reply_strategy as strategy
+
+    wall = next(
+        item
+        for item in retrieve_research_packets(BURNHAM_FAILURE_TEXT, RESEARCH, maximum=5)
+        if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434"
+    )
+    retrieval_queries: list[str] = []
+    rejection_events: list[tuple[str, dict]] = []
+
+    def retrieve(query, _research_path, *, maximum):
+        retrieval_queries.append(query)
+        assert maximum >= 1
+        return [wall]
+
+    value = decision(
+        mode="researched_principle",
+        humour_tone="none",
+        evidence_confidence="high",
+        retrieved_quote_ids=[wall.quote_id],
+        evidence_summary="No Western nation has to build a wall round itself to keep its people in.",
+        factual_claim_made=True,
+        grounded=True,
+        reply_text="No Western nation has to build a wall round itself to keep its people in.",
+        topical_basis="Berlin Wall Down",
+    )
+    response = bot.requests.Response()
+    response.status_code = 200
+    response._content = json.dumps({
+        "choices": [{"message": {"content": json.dumps(value)}}],
+    }).encode("utf-8")
+    monkeypatch.setattr(strategy, "retrieve_research_packets", retrieve)
+    monkeypatch.setattr(bot.requests, "post", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(bot, "log_event", lambda name, **fields: rejection_events.append((name, fields)))
+    monkeypatch.setattr(
+        bot,
+        "reply_strategy",
+        {
+            **bot.reply_strategy,
+            "enabled": True,
+            "research_corpus_enabled": True,
+            "hybrid_retrieval": {
+                **bot.reply_strategy["hybrid_retrieval"],
+                "enabled": False,
+            },
+        },
+    )
+
+    outcome: dict[str, str] = {}
+    result = bot.ask_grok_for_reply(
+        "Parent post: She left office 36 years ago.\n\nIncoming post: " + BURNHAM_FAILURE_TEXT,
+        shadow_incoming_text=BURNHAM_FAILURE_TEXT,
+        direct_question_text=BURNHAM_FAILURE_TEXT,
+        evaluation_outcome=outcome,
+    )
+
+    assert result is None
+    assert retrieval_queries == [BURNHAM_FAILURE_TEXT]
+    assert outcome == {"status": "no_reply", "reason": "topical_relevance_rejected"}
+    assert (
+        "reply_strategy_rejection",
+        {"lane": "unavailable", "reason": "topical_relevance_rejected", "detail_code": "basis_not_substantive"},
+    ) in rejection_events
+
+
+def test_wall_evidence_remains_valid_for_related_coercive_border_issue() -> None:
+    incoming = "The Berlin Wall showed how a coercive border trapped citizens in the communist East."
+    evidence = retrieve_research_packets(incoming, RESEARCH, maximum=5)
+    wall = next(item for item in evidence if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434")
+    result = validate_reply_decision(
+        decision(
+            mode="researched_principle",
+            humour_tone="none",
+            evidence_confidence="high",
+            retrieved_quote_ids=[wall.quote_id],
+            evidence_summary="Communist regimes used the Berlin Wall to prevent emigration.",
+            factual_claim_made=True,
+            grounded=True,
+            reply_text="A regime that needs a wall to keep its citizens in has confessed the failure of coercion.",
+            topical_basis="Berlin Wall",
+        ),
+        evidence,
+        allowed_quote_ids={item.quote_id for item in evidence},
+        incoming_text=incoming,
+    )
+    assert result["mode"] == "researched_principle"
+
+
+def test_lexical_retrieval_excludes_handles_and_url_components() -> None:
+    clean = "A minister should value conviction above personal popularity."
+    contaminated = (
+        "@freedom https://example.test/berlin/wall "
+        "A minister should value conviction above personal popularity."
+    )
+    expected = retrieve_research_packets(clean, RESEARCH, maximum=5)
+    actual = retrieve_research_packets(contaminated, RESEARCH, maximum=5)
+    assert [item.quote_id for item in actual] == [item.quote_id for item in expected]
+    assert [item.score for item in actual] == [item.score for item in expected]
+
+
+@pytest.mark.parametrize(
+    ("incoming", "reply", "basis"),
+    [
+        ("Government must restore public confidence.", "Government must choose freedom over fear.", "Government must restore public confidence"),
+        ("The economy needs reform.", "Economic leadership requires freedom.", "economy needs reform"),
+        ("National leadership is failing.", "A nation needs leadership grounded in freedom.", "National leadership is failing"),
+    ],
+)
+def test_common_political_vocabulary_alone_cannot_establish_relevance(
+    incoming: str,
+    reply: str,
+    basis: str,
+) -> None:
+    assert reply_topical_relevance_error(
+        incoming,
+        reply,
+        [],
+        mode="principle_reply",
+        topical_basis=basis,
+    ) is not None
+
+
+def test_relevance_basis_cannot_come_only_from_inherited_thread_text() -> None:
+    error = reply_topical_relevance_error(
+        "A minister should value conviction above personal popularity.",
+        "No nation needs a wall to keep its people in.",
+        [],
+        mode="principle_reply",
+        topical_basis="Berlin Wall",
+    )
+    assert error == "topical_relevance:basis_not_in_incoming"
+
+
+def test_topical_relevance_is_deterministic_for_identical_inputs() -> None:
+    args = (
+        "This is about a leader's desire for popularity.",
+        "Leaders serve best when conviction, not popularity, guides their course.",
+        [],
+    )
+    results = [
+        reply_topical_relevance_error(
+            *args,
+            mode="principle_reply",
+            topical_basis="desire for popularity",
+        )
+        for _ in range(10)
+    ]
+    assert results == [None] * 10
+
+
+def test_researched_principle_requires_grounding_and_topical_relevance() -> None:
+    item = RetrievedEvidence(
+        "a" * 64,
+        5.0,
+        "exact",
+        "Free enterprise and democratic accountability.",
+        {
+            "verified_text": "Free enterprise and democratic accountability.",
+            "research_confidence": "high",
+            "immediate_subject": "Free enterprise and democratic accountability.",
+            "intended_argument": "Markets require accountable democratic government.",
+        },
+    )
+    incoming = "Free markets require democratic accountability and political responsibility."
+    value = decision(
+        mode="researched_principle",
+        humour_tone="none",
+        evidence_confidence="high",
+        retrieved_quote_ids=[item.quote_id],
+        evidence_summary="Free enterprise requires accountability.",
+        factual_claim_made=True,
+        grounded=True,
+        reply_text="Free enterprise must answer to democratic accountability.",
+        topical_basis="Free markets require democratic accountability",
+    )
+
+    result = validate_reply_decision(
+        value,
+        [item],
+        allowed_quote_ids={item.quote_id},
+        incoming_text=incoming,
+    )
+    assert result["mode"] == "researched_principle"
+    assert reply_topical_relevance_error(
+        incoming,
+        value["reply_text"],
+        [item],
+        mode=value["mode"],
+        topical_basis=value["topical_basis"],
+    ) is None
+
+
+def test_grounding_confidence_alone_cannot_satisfy_topical_relevance() -> None:
+    unrelated = RetrievedEvidence(
+        "b" * 64,
+        99.0,
+        "exact",
+        "A highly confident but unrelated packet.",
+        {
+            "verified_text": "No nation needs a wall to keep its people in.",
+            "research_confidence": "high",
+            "immediate_subject": "Cold War borders and coercion.",
+            "intended_argument": "Freedom does not require walls.",
+        },
+    )
+    error = reply_topical_relevance_error(
+        "A minister should value conviction above personal popularity.",
+        "No nation needs a wall to keep its people in.",
+        [unrelated],
+        mode="researched_principle",
+        topical_basis="conviction above personal popularity",
+    )
+    assert error is not None
+
+
+def test_conviction_and_popularity_principle_remains_topically_valid() -> None:
+    incoming = "This is what I said about Burnham's desire for popularity."
+    reply = "Leaders serve best when conviction, not popularity, guides their course."
+    assert reply_topical_relevance_error(
+        incoming,
+        reply,
+        [],
+        mode="principle_reply",
+        topical_basis="desire for popularity",
+    ) is None
 
 
 def test_berlin_wall_question_requires_a_direct_east_to_west_answer() -> None:
@@ -392,21 +657,24 @@ def test_humour_remains_available_without_forced_history():
 
 
 @pytest.mark.parametrize(
-    ("incoming", "reply"),
+    ("incoming", "reply", "topical_basis"),
     [
         (
             "Why doesn't anyone in government understand this?",
             "Understanding is not always the same as having the courage to act.",
+            "understand this",
         ),
         (
             "The institutions have failed because the government is acting in bad faith.",
             "Institutions endure only when people are prepared to defend their purpose.",
+            "institutions have failed",
         ),
     ],
 )
 def test_uncertain_claim_can_receive_a_non_factual_principle_reply(
     incoming: str,
     reply: str,
+    topical_basis: str,
 ) -> None:
     result = validate_reply_decision(
         decision(
@@ -414,9 +682,11 @@ def test_uncertain_claim_can_receive_a_non_factual_principle_reply(
             humour_tone="none",
             evidence_confidence="none",
             reply_text=reply,
+            topical_basis=topical_basis,
         ),
         [],
         allowed_quote_ids=set(),
+        incoming_text=incoming,
         direct_question_text=incoming,
     )
 
@@ -440,6 +710,25 @@ def test_principle_reply_rejects_unsupported_actor_specific_assertion() -> None:
             ),
             [],
             allowed_quote_ids=set(),
+        )
+
+
+def test_principle_reply_rejects_named_actor_allegation() -> None:
+    incoming = "Andy Burnham only wants public popularity."
+    reply = "Burnham craves popularity rather than responsibility."
+    assert principle_reply_assertion_error(reply, incoming) is not None
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode="principle_reply",
+                humour_tone="none",
+                evidence_confidence="none",
+                reply_text=reply,
+                topical_basis="wants public popularity",
+            ),
+            [],
+            allowed_quote_ids=set(),
+            incoming_text=incoming,
         )
 
 
@@ -492,6 +781,7 @@ def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> No
         evidence_confidence="none",
         reply_text=text,
     )
+    metadata.pop("topical_basis")
     assert bot.strategy_metadata_is_semantically_valid(metadata, text)
     unsafe = {**metadata, "reply_text": "The government is concealing the truth."}
     assert not bot.strategy_metadata_is_semantically_valid(unsafe, unsafe["reply_text"])
@@ -561,7 +851,11 @@ def test_verified_exact_wording_may_use_single_quotation_marks(
         1.0,
         "exact",
         "Exact evidence.",
-        {"verified_text": verified_text, "research_confidence": "high"},
+        {
+            "verified_text": verified_text,
+            "research_confidence": "high",
+            "immediate_subject": "Exact words and their historical record.",
+        },
     )
 
     result = validate_reply_decision(
@@ -573,9 +867,11 @@ def test_verified_exact_wording_may_use_single_quotation_marks(
             evidence_summary="Exact evidence.",
             factual_claim_made=True,
             reply_text=reply_text,
+            topical_basis="Exact words",
         ),
         [exact],
         allowed_quote_ids={exact.quote_id},
+        incoming_text="Exact words and their historical record.",
     )
 
     assert result["reply_text"] == reply_text
@@ -687,7 +983,11 @@ def test_existing_historical_reply_modes_remain_valid(mode: str, confidence: str
         1.0,
         "exact",
         "A supported historical point.",
-        {"verified_text": "Exact words.", "research_confidence": "high"},
+        {
+            "verified_text": "Exact words.",
+            "research_confidence": "high",
+            "immediate_subject": "The historical record supports a narrower conclusion.",
+        },
     )
     value = decision(
         mode=mode,
@@ -698,12 +998,14 @@ def test_existing_historical_reply_modes_remain_valid(mode: str, confidence: str
         factual_claim_made=True,
         grounded=True,
         reply_text="The historical record supports that narrower conclusion.",
+        topical_basis=("historical record supports" if mode == "researched_principle" else ""),
     )
     validate_json_schema(value, reply_decision_json_schema())
     assert validate_reply_decision(
         value,
         [evidence],
         allowed_quote_ids={evidence.quote_id},
+        incoming_text=("The historical record supports a narrower conclusion." if mode == "researched_principle" else None),
     )["mode"] == mode
 
 
@@ -804,6 +1106,7 @@ def test_principle_reply_prompt_contains_one_explicit_valid_example() -> None:
         humour_tone="none",
         evidence_confidence="none",
         reply_text="Institutions endure only when people are prepared to defend their purpose.",
+        topical_basis="institutions have failed",
     )
 
 

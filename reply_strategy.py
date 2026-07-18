@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -28,7 +30,7 @@ NO_REPLY_REASON_CATEGORIES = {
 REPLY_DECISION_FIELDS = frozenset({
     "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
     "evidence_summary", "factual_claim_made", "grounded", "reply_text",
-    "no_reply_reason",
+    "no_reply_reason", "topical_basis",
 })
 CANNED_PATTERNS = (
     "the lesson remains unlearned", "socialism promised", "history has a habit",
@@ -58,16 +60,42 @@ PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE = re.compile(
     r"failed|fails)\b)",
     re.IGNORECASE,
 )
+PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE = re.compile(
+    r"\b(?P<actor>[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){0,2})"
+    r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\b|\s+(?:is|are|was|were|has|have|had|"
+    r"does|do|did|will|would|wants?|seeks?|craves?|believes?|knows?|understands?|"
+    r"refuses?|intends?|lied|lies|betrayed|failed|fails)\b)"
+)
 RETRIEVAL_FIELDS = (
     "quote_text", "verified_text", "source_event", "historical_context",
     "immediate_subject", "intended_argument", "literal_meaning", "broader_principle",
     "mechanism", "claimed_consequence",
 )
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'-]{2,}")
+TOPICAL_TOKEN_RE = re.compile(r"[^\W_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}", re.UNICODE)
 STOPWORDS = {
     "and", "are", "but", "for", "from", "has", "have", "into", "its", "not",
     "that", "the", "their", "then", "there", "these", "they", "this", "was",
     "were", "what", "when", "where", "which", "who", "with", "would", "your",
+}
+TOPICAL_STOPWORDS = STOPWORDS | {
+    "account", "after", "again", "also", "before", "being", "could", "first",
+    "future", "just", "life", "margaret", "mrs", "much", "people", "since",
+    "still", "than", "thatcher", "thing", "time", "towards", "very", "must",
+}
+GENERIC_POLITICAL_TOPIC_TOKENS = {
+    "country", "economic", "economy", "freedom", "government", "leader",
+    "leadership", "liberty", "nation", "national", "politic", "political",
+    "politician", "policy", "socialism", "socialist", "state",
+}
+TOPICAL_SEGMENT_RE = re.compile(r"(?:\r?\n|\s+[|*•]\s+|(?<=[.!?;:])\s+)")
+TOPICAL_CONCEPTS = {
+    "accountability": {"accountable", "check", "democratic", "responsible"},
+    "economic_policy": {"business", "capital", "economic", "enterprise", "market", "prosperity", "wealth"},
+    "freedom_and_coercion": {"berlin", "choice", "coercion", "communism", "east", "freedom", "liberty", "wall", "west"},
+    "institutions": {"defend", "institution", "purpose"},
+    "leadership_and_popularity": {"conviction", "leader", "popular"},
+    "public_case_and_action": {"act", "case", "courage", "explain", "make", "persuade", "understand"},
 }
 
 
@@ -209,6 +237,146 @@ def _tokens(value: Any) -> set[str]:
     return {token for token in TOKEN_RE.findall(str(value or "").lower()) if token not in STOPWORDS}
 
 
+def _topical_stem(token: str) -> str:
+    aliases = {
+        "accountability": "accountable", "checks": "accountable",
+        "economy": "economic", "economies": "economic",
+        "markets": "market", "popularity": "popular",
+        "responsibility": "responsible", "responsibilities": "responsible",
+    }
+    value = aliases.get(token, token)
+    if not value.isascii():
+        return value
+    if len(value) > 5 and value.endswith("ing"):
+        value = value[:-3]
+    elif len(value) > 4 and value.endswith("ed"):
+        value = value[:-2]
+    elif len(value) > 4 and value.endswith("s") and not value.endswith(("ss", "is", "us")):
+        value = value[:-1]
+    return value
+
+
+def _topical_tokens(value: Any) -> set[str]:
+    return {
+        _topical_stem(token.casefold())
+        for token in TOPICAL_TOKEN_RE.findall(str(value or ""))
+        if token.casefold() not in TOPICAL_STOPWORDS
+    }
+
+
+def _normalise_topical_source(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", html.unescape(str(value or "")))
+    text = re.sub(r"https?://\S+|(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", text)
+    return " ".join(text.split())
+
+
+def _topical_token_sequence(value: Any) -> list[str]:
+    return [_topical_stem(token.casefold()) for token in TOPICAL_TOKEN_RE.findall(str(value or ""))]
+
+
+def _contains_token_sequence(haystack: list[str], needle: list[str]) -> bool:
+    if not needle or len(needle) > len(haystack):
+        return False
+    return any(haystack[index:index + len(needle)] == needle for index in range(len(haystack) - len(needle) + 1))
+
+
+def _substantive_topic_segments(incoming_text: str) -> list[tuple[list[str], set[str]]]:
+    cleaned = _normalise_topical_source(incoming_text)
+    segments = [
+        (_topical_token_sequence(part), _topical_tokens(part))
+        for part in TOPICAL_SEGMENT_RE.split(cleaned)
+    ]
+    segments = [(sequence, tokens) for sequence, tokens in segments if tokens]
+    if not segments:
+        return []
+    # In a multi-point contribution, a short label or list fragment must not
+    # become the sole justification for an otherwise unrelated researched reply.
+    if max(len(tokens) for _sequence, tokens in segments) >= 4:
+        substantive = [(sequence, tokens) for sequence, tokens in segments if len(tokens) >= 4]
+        if substantive:
+            return substantive
+    return segments
+
+
+def _topical_concepts(tokens: set[str]) -> set[str]:
+    return {
+        concept
+        for concept, members in TOPICAL_CONCEPTS.items()
+        if tokens & members
+    }
+
+
+def _specific_topical_tokens(tokens: set[str]) -> set[str]:
+    return tokens - GENERIC_POLITICAL_TOPIC_TOKENS
+
+
+def _topic_pair_aligned(left: set[str], right: set[str]) -> bool:
+    left_specific = _specific_topical_tokens(left)
+    right_specific = _specific_topical_tokens(right)
+    if left_specific & right_specific:
+        return True
+    for concept in _topical_concepts(left) & _topical_concepts(right):
+        specific_members = TOPICAL_CONCEPTS[concept] - GENERIC_POLITICAL_TOPIC_TOKENS
+        if left_specific & specific_members and right_specific & specific_members:
+            return True
+    return False
+
+
+def reply_topical_relevance_error(
+    incoming_text: str,
+    reply_text: str,
+    selected_evidence: Iterable[RetrievedEvidence],
+    *,
+    mode: str,
+    topical_basis: str,
+) -> str | None:
+    """Validate an untrusted model-selected issue against incoming text and the reply."""
+    if mode not in {"principle_reply", "researched_principle"}:
+        return None
+    segments = _substantive_topic_segments(incoming_text)
+    if not segments:
+        return "topical_relevance:no_substantive_incoming_topic"
+    basis_sequence = _topical_token_sequence(_normalise_topical_source(topical_basis))
+    basis_tokens = _topical_tokens(topical_basis)
+    if not basis_sequence or not basis_tokens:
+        return "topical_relevance:missing_basis"
+    incoming_sequence = _topical_token_sequence(_normalise_topical_source(incoming_text))
+    if not _contains_token_sequence(incoming_sequence, basis_sequence):
+        return "topical_relevance:basis_not_in_incoming"
+    if not any(_contains_token_sequence(sequence, basis_sequence) for sequence, _tokens in segments):
+        return "topical_relevance:basis_not_substantive"
+    if not _specific_topical_tokens(basis_tokens):
+        return "topical_relevance:basis_only_generic_political_vocabulary"
+    reply_tokens = _topical_tokens(reply_text)
+    if not reply_tokens:
+        return "topical_relevance:reply_lacks_topic"
+
+    if mode == "principle_reply":
+        if _topic_pair_aligned(basis_tokens, reply_tokens):
+            return None
+        return "topical_relevance:incoming_reply_bridge_missing"
+
+    evidence_tokens = _topical_tokens(
+        " ".join(
+            str(item.packet.get(field) or "")
+            for item in selected_evidence
+            for field in (
+                "immediate_subject", "intended_argument", "literal_meaning",
+                "broader_principle", "mechanism", "claimed_consequence",
+            )
+        )
+    )
+    if not evidence_tokens:
+        return "topical_relevance:evidence_lacks_topic"
+    if not _topic_pair_aligned(basis_tokens, reply_tokens):
+        return "topical_relevance:incoming_reply_bridge_missing"
+    if not _topic_pair_aligned(basis_tokens, evidence_tokens):
+        return "topical_relevance:incoming_evidence_bridge_missing"
+    if not _topic_pair_aligned(reply_tokens, evidence_tokens):
+        return "topical_relevance:reply_evidence_bridge_missing"
+    return None
+
+
 def _packet_text(packet: dict[str, Any]) -> str:
     values: list[str] = [str(packet.get(field) or "") for field in RETRIEVAL_FIELDS]
     for field in ("entities",):
@@ -230,7 +398,10 @@ def retrieve_research_packets(
     packets, unresolved = load_and_validate_corpus(research_dir)
     if len(packets) != 626 or len(unresolved) != 6:
         raise RuntimeError("reply retrieval requires 626 completed packets and six unresolved records")
-    query = _tokens(incoming_text)
+    # Handles and URL components are incidental metadata, not the user's issue.
+    # Keeping them in the lexical query can steer retrieval towards an unrelated
+    # entity or page-title token even though parent/thread text is already absent.
+    query = _tokens(_normalise_topical_source(incoming_text))
     if not query:
         return []
     ranked: list[RetrievedEvidence] = []
@@ -279,6 +450,15 @@ def reply_decision_json_schema(
             "type": "string",
             "description": "Reason for no_reply; do not duplicate it in evidence_summary.",
         },
+        "topical_basis": {
+            "type": "string",
+            "maxLength": 160,
+            "description": (
+                "For principle_reply or researched_principle, copy a short exact span from the "
+                "incoming contribution identifying the issue answered. Never copy parent, quoted-post, "
+                "profile, URL, evidence, or prior-reply text. Empty for every other mode."
+            ),
+        },
     }
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -300,26 +480,37 @@ def reply_decision_json_schema(
                 "grounded": {"const": False},
                 "reply_text": {"maxLength": 0},
                 "no_reply_reason": {"minLength": 1},
+                "topical_basis": {"maxLength": 0},
             },
         },
-        "allOf": [{
-            "if": {
-                "properties": {"mode": {"const": "principle_reply"}},
-                "required": ["mode"],
+        "allOf": [
+            {
+                "if": {
+                    "properties": {"mode": {"enum": ["principle_reply", "researched_principle"]}},
+                    "required": ["mode"],
+                },
+                "then": {"properties": {"topical_basis": {"minLength": 3}}},
+                "else": {"properties": {"topical_basis": {"maxLength": 0}}},
             },
-            "then": {
-                "properties": {
-                    "humour_tone": {"const": "none"},
-                    "evidence_confidence": {"const": "none"},
-                    "retrieved_quote_ids": {"maxItems": 0},
-                    "evidence_summary": {"maxLength": 0},
-                    "factual_claim_made": {"const": False},
-                    "grounded": {"const": False},
-                    "reply_text": {"minLength": 1},
-                    "no_reply_reason": {"maxLength": 0},
+            {
+                "if": {
+                    "properties": {"mode": {"const": "principle_reply"}},
+                    "required": ["mode"],
+                },
+                "then": {
+                    "properties": {
+                        "humour_tone": {"const": "none"},
+                        "evidence_confidence": {"const": "none"},
+                        "retrieved_quote_ids": {"maxItems": 0},
+                        "evidence_summary": {"maxLength": 0},
+                        "factual_claim_made": {"const": False},
+                        "grounded": {"const": False},
+                        "reply_text": {"minLength": 1},
+                        "no_reply_reason": {"maxLength": 0},
+                    },
                 },
             },
-        }],
+        ],
     }
 
 
@@ -337,7 +528,7 @@ def normalise_reply_decision(value: dict[str, Any]) -> dict[str, Any]:
             normalised[field] = "none"
     if "retrieved_quote_ids" in normalised and normalised["retrieved_quote_ids"] is None:
         normalised["retrieved_quote_ids"] = []
-    for field in ("evidence_summary", "reply_text"):
+    for field in ("evidence_summary", "reply_text", "topical_basis"):
         if field not in normalised:
             continue
         item = normalised[field]
@@ -362,6 +553,7 @@ def decision_schema_instruction() -> str:
         "grounded": False,
         "reply_text": "",
         "no_reply_reason": "No useful response.",
+        "topical_basis": "",
     }
     principle_reply_example = {
         "mode": "principle_reply",
@@ -373,22 +565,25 @@ def decision_schema_instruction() -> str:
         "grounded": False,
         "reply_text": "Institutions endure only when people are prepared to defend their purpose.",
         "no_reply_reason": "",
+        "topical_basis": "institutions have failed",
     }
     return (
         'Return exactly one JSON object with fields: '
         'mode, humour_tone, evidence_confidence, retrieved_quote_ids, evidence_summary, '
-        'factual_claim_made, grounded, reply_text, no_reply_reason. '
+        'factual_claim_made, grounded, reply_text, no_reply_reason, topical_basis. '
         f'Mode must be one of {sorted(MODES)}. Humour tone must be one of {sorted(HUMOUR_TONES)}. '
         'Confidence must be high, medium, low, or none. For no_reply, put the explanation only in '
         'no_reply_reason and use humour_tone="none", evidence_confidence="none", '
         'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
-        'and reply_text="". Use the exact no_reply_reason values '
+        'reply_text="", and topical_basis="". Use the exact no_reply_reason values '
         'no_reply_due_to_unverifiable_claim, no_reply_due_to_bait_or_abuse, or '
         'no_reply_due_to_incoherent when they apply. Never return bare SKIP. Valid no_reply example: '
         + json.dumps(no_reply_example, ensure_ascii=False, separators=(",", ":"))
         + '. For principle_reply, use humour_tone="none", evidence_confidence="none", '
         'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
-        'and no_reply_reason="". Valid principle_reply example: '
+        'and no_reply_reason="". Set topical_basis to a short exact span copied only from the incoming '
+        'contribution that identifies the issue answered; never copy inherited thread, quoted-post, profile, '
+        'URL, evidence, or prior-reply text. Valid principle_reply example: '
         + json.dumps(principle_reply_example, ensure_ascii=False, separators=(",", ":"))
         + "."
     )
@@ -399,10 +594,11 @@ def strategy_mode_guidance() -> str:
         "Classification hierarchy: first identify any factual claim in the incoming post. "
         "If it is materially false or misleading and supplied evidence resolves it with high confidence, use historical_correction. "
         "Otherwise use historical_context when a grounded qualification materially improves a claim that is not clearly false. "
-        "Use researched_principle for a concise evidence-backed summary of Thatcher's argument without pretending it is a direct quotation. "
+        "Use researched_principle only for a concise evidence-backed summary of Thatcher's argument that directly addresses a substantive issue in the incoming contribution, without pretending it is a direct quotation. "
+        "Evidence confidence and an incidental shared word, name, achievement, or list fragment do not establish topical relevance. An unrelated authentic principle is worse than no_reply. "
         "Set factual_claim_made=true whenever the final reply states a historical or policy fact; every historical mode must set it true. "
         "When uncertain or unsupported details are not needed to answer the broader political or moral point, use principle_reply: "
-        "write one concise general sentence that stands independently without repeating, endorsing, or implying those details, "
+        "write one concise general sentence that addresses a substantive issue actually present in the incoming contribution and stands independently without repeating, endorsing, or implying those details, "
         "without speculating about anyone's motives, and with no factual claim, evidence, or humour metadata. "
         "For example, 'Why doesn't anyone in government understand this?' may be answered with "
         "'Understanding is not always the same as having the courage to act.' "
@@ -415,10 +611,32 @@ def strategy_mode_guidance() -> str:
     )
 
 
-def principle_reply_assertion_error(text: str) -> str | None:
+def _incoming_named_actor_terms(incoming_text: str) -> tuple[set[str], set[str]]:
+    handles = {
+        value.casefold()
+        for value in re.findall(r"(?<![A-Za-z0-9_])@([A-Za-z0-9_]+)", str(incoming_text or ""))
+    }
+    names: set[str] = set()
+    for value in re.findall(r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+\b", str(incoming_text or "")):
+        parts = value.casefold().split()
+        names.add(" ".join(parts))
+        names.update(parts)
+    return handles, names
+
+
+def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
     """Reject obvious concrete allegations disguised as an ungrounded principle."""
-    if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(str(text or "")):
+    value = str(text or "")
+    if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(value):
         return "principle_reply cannot contain a specific unsupported factual assertion"
+    handles, names = _incoming_named_actor_terms(incoming_text)
+    for match in PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE.finditer(value):
+        actor = match.group("actor").casefold()
+        parts = actor.split()
+        if actor in names or any(part in names for part in parts):
+            return "principle_reply cannot contain a specific unsupported factual assertion"
+        if any(len(part) >= 4 and part in handle for part in parts for handle in handles):
+            return "principle_reply cannot contain a specific unsupported factual assertion"
     return None
 
 
@@ -546,6 +764,7 @@ def validate_reply_decision(
     allowed_modes: set[str] | None = None,
     allowed_humour_tones: set[str] | None = None,
     minimum_grounded_confidence: str = "medium",
+    incoming_text: str | None = None,
     direct_question_text: str | None = None,
     clarification_reply: bool = False,
 ) -> dict[str, Any]:
@@ -556,8 +775,11 @@ def validate_reply_decision(
     tone = value["humour_tone"]
     confidence = value["evidence_confidence"]
     ids = value["retrieved_quote_ids"]
-    if not all(isinstance(item, str) for item in (mode, tone, confidence, value["reply_text"])):
-        raise ValueError("reply mode, tone, confidence, and text must be strings")
+    if not all(
+        isinstance(item, str)
+        for item in (mode, tone, confidence, value["reply_text"], value["topical_basis"])
+    ):
+        raise ValueError("reply mode, tone, confidence, text, and topical basis must be strings")
     reply = value["reply_text"].strip()
     if mode not in MODES or tone not in HUMOUR_TONES or confidence not in CONFIDENCE_LEVELS:
         raise ValueError("unsupported reply mode, tone, or confidence")
@@ -572,7 +794,7 @@ def validate_reply_decision(
     if mode == "no_reply" and (
         tone != "none" or confidence != "none" or ids != []
         or value["evidence_summary"] != "" or value["factual_claim_made"]
-        or value["grounded"] or reply != ""
+        or value["grounded"] or reply != "" or value["topical_basis"] != ""
     ):
         raise ValueError(
             "no_reply requires tone/confidence none, empty evidence and reply text, and false flags"
@@ -585,6 +807,8 @@ def validate_reply_decision(
         raise ValueError(
             "principle_reply requires tone/confidence none, empty evidence and no-reply reason, and false flags"
         )
+    if mode not in {"principle_reply", "researched_principle"} and value["topical_basis"] != "":
+        raise ValueError("topical basis is allowed only for principle reply modes")
     evidence_ids = {item.quote_id for item in evidence}
     if not isinstance(ids, list) or any(
         not isinstance(item, str) or item not in allowed_quote_ids or item not in evidence_ids
@@ -631,11 +855,23 @@ def validate_reply_decision(
         if _contains_emoji(reply):
             raise ValueError("emoji are not allowed")
         if mode == "principle_reply":
-            assertion_error = principle_reply_assertion_error(reply)
+            assertion_error = principle_reply_assertion_error(reply, str(incoming_text or ""))
             if assertion_error:
                 raise ValueError(assertion_error)
         if not _quotes_are_verified(reply, selected_evidence):
             raise ValueError("quotation marks require verified exact text")
+        if mode in {"principle_reply", "researched_principle"}:
+            if incoming_text is None:
+                raise ValueError("topical_relevance:incoming_text_unavailable")
+            relevance_error = reply_topical_relevance_error(
+                incoming_text,
+                reply,
+                selected_evidence,
+                mode=mode,
+                topical_basis=value["topical_basis"],
+            )
+            if relevance_error:
+                raise ValueError(relevance_error)
         repetition_reason = reply_repetition_reason(reply, recent_replies)
         if repetition_reason:
             raise ValueError(repetition_reason)

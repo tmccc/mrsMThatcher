@@ -180,6 +180,80 @@ def discovery_fixture(tmp_path: Path, monkeypatch):
     return test_paths, packets, (main_one, context_one, main_two)
 
 
+def identity_correction_fixture(tmp_path: Path, monkeypatch):
+    test_paths = paths(tmp_path)
+    main_post_id = "2077121396186992800"
+    context_post_id = "2077121398795907462"
+    canonical_text = "Capitalism is the moral way of running an economy."
+    derived_text = "It is free enterprise, which creates wealth, not meddling governments."
+    canonical_id = "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b"
+    derived_id = "a8de2cdcaa20182b2129e0292e4c98956c770132336c12c7130963d3796876e6"
+    assert analytics.quote_text_hash(canonical_text) == canonical_id
+    assert analytics.quote_text_hash(derived_text) == derived_id
+    packets = {
+        canonical_id: {"quote_id": canonical_id, "quote_text": canonical_text, "research_confidence": "high"},
+        derived_id: {"quote_id": derived_id, "quote_text": derived_text, "research_confidence": "high"},
+    }
+    monkeypatch.setattr(formatter, "load_and_validate_corpus", lambda _path: (packets, set()))
+    monkeypatch.setattr(formatter, "format_context_reply", lambda packet: {
+        "character_count": 420,
+        "verification_label": "Exact wording",
+        "source_class": "Margaret Thatcher Foundation",
+        "historical_confidence": packet["research_confidence"],
+        "shortening_applied": False,
+        "meaning_included": True,
+    })
+    lines = [f"Unrelated retained quote {index}." for index in range(599)] + [derived_text]
+    test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text("\n".join(lines) + "\n")
+    test_paths.project_dir.joinpath("quote_analysis.json").write_text(json.dumps({"items": {
+        canonical_id: {"analysis": {"primary_topics": ["economy"]}},
+        derived_id: {"analysis": {"primary_topics": ["enterprise"]}},
+    }}))
+    history = {
+        "schema_version": 1,
+        "items": {main_post_id: {
+            "status": "completed",
+            "parent_post_id": main_post_id,
+            "reply_post_id": context_post_id,
+            "quote_id": canonical_id,
+        }},
+    }
+    test_paths.project_dir.joinpath("historical_context_reply_history.json").write_text(json.dumps(history))
+    test_paths.project_dir.joinpath("bot_state.json").write_text(json.dumps({"marker": "must remain unchanged"}))
+    event_time = analytics.snowflake_datetime(main_post_id)
+    london = analytics.ZoneInfo("Europe/London")
+    stamp = event_time.astimezone(london).strftime("%Y-%m-%d %H:%M:%S")
+    events = [
+        {"event": "historical_context_reply", "status": "completed", "parent_post_id": main_post_id,
+         "quote_id": canonical_id, "character_count": 420},
+        {"event": "main_post_posted", "lane": "quote_image", "post_id": main_post_id,
+         "line_no": 599, "image_basename": "t14.jpg", "image_score": 25.4},
+    ]
+    test_paths.project_dir.joinpath("mrsMThatcher.log").write_text("".join(
+        f"{stamp} INFO log_event:1 - EVENT {json.dumps(event, separators=(',', ':'))}\n" for event in events
+    ))
+    correction = {
+        "schema_version": 1,
+        "corrections": [{
+            "correction_id": "stale-main-post-line-2077121396186992800-v1",
+            "post_id": main_post_id,
+            "source": "structured_log_main_post_event",
+            "historical_line_no": 599,
+            "observed_derived_quote_id": derived_id,
+            "observed_derived_quote_text": derived_text,
+            "canonical_quote_id": canonical_id,
+            "canonical_quote_text": canonical_text,
+            "classification": "incorrect_derived_analytics_record",
+            "reason": "A historical line number shifted after an audited corpus cleanup.",
+            "evidence": ["posting-time quote hash", "durable context history", "before/after source lines"],
+            "created_at": "2026-07-18T00:00:00Z",
+        }],
+    }
+    test_paths.identity_corrections.parent.mkdir(parents=True)
+    test_paths.identity_corrections.write_text(json.dumps(correction))
+    return test_paths, packets, (main_post_id, context_post_id, canonical_id, derived_id)
+
+
 def test_deterministic_structured_discovery_precedence_and_missing_context(tmp_path, monkeypatch):
     test_paths, _packets, ids = discovery_fixture(tmp_path, monkeypatch)
     first = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
@@ -234,6 +308,141 @@ def test_discovery_rejects_conflicting_quote_identity(tmp_path, monkeypatch):
     (test_paths.project_dir / "historical_context_reply_history.json").write_text(json.dumps(history))
     with pytest.raises(analytics.IdentityConflict, match="quote_id conflict"):
         analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+
+
+def test_exact_historical_line_shift_correction_preserves_one_canonical_pair_and_history(
+    tmp_path, monkeypatch, caplog
+):
+    test_paths, _packets, ids = identity_correction_fixture(tmp_path, monkeypatch)
+    main_post_id, context_post_id, canonical_id, derived_id = ids
+    protected_paths = [
+        test_paths.project_dir / "mrsMThatcher.txt",
+        test_paths.project_dir / "historical_context_reply_history.json",
+        test_paths.project_dir / "bot_state.json",
+    ]
+    before = {path: path.read_bytes() for path in protected_paths}
+
+    caplog.set_level("WARNING", logger="mrs_engagement_analytics")
+    pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+    assert len(pairs) == 1
+    assert pairs[0]["main_post_id"] == main_post_id
+    assert pairs[0]["context_post_id"] == context_post_id
+    assert pairs[0]["quote_id"] == canonical_id
+    assert pairs[0]["canonical_quote_hash"] == canonical_id
+    assert pairs[0]["quote_text"] == "Capitalism is the moral way of running an economy."
+    assert derived_id not in {pair["quote_id"] for pair in pairs}
+    assert pairs[0]["discovery_sources"].count(
+        "quote_identity_correction:stale-main-post-line-2077121396186992800-v1"
+    ) == 1
+    assert sum("Applied audited quote identity correction" in record.message for record in caplog.records) == 1
+
+    analytics.initialise_database(test_paths)
+    with analytics.connect_database(test_paths) as connection:
+        first = analytics.apply_discovery(connection, pairs, now=NOW)
+        schedule_count = connection.execute("SELECT COUNT(*) FROM snapshot_schedule").fetchone()[0]
+        client = FakeClient([lambda post_ids: response_for(post_ids)])
+        collected = analytics.collect_due_snapshots(
+            test_paths,
+            connection,
+            execute_read=True,
+            max_api_requests=1,
+            now=NOW,
+            client_factory=lambda: client,
+        )
+        snapshot_count = connection.execute("SELECT COUNT(*) FROM metric_snapshots").fetchone()[0]
+        assert collected["completed_snapshots"] == 4
+        assert snapshot_count == 4
+        second_pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+        second = analytics.apply_discovery(connection, second_pairs, now=NOW)
+        third_pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+        third = analytics.apply_discovery(connection, third_pairs, now=NOW)
+        assert first["inserted"] == 1
+        assert second == {"inserted": 0, "updated": 1, "unchanged": 0, "total_input": 1}
+        assert third == {"inserted": 0, "updated": 0, "unchanged": 1, "total_input": 1}
+        assert connection.execute("SELECT COUNT(*) FROM post_pairs").fetchone()[0] == 1
+        assert connection.execute("SELECT quote_id FROM post_pairs").fetchone()[0] == canonical_id
+        assert connection.execute("SELECT COUNT(*) FROM snapshot_schedule").fetchone()[0] == schedule_count
+        assert connection.execute("SELECT COUNT(*) FROM metric_snapshots").fetchone()[0] == snapshot_count
+    assert {path: path.read_bytes() for path in protected_paths} == before
+
+
+def test_identity_correction_cannot_cross_post_ids(tmp_path, monkeypatch, caplog):
+    test_paths, _packets, ids = identity_correction_fixture(tmp_path, monkeypatch)
+    canonical_id = ids[2]
+    other_post_id = snowflake(NOW - timedelta(hours=1), 99)
+    history_path = test_paths.project_dir / "historical_context_reply_history.json"
+    history = json.loads(history_path.read_text())
+    history["items"][other_post_id] = {"status": "failed", "parent_post_id": other_post_id, "quote_id": canonical_id}
+    history_path.write_text(json.dumps(history))
+    london = analytics.ZoneInfo("Europe/London")
+    stamp = analytics.snowflake_datetime(other_post_id).astimezone(london).strftime("%Y-%m-%d %H:%M:%S")
+    event = {"event": "main_post_posted", "lane": "quote_image", "post_id": other_post_id,
+             "line_no": 599, "image_basename": "t14.jpg", "image_score": 25.4}
+    with test_paths.project_dir.joinpath("mrsMThatcher.log").open("a") as handle:
+        handle.write(f"{stamp} INFO log_event:1 - EVENT {json.dumps(event, separators=(',', ':'))}\n")
+    caplog.set_level("WARNING", logger="mrs_engagement_analytics")
+    pairs = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+    other = next(pair for pair in pairs if pair["main_post_id"] == other_post_id)
+    assert other["quote_id"] == canonical_id
+    assert not any(source.startswith("quote_identity_correction:") for source in other["discovery_sources"])
+    assert "stale_main_post_line_number_ignored" in other["discovery_sources"]
+    correction_messages = [record.message for record in caplog.records if "Applied audited quote identity correction" in record.message]
+    assert len(correction_messages) == 1 and ids[0] in correction_messages[0]
+
+
+def test_registered_identity_correction_fails_closed_when_observed_text_changes(
+    tmp_path, monkeypatch
+):
+    test_paths, _packets, _ids = identity_correction_fixture(tmp_path, monkeypatch)
+    lines = test_paths.project_dir.joinpath("mrsMThatcher.txt").read_text().splitlines()
+    lines[599] = "A materially altered quotation now occupies the registered historical line."
+    test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text("\n".join(lines) + "\n")
+
+    with pytest.raises(analytics.IdentityConflict, match="correction evidence mismatch"):
+        analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+
+
+def test_identity_correction_cannot_reintroduce_noncanonical_quote(tmp_path, monkeypatch):
+    test_paths, packets, _ids = identity_correction_fixture(tmp_path, monkeypatch)
+    correction = json.loads(test_paths.identity_corrections.read_text())
+    excluded_text = "Excluded attribution record."
+    correction["corrections"][0]["canonical_quote_text"] = excluded_text
+    correction["corrections"][0]["canonical_quote_id"] = analytics.quote_text_hash(excluded_text)
+    test_paths.identity_corrections.write_text(json.dumps(correction))
+    assert correction["corrections"][0]["canonical_quote_id"] not in packets
+    with pytest.raises(analytics.AnalyticsError, match="eligible canonical packet"):
+        analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+
+
+def test_durable_pair_ledger_preserves_pre_cleanup_identity_and_snapshots(tmp_path, monkeypatch):
+    test_paths, _packets, ids = discovery_fixture(tmp_path, monkeypatch)
+    initial = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+    analytics.initialise_database(test_paths)
+    with analytics.connect_database(test_paths) as connection:
+        analytics.apply_discovery(connection, initial, now=NOW)
+        schedule_count = connection.execute("SELECT COUNT(*) FROM snapshot_schedule").fetchone()[0]
+
+    # Simulate a retained historical line number after a source cleanup shifts
+    # another valid quotation into that position, with the old tweet cache gone.
+    quote_one = "Freedom needs responsibility."
+    quote_two = "Government should serve the people."
+    test_paths.project_dir.joinpath("mrsMThatcher.txt").write_text(
+        "New retained prefix.\n" + quote_one + "\n" + quote_two + "\n"
+    )
+    test_paths.project_dir.joinpath("bot_state.json").write_text(json.dumps({"tweet_cache": {}}))
+
+    rediscovered = analytics.discover_post_pairs(test_paths, since_days=1, now=NOW)
+    second = next(pair for pair in rediscovered if pair["main_post_id"] == ids[2])
+    assert second["quote_id"] == analytics.quote_text_hash(quote_two)
+    assert "engagement_post_pair_ledger" in second["discovery_sources"]
+    assert "stale_main_post_line_number_ignored" in second["discovery_sources"]
+    with analytics.connect_database(test_paths) as connection:
+        result = analytics.apply_discovery(connection, rediscovered, now=NOW)
+        assert result["inserted"] == 0
+        assert connection.execute("SELECT COUNT(*) FROM snapshot_schedule").fetchone()[0] == schedule_count
+        assert connection.execute(
+            "SELECT quote_id FROM post_pairs WHERE main_post_id = ?", (ids[2],)
+        ).fetchone()[0] == analytics.quote_text_hash(quote_two)
 
 
 def test_discovery_rejects_context_linked_to_two_mains(tmp_path, monkeypatch):

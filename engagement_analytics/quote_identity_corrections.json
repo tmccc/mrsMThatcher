@@ -1,0 +1,27 @@
+{
+  "corrections": [
+    {
+      "canonical_quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "canonical_quote_text": "Capitalism is the moral way of running an economy.",
+      "classification": "incorrect_derived_analytics_record",
+      "correction_id": "stale-main-post-line-2077121396186992800-v1",
+      "created_at": "2026-07-18T08:03:55Z",
+      "evidence": [
+        "mrsMThatcher.log.5:25991 records the posting-time quote hash and line number",
+        "mrsMThatcher.log.5:26005 records the same quote hash immediately before posting",
+        "mrsMThatcher.log.5:26052 records the exact text returned by X for post 2077121396186992800",
+        "mrsMThatcher.log.5:26225 records the completed context reply with the canonical quote ID",
+        "historical_context_reply_history.json:3-15 durably links the post and context reply to the canonical quote ID",
+        "semantic_alignment_research/quote_attribution_cleanup_001/mrsMThatcher_before.txt:600 contains the canonical text at historical zero-based line 599",
+        "mrsMThatcher.txt:600 contains the different derived text at zero-based line 599 after the 13-record cleanup"
+      ],
+      "historical_line_no": 599,
+      "observed_derived_quote_id": "a8de2cdcaa20182b2129e0292e4c98956c770132336c12c7130963d3796876e6",
+      "observed_derived_quote_text": "It is free enterprise, which creates wealth, not meddling governments.",
+      "post_id": "2077121396186992800",
+      "reason": "The structured main-post event retained a zero-based line number from the 632-record corpus. After 13 attribution exclusions shifted the active corpus, resolving that historical line number against the current file produced a different valid quotation ID. Posting-time hash, exact X text and durable context history establish the canonical identity.",
+      "source": "structured_log_main_post_event"
+    }
+  ],
+  "schema_version": 1
+}

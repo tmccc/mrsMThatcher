@@ -303,6 +303,7 @@ def test_shadow_mode_cannot_change_prompt_reply_or_add_network_call(monkeypatch:
         "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
         "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
         "grounded": False, "reply_text": "A concise reply.", "no_reply_reason": "",
+        "topical_basis": "",
     })}}]}).encode()
     monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: calls.append(kwargs["json"]) or response)
     monkeypatch.setattr(bot, "reply_strategy", {

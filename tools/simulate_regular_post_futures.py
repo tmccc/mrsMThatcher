@@ -559,10 +559,23 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
         bot.ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING = True
         original_editorial(quote, chosen, scored, selection_phase=selection_phase)
 
-    def identity_hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
+    def identity_hook(
+        quote: dict,
+        chosen: dict,
+        scored: list[dict],
+        *,
+        selection_phase: str,
+        selection_rng_state: object | None = None,
+    ) -> None:
         capture["scored_ids"].append(id(scored))
         bot.ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING = True
-        original_identity(quote, chosen, scored, selection_phase=selection_phase)
+        original_identity(
+            quote,
+            chosen,
+            scored,
+            selection_phase=selection_phase,
+            selection_rng_state=selection_rng_state,
+        )
 
     bot.log_original_editorial_shadow_result = editorial_hook
     bot.log_generated_identity_policy_shadow_result = identity_hook
@@ -586,7 +599,14 @@ def capture_scored_selection(bot: Any) -> Iterable[dict]:
     original_editorial = bot.log_original_editorial_shadow_result
     original_identity = bot.log_generated_identity_policy_shadow_result
 
-    def hook(quote: dict, chosen: dict, scored: list[dict], *, selection_phase: str) -> None:
+    def hook(
+        quote: dict,
+        chosen: dict,
+        scored: list[dict],
+        *,
+        selection_phase: str,
+        **_kwargs: object,
+    ) -> None:
         capture["quote"] = quote
         capture["chosen"] = chosen
         capture["scored"] = scored

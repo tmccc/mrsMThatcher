@@ -225,28 +225,46 @@ def test_shadow_result_excludes_cross_quote_origin_only_without_mutation() -> No
     state = {"original_regular_posts_since_generated_image": 0}
     state_before = copy.deepcopy(state)
 
-    result = bot.generated_identity_policy_shadow_result(quote(), scored[0], scored, selection_phase="normal", audit_by_basename=audit)
+    result = bot.generated_identity_policy_shadow_result(
+        quote(),
+        scored[0],
+        scored,
+        selection_phase="normal",
+        audit_by_basename=audit,
+        selection_rng_state=random.Random(17).getstate(),
+    )
 
     assert result["production_winner"] == restricted
     assert result["production_identity_action"] == "generated_cross_quote_origin_only_excluded"
     assert result["shadow_winner"] == "t01.jpg"
     assert result["shadow_winner_source"] == "original"
     assert result["winner_changed"] is True
+    assert result["counterfactual_comparison_valid"] is True
     assert scored == before
     assert state == state_before
 
 
-def test_ties_retain_production_or_use_deterministic_basename_without_rng() -> None:
+def test_shadow_ties_replay_the_saved_production_rng_without_consuming_it() -> None:
     restricted = f"tg_{'f' * 64}.png"
     a = candidate("t02.jpg", 80.0, source="original")
     b = candidate("t01.jpg", 80.0, source="original")
     audit = {restricted: valid_identity_analysis("origin_quote_only")}
     state_before = random.getstate()
-    retained = bot.generated_identity_policy_shadow_result(quote(), a, [a, b], selection_phase="normal", audit_by_basename={})
-    excluded = bot.generated_identity_policy_shadow_result(quote(), candidate(restricted, 100), [candidate(restricted, 100), a, b], selection_phase="normal", audit_by_basename=audit)
-    assert retained["shadow_winner"] == "t02.jpg"
+    rng_state = random.Random(29).getstate()
+    production = bot._choice_with_random_state([a, b], rng_state)
+    retained = bot.generated_identity_policy_shadow_result(
+        quote(), production, [a, b], selection_phase="normal",
+        audit_by_basename={}, selection_rng_state=rng_state,
+    )
+    restricted_candidate = candidate(restricted, 100)
+    excluded = bot.generated_identity_policy_shadow_result(
+        quote(), restricted_candidate, [restricted_candidate, a, b], selection_phase="normal",
+        audit_by_basename=audit, selection_rng_state=rng_state,
+    )
+    assert retained["shadow_winner"] == production["basename"]
     assert retained["shadow_tie_count"] == 2
-    assert excluded["shadow_winner"] == "t01.jpg"
+    assert excluded["shadow_winner"] == bot._choice_with_random_state([a, b], rng_state)["basename"]
+    assert excluded["winner_changed_by_policy"] is True
     assert random.getstate() == state_before
 
 
@@ -255,7 +273,10 @@ def test_phase_and_exact_scored_candidate_counts_are_reported() -> None:
     audit = {name: valid_identity_analysis("small_penalty")}
     scored = [candidate(name, 10), candidate("t01.jpg", 9, source="original")]
     for phase in ("normal", "forced_cycle_reset", "last_image_fallback"):
-        result = bot.generated_identity_policy_shadow_result(quote(), scored[0], scored, selection_phase=phase, audit_by_basename=audit)
+        result = bot.generated_identity_policy_shadow_result(
+            quote(), scored[0], scored, selection_phase=phase,
+            audit_by_basename=audit, selection_rng_state=random.Random(17).getstate(),
+        )
         assert result["selection_phase"] == phase
         assert result["eligible_candidate_count"] == 2
         assert result["eligible_generated_count"] == 1
@@ -342,7 +363,11 @@ def identity_event(**changes: object) -> dict:
         "production_identity_policy": "origin_quote_only",
         "production_identity_action": "generated_cross_quote_origin_only_excluded",
         "shadow_winner_source": "original", "shadow_winner": "t01.jpg", "shadow_winner_score": 90.0,
-        "winner_changed": True, "small_penalty_count": 0, "strong_penalty_count": 0,
+        "baseline_winner": "tg_a.png", "counterfactual_policy_winner": "t01.jpg",
+        "counterfactual_comparison_version": "generated_identity_counterfactual_v1",
+        "counterfactual_comparison_valid": True, "policy_effect": "winner_changed",
+        "winner_changed_by_policy": True, "winner_changed": True,
+        "small_penalty_count": 0, "strong_penalty_count": 0,
         "origin_quote_only_excluded_count": 1, "excluded_generated_basenames": ["tg_a.png"],
         "penalised_generated_basenames": [],
     }
@@ -351,10 +376,23 @@ def identity_event(**changes: object) -> dict:
 
 
 def test_digest_policy_relevant_denominator_and_zero_safe() -> None:
-    relevant = [identity_event() for _ in range(2)] + [identity_event(winner_changed=False) for _ in range(3)]
+    effect_only = identity_event(
+        production_source="original", production_winner="t02.jpg",
+        production_identity_policy=None, production_identity_action="original_unchanged",
+        baseline_winner="t02.jpg", counterfactual_policy_winner="t02.jpg",
+        shadow_winner_source="original", shadow_winner="t02.jpg",
+        winner_changed_by_policy=False, winner_changed=False,
+        policy_effect="scores_or_eligibility_only",
+        origin_quote_only_excluded_count=0, excluded_generated_basenames=[],
+        small_penalty_count=1,
+    )
+    relevant = [identity_event() for _ in range(2)] + [effect_only for _ in range(3)]
     irrelevant = [identity_event(
         production_source="original", production_identity_policy=None,
-        production_identity_action="original_unchanged", winner_changed=False,
+        production_winner="t02.jpg", production_identity_action="original_unchanged",
+        baseline_winner="t02.jpg", counterfactual_policy_winner="t02.jpg",
+        shadow_winner_source="original", shadow_winner="t02.jpg",
+        winner_changed_by_policy=False, winner_changed=False, policy_effect="none",
         origin_quote_only_excluded_count=0, excluded_generated_basenames=[],
     ) for _ in range(5)]
     summary = digest.generated_identity_shadow_summary(relevant + irrelevant)
@@ -363,6 +401,28 @@ def test_digest_policy_relevant_denominator_and_zero_safe() -> None:
     assert summary["winner_changes"] == 2
     assert summary["winner_change_percent"] == 40.0
     assert digest.generated_identity_shadow_summary(irrelevant)["winner_change_percent"] == 0.0
+
+
+def test_legacy_shadow_difference_is_not_claimed_as_policy_causation() -> None:
+    event = identity_event()
+    for key in (
+        "baseline_winner", "counterfactual_policy_winner",
+        "counterfactual_comparison_version", "counterfactual_comparison_valid",
+        "policy_effect", "winner_changed_by_policy",
+    ):
+        event.pop(key, None)
+    summary = digest.generated_identity_shadow_summary([event])
+    assert summary["winner_changes"] == 0
+    assert summary["legacy_policy_causation_unverified"] == 1
+
+    record = digest.Record(
+        ts=datetime(2026, 7, 10, 8, 0), level="INFO", src="mrs", line=1,
+        msg="GENERATED_IDENTITY_POLICY_SHADOW_RESULT " + json.dumps(event, separators=(",", ":")),
+        path="test.log", ordinal=1,
+    )
+    rendered = digest.render_markdown(digest.analyse([record]))
+    assert "Legacy shadow winner differences with unverified policy causation:" in rendered
+    assert "Counterfactual winners changed by the generated-identity shadow policy:" not in rendered
 
 
 def test_digest_parses_and_renders_shadow_only_tables() -> None:
@@ -387,7 +447,10 @@ def test_one_log_event_per_selection(monkeypatch: pytest.MonkeyPatch, caplog: py
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: {name: valid_identity_analysis()})
     caplog.set_level("INFO", logger=bot.log.name)
-    bot.log_generated_identity_policy_shadow_result(quote(), candidate(name, 10), [candidate(name, 10)], selection_phase="normal")
+    bot.log_generated_identity_policy_shadow_result(
+        quote(), candidate(name, 10), [candidate(name, 10)],
+        selection_phase="normal", selection_rng_state=random.Random(17).getstate(),
+    )
     assert caplog.text.count("GENERATED_IDENTITY_POLICY_SHADOW_RESULT ") == 1
 
 

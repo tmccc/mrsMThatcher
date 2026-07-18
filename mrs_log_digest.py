@@ -434,11 +434,24 @@ def generated_image_utilisation(pool: Dict[str, Any], rates: Dict[str, Any], lim
     top_count = sum(counts[name] for name in ranked[:10])
     current_used = int(pool.get("active_previously_used", 0) or 0)
     current_unused = int(pool.get("active_never_used", 0) or 0)
+    observed_percentage = (len(used) / len(active) * 100.0) if active else None
     return {
+        "usage_metric_schema_version": 2,
         "active_generated_images": len(active),
+        "active_images_used_in_observed_logs": len(used),
+        "active_images_not_seen_in_observed_logs": len(never),
+        "active_pool_observed_usage_percentage": observed_percentage,
+        # Compatibility aliases retained for machine-readable consumers. These
+        # have always described the bounded structured-log scan, not all time.
         "active_images_used_ever": len(used),
         "active_images_never_used": len(never),
-        "active_pool_ever_used_percentage": (len(used) / len(active) * 100.0) if active else None,
+        "active_pool_ever_used_percentage": observed_percentage,
+        "deprecated_metric_aliases": {
+            "active_images_used_ever": "active_images_used_in_observed_logs",
+            "active_images_never_used": "active_images_not_seen_in_observed_logs",
+            "active_pool_ever_used_percentage": "active_pool_observed_usage_percentage",
+        },
+        "deprecated_alias_removal_plan": "remove only in a future major digest schema version",
         "active_images_used_in_current_cycle": current_used,
         "active_images_unused_in_current_cycle": current_unused,
         "total_successful_generated_posts_observed": total,
@@ -1519,11 +1532,41 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
 
 
 def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    relevant = [
-        item for item in events
-        if sum(int(item.get(key, 0) or 0) for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")) > 0
-    ]
-    changed = [item for item in relevant if item.get("winner_changed") is True]
+    def relevant(item: Dict[str, Any]) -> bool:
+        return sum(
+            int(item.get(key, 0) or 0)
+            for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")
+        ) > 0
+
+    def category(item: Dict[str, Any]) -> str:
+        is_relevant = relevant(item)
+        if item.get("counterfactual_comparison_version") == "generated_identity_counterfactual_v1":
+            baseline = str(item.get("baseline_winner") or "")
+            policy_winner = str(item.get("counterfactual_policy_winner") or "")
+            expected_change = is_relevant and baseline != policy_winner
+            if (
+                item.get("counterfactual_comparison_valid") is not True
+                or item.get("winner_changed_by_policy") is not expected_change
+                or item.get("winner_changed") is not expected_change
+            ):
+                return "counterfactual_invariant_failure"
+            if expected_change:
+                return "identity_policy_winner_change"
+            if is_relevant:
+                return "identity_policy_scores_or_eligibility_only"
+            return "no_policy_effect"
+        if is_relevant and item.get("winner_changed") is True:
+            return "legacy_policy_causation_unverified"
+        if is_relevant:
+            return "identity_policy_scores_or_eligibility_only"
+        return "no_policy_effect"
+
+    categories = [category(item) for item in events]
+    relevant_events = [item for item in events if relevant(item)]
+    changed = [item for item, item_category in zip(events, categories) if item_category == "identity_policy_winner_change"]
+    effect_only = [item for item, item_category in zip(events, categories) if item_category == "identity_policy_scores_or_eligibility_only"]
+    legacy_unverified = [item for item, item_category in zip(events, categories) if item_category == "legacy_policy_causation_unverified"]
+    counterfactual_failures = [item for item, item_category in zip(events, categories) if item_category == "counterfactual_invariant_failure"]
     production_generated = [item for item in events if item.get("production_source") == "generated"]
     excluded = Counter()
     penalised = Counter()
@@ -1542,9 +1585,12 @@ def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "production_generated": len(production_generated),
         "production_generated_origin_quote": sum(item.get("production_origin_quote_match") is True for item in production_generated),
         "production_generated_cross_quote": sum(item.get("production_origin_quote_match") is not True for item in production_generated),
-        "policy_relevant_observations": len(relevant),
+        "policy_relevant_observations": len(relevant_events),
         "winner_changes": len(changed),
-        "winner_change_percent": (len(changed) / len(relevant) * 100.0) if relevant else 0.0,
+        "winner_change_percent": (len(changed) / (len(changed) + len(effect_only)) * 100.0) if changed or effect_only else 0.0,
+        "policy_effect_without_winner_change": len(effect_only),
+        "legacy_policy_causation_unverified": len(legacy_unverified),
+        "counterfactual_invariant_failures": len(counterfactual_failures),
         "production_winner_origin_only_excluded": sum(item.get("production_identity_action") == "generated_cross_quote_origin_only_excluded" for item in events),
         "production_winner_small_penalty": sum(item.get("production_identity_action") == "generated_cross_quote_small_penalty" for item in events),
         "production_winner_strong_penalty": sum(item.get("production_identity_action") == "generated_cross_quote_strong_penalty" for item in events),
@@ -1555,29 +1601,86 @@ def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "most_frequent_production_policies": policies.most_common(8),
         "most_frequent_shadow_winners": winners.most_common(8),
         "selection_phases": phases.most_common(),
+        "event_categories": categories,
     }
 
 
 def generated_identity_policy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    relevant = [item for item in events if sum(int(item.get(key, 0) or 0) for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")) > 0]
-    changed = [item for item in relevant if item.get("winner_changed_by_policy") is True]
+    def relevant(item: Dict[str, Any]) -> bool:
+        return sum(
+            int(item.get(key, 0) or 0)
+            for key in ("small_penalty_count", "strong_penalty_count", "origin_quote_only_excluded_count")
+        ) > 0
+
+    def winner_differs(item: Dict[str, Any]) -> bool:
+        explicit = item.get("baseline_winner_differs")
+        if type(explicit) is bool:
+            return explicit
+        return str(item.get("baseline_winner") or "") != str(item.get("production_winner") or "")
+
+    def category(item: Dict[str, Any]) -> str:
+        is_relevant = relevant(item)
+        differs = winner_differs(item)
+        if item.get("counterfactual_comparison_version") == "generated_identity_counterfactual_v1":
+            expected_change = is_relevant and differs
+            if (
+                item.get("counterfactual_comparison_valid") is not True
+                or item.get("winner_changed_by_policy") is not expected_change
+            ):
+                return "counterfactual_invariant_failure"
+            if expected_change:
+                return "identity_policy_winner_change"
+            if is_relevant:
+                return "identity_policy_scores_or_eligibility_only"
+            return "no_policy_effect"
+        if is_relevant and item.get("winner_changed_by_policy") is True:
+            return "legacy_policy_causation_unverified"
+        if is_relevant:
+            return "identity_policy_scores_or_eligibility_only"
+        if differs:
+            try:
+                equal_score = float(item.get("baseline_winner_score")) == float(item.get("production_policy_score"))
+            except (TypeError, ValueError):
+                equal_score = False
+            if equal_score:
+                return "policy_neutral_equal_score_tie_resolution"
+            return "policy_neutral_downstream_winner_difference"
+        return "winner_unchanged"
+
+    categories = {id(item): category(item) for item in events}
+    relevant_events = [item for item in events if relevant(item)]
+    changed = [item for item in events if categories[id(item)] == "identity_policy_winner_change"]
+    effect_only = [item for item in events if categories[id(item)] == "identity_policy_scores_or_eligibility_only"]
+    legacy_unverified = [item for item in events if categories[id(item)] == "legacy_policy_causation_unverified"]
+    counterfactual_failures = [item for item in events if categories[id(item)] == "counterfactual_invariant_failure"]
+    neutral_differences = [item for item in events if categories[id(item)].startswith("policy_neutral_")]
     excluded = Counter()
     replacements = Counter()
     phases = Counter()
     for item in events:
         excluded.update(str(value) for value in item.get("excluded_generated_basenames") or [])
-        if item.get("winner_changed_by_policy"):
+        if categories[id(item)] == "identity_policy_winner_change":
             replacements[str(item.get("production_winner") or "no_winner")] += 1
         phases[str(item.get("selection_phase") or "unknown")] += 1
     return {
         "observations": len(events),
-        "policy_relevant_observations": len(relevant),
+        "policy_relevant_observations": len(relevant_events),
+        "identity_policy_winner_changes": len(changed),
+        # Compatibility alias: now explicitly uses the same policy-causal
+        # definition as identity_policy_winner_changes and the rendered rows.
         "winner_changes": len(changed),
-        "winner_change_percent": (len(changed) / len(relevant) * 100.0) if relevant else 0.0,
-        "baseline_origin_only_prevented": sum(item.get("baseline_identity_action") == "generated_cross_quote_origin_only_excluded" and item.get("winner_changed_by_policy") is True for item in events),
-        "baseline_small_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_small_penalty" and item.get("winner_changed_by_policy") is True for item in events),
-        "baseline_strong_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_strong_penalty" and item.get("winner_changed_by_policy") is True for item in events),
-        "replacement_source_transitions": Counter(str(item.get("replacement_source_transition") or "unknown") for item in events if item.get("winner_changed_by_policy")).most_common(),
+        "winner_change_percent": (len(changed) / (len(changed) + len(effect_only)) * 100.0) if changed or effect_only else 0.0,
+        "policy_effect_without_winner_change": len(effect_only),
+        "legacy_policy_causation_unverified": len(legacy_unverified),
+        "counterfactual_invariant_failures": len(counterfactual_failures),
+        "policy_neutral_baseline_differences": len(neutral_differences),
+        "policy_neutral_equal_score_tie_resolutions": sum(
+            categories[id(item)] == "policy_neutral_equal_score_tie_resolution" for item in events
+        ),
+        "baseline_origin_only_prevented": sum(item.get("baseline_identity_action") == "generated_cross_quote_origin_only_excluded" and categories[id(item)] == "identity_policy_winner_change" for item in events),
+        "baseline_small_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_small_penalty" and categories[id(item)] == "identity_policy_winner_change" for item in events),
+        "baseline_strong_penalty_displaced": sum(item.get("baseline_identity_action") == "generated_cross_quote_strong_penalty" and categories[id(item)] == "identity_policy_winner_change" for item in events),
+        "replacement_source_transitions": Counter(str(item.get("replacement_source_transition") or "unknown") for item in changed).most_common(),
         "cross_quote_candidates_excluded": sum(int(item.get("origin_quote_only_excluded_count", 0) or 0) for item in events),
         "cross_quote_candidates_penalised": sum(int(item.get("small_penalty_count", 0) or 0) + int(item.get("strong_penalty_count", 0) or 0) for item in events),
         "most_frequent_excluded_images": excluded.most_common(8),
@@ -1585,6 +1688,7 @@ def generated_identity_policy_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "selection_phases": phases.most_common(),
         "recovery_observations": sum(str(item.get("recovery_effect") or "none") != "none" for item in events),
         "no_valid_candidate_events": 0,
+        "event_categories": [category(item) for item in events],
     }
 
 
@@ -4029,17 +4133,18 @@ def render_markdown(report: Dict[str, Any]) -> str:
     utilisation = report.get("generated_image_utilisation") or {}
     if utilisation:
         out.append("## Generated image utilisation")
-        out.append("Successful-post history is bounded by available structured production logs and is not guaranteed to be all-time.")
+        out.append("Successful-post history is bounded by available structured production logs; observed-log usage and current-cycle history are separate measures.")
+        out.append("Deprecated machine-readable usage aliases retain the bounded-log values for compatibility and are planned for removal only in a future major digest schema version.")
         coverage_start = utilisation.get("history_coverage_start") or "unavailable"
         coverage_end = utilisation.get("history_coverage_end") or "unavailable"
-        out.append(f"Observed history coverage: `{coverage_start}` to `{coverage_end}`.")
+        out.append(f"Observed structured-log coverage: `{coverage_start}` to `{coverage_end}`.")
         out.append("")
         out.append("```text")
         out.append(f"active_generated_images                    = {utilisation.get('active_generated_images', 0)}")
-        out.append(f"active_images_used_ever                    = {utilisation.get('active_images_used_ever', 0)}")
-        out.append(f"active_images_never_used                   = {utilisation.get('active_images_never_used', 0)}")
-        percentage = utilisation.get("active_pool_ever_used_percentage")
-        out.append(f"active_pool_ever_used_percentage           = {float(percentage):.1f}%" if percentage is not None else "active_pool_ever_used_percentage           = unavailable")
+        out.append(f"active_images_used_in_observed_logs        = {utilisation.get('active_images_used_in_observed_logs', utilisation.get('active_images_used_ever', 0))}")
+        out.append(f"active_images_not_seen_in_observed_logs    = {utilisation.get('active_images_not_seen_in_observed_logs', utilisation.get('active_images_never_used', 0))}")
+        percentage = utilisation.get("active_pool_observed_usage_percentage", utilisation.get("active_pool_ever_used_percentage"))
+        out.append(f"active_pool_observed_usage_percentage      = {float(percentage):.1f}%" if percentage is not None else "active_pool_observed_usage_percentage      = unavailable")
         out.append(f"active_images_used_in_current_cycle        = {utilisation.get('active_images_used_in_current_cycle', 0)}")
         out.append(f"active_images_unused_in_current_cycle      = {utilisation.get('active_images_unused_in_current_cycle', 0)}")
         out.append(f"total_successful_generated_posts_observed  = {utilisation.get('total_successful_generated_posts_observed', 0)}")
@@ -4198,14 +4303,19 @@ def render_markdown(report: Dict[str, Any]) -> str:
     identity_policy_summary = identity_policy.get("summary") or {}
     if identity_policy_events:
         out.append("## Generated identity policy")
-        out.append("This policy is active in real production. The baseline comparison is observational; the baseline image was not necessarily posted.")
+        out.append("This policy is active in real production. New events compare policy-disabled and policy-enabled selection with the same candidates, scores and saved random state; the counterfactual baseline image was not posted.")
         out.append("")
-        out.append("The winner-change percentage denominator is selections where at least one cross-quote generated candidate was penalised or excluded.")
+        out.append("The winner-change percentage denominator is counterfactually validated selections where the policy affected a score or eligibility. Older events without that comparison are reported separately and are not attributed causally.")
         out.append("")
         out.append("```text")
         out.append(f"regular_selections_under_policy        = {identity_policy_summary.get('observations', 0)}")
         out.append(f"policy_relevant_selections             = {identity_policy_summary.get('policy_relevant_observations', 0)}")
-        out.append(f"baseline_winner_changed                = {identity_policy_summary.get('winner_changes', 0)} ({float(identity_policy_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        out.append(f"identity_policy_winner_changed         = {identity_policy_summary.get('identity_policy_winner_changes', identity_policy_summary.get('winner_changes', 0))} ({float(identity_policy_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        out.append(f"policy_effect_without_winner_change   = {identity_policy_summary.get('policy_effect_without_winner_change', 0)}")
+        out.append(f"legacy_policy_causation_unverified    = {identity_policy_summary.get('legacy_policy_causation_unverified', 0)}")
+        out.append(f"counterfactual_invariant_failures     = {identity_policy_summary.get('counterfactual_invariant_failures', 0)}")
+        out.append(f"policy_neutral_baseline_differences    = {identity_policy_summary.get('policy_neutral_baseline_differences', 0)}")
+        out.append(f"policy_neutral_equal_score_ties        = {identity_policy_summary.get('policy_neutral_equal_score_tie_resolutions', 0)}")
         out.append(f"origin_only_baseline_winners_prevented = {identity_policy_summary.get('baseline_origin_only_prevented', 0)}")
         out.append(f"small_penalty_baseline_winners_displaced = {identity_policy_summary.get('baseline_small_penalty_displaced', 0)}")
         out.append(f"strong_penalty_baseline_winners_displaced = {identity_policy_summary.get('baseline_strong_penalty_displaced', 0)}")
@@ -4219,13 +4329,44 @@ def render_markdown(report: Dict[str, Any]) -> str:
             if values:
                 out.append(f"{label}: " + ", ".join(f"{name} ({count})" for name, count in values if name))
                 out.append("")
-        changed_policy = [item for item in identity_policy_events if item.get("winner_changed_by_policy") is True]
+        event_categories = identity_policy_summary.get("event_categories") or []
+        changed_policy = [
+            item for item, category in zip(identity_policy_events, event_categories)
+            if category == "identity_policy_winner_change"
+        ]
         if changed_policy:
-            out.append("Changed baseline winners:")
-            out.append(md_table_row(["time", "line_no", "baseline (not necessarily posted)", "action", "production winner", "baseline score", "policy score", "phase"]))
+            out.append("Counterfactual winners changed by the generated-identity policy:")
+            out.append(md_table_row(["time", "line_no", "policy-disabled winner", "action", "policy-enabled winner", "baseline score", "policy score", "phase"]))
             out.append(md_table_row(["---"] * 8))
             for item in changed_policy[:20]:
                 out.append(md_table_row([item.get("time", ""), item.get("line_no", ""), f"{item.get('baseline_winner', '')} ({item.get('baseline_winner_source', '')})", item.get("baseline_identity_action", ""), f"{item.get('production_winner', '')} ({item.get('production_winner_source', '')})", item.get("baseline_winner_score", ""), item.get("production_policy_score", ""), item.get("selection_phase", "")]))
+            out.append("")
+        neutral_differences = [
+            (item, category) for item, category in zip(identity_policy_events, event_categories)
+            if category.startswith("policy_neutral_")
+        ]
+        if neutral_differences:
+            out.append("Policy-neutral baseline differences:")
+            out.append("These differences did not result from a generated-identity penalty or exclusion.")
+            out.append("")
+            out.append(md_table_row(["time", "line_no", "deterministic baseline", "actual production winner", "reason", "baseline score", "production score", "phase"]))
+            out.append(md_table_row(["---"] * 8))
+            for item, category in neutral_differences[:20]:
+                reason = "equal-score production tie resolution" if category.endswith("equal_score_tie_resolution") else "downstream production selection"
+                out.append(md_table_row([item.get("time", ""), item.get("line_no", ""), f"{item.get('baseline_winner', '')} ({item.get('baseline_winner_source', '')})", f"{item.get('production_winner', '')} ({item.get('production_winner_source', '')})", reason, item.get("baseline_winner_score", ""), item.get("production_policy_score", ""), item.get("selection_phase", "")]))
+            out.append("")
+        legacy_unverified = [
+            item for item, category in zip(identity_policy_events, event_categories)
+            if category == "legacy_policy_causation_unverified"
+        ]
+        if legacy_unverified:
+            out.append("Legacy winner differences with unverified policy causation:")
+            out.append("These records predate shared-random-state counterfactual telemetry and are excluded from the causal winner-change count.")
+            out.append("")
+            out.append(md_table_row(["time", "line_no", "reported baseline", "production winner", "baseline action", "phase"]))
+            out.append(md_table_row(["---"] * 6))
+            for item in legacy_unverified[:20]:
+                out.append(md_table_row([item.get("time", ""), item.get("line_no", ""), item.get("baseline_winner", ""), item.get("production_winner", ""), item.get("baseline_identity_action", ""), item.get("selection_phase", "")]))
             out.append("")
 
     identity_shadow = report.get("generated_identity_shadow") or {}
@@ -4235,7 +4376,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("## Generated identity-policy shadow scoring")
         out.append("This section is shadow-only and hypothetical. It does not imply that the identity-policy shadow winner was posted.")
         out.append("")
-        out.append("The winner-change percentage denominator is observations where at least one cross-quote generated candidate was penalised or excluded.")
+        out.append("The winner-change percentage denominator is counterfactually validated observations where at least one cross-quote generated candidate was penalised or excluded. Older observations without saved-RNG replay are reported separately and are not attributed causally.")
         out.append("")
         out.append("```text")
         out.append(f"shadow_observations                         = {identity_summary.get('observations', 0)}")
@@ -4245,6 +4386,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"production_generated_cross_quote_winners    = {identity_summary.get('production_generated_cross_quote', 0)}")
         out.append(f"policy_relevant_observations                = {identity_summary.get('policy_relevant_observations', 0)}")
         out.append(f"winner_changes                              = {identity_summary.get('winner_changes', 0)} ({float(identity_summary.get('winner_change_percent', 0.0)):.1f}%)")
+        out.append(f"policy_effect_without_winner_change         = {identity_summary.get('policy_effect_without_winner_change', 0)}")
+        out.append(f"legacy_policy_causation_unverified          = {identity_summary.get('legacy_policy_causation_unverified', 0)}")
+        out.append(f"counterfactual_invariant_failures           = {identity_summary.get('counterfactual_invariant_failures', 0)}")
         out.append(f"production_winners_origin_only_excluded     = {identity_summary.get('production_winner_origin_only_excluded', 0)}")
         out.append(f"production_winners_small_penalty            = {identity_summary.get('production_winner_small_penalty', 0)}")
         out.append(f"production_winners_strong_penalty           = {identity_summary.get('production_winner_strong_penalty', 0)}")
@@ -4263,9 +4407,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 out.append(f"{label}:")
                 out.append(", ".join(f"{name} ({count})" for name, count in values if name))
                 out.append("")
-        changed_identity = [item for item in identity_events if item.get("winner_changed") is True]
+        identity_categories = identity_summary.get("event_categories") or []
+        changed_identity = [
+            item for item, category in zip(identity_events, identity_categories)
+            if category == "identity_policy_winner_change"
+        ]
         if changed_identity:
-            out.append("Changed-winner observations:")
+            out.append("Counterfactual winners changed by the generated-identity shadow policy:")
             out.append(md_table_row(["time", "line_no", "production", "action", "shadow", "production score", "shadow score", "phase"]))
             out.append(md_table_row(["---"] * 8))
             for item in changed_identity[:20]:
@@ -4275,6 +4423,22 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     item.get("production_identity_action", ""),
                     f"{item.get('shadow_winner', '')} ({item.get('shadow_winner_source', '')})",
                     item.get("production_score", ""), item.get("shadow_winner_score", ""), item.get("selection_phase", ""),
+                ]))
+            out.append("")
+        legacy_identity = [
+            item for item, category in zip(identity_events, identity_categories)
+            if category == "legacy_policy_causation_unverified"
+        ]
+        if legacy_identity:
+            out.append("Legacy shadow winner differences with unverified policy causation:")
+            out.append("These observations predate saved-random-state counterfactual telemetry and are excluded from winner-change counts.")
+            out.append("")
+            out.append(md_table_row(["time", "line_no", "production", "reported shadow", "phase"]))
+            out.append(md_table_row(["---"] * 5))
+            for item in legacy_identity[:20]:
+                out.append(md_table_row([
+                    item.get("time", ""), item.get("line_no", ""), item.get("production_winner", ""),
+                    item.get("shadow_winner", ""), item.get("selection_phase", ""),
                 ]))
             out.append("")
         origin_only_production = [

@@ -32,15 +32,29 @@ def test_no_generated_usage_is_clean_and_bounded(tmp_path):
     base, names = pool(tmp_path, 3)
     rates = history(tmp_path, [post(datetime(2026, 7, 9), "original", "t01.jpg")])
     result = digest.generated_image_utilisation(digest.generated_pool_health_snapshot(base), rates)
+    assert result["usage_metric_schema_version"] == 2
     assert result["active_generated_images"] == 3
+    assert result["active_images_used_in_observed_logs"] == 0
+    assert result["active_images_not_seen_in_observed_logs"] == 3
+    assert result["active_pool_observed_usage_percentage"] == 0
+    # Compatibility aliases retain the bounded-log values for JSON consumers.
     assert result["active_images_used_ever"] == 0
     assert result["active_images_never_used"] == 3
     assert result["active_pool_ever_used_percentage"] == 0
+    assert result["deprecated_metric_aliases"] == {
+        "active_images_used_ever": "active_images_used_in_observed_logs",
+        "active_images_never_used": "active_images_not_seen_in_observed_logs",
+        "active_pool_ever_used_percentage": "active_pool_observed_usage_percentage",
+    }
     assert result["total_successful_generated_posts_observed"] == 0
     assert result["top_10_share_of_successful_generated_posts"] is None
     text = render(digest.generated_pool_health_snapshot(base), rates)
     assert "## Generated image utilisation" in text
-    assert "not guaranteed to be all-time" in text
+    assert "observed-log usage and current-cycle history are separate measures" in text
+    assert "active_images_used_ever" not in text
+    assert "active_images_used_in_observed_logs" in text
+    assert "Observed structured-log coverage" in text
+    assert "planned for removal only in a future major digest schema version" in text
     assert names[0] in text
 
 
@@ -62,11 +76,17 @@ def test_one_image_once_and_current_cycle_agreement(tmp_path):
     rates = history(tmp_path, [post(datetime(2026, 7, 9), "one", names[0])])
     snapshot = digest.generated_pool_health_snapshot(base)
     result = digest.generated_image_utilisation(snapshot, rates)
+    assert result["active_images_used_in_observed_logs"] == 1
+    assert result["active_images_not_seen_in_observed_logs"] == 2
+    assert result["active_pool_observed_usage_percentage"] == pytest.approx(100 / 3)
     assert result["active_images_used_ever"] == 1
     assert result["active_images_never_used"] == 2
     assert result["active_pool_ever_used_percentage"] == pytest.approx(100 / 3)
     assert result["active_images_used_in_current_cycle"] == snapshot["active_previously_used"] == 1
     assert result["active_images_unused_in_current_cycle"] == snapshot["active_never_used"] == 2
+    rendered = render(snapshot, rates)
+    assert "active_images_used_in_observed_logs" in rendered
+    assert "active_images_used_in_current_cycle" in rendered
 
 
 def test_repeated_use_concentration_and_median(tmp_path):

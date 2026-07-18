@@ -29,6 +29,7 @@ from requests_oauthlib import OAuth1
 
 SCHEMA_VERSION = 1
 COLLECTOR_VERSION = "engagement-analytics-v1"
+IDENTITY_CORRECTION_SCHEMA_VERSION = 1
 SNAPSHOT_TARGETS = (3600, 6 * 3600, 24 * 3600, 72 * 3600, 168 * 3600)
 TARGET_LABELS = {
     3600: "1h",
@@ -101,6 +102,7 @@ class AnalyticsPaths:
     exports: Path
     reports: Path
     config: Path
+    identity_corrections: Path
 
     @classmethod
     def for_project(cls, project_dir: Path) -> "AnalyticsPaths":
@@ -117,6 +119,7 @@ class AnalyticsPaths:
             exports=runtime / "exports",
             reports=runtime / "reports",
             config=runtime / "config.json",
+            identity_corrections=runtime / "quote_identity_corrections.json",
         )
 
 
@@ -559,6 +562,64 @@ def _json_file(path: Path, default: Any) -> Any:
         return default
 
 
+def _load_quote_identity_corrections(
+    path: Path,
+    packets: dict[str, dict[str, Any]],
+    unresolved: set[str],
+) -> dict[tuple[str, str, int, str, str], dict[str, Any]]:
+    """Load narrowly scoped corrections for identities derived from mutable line numbers."""
+    document = _json_file(path, {"schema_version": IDENTITY_CORRECTION_SCHEMA_VERSION, "corrections": []})
+    if not isinstance(document, dict) or document.get("schema_version") != IDENTITY_CORRECTION_SCHEMA_VERSION:
+        raise AnalyticsError(f"invalid quote identity correction schema: {path}")
+    records = document.get("corrections")
+    if not isinstance(records, list):
+        raise AnalyticsError(f"invalid quote identity corrections: {path}")
+
+    corrections: dict[tuple[str, str, int, str, str], dict[str, Any]] = {}
+    correction_ids: set[str] = set()
+    for record in records:
+        if not isinstance(record, dict):
+            raise AnalyticsError(f"invalid quote identity correction record: {path}")
+        correction_id = str(record.get("correction_id") or "")
+        post_id = str(record.get("post_id") or "")
+        source = str(record.get("source") or "")
+        line_no = record.get("historical_line_no")
+        observed_id = str(record.get("observed_derived_quote_id") or "")
+        canonical_id = str(record.get("canonical_quote_id") or "")
+        observed_text = record.get("observed_derived_quote_text")
+        canonical_text = record.get("canonical_quote_text")
+        evidence = record.get("evidence")
+        if not correction_id or correction_id in correction_ids:
+            raise AnalyticsError(f"duplicate or missing quote identity correction ID: {correction_id!r}")
+        if not POST_ID_RE.fullmatch(post_id) or source != "structured_log_main_post_event":
+            raise AnalyticsError(f"invalid correction scope for {correction_id}")
+        if type(line_no) is not int or line_no < 0:
+            raise AnalyticsError(f"invalid historical line number for {correction_id}")
+        if not QUOTE_ID_RE.fullmatch(observed_id) or not QUOTE_ID_RE.fullmatch(canonical_id):
+            raise AnalyticsError(f"invalid quote identity in correction {correction_id}")
+        if observed_id == canonical_id:
+            raise AnalyticsError(f"redundant quote identity correction {correction_id}")
+        if not isinstance(observed_text, str) or quote_text_hash(observed_text) != observed_id:
+            raise AnalyticsError(f"observed text/hash mismatch in correction {correction_id}")
+        if not isinstance(canonical_text, str) or quote_text_hash(canonical_text) != canonical_id:
+            raise AnalyticsError(f"canonical text/hash mismatch in correction {correction_id}")
+        packet = packets.get(canonical_id)
+        if not isinstance(packet, dict) or packet.get("quote_text") != canonical_text or canonical_id in unresolved:
+            raise AnalyticsError(f"correction {correction_id} does not resolve to an eligible canonical packet")
+        if record.get("classification") != "incorrect_derived_analytics_record":
+            raise AnalyticsError(f"unsupported correction classification for {correction_id}")
+        if not isinstance(record.get("reason"), str) or not str(record["reason"]).strip():
+            raise AnalyticsError(f"missing correction reason for {correction_id}")
+        if not isinstance(evidence, list) or not evidence or not all(isinstance(value, str) and value for value in evidence):
+            raise AnalyticsError(f"missing correction evidence for {correction_id}")
+        key = (post_id, source, line_no, observed_id, canonical_id)
+        if key in corrections:
+            raise AnalyticsError(f"duplicate quote identity correction scope for {correction_id}")
+        correction_ids.add(correction_id)
+        corrections[key] = record
+    return corrections
+
+
 def _structured_log_events(project_dir: Path) -> list[dict[str, Any]]:
     events: dict[tuple[Any, ...], dict[str, Any]] = {}
     london = ZoneInfo("Europe/London")
@@ -612,6 +673,10 @@ def _merge_identity(candidate: dict[str, Any], field: str, value: Any, source: s
             f"{field} conflict for main post {candidate.get('main_post_id')}: {current!r} versus {value!r} from {source}"
         )
     candidate[field] = value
+    if field == "quote_id":
+        sources = candidate.setdefault("_quote_identity_sources", [])
+        if source not in sources:
+            sources.append(source)
 
 
 def _fill(candidate: dict[str, Any], field: str, value: Any) -> None:
@@ -650,6 +715,7 @@ def discover_post_pairs(
     packets, unresolved = load_and_validate_corpus(
         paths.project_dir / "semantic_alignment_research" / "quote_research_full_001"
     )
+    identity_corrections = _load_quote_identity_corrections(paths.identity_corrections, packets, unresolved)
     quote_analysis = _json_file(paths.project_dir / "quote_analysis.json", {})
     lines = (paths.project_dir / "mrsMThatcher.txt").read_text(encoding="utf-8").splitlines()
     history = _json_file(paths.project_dir / "historical_context_reply_history.json", {"items": {}})
@@ -705,6 +771,58 @@ def discover_post_pairs(
         else:
             raise AnalyticsError(f"unsupported context history status: {record.get('status')!r}")
 
+    # The durable analytics ledger preserves explicit identities discovered before
+    # mutable source-line positions changed. Read it without creating or updating
+    # the database, and retain only identities still present in the completed
+    # canonical research corpus.
+    if paths.database.is_file():
+        try:
+            ledger = sqlite3.connect(f"file:{paths.database}?mode=ro", uri=True)
+            ledger.row_factory = sqlite3.Row
+            stored_pairs = ledger.execute(
+                "SELECT * FROM post_pairs ORDER BY main_posted_at, main_post_id"
+            ).fetchall()
+        except sqlite3.Error as exc:
+            raise AnalyticsError(f"cannot read engagement post-pair ledger: {exc}") from exc
+        finally:
+            if "ledger" in locals():
+                ledger.close()
+        for record in stored_pairs:
+            main_post_id = str(record["main_post_id"] or "")
+            try:
+                main_time = snowflake_datetime(main_post_id)
+            except ValueError as exc:
+                raise IdentityConflict(f"invalid main post ID in engagement post-pair ledger: {main_post_id!r}") from exc
+            if main_time < cutoff:
+                continue
+            quote_id = str(record["quote_id"] or "")
+            if quote_id not in packets:
+                continue
+            quote_text = str(record["quote_text"] or "")
+            if quote_text_hash(quote_text) != quote_id:
+                raise IdentityConflict(f"stored quote text conflicts for main post {main_post_id}")
+            item = candidate_for(main_post_id, "engagement_post_pair_ledger")
+            _merge_identity(item, "quote_id", quote_id, "engagement_post_pair_ledger")
+            _fill(item, "quote_text", quote_text)
+            _merge_identity(item, "context_post_id", record["context_post_id"], "engagement_post_pair_ledger")
+            for field in (
+                "context_posted_at",
+                "context_missing_reason",
+                "formatter_version",
+                "verification_label",
+                "source_class",
+                "historical_confidence",
+                "context_weighted_character_count",
+                "meaning_included",
+                "shortening_applied",
+                "image_source",
+                "image_filename",
+                "image_score",
+                "made_with_ai",
+                "quotation_topic",
+            ):
+                _fill(item, field, record[field])
+
     # Confirmed/sending context receipt, if one exists, is retained as a secondary source.
     receipt_path = paths.project_dir / "historical_context_reply_receipt.json"
     if receipt_path.exists():
@@ -750,6 +868,7 @@ def discover_post_pairs(
                 _fill(item, "quote_text", text)
 
     context_events: dict[str, dict[str, Any]] = {}
+    ignored_line_identities: list[tuple[str, str, str]] = []
     for event in events:
         if event.get("event") == "historical_context_reply":
             main_post_id = str(event.get("parent_post_id") or "")
@@ -765,10 +884,69 @@ def discover_post_pairs(
         line_no = event.get("line_no")
         if type(line_no) is int and 0 <= line_no < len(lines):
             quote_text = lines[line_no].rstrip()
-            _merge_identity(item, "quote_id", quote_text_hash(quote_text), "structured_log_main_post_event")
-            _fill(item, "quote_text", quote_text)
+            derived_quote_id = quote_text_hash(quote_text)
+            canonical_quote_id = str(item.get("quote_id") or "")
+            correction_key = (
+                main_post_id,
+                "structured_log_main_post_event",
+                line_no,
+                derived_quote_id,
+                canonical_quote_id,
+            )
+            correction = identity_corrections.get(correction_key)
+            scoped_correction = next(
+                (
+                    record
+                    for key, record in identity_corrections.items()
+                    if key[0] == main_post_id
+                    and key[1] == "structured_log_main_post_event"
+                    and key[2] == line_no
+                    and key[4] == canonical_quote_id
+                ),
+                None,
+            )
+            if scoped_correction is not None and correction is None:
+                raise IdentityConflict(
+                    f"registered identity correction evidence mismatch for main post {main_post_id}"
+                )
+            if correction:
+                correction_id = str(correction["correction_id"])
+                if quote_text != correction["observed_derived_quote_text"]:
+                    raise IdentityConflict(f"identity correction text no longer matches for main post {main_post_id}")
+                source = f"quote_identity_correction:{correction_id}"
+                if source not in item["discovery_sources"]:
+                    item["discovery_sources"].append(source)
+                LOG.warning(
+                    "Applied audited quote identity correction post_id=%s canonical_quote_id=%s "
+                    "ignored_derived_quote_id=%s source=structured_log_main_post_event correction_id=%s",
+                    main_post_id,
+                    canonical_quote_id,
+                    derived_quote_id,
+                    correction_id,
+                )
+            elif canonical_quote_id and canonical_quote_id != derived_quote_id:
+                # line_no identifies a position in the source file used when the
+                # post was created. It is not a durable quote identity after an
+                # audited corpus edit shifts retained records. Explicit IDs from
+                # receipts, durable context history, exact cached text or context
+                # events have already been conflict-checked and take precedence.
+                source = "stale_main_post_line_number_ignored"
+                if source not in item["discovery_sources"]:
+                    item["discovery_sources"].append(source)
+                ignored_line_identities.append((main_post_id, canonical_quote_id, derived_quote_id))
+            else:
+                _merge_identity(item, "quote_id", derived_quote_id, "structured_log_main_post_event")
+                _fill(item, "quote_text", quote_text)
         _fill(item, "image_filename", event.get("image_basename"))
         _fill(item, "image_score", event.get("image_score"))
+
+    if ignored_line_identities:
+        LOG.info(
+            "Ignored %d non-authoritative line-derived quote identities after explicit identity resolution; "
+            "post_ids=%s",
+            len(ignored_line_identities),
+            ",".join(post_id for post_id, _canonical, _derived in ignored_line_identities),
+        )
 
     context_to_main: dict[str, str] = {}
     earliest_context_time = min(

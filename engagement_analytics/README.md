@@ -7,10 +7,19 @@ production bot and exposes no X write operation.
 ## Data sources
 
 Pair discovery prefers the durable historical-context reply history, then any
-confirmed context or regular-post receipt, the structured bot tweet cache, and
-finally validated structured `EVENT` records. X snowflake timestamps are checked
-against log timestamps so copied test records are rejected. Contradictory quote,
+confirmed context or regular-post receipt, the existing durable post-pair ledger,
+the structured bot tweet cache, and finally validated structured `EVENT` records.
+Historical `line_no` values are position references, not durable identities: an
+already conflict-checked explicit quote ID takes precedence when later corpus
+edits shift retained lines. X snowflake timestamps are checked against log
+timestamps so copied test records are rejected. Contradictory explicit quote,
 main-post, or context-post identities abort discovery.
+
+Evidence-backed corrections for a specific historical line-derived mismatch live
+in `quote_identity_corrections.json`. Each record is fail-closed against the exact
+post ID, line number, observed and canonical hashes and texts, completed research
+packet, classification, and evidence. This is not a general alias mechanism;
+unregistered conflicts between explicit identities remain fatal.
 
 ## Snapshot policy
 

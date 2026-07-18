@@ -5807,22 +5807,47 @@ def generated_identity_policy_shadow_result(
     *,
     selection_phase: str,
     audit_by_basename: dict[str, dict] | None = None,
+    selection_rng_state: object | None = None,
 ) -> dict:
     audit_by_basename = load_generated_identity_audit() if audit_by_basename is None else audit_by_basename
     rows = [generated_identity_candidate_shadow_row(candidate, audit_by_basename) for candidate in scored_candidates]
+    baseline_maximum = max((float(row["baseline_score"]) for row in rows), default=None)
+    baseline_tied = [
+        row for row in rows if baseline_maximum is not None and float(row["baseline_score"]) == baseline_maximum
+    ]
     eligible = [row for row in rows if row["identity_shadow_score"] is not None]
     maximum = max((float(row["identity_shadow_score"]) for row in eligible), default=None)
     tied = [row for row in eligible if float(row["identity_shadow_score"]) == maximum] if maximum is not None else []
     production_basename = str(production_choice.get("basename") or "")
     production_row = next(row for row in rows if row["basename"] == production_basename)
-    if production_row in tied:
-        shadow_winner = production_row
-    else:
-        shadow_winner = min(tied, key=lambda row: row["basename"]) if tied else None
+    baseline_winner = None
+    shadow_winner = None
+    if selection_rng_state is not None:
+        baseline_winner = _choice_with_random_state(baseline_tied, selection_rng_state)
+        shadow_winner = _choice_with_random_state(tied, selection_rng_state) if tied else None
     generated_rows = [row for row in rows if row["source"] == "generated"]
     cross_quote = [row for row in generated_rows if not row["origin_quote_match"]]
     excluded = [row["basename"] for row in cross_quote if row["identity_policy"] == "origin_quote_only"]
     penalised = [row["basename"] for row in cross_quote if row["identity_policy"] in {"small_penalty", "strong_penalty"}]
+    policy_relevant = bool(excluded or penalised)
+    counterfactual_valid = bool(
+        baseline_winner is not None
+        and baseline_winner["basename"] == production_basename
+    )
+    winner_changed = bool(
+        counterfactual_valid
+        and policy_relevant
+        and (shadow_winner is None or shadow_winner["basename"] != baseline_winner["basename"])
+    )
+    if selection_rng_state is None or not counterfactual_valid:
+        policy_effect = "counterfactual_mismatch"
+    elif winner_changed:
+        policy_effect = "winner_changed"
+    elif policy_relevant:
+        policy_effect = "scores_or_eligibility_only"
+    else:
+        policy_effect = "none"
+
     def winner_value(key: str) -> object:
         return shadow_winner.get(key) if shadow_winner else None
     return {
@@ -5837,6 +5862,8 @@ def generated_identity_policy_shadow_result(
         "production_identity_action": production_row["identity_action"],
         "production_identity_adjustment": production_row["identity_adjustment"],
         "production_identity_shadow_score": round(float(production_row["identity_shadow_score"]), 4) if production_row["identity_shadow_score"] is not None else None,
+        "baseline_winner": baseline_winner.get("basename") if baseline_winner else None,
+        "baseline_tie_count": len(baseline_tied),
         "shadow_winner_source": winner_value("source"),
         "shadow_winner": winner_value("basename"),
         "shadow_winner_baseline_score": round(float(winner_value("baseline_score")), 4) if shadow_winner else None,
@@ -5845,7 +5872,13 @@ def generated_identity_policy_shadow_result(
         "shadow_winner_identity_action": winner_value("identity_action"),
         "shadow_winner_identity_adjustment": winner_value("identity_adjustment"),
         "shadow_winner_score": round(float(winner_value("identity_shadow_score")), 4) if shadow_winner else None,
-        "winner_changed": not shadow_winner or shadow_winner["basename"] != production_basename,
+        "counterfactual_comparison_version": "generated_identity_counterfactual_v1",
+        "counterfactual_comparison_valid": counterfactual_valid,
+        "counterfactual_policy_winner": winner_value("basename"),
+        "policy_effect": policy_effect,
+        "winner_changed_by_policy": winner_changed,
+        # Compatibility alias retained for existing shadow-log consumers.
+        "winner_changed": winner_changed,
         "eligible_candidate_count": len(rows),
         "eligible_original_count": sum(row["source"] == "original" for row in rows),
         "eligible_generated_count": len(generated_rows),
@@ -5862,6 +5895,7 @@ def generated_identity_policy_shadow_result(
         "small_penalty": float(GENERATED_IDENTITY_SHADOW_SMALL_PENALTY),
         "strong_penalty": float(GENERATED_IDENTITY_SHADOW_STRONG_PENALTY),
         "shadow_tie_count": len(tied),
+        "shadow_tie_handling": "shared_random_state_counterfactual",
     }
 
 
@@ -5888,24 +5922,55 @@ def generated_identity_policy_selection(
     return rows, eligible
 
 
+def _choice_with_random_state(candidates: list[dict], rng_state: object) -> dict:
+    """Replay random.choice without consuming or changing the production RNG."""
+    chooser = random.Random()
+    chooser.setstate(rng_state)
+    return chooser.choice(candidates)
+
+
 def generated_identity_policy_applied_result(
     quote_choice: dict,
-    baseline_winner: dict,
     production_winner: dict,
     baseline_candidates: list[dict],
     policy_rows: list[dict],
     policy_tie_count: int,
     *,
     selection_phase: str,
+    selection_rng_state: object,
 ) -> dict:
     rows_by_name = {row["basename"]: row for row in policy_rows}
-    baseline_row = rows_by_name[str(baseline_winner["basename"])]
     production_row = rows_by_name[str(production_winner["basename"])]
+    baseline_best = max(float(row["baseline_score"]) for row in policy_rows)
+    baseline_tied = [row for row in policy_rows if float(row["baseline_score"]) == baseline_best]
+    policy_eligible = [row for row in policy_rows if row["identity_shadow_score"] is not None]
+    policy_best = max(float(row["identity_shadow_score"]) for row in policy_eligible)
+    policy_tied = [row for row in policy_eligible if float(row["identity_shadow_score"]) == policy_best]
+    baseline_row = _choice_with_random_state(baseline_tied, selection_rng_state)
+    counterfactual_policy_row = _choice_with_random_state(policy_tied, selection_rng_state)
     generated_rows = [row for row in policy_rows if row["source"] == "generated"]
     cross_quote = [row for row in generated_rows if not row["origin_quote_match"]]
     excluded = sorted(row["basename"] for row in cross_quote if row["identity_policy"] == "origin_quote_only")
     penalised = sorted(row["basename"] for row in cross_quote if row["identity_policy"] in {"small_penalty", "strong_penalty"})
-    changed = baseline_row["basename"] != production_row["basename"]
+    policy_relevant = any(
+        float(row.get("identity_adjustment") or 0) != 0.0
+        or row.get("identity_shadow_score") is None
+        for row in cross_quote
+    )
+    counterfactual_valid = (
+        counterfactual_policy_row["basename"] == production_row["basename"]
+        and len(policy_tied) == int(policy_tie_count)
+    )
+    baseline_differs = baseline_row["basename"] != counterfactual_policy_row["basename"]
+    changed = counterfactual_valid and policy_relevant and baseline_differs
+    if not counterfactual_valid:
+        policy_effect = "counterfactual_mismatch"
+    elif changed:
+        policy_effect = "winner_changed"
+    elif policy_relevant:
+        policy_effect = "scores_or_eligibility_only"
+    else:
+        policy_effect = "none"
     return {
         "quote_hash": str(quote_choice.get("quote_hash") or ""),
         "line_no": int(quote_choice.get("line_no", -1)),
@@ -5924,7 +5989,12 @@ def generated_identity_policy_applied_result(
         "production_identity_policy": production_row["identity_policy"],
         "production_identity_action": production_row["identity_action"],
         "production_identity_adjustment": production_row["identity_adjustment"],
+        "counterfactual_comparison_version": "generated_identity_counterfactual_v1",
+        "counterfactual_comparison_valid": counterfactual_valid,
+        "counterfactual_policy_winner": counterfactual_policy_row["basename"],
+        "policy_effect": policy_effect,
         "winner_changed_by_policy": changed,
+        "baseline_winner_differs": baseline_differs,
         "eligible_candidate_count_before_policy": len(baseline_candidates),
         "eligible_original_count_before_policy": sum(row["source"] == "original" for row in policy_rows),
         "eligible_generated_count_before_policy": len(generated_rows),
@@ -5938,7 +6008,8 @@ def generated_identity_policy_applied_result(
         "penalised_generated_basenames_truncated": len(penalised) > 12,
         "replacement_source_transition": f"{baseline_row['source']}->{production_row['source']}" if changed else "unchanged",
         "policy_tie_count": int(policy_tie_count),
-        "baseline_tie_handling": "deterministic_basename",
+        "baseline_tie_count": len(baseline_tied),
+        "baseline_tie_handling": "shared_random_state_counterfactual",
         "recovery_effect": selection_phase if selection_phase != "normal" else "none",
     }
 
@@ -5953,6 +6024,7 @@ def log_generated_identity_policy_shadow_result(
     scored_candidates: list[dict],
     *,
     selection_phase: str,
+    selection_rng_state: object | None = None,
 ) -> None:
     if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
         return
@@ -5962,6 +6034,7 @@ def log_generated_identity_policy_shadow_result(
             production_choice,
             scored_candidates,
             selection_phase=selection_phase,
+            selection_rng_state=selection_rng_state,
         )
         log.info("GENERATED_IDENTITY_POLICY_SHADOW_RESULT %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
     except Exception:
@@ -6743,7 +6816,6 @@ def choose_matched_unused_image(
 
     baseline_best_score = max(float(item["score"]) for item in scored)
     baseline_tied = [item for item in scored if float(item["score"]) == baseline_best_score]
-    baseline_winner = min(baseline_tied, key=lambda item: str(item["basename"]))
     policy_rows: list[dict] | None = None
     production_candidates = scored
     if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
@@ -6779,16 +6851,22 @@ def choose_matched_unused_image(
         log_generated_identity_policy_applied_result(
             generated_identity_policy_applied_result(
                 quote_choice,
-                baseline_winner,
                 chosen,
                 scored,
                 policy_rows,
                 len(tied),
                 selection_phase=selection_phase,
+                selection_rng_state=selection_rng_state,
             )
         )
     else:
-        log_generated_identity_policy_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
+        log_generated_identity_policy_shadow_result(
+            quote_choice,
+            chosen,
+            scored,
+            selection_phase=selection_phase,
+            selection_rng_state=selection_rng_state,
+        )
     log_quote_image_semantic_veto_shadow(
         quote_choice,
         chosen,
@@ -7921,6 +7999,11 @@ def ask_grok_for_reply(
 
     media_metadata = media_context if isinstance(media_context, dict) else {}
     strategy_enabled = bool(reply_strategy.get("enabled"))
+    incoming_contribution = (
+        shadow_incoming_text
+        if shadow_incoming_text is not None
+        else direct_question_text
+    )
     evidence = []
     if strategy_enabled and reply_strategy.get("research_corpus_enabled"):
         from reply_strategy import retrieve_research_packets
@@ -7928,7 +8011,7 @@ def ask_grok_for_reply(
         if not research_path.is_absolute():
             research_path = BASE_DIR / research_path
         evidence = retrieve_research_packets(
-            context_text,
+            str(incoming_contribution or ""),
             research_path,
             maximum=int(reply_strategy["maximum_retrieved_packets"]),
         )
@@ -7939,7 +8022,7 @@ def ask_grok_for_reply(
                 config=shadow_config,
                 project_dir=BASE_DIR,
                 research_run=research_path,
-                incoming_text=shadow_incoming_text if shadow_incoming_text is not None else context_text,
+                incoming_text=str(incoming_contribution or ""),
                 parent_context=shadow_parent_context,
                 thread_context=shadow_thread_context,
                 lane=str(media_metadata.get("lane") or media_metadata.get("source") or "unavailable"),
@@ -8172,6 +8255,7 @@ def ask_grok_for_reply(
                 allowed_modes=allowed_modes_from_config(reply_strategy),
                 allowed_humour_tones=set(reply_strategy["preferred_humour_tones"]),
                 minimum_grounded_confidence=str(reply_strategy["minimum_grounded_confidence"]),
+                incoming_text=incoming_contribution,
                 direct_question_text=direct_question_text,
                 clarification_reply=clarification_reply,
             )
@@ -8179,12 +8263,16 @@ def ask_grok_for_reply(
             log.warning("Rejected structured reply decision: %s", exc)
             message = str(exc).lower()
             reason = "local_validator_rejection"
+            detail_code = ""
             if "duplicate" in message:
                 reason = "exact_duplicate_rejected"
             elif "similar" in message or "repet" in message:
                 reason = "highly_similar_reply_rejected"
             elif "canned" in message:
                 reason = "canned_formulation_rejected"
+            elif "topical_relevance:" in message:
+                reason = "topical_relevance_rejected"
+                detail_code = message.split("topical_relevance:", 1)[1].split()[0][:80]
             elif "ground" in message:
                 reason = "unsafe_factual_claim"
             elif "confidence" in message:
@@ -8193,9 +8281,15 @@ def ask_grok_for_reply(
                 "reply_strategy_rejection",
                 lane=media_metadata.get("lane") or media_metadata.get("source") or "unavailable",
                 reason=reason,
+                detail_code=detail_code,
             )
             if evaluation_outcome is not None:
-                evaluation_outcome.update({"status": "rejected", "reason": reason})
+                # A topically unrelated grounded draft is a completed no-reply
+                # decision for this target. Persisting that outcome prevents a
+                # backlog from repeatedly buying a new model attempt for the
+                # same contribution. Other malformed outputs remain retryable.
+                status = "no_reply" if reason == "topical_relevance_rejected" else "rejected"
+                evaluation_outcome.update({"status": status, "reason": reason})
             return None
         log_event(
             "reply_strategy_decision",
@@ -8230,7 +8324,10 @@ def ask_grok_for_reply(
                     "reason": validated["no_reply_reason"] or "model_selected_no_reply",
                 })
             return None
-        reply = ReplyDecision(validated["reply_text"], validated)
+        # topical_basis is an untrusted, short-lived validation aid copied from
+        # the incoming post. Do not persist it in reply drafts or receipts.
+        durable_metadata = {key: item for key, item in validated.items() if key != "topical_basis"}
+        reply = ReplyDecision(validated["reply_text"], durable_metadata)
     else:
         reply = clean_generated_reply(reply)
 
