@@ -586,6 +586,25 @@ def test_concrete_who_question_rejects_a_declarative_non_answer() -> None:
     assert direct_factual_answer_error(question, reply) is not None
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "During difficult times.",
+        "After much consideration.",
+        "Before responsibility was accepted.",
+    ],
+)
+def test_when_question_rejects_vague_relative_time_non_answers(reply: str) -> None:
+    assert direct_factual_answer_error("When did the reform happen?", reply) is not None
+
+
+def test_when_question_accepts_a_concrete_event_period() -> None:
+    assert direct_factual_answer_error(
+        "When did the reform happen?",
+        "During the 1983 election campaign.",
+    ) is None
+
+
 def test_concrete_question_syntax_does_not_require_terminal_punctuation() -> None:
     assert concrete_factual_question_word("Who was Prime Minister in 1979") == "who"
 
@@ -608,8 +627,38 @@ def test_concrete_question_syntax_does_not_require_terminal_punctuation() -> Non
         ("Whose government introduced the policy?", "whose"),
         ("Did the wall divide East and West?", "yes_no"),
         ("Was the treaty signed in London", "yes_no"),
+        ("Did inflation fall in the 1980s?", "yes_no"),
+        ("Did unemployment rise?", "yes_no"),
+        ("Did the economy grow?", "yes_no"),
+        ("Did taxes increase?", "yes_no"),
+        ("Was inflation lower?", "yes_no"),
         ("Is freedom important?", None),
+        ("Does leadership matter?", None),
         ("Do you think leadership matters?", None),
+        ("What do you think about privatisation?", None),
+        ("What is your view of the policy?", None),
+        ("What should the government do?", None),
+        ("Which policy would you choose?", None),
+        ("What would happen if the policy changed?", None),
+        ("Who should lead Britain?", None),
+        ("Where should government invest?", None),
+        ("When should ministers resign?", None),
+        ("Who would you choose as leader?", None),
+        ("Where would people go if the border closed?", None),
+        ("When would you call an election?", None),
+        ("Who would become Prime Minister after Heath?", "who"),
+        ("What could happen if inflation rose?", None),
+        ("Who might win the election?", None),
+        ("Who was the best Prime Minister?", None),
+        ("Who was right about Europe?", None),
+        ("What was the best policy?", None),
+        ("Which policy was better?", None),
+        ("Where is the best place for investment?", None),
+        ("Was Thatcher right about Europe?", None),
+        ("Which minister signed the treaty?", "which"),
+        ("Which May speech mentioned Europe?", "which"),
+        ("What was Right to Buy?", "what"),
+        ("What was the Good Friday Agreement?", "what"),
         ("Would socialism work?", None),
         ("What a mess?", None),
         ("What an absolute mess?", None),
@@ -680,6 +729,82 @@ def test_which_and_how_many_questions_require_the_requested_supported_fact() -> 
     assert direct_factual_answer_error(
         "How many years did the Berlin Wall stand?",
         "It stood for many years.",
+        evidence,
+    ) is not None
+
+
+def test_which_question_rejects_evidence_supported_abstraction_in_place_of_choice() -> None:
+    packet = {
+        "quote_text": (
+            "The Berlin Wall divided East Berlin from West Berlin. "
+            "Freedom defeated coercion when people could choose."
+        ),
+        "verified_text": "The Berlin Wall divided East Berlin from West Berlin.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
+        "historical_context": (
+            "People chose freedom over coercion as movement opened from East to West."
+        ),
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
+
+    assert direct_factual_answer_error(
+        "Which side did people move towards when the Berlin Wall fell?",
+        "People chose freedom over coercion.",
+        evidence,
+    ) is not None
+
+
+@pytest.mark.parametrize("question", [
+    "What year did the Berlin Wall fall?",
+    "Which year did the Berlin Wall fall?",
+])
+def test_explicit_year_question_requires_evidence_supported_time(
+    question: str,
+) -> None:
+    packet = {
+        "quote_text": "The Berlin Wall fell in 1989, when freedom defeated coercion.",
+        "verified_text": "The Berlin Wall fell in 1989.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["Berlin Wall", "1989"],
+        "historical_context": "Freedom defeated coercion in 1989.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
+
+    assert direct_factual_answer_error(question, "It fell in 1989.", evidence) is None
+    assert direct_factual_answer_error(
+        question,
+        "Freedom defeated coercion.",
+        evidence,
+    ) is not None
+
+
+def test_whose_question_requires_explicit_evidence_supported_attribution() -> None:
+    packet = {
+        "quote_text": (
+            "Margaret Thatcher's government passed the 1980 Act; "
+            "government requires responsibility."
+        ),
+        "verified_text": "Margaret Thatcher's government passed the 1980 Act.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["Margaret Thatcher", "1980 Act"],
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The 1980 Act.", packet)]
+
+    assert direct_factual_answer_error(
+        "Whose government passed the 1980 Act?",
+        "Margaret Thatcher's government passed it.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "Whose government passed the 1980 Act?",
+        "Government requires responsibility.",
         evidence,
     ) is not None
 

@@ -2904,6 +2904,28 @@ def test_quote_hash_candidates_deduplicate_identical_source_lines(tmp_path: Path
     assert [candidate["text"] for candidate in candidates].count("Duplicate quote.") == 1
 
 
+def test_quote_cycle_resets_when_only_research_ineligible_source_records_remain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines = ["Eligible first.", "Unresolved retained source.", "Eligible second."]
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    eligible_hashes = {
+        bot.quote_text_hash(lines[0]),
+        bot.quote_text_hash(lines[2]),
+    }
+    used = set(eligible_hashes)
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "load_quote_analysis", lambda: quote_analysis_for_lines(lines))
+    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: eligible_hashes)
+
+    candidates = bot.quote_candidates_for_current_cycle(used)
+
+    assert used == set()
+    assert {candidate["quote_hash"] for candidate in candidates} == eligible_hashes
+
+
 def test_posting_duplicate_quote_marks_hash_and_blocks_identical_line_same_cycle(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5009,6 +5031,126 @@ def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
         server.stop()
 
 
+def test_quote_tweet_model_no_reply_is_durable_beyond_bounded_scan_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["recent_own_post_ids"] = ["900"]
+    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
+    state["daily_quote_reply_date"] = state["daily_reply_date"]
+    own_post = {
+        "id": "900", "author_id": "12345", "text": "An original post.",
+        "conversation_id": "900", "referenced_tweets": [],
+    }
+    quote_post = {
+        "id": "910", "author_id": "777", "text": "A substantive but unproductive claim.",
+        "conversation_id": "910",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+    model_calls: list[str] = []
+
+    def no_reply(*_args: object, **kwargs: object) -> None:
+        model_calls.append("called")
+        outcome = kwargs.get("evaluation_outcome")
+        if isinstance(outcome, dict):
+            outcome.update({"status": "no_reply", "reason": "no_reply_due_to_unverifiable_claim"})
+        return None
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+    monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
+    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
+    monkeypatch.setattr(bot, "get_quote_tweets_for_post", lambda *_args, **_kwargs: [dict(quote_post)])
+    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(bot, "ask_grok_for_reply", no_reply)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    state["seen_quote_post_ids"] = []
+    state["skipped_quote_post_ids"] = []
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+
+    assert model_calls == ["called"]
+    assert state["reply_evaluation_records"]["910"]["outcome"] == "no_reply"
+
+
+def test_quote_tweet_reply_not_permitted_is_durable_beyond_bounded_scan_lists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["recent_own_post_ids"] = ["900"]
+    state["daily_reply_date"] = datetime.fromtimestamp(fixed_epoch).strftime("%Y-%m-%d")
+    state["daily_quote_reply_date"] = state["daily_reply_date"]
+    own_post = {
+        "id": "900", "author_id": "12345", "text": "An original post.",
+        "conversation_id": "900", "referenced_tweets": [],
+    }
+    quote_post = {
+        "id": "910", "author_id": "777", "text": "A substantive comment.",
+        "conversation_id": "910",
+        "referenced_tweets": [{"type": "quoted", "id": "900"}],
+    }
+    model_calls: list[str] = []
+    post_calls: list[str] = []
+
+    def reply(*_args: object, **_kwargs: object) -> str:
+        model_calls.append("called")
+        return "Conviction still matters."
+
+    def forbidden_post(*_args: object, **_kwargs: object) -> dict:
+        post_calls.append("called")
+        raise bot.ApiError(
+            "You can only reply to or quote posts where you are mentioned or are the author",
+            service="x",
+            status_code=403,
+        )
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+    monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+    monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+    monkeypatch.setattr(bot, "lane_paused", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
+    monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda _state: ["900"])
+    monkeypatch.setattr(bot, "get_tweet_by_id_cached", lambda *_args, **_kwargs: dict(own_post))
+    monkeypatch.setattr(bot, "get_quote_tweets_for_post", lambda *_args, **_kwargs: [dict(quote_post)])
+    monkeypatch.setattr(bot, "quote_tweet_is_old_enough", lambda _tweet: True)
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(bot, "ask_grok_for_reply", reply)
+    monkeypatch.setattr(bot, "create_post", forbidden_post)
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+    state["seen_quote_post_ids"] = []
+    state["skipped_quote_post_ids"] = []
+    assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+
+    assert model_calls == ["called"]
+    assert post_calls == ["called"]
+    assert state["reply_evaluation_records"]["910"]["outcome"] == "reply_not_permitted"
+
+
 def test_hot_post_reply_native_photo_context_reaches_xai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5299,6 +5441,32 @@ def test_clarification_ledger_survives_state_restart_and_blocks_replay(
     assert recovered["clarification_reply_records"]["700"]["clarification_reply_used"] is True
     assert bot.clarification_thread_is_terminal(recovered, candidate) is True
     assert bot.author_used_clarification_recently(recovered, "200", current=fixed_epoch + 60) is True
+
+
+def test_author_clarification_window_expires_at_exactly_24_hours() -> None:
+    completed_epoch = 2_000_000_000
+    state = bot.default_state()
+    state["clarification_reply_records"] = {
+        "700": {
+            "thread_id": "700",
+            "author_id": "200",
+            "completed_epoch": completed_epoch,
+            "status": "repair_reply_completed",
+            "clarification_reply_used": True,
+            "thread_terminal": True,
+        }
+    }
+
+    assert bot.author_used_clarification_recently(
+        state,
+        "200",
+        current=completed_epoch + bot.CLARIFICATION_REPLY_WINDOW_SECONDS - 1,
+    ) is True
+    assert bot.author_used_clarification_recently(
+        state,
+        "200",
+        current=completed_epoch + bot.CLARIFICATION_REPLY_WINDOW_SECONDS,
+    ) is False
 
 
 def test_completed_clarification_thread_stays_terminal_after_restart_and_cap_reset(
@@ -5636,6 +5804,19 @@ def test_parse_tweet_id_rejects_oversized_numeric_value() -> None:
     assert bot.parse_tweet_id("9" * 5_000, context="test tweet") is None
 
 
+def test_valid_tweets_sorted_by_id_deduplicates_paged_results() -> None:
+    first = {"id": "20", "text": "same immutable post"}
+    duplicate = {"id": "20", "text": "same immutable post"}
+
+    result = bot.valid_tweets_sorted_by_id(
+        [{"id": "30"}, first, {"id": "10"}, duplicate],
+        context="paged test",
+    )
+
+    assert [item["id"] for item in result] == ["10", "20", "30"]
+    assert result[1] is first
+
+
 def test_pending_strategy_reply_survives_state_round_trip_and_is_reused(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5705,11 +5886,13 @@ def test_pending_principle_reply_retains_context_needed_for_safety_revalidation(
         "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
         "grounded": False, "reply_text": text, "no_reply_reason": "",
     }
+    reply = ReplyDecision(text, metadata)
+    reply.pending_topical_basis = "public popularity"
     bot.store_pending_strategy_reply(
         state,
         "100",
         "mention",
-        ReplyDecision(text, metadata),
+        reply,
         incoming_text=incoming,
     )
 
@@ -5728,6 +5911,7 @@ def test_safe_pending_principle_reply_reuses_the_persisted_incoming_context() ->
         "grounded": False, "reply_text": text, "no_reply_reason": "",
     }
     reply = ReplyDecision(text, metadata)
+    reply.pending_topical_basis = "institutions endure"
     bot.store_pending_strategy_reply(
         state,
         "100",
@@ -5751,6 +5935,7 @@ def test_long_form_principle_reply_context_remains_receipt_safe() -> None:
         "grounded": False, "reply_text": text, "no_reply_reason": "",
     }
     reply = ReplyDecision(text, metadata)
+    reply.pending_topical_basis = "institutions endure"
     bot.store_pending_strategy_reply(
         state,
         "100",
@@ -5812,6 +5997,111 @@ def test_pending_reply_created_under_an_older_validator_is_not_reused() -> None:
     }
 
     assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_grounded_reply_is_not_reused_when_evidence_is_no_longer_retrievable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+    import reply_strategy as strategy
+
+    state = bot.default_state()
+    text = "A previously grounded historical answer."
+    metadata = {
+        "mode": "historical_context", "humour_tone": "none",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "Evidence that has since become ineligible.",
+        "factual_claim_made": True, "grounded": True,
+        "reply_text": text, "no_reply_reason": "",
+    }
+    assert bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        ReplyDecision(text, metadata),
+        incoming_text="What happened at the event?",
+    ) is True
+    monkeypatch.setattr(strategy, "retrieve_research_packets", lambda *_args, **_kwargs: [])
+
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_grounded_reply_fails_closed_when_local_corpus_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+    import reply_strategy as strategy
+
+    state = bot.default_state()
+    text = "A previously grounded historical answer."
+    metadata = {
+        "mode": "historical_context", "humour_tone": "none",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "Evidence from the completed corpus.",
+        "factual_claim_made": True, "grounded": True,
+        "reply_text": text, "no_reply_reason": "",
+    }
+    assert bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        ReplyDecision(text, metadata),
+        incoming_text="What happened at the event?",
+    ) is True
+    monkeypatch.setattr(
+        strategy,
+        "retrieve_research_packets",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("invalid local corpus")),
+    )
+
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_grounded_reply_is_reused_after_current_evidence_revalidation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision, RetrievedEvidence
+    import reply_strategy as strategy
+
+    state = bot.default_state()
+    text = "The agreement was signed in 1985."
+    metadata = {
+        "mode": "historical_context", "humour_tone": "none",
+        "evidence_confidence": "high", "retrieved_quote_ids": ["a" * 64],
+        "evidence_summary": "The completed packet dates the agreement to 1985.",
+        "factual_claim_made": True, "grounded": True,
+        "reply_text": text, "no_reply_reason": "",
+    }
+    assert bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        ReplyDecision(text, metadata),
+        incoming_text="When was the agreement signed?",
+    ) is True
+    evidence = RetrievedEvidence(
+        "a" * 64,
+        1.0,
+        "exact",
+        "The agreement date.",
+        {
+            "quote_text": "The agreement was signed in 1985.",
+            "verified_text": "The agreement was signed in 1985.",
+            "verification_status": "exact",
+            "research_confidence": "high",
+            "speaker": "Margaret Thatcher",
+            "date": "1985",
+        },
+    )
+    monkeypatch.setattr(strategy, "retrieve_research_packets", lambda *_args, **_kwargs: [evidence])
+
+    reused = bot.pending_strategy_reply(state, "100", "mention")
+
+    assert reused == text
+    assert bot.pending_reply_is_valid_direct_answer(
+        reused,
+        "When was the agreement signed?",
+    ) is True
 
 
 def test_pending_strategy_drafts_are_bounded() -> None:
@@ -6905,6 +7195,54 @@ def test_reply_prompt_handles_obvious_harmless_teasing_without_literal_correctio
     assert "Return exactly SKIP" in prompt
 
 
+def test_long_parent_context_never_truncates_away_incoming_contribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    incoming = "INCOMING-ISSUE-MARKER responsibility for local government"
+    mention = {"id": "900", "text": incoming}
+    chain = [
+        {
+            "id": str(index),
+            "author_id": str(100 + index),
+            "text": f"parent-{index} " + ("inherited context " * 80),
+        }
+        for index in range(1, 6)
+    ]
+    monkeypatch.setattr(bot, "ALWAYS_FETCH_PARENT_FOR_CONTEXT", True)
+    monkeypatch.setattr(bot, "SKIP_REPLIES_TO_OWN_AUTO_REPLIES", False)
+    monkeypatch.setattr(bot, "build_parent_chain", lambda _mention, _state: chain)
+
+    context, should_continue = bot.build_context_for_grok(mention, bot.default_state())
+
+    assert should_continue is True
+    assert "Incoming post/comment to answer:" in context
+    assert incoming in context
+    assert "parent-5" in context
+    assert len(context) <= bot.THREAD_CONTEXT_MAX_TOTAL_CHARS
+
+
+def test_trim_context_text_never_exceeds_requested_limit() -> None:
+    for maximum in (0, 1, 2, 3, 20):
+        assert len(bot.trim_context_text("ordinary words " * 20, maximum)) <= maximum
+
+
+def test_quote_tweet_context_never_truncates_away_user_commentary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    incoming = "INCOMING-QUOTE-MARKER courage and responsibility"
+    monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_TOTAL_CHARS", 220)
+    monkeypatch.setattr(bot, "THREAD_CONTEXT_MAX_CHARS_PER_POST", 500)
+
+    context = bot.build_quote_tweet_context(
+        {"text": "original account post " + ("historical context " * 80)},
+        {"author_id": "200", "text": incoming},
+    )
+
+    assert "Quote post by user 200:" in context
+    assert incoming in context
+    assert len(context) <= bot.THREAD_CONTEXT_MAX_TOTAL_CHARS
+
+
 def test_meme_summary_context_limit_covers_current_analysis_shape() -> None:
     summary = (
         "2x2 grid meme: top-left Cuba 2016 rundown street, bottom-left Venezuela 2019 street scene with man on rubble, "
@@ -7101,6 +7439,7 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from reply_strategy import ReplyDecision
+    import reply_strategy as strategy
 
     state = bot.default_state()
     state["last_reply_epoch"] = 0
@@ -7125,6 +7464,12 @@ def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(
         mention["id"],
         "mention",
         ReplyDecision("A persisted grounded reply.", metadata),
+        incoming_text=mention["text"],
+    )
+    monkeypatch.setattr(
+        strategy,
+        "retrieve_research_packets",
+        lambda *_args, **_kwargs: pytest.fail("retrieval must not run for an ineligible target"),
     )
 
     monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)

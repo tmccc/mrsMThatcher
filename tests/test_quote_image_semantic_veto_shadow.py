@@ -14,9 +14,11 @@ from semantic_alignment.quote_image_semantic_veto import (
     ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
     POLICY_VERSION,
     ShadowManifestError,
+    ShadowHistoryWriter,
     ShadowRuntime,
     compile_shadow_manifest,
     historical_replay,
+    read_shadow_history,
     sha256_value,
     shadow_preflight,
     shadow_status,
@@ -45,6 +47,19 @@ def enabled_config(path: Path = MANIFEST) -> dict:
 
 def load_manifest() -> dict:
     return json.loads(MANIFEST.read_text(encoding="utf-8"))
+
+
+def test_semantic_shadow_history_retains_bounded_tail_across_rotation(tmp_path: Path) -> None:
+    writer = ShadowHistoryWriter(tmp_path, maximum_records=2)
+    for index in range(3):
+        writer.append({
+            "event": "quote_image_semantic_veto_shadow",
+            "quote_id": str(index),
+            "shadow_status": "allow",
+        })
+
+    retained = read_shadow_history(tmp_path, maximum=2)
+    assert [row["quote_id"] for row in retained] == ["1", "2"]
 
 
 def test_corrected_source_precedence_and_exact_counts() -> None:

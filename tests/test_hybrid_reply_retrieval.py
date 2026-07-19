@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import queue
 import time
 from pathlib import Path
 
@@ -166,6 +167,17 @@ def test_shadow_worker_is_async_bounded_and_persists_no_text(tmp_path: Path):
     assert shadow_summary(rows)["events"] == 1
 
 
+def test_shadow_worker_queue_overflow_does_no_synchronous_persistence() -> None:
+    worker = object.__new__(ShadowWorker)
+    worker.jobs = queue.Queue(maxsize=1)
+    worker.jobs.put_nowait({"event_id": "already-queued"})
+    worker._persist = lambda _record: pytest.fail(
+        "queue overflow must not persist synchronously on the production caller"
+    )
+
+    assert worker.submit({"event_id": "overflow"}) is False
+
+
 def test_shadow_worker_timeout_and_model_failure_fail_open(tmp_path: Path):
     class SlowRetriever(FakeRetriever):
         def retrieve(self, incoming_text, **kwargs):
@@ -208,9 +220,37 @@ def test_shadow_history_rotates_at_bound_without_losing_audit_records(tmp_path: 
     writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
     for index in range(101):
         writer.append({"event_id": str(index), "status": "completed", "latency_ms": 1, "production_lexical_quote_ids": [], "shadow_hybrid_quote_ids": []})
-    assert len(read_shadow_records(tmp_path)) == 1
+    retained = read_shadow_records(tmp_path, maximum=100)
+    assert len(retained) == 100
+    assert [row["event_id"] for row in retained] == [str(index) for index in range(1, 101)]
     archives = list(tmp_path.glob("shadow_history.*.jsonl"))
     assert len(archives) == 1 and len(archives[0].read_text().splitlines()) == 100
+
+
+def test_shadow_history_same_second_rotations_do_not_overwrite_archives(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(hybrid.time, "time", lambda: 1234.0)
+    writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
+    for index in range(201):
+        writer.append({"event_id": str(index), "status": "completed"})
+
+    archives = list(tmp_path.glob("shadow_history.*.jsonl"))
+    assert len(archives) == 2
+    assert sum(len(path.read_text().splitlines()) for path in archives) == 200
+
+
+def test_shadow_history_restart_without_active_file_keeps_archive_deduplication(
+    tmp_path: Path,
+):
+    archived = tmp_path / "shadow_history.1234.jsonl"
+    archived.write_text('{"event_id":"same","status":"completed"}\n', encoding="utf-8")
+    writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
+
+    writer.append({"event_id": "same", "status": "completed"})
+
+    assert not (tmp_path / "shadow_history.jsonl").exists()
 
 
 def test_reaction_only_shadow_does_not_load_model_and_records_no_substantive_query(tmp_path: Path):
@@ -323,7 +363,9 @@ def test_shadow_mode_cannot_change_prompt_reply_or_add_network_call(monkeypatch:
     assert result.strategy_metadata["retrieved_quote_ids"] == []
 
 
-def test_hybrid_top20_lexical_uses_assembled_production_context(monkeypatch: pytest.MonkeyPatch):
+def test_hybrid_top20_lexical_uses_incoming_contribution_not_parent_context(
+    monkeypatch: pytest.MonkeyPatch,
+):
     seen = []
     monkeypatch.setattr(hybrid, "retrieve_research_packets", lambda text, path, maximum: seen.append((text, maximum)) or [])
     retriever = object.__new__(hybrid.HybridRetriever)
@@ -335,7 +377,7 @@ def test_hybrid_top20_lexical_uses_assembled_production_context(monkeypatch: pyt
     retriever.matrix = np.asarray([[1.0] + [0.0] * 383], dtype=np.float32)
     retriever._query_embedding = lambda query: np.asarray([1.0] + [0.0] * 383, dtype=np.float32)
     retriever.retrieve("incoming", parent_context="assembled context", production_lexical=[])
-    assert seen == [("assembled context", 20)]
+    assert seen == [("incoming", 20)]
 
 
 def test_hybrid_deduplicates_near_identical_quote_family_members(monkeypatch: pytest.MonkeyPatch):

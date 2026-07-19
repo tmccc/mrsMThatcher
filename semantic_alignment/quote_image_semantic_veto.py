@@ -610,7 +610,12 @@ class ShadowHistoryWriter:
         line = json.dumps(event, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
         with self.lock:
             if self.count >= self.maximum_records and self.path.exists():
-                archive = self.runtime_dir / f"shadow_history.{int(time.time())}.jsonl"
+                timestamp = int(time.time())
+                archive = self.runtime_dir / f"shadow_history.{timestamp}.jsonl"
+                suffix = 1
+                while archive.exists():
+                    archive = self.runtime_dir / f"shadow_history.{timestamp}.{suffix}.jsonl"
+                    suffix += 1
                 os.replace(self.path, archive)
                 self.count = 0
             with self.path.open("a", encoding="utf-8") as handle:
@@ -625,17 +630,33 @@ class ShadowHistoryWriter:
 
 def read_shadow_history(runtime_dir: Path, maximum: int = 10_000) -> list[dict[str, Any]]:
     path = runtime_dir / "shadow_history.jsonl"
-    if not path.is_file():
+    if maximum <= 0:
         return []
+    archive_pattern = re.compile(r"shadow_history\.(\d+)(?:\.(\d+))?\.jsonl\Z")
+
+    def archive_key(item: Path) -> tuple[int, int, str]:
+        match = archive_pattern.fullmatch(item.name)
+        if match:
+            return int(match.group(1)), int(match.group(2) or 0), item.name
+        return 0, 0, item.name
+
+    paths = sorted(runtime_dir.glob("shadow_history.*.jsonl"), key=archive_key)
+    if path.is_file():
+        paths.append(path)
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-maximum:]:
-        try:
-            value = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            rows.append(value)
-    return rows
+    for history_path in reversed(paths):
+        current: list[dict[str, Any]] = []
+        for line in history_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(value, dict):
+                current.append(value)
+        rows = current + rows
+        if len(rows) >= maximum:
+            break
+    return rows[-maximum:]
 
 
 @dataclass

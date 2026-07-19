@@ -2261,7 +2261,7 @@ def author_used_clarification_recently(state: dict, author_id: str, *, current: 
         if not isinstance(record, dict) or str(record.get("author_id") or "") != str(author_id):
             continue
         try:
-            if int(record.get("completed_epoch", 0) or 0) >= cutoff:
+            if int(record.get("completed_epoch", 0) or 0) > cutoff:
                 return True
         except (TypeError, ValueError):
             continue
@@ -2377,10 +2377,15 @@ def parse_tweet_id(value: object, *, context: str) -> int | None:
 
 def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]:
     valid: list[tuple[int, dict]] = []
+    seen_ids: set[int] = set()
     for tweet in tweets:
         tweet_id = parse_tweet_id(tweet.get("id"), context=context)
         if tweet_id is None:
             continue
+        if tweet_id in seen_ids:
+            log.warning("Dropping duplicate %s tweet id=%s from paged API results", context, tweet_id)
+            continue
+        seen_ids.add(tweet_id)
         valid.append((tweet_id, tweet))
     return [tweet for _, tweet in sorted(valid, key=lambda item: item[0])]
 
@@ -3127,10 +3132,16 @@ def tweet_context_text(tweet: dict) -> str:
 def trim_context_text(text: str, max_chars: int) -> str:
     text = clean_text_for_grok_context(text)
 
+    if max_chars <= 0:
+        return ""
     if len(text) <= max_chars:
         return text
-
-    return text[:max_chars].rsplit(" ", 1)[0].rstrip(".,;:") + "..."
+    if max_chars <= 3:
+        return text[:max_chars]
+    prefix = text[:max_chars - 3].rsplit(" ", 1)[0].rstrip(".,;:")
+    if not prefix:
+        prefix = text[:max_chars - 3]
+    return prefix + "..."
 
 
 def build_parent_chain(mention: dict, state: dict) -> list[dict]:
@@ -3212,14 +3223,12 @@ def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
         )
         return "", False
 
-    parts: list[str] = []
-
     if chain:
-        parts.append(
+        header = (
             "Thread context, oldest to newest. "
             "This is limited cached context only; do not assume facts not shown here."
         )
-
+        parent_parts: list[str] = []
         own_auto_reply_ids = set(str(x) for x in state.get("own_auto_reply_ids", []))
 
         for index, tweet in enumerate(chain, start=1):
@@ -3233,27 +3242,51 @@ def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
                 speaker = f"user {author_id}"
 
             trimmed = trim_context_text(tweet_context_text(tweet), THREAD_CONTEXT_MAX_CHARS_PER_POST)
-            parts.append(f"{index}. Parent post by {speaker}:\n{trimmed}")
+            parent_parts.append(f"{index}. Parent post by {speaker}:\n{trimmed}")
 
-        parts.append(
+        incoming_part = (
             "Incoming post/comment to answer:\n"
             f"{trim_context_text(mention_text, THREAD_CONTEXT_MAX_CHARS_PER_POST)}"
         )
+        parts = [header, *parent_parts, incoming_part]
+        context = "\n\n".join(parts)
+        if len(context) > THREAD_CONTEXT_MAX_TOTAL_CHARS:
+            retained_parents: list[str] = []
+            for parent_part in reversed(parent_parts):
+                candidate = "\n\n".join([header, parent_part, *retained_parents, incoming_part])
+                if len(candidate) <= THREAD_CONTEXT_MAX_TOTAL_CHARS:
+                    retained_parents.insert(0, parent_part)
+                else:
+                    break
+            parts = [header, *retained_parents, incoming_part]
+            context = "\n\n".join(parts)
+            log.debug(
+                "Reduced full context from %d parent item(s) to %d while preserving incoming text",
+                len(parent_parts),
+                len(retained_parents),
+            )
     else:
-        parts.append(
+        context = (
             "Incoming standalone post/comment to answer:\n"
             f"{trim_context_text(mention_text, THREAD_CONTEXT_MAX_CHARS_PER_POST)}"
         )
 
-    context = "\n\n".join(parts)
-
     if len(context) > THREAD_CONTEXT_MAX_TOTAL_CHARS:
         log.debug(
-            "Truncating full context from %d to %d chars",
+            "Truncating incoming-only context from %d to %d chars",
             len(context),
             THREAD_CONTEXT_MAX_TOTAL_CHARS,
         )
-        context = context[:THREAD_CONTEXT_MAX_TOTAL_CHARS].rsplit(" ", 1)[0].rstrip(".,;:") + "..."
+        incoming_label = (
+            "Incoming post/comment to answer:"
+            if chain else
+            "Incoming standalone post/comment to answer:"
+        )
+        if THREAD_CONTEXT_MAX_TOTAL_CHARS > len(incoming_label) + 1:
+            available = THREAD_CONTEXT_MAX_TOTAL_CHARS - len(incoming_label) - 1
+            context = f"{incoming_label}\n{trim_context_text(mention_text, available)}"
+        else:
+            context = trim_context_text(mention_text, THREAD_CONTEXT_MAX_TOTAL_CHARS)
 
     log.info(
         "Built Grok context for mention %s. chain_items=%d immediate_parent=%s",
@@ -6282,12 +6315,17 @@ def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes
             "Excluded %d source quotation(s) without attribution-eligible completed canonical research packets",
             len(research_ineligible_hashes),
         )
+    unused_research_eligible_lines = [
+        line_no
+        for line_no, quote_hash in hashes_by_line.items()
+        if quote_hash not in lines_used and quote_hash not in research_ineligible_hashes
+    ]
     available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
 
     log.debug("Available unused lines=%d", len(available_lines))
 
-    if not available_lines:
-        log.info("All lines used; clearing line history")
+    if not unused_research_eligible_lines:
+        log.info("All attribution-eligible researched quotations used; clearing line history")
         lines_used.clear()
         available_lines = list(hashes_by_line)
 
@@ -7813,7 +7851,7 @@ def pending_reply_draft_key(target_id: object, candidate_source: object) -> str:
 # X long-form posts can exceed 10,000 characters. Keep enough source text to
 # revalidate a persisted principle reply while still bounding corrupt state.
 PENDING_REPLY_CONTEXT_MAX_CHARS = 100_000
-PENDING_REPLY_VALIDATION_VERSION = 2
+PENDING_REPLY_VALIDATION_VERSION = 3
 
 
 def store_pending_strategy_reply(
@@ -7827,12 +7865,21 @@ def store_pending_strategy_reply(
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
         return False
-    context_required = metadata.get("mode") == "principle_reply"
+    mode = str(metadata.get("mode") or "")
+    context_required = mode in {
+        "historical_correction", "historical_context", "researched_principle",
+        "principle_reply",
+    }
+    topical_basis = getattr(reply, "pending_topical_basis", "")
     if incoming_text is not None and (
         not isinstance(incoming_text, str) or len(incoming_text) > PENDING_REPLY_CONTEXT_MAX_CHARS
     ):
         return False
     if context_required and (not isinstance(incoming_text, str) or not incoming_text.strip()):
+        return False
+    if mode in {"principle_reply", "researched_principle"} and (
+        not isinstance(topical_basis, str) or not topical_basis.strip()
+    ):
         return False
     if not strategy_metadata_is_semantically_valid(
         metadata,
@@ -7847,6 +7894,7 @@ def store_pending_strategy_reply(
         "reply_text": str(reply),
         "strategy_metadata": metadata,
         "incoming_text": incoming_text if context_required else None,
+        "topical_basis": topical_basis if mode in {"principle_reply", "researched_principle"} else "",
         "strategy_validation_version": PENDING_REPLY_VALIDATION_VERSION,
     }
     while len(drafts) > 100:
@@ -7873,8 +7921,52 @@ def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -
         incoming_text=record.get("incoming_text"),
     ):
         return None
-    from reply_strategy import ReplyDecision
-    return ReplyDecision(text, metadata)
+    mode = str(metadata.get("mode") or "")
+    incoming_text = record.get("incoming_text")
+    evidence = []
+    try:
+        from reply_strategy import (
+            ReplyDecision,
+            allowed_modes_from_config,
+            retrieve_research_packets,
+            validate_reply_decision,
+        )
+        if mode in {"historical_correction", "historical_context", "researched_principle"}:
+            if not isinstance(incoming_text, str) or not incoming_text.strip():
+                return None
+            research_path = Path(str(reply_strategy["research_corpus_path"]))
+            if not research_path.is_absolute():
+                research_path = BASE_DIR / research_path
+            evidence = retrieve_research_packets(
+                incoming_text,
+                research_path,
+                maximum=int(reply_strategy["maximum_retrieved_packets"]),
+            )
+        validated = validate_reply_decision(
+            {**metadata, "topical_basis": str(record.get("topical_basis") or "")},
+            evidence,
+            allowed_quote_ids={item.quote_id for item in evidence},
+            recent_replies=recent_auto_reply_texts(state),
+            maximum_length=MAX_REPLY_CHARS,
+            allowed_modes=allowed_modes_from_config(reply_strategy),
+            allowed_humour_tones=set(reply_strategy["preferred_humour_tones"]),
+            minimum_grounded_confidence=str(reply_strategy["minimum_grounded_confidence"]),
+            incoming_text=incoming_text,
+        )
+    except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+        log.warning(
+            "Discarding pending reply draft that no longer passes current semantic validation "
+            "target_id=%s source=%s",
+            target_id,
+            candidate_source,
+        )
+        return None
+    durable_metadata = {key: item for key, item in validated.items() if key != "topical_basis"}
+    decision = ReplyDecision(str(text), durable_metadata)
+    decision.pending_selected_evidence = [
+        item for item in evidence if item.quote_id in set(durable_metadata["retrieved_quote_ids"])
+    ]
+    return decision
 
 
 def pending_reply_is_valid_direct_answer(reply: str, question: str) -> bool:
@@ -7890,7 +7982,10 @@ def pending_reply_is_valid_direct_answer(reply: str, question: str) -> bool:
     ):
         return False
     from reply_strategy import direct_factual_answer_error
-    return direct_factual_answer_error(question, str(reply)) is None
+    selected_evidence = getattr(reply, "pending_selected_evidence", ())
+    if not selected_evidence:
+        return False
+    return direct_factual_answer_error(question, str(reply), selected_evidence) is None
 
 
 def clear_pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> None:
@@ -8292,10 +8387,12 @@ def ask_grok_for_reply(
                     "reason": validated["no_reply_reason"] or "model_selected_no_reply",
                 })
             return None
-        # topical_basis is an untrusted, short-lived validation aid copied from
-        # the incoming post. Do not persist it in reply drafts or receipts.
+        # topical_basis is untrusted text copied from the incoming post. Keep it
+        # out of durable strategy metadata and receipts; pending drafts retain it
+        # separately only so the current validator can be rerun before reuse.
         durable_metadata = {key: item for key, item in validated.items() if key != "topical_basis"}
         reply = ReplyDecision(validated["reply_text"], durable_metadata)
+        reply.pending_topical_basis = validated["topical_basis"]
     else:
         reply = clean_generated_reply(reply)
 
@@ -8947,11 +9044,22 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 candidate_source,
                 mention_id,
             )
-            persisted_reply = pending_strategy_reply(
-                state,
-                mention_id,
-                str(candidate_source),
+            persisted_reply = None
+            drafts = state.get("pending_reply_drafts", {})
+            pending_record = (
+                drafts.get(pending_reply_draft_key(mention_id, str(candidate_source)))
+                if isinstance(drafts, dict) else None
             )
+            if isinstance(pending_record, dict):
+                pending_text = pending_record.get("reply_text")
+                pending_metadata = pending_record.get("strategy_metadata")
+                if strategy_metadata_is_semantically_valid(
+                    pending_metadata,
+                    pending_text,
+                    incoming_text=pending_record.get("incoming_text"),
+                ):
+                    from reply_strategy import ReplyDecision
+                    persisted_reply = ReplyDecision(str(pending_text), dict(pending_metadata))
             if persisted_reply is not None:
                 log_reply_strategy_posting_outcome(
                     reply=persisted_reply,
@@ -9578,21 +9686,53 @@ def build_quote_tweet_context(original_tweet: dict, quote_tweet: dict) -> str:
     original_text = trim_context_text(tweet_context_text(original_tweet), THREAD_CONTEXT_MAX_CHARS_PER_POST)
     quote_text = trim_context_text(quote_tweet.get("text", ""), THREAD_CONTEXT_MAX_CHARS_PER_POST)
 
-    parts = [
+    intro = [
         "A user has quote-posted one of this account's posts.",
         "Reply only if a civil, useful reply is warranted. Do not assume facts not shown.",
-        "",
-        "Original post from this account:",
-        original_text or "[No usable text available.]",
-        "",
-        f"Quote post by user {quote_tweet.get('author_id')}:",
-        quote_text or "[No usable text available.]",
     ]
+    original_label = "Original post from this account:"
+    quote_label = f"Quote post by user {quote_tweet.get('author_id')}:"
+    original_value = original_text or "[No usable text available.]"
+    quote_value = quote_text or "[No usable text available.]"
+    parts = [*intro, "", original_label, original_value, "", quote_label, quote_value]
 
     context = "\n".join(parts)
 
     if len(context) > THREAD_CONTEXT_MAX_TOTAL_CHARS:
-        context = context[:THREAD_CONTEXT_MAX_TOTAL_CHARS].rsplit(" ", 1)[0].rstrip(".,;:") + "..."
+        maximum = THREAD_CONTEXT_MAX_TOTAL_CHARS
+        if maximum <= 0:
+            context = ""
+        else:
+            # The user's own quote-post commentary is the contribution being
+            # answered. Reserve it before adding any amount of the account's
+            # original post, even under an unusually small configured budget.
+            fixed_parts = [*intro, "", original_label, "", quote_label, quote_value]
+            fixed_length = len("\n".join(fixed_parts))
+            original_budget = maximum - fixed_length
+            if original_budget > 0:
+                parts = [
+                    *intro,
+                    "",
+                    original_label,
+                    trim_context_text(original_value, original_budget),
+                    "",
+                    quote_label,
+                    quote_value,
+                ]
+                context = "\n".join(parts)
+            else:
+                context = ""
+                for retained_intro in (intro, intro[:1], []):
+                    prefix_parts = [*retained_intro]
+                    if retained_intro:
+                        prefix_parts.append("")
+                    prefix_parts.append(quote_label)
+                    prefix = "\n".join(prefix_parts) + "\n"
+                    if len(prefix) < maximum:
+                        context = prefix + trim_context_text(quote_value, maximum - len(prefix))
+                        break
+                if not context:
+                    context = trim_context_text(quote_value, maximum)
 
     log_json_debug("Quote-tweet context sent to Grok", context)
     return context
@@ -9761,6 +9901,18 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 log.info("Skipping quote tweet %s: already seen/replied/skipped", quote_id)
                 continue
 
+            prior_evaluation = terminal_reply_evaluation(state, quote_id)
+            if prior_evaluation is not None:
+                log.info(
+                    "Skipping quote tweet %s: terminal %s evaluation already recorded reason=%s",
+                    quote_id,
+                    prior_evaluation.get("outcome", "no_reply"),
+                    prior_evaluation.get("reason", ""),
+                )
+                mark_quote_tweet_skipped(state, quote_id)
+                save_state(state)
+                continue
+
             if not quote_tweet_directly_quotes_original(quote_tweet, original_post_id):
                 log.info(
                     "Skipping quote tweet %s: not a direct quote of original post %s. referenced_tweets=%s",
@@ -9866,6 +10018,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 clear_pending_strategy_reply(state, quote_id, "quote_tweet")
                 save_state(state, durable=True)
                 reply_text = None
+            evaluation_outcome: dict[str, str] = {}
             try:
                 if reply_text is None:
                     reply_text = ask_grok_for_reply(
@@ -9874,6 +10027,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         recent_replies=recent_auto_reply_texts(state),
                         shadow_incoming_text=quote_text,
                         shadow_parent_context=context_text,
+                        evaluation_outcome=evaluation_outcome,
                         direct_question_text=quote_text,
                     )
                 else:
@@ -9890,9 +10044,19 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                 return QUOTE_CHECK_STATUS_CHECKED
 
             if not reply_text:
+                if (
+                    not DRY_RUN_REPLIES
+                    and evaluation_outcome.get("status") == "no_reply"
+                ):
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=quote_id,
+                        lane="quote_tweet",
+                        reason=evaluation_outcome.get("reason", "model_selected_no_reply"),
+                    )
                 log.info("No usable reply generated for quote tweet %s", quote_id)
                 mark_quote_tweet_skipped(state, quote_id)
-                save_state(state)
+                save_state(state, durable=evaluation_outcome.get("status") == "no_reply")
                 continue
 
             log.info("Generated reply to quote tweet %s: %r", quote_id, reply_text)
@@ -9976,6 +10140,13 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         target_id=quote_id,
                         outcome="reply_not_permitted",
                         reason="x_reply_not_permitted",
+                    )
+                    record_terminal_reply_evaluation(
+                        state,
+                        target_id=quote_id,
+                        lane="quote_tweet",
+                        reason="x_reply_not_permitted",
+                        outcome="reply_not_permitted",
                     )
                     mark_quote_tweet_skipped(state, quote_id)
                     clear_pending_strategy_reply(state, quote_id, "quote_tweet")

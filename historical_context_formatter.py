@@ -781,12 +781,13 @@ class HistoricalContextReplyStore:
             raise ValueError("invalid historical context reply request")
         if formatter_metadata is not None and not self._valid_formatter_metadata(formatter_metadata):
             raise ValueError("invalid historical context formatter metadata")
+        if dry_run:
+            return {"status": "dry_run", "parent_post_id": str(parent_post_id), "quote_id": quote_id,
+                    "reply_text": reply_text, "character_count": len(reply_text)}
         self.reconcile_receipt(); history = self.history(); previous = history["items"].get(str(parent_post_id))
         if previous and previous.get("quote_id") != quote_id:
             raise RuntimeError("historical context reply quote identity conflicts with parent history")
         if previous and previous.get("status") == "completed": return {**previous, "status": "already_completed"}
-        if dry_run: return {"status": "dry_run", "parent_post_id": str(parent_post_id), "quote_id": quote_id,
-                            "reply_text": reply_text, "character_count": len(reply_text)}
         reply_epoch = int(now_epoch())
         started_at = utc_now()
         sending = {

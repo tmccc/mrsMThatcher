@@ -692,7 +692,7 @@ class HybridRetriever:
                 "timings_ms": {"total": (time.perf_counter() - started) * 1000},
             }
         lexical_started = time.perf_counter()
-        lexical_query = parent_context if parent_context else query["incoming_text"]
+        lexical_query = query["incoming_text"]
         lexical_evidence = retrieve_research_packets(
             lexical_query, self.research_run,
             maximum=int(self.thresholds["lexical_candidate_count"]),
@@ -820,25 +820,31 @@ class ShadowHistoryWriter:
         self.maximum_records = max(100, int(maximum_records))
         self.lock = threading.Lock()
         runtime_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            initial = [json.loads(line) for line in self.path.read_text(encoding="utf-8").splitlines() if line.strip()]
-            self.count = len(initial)
-            archive_rows = []
-            for archive in self.runtime_dir.glob("shadow_history.*.jsonl"):
-                try:
-                    archive_rows.extend(json.loads(line) for line in archive.read_text(encoding="utf-8").splitlines() if line.strip())
-                except Exception:
-                    continue
-            self.seen_event_ids = {
-                str(item.get("event_id")) for item in [*archive_rows, *initial]
-                if isinstance(item, dict) and item.get("event_id")
-            }
-        except FileNotFoundError:
-            self.count = 0
-            self.seen_event_ids = set()
-        except Exception:
-            self.count = 0
-            self.seen_event_ids = set()
+        initial: list[dict[str, Any]] = []
+        if self.path.is_file():
+            try:
+                initial = [
+                    json.loads(line)
+                    for line in self.path.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+            except Exception:
+                initial = []
+        archive_rows: list[dict[str, Any]] = []
+        for archive in self.runtime_dir.glob("shadow_history.*.jsonl"):
+            try:
+                archive_rows.extend(
+                    json.loads(line)
+                    for line in archive.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                )
+            except Exception:
+                continue
+        self.count = len(initial)
+        self.seen_event_ids = {
+            str(item.get("event_id")) for item in [*archive_rows, *initial]
+            if isinstance(item, dict) and item.get("event_id")
+        }
 
     def append(self, record: dict[str, Any]) -> None:
         line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
@@ -847,7 +853,12 @@ class ShadowHistoryWriter:
             if event_id and event_id in self.seen_event_ids:
                 return
             if self.count >= self.maximum_records and self.path.exists():
-                archive = self.runtime_dir / f"shadow_history.{int(time.time())}.jsonl"
+                timestamp = int(time.time())
+                archive = self.runtime_dir / f"shadow_history.{timestamp}.jsonl"
+                suffix = 1
+                while archive.exists():
+                    archive = self.runtime_dir / f"shadow_history.{timestamp}.{suffix}.jsonl"
+                    suffix += 1
                 os.replace(self.path, archive)
                 self.count = 0
             with self.path.open("a", encoding="utf-8") as handle:
@@ -869,17 +880,33 @@ class ShadowHistoryWriter:
 
 def read_shadow_records(runtime_dir: Path, maximum: int = 5000) -> list[dict[str, Any]]:
     path = runtime_dir / "shadow_history.jsonl"
-    if not path.is_file():
+    if maximum <= 0:
         return []
+    archive_pattern = re.compile(r"shadow_history\.(\d+)(?:\.(\d+))?\.jsonl\Z")
+
+    def archive_key(item: Path) -> tuple[int, int, str]:
+        match = archive_pattern.fullmatch(item.name)
+        if match:
+            return int(match.group(1)), int(match.group(2) or 0), item.name
+        return 0, 0, item.name
+
+    paths = sorted(runtime_dir.glob("shadow_history.*.jsonl"), key=archive_key)
+    if path.is_file():
+        paths.append(path)
     rows: list[dict[str, Any]] = []
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines()[-maximum:]:
-        try:
-            value = json.loads(line)
-        except Exception:
-            continue
-        if isinstance(value, dict):
-            rows.append(value)
-    return rows
+    for history_path in reversed(paths):
+        current: list[dict[str, Any]] = []
+        for line in history_path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                value = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(value, dict):
+                current.append(value)
+        rows = current + rows
+        if len(rows) >= maximum:
+            break
+    return rows[-maximum:]
 
 
 def percentile(values: Sequence[float], fraction: float) -> float | None:
@@ -964,8 +991,8 @@ class ShadowWorker:
             self.jobs.put_nowait(job)
             return True
         except queue.Full:
-            record = self._failure_record(job, "timeout", "shadow_queue_full")
-            self._persist(record)
+            # Shadow telemetry must never turn queue pressure into synchronous
+            # fsync/history work on the production reply thread.
             return False
 
     def drain(self, timeout: float = 10.0) -> bool:

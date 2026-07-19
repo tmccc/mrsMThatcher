@@ -103,6 +103,14 @@ ABSOLUTE_TEMPORAL_ANSWER_RE = re.compile(
     re.IGNORECASE,
 )
 RELATIVE_TEMPORAL_ANSWER_RE = re.compile(r"\b(?:after|before|during)\s+([^,.;!?]+)", re.IGNORECASE)
+VAGUE_RELATIVE_TEMPORAL_ANSWER_RE = re.compile(
+    r"^(?:after|before|during)\s+(?:"
+    r"(?:challenging|difficult|troubled|uncertain)\s+(?:circumstances|periods?|times?)|"
+    r"(?:careful|considerable|much|serious|some)\s+(?:consideration|debate|deliberation|thought)|"
+    r"(?:courage|freedom|leadership|principles?|responsibility)\s+"
+    r"(?:had|has|have|was|were)\b)",
+    re.IGNORECASE,
+)
 QUANTITY_ANSWER_RE = re.compile(
     r"\b(?:\d+(?:[.,]\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|"
     r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
@@ -691,6 +699,26 @@ def concrete_factual_question_word(text: str) -> str | None:
         return None
     remainder = candidate[match.end():].lstrip()
     word = "_".join(match.group("word").lower().split())
+    if (
+        re.match(r"(?:should|ought\s+to)\b", remainder, re.IGNORECASE)
+        or re.match(r"(?:could|might)\b", remainder, re.IGNORECASE)
+        or re.match(r"may\b", remainder)
+        or re.match(r"would\s+(?:i|we|you)\b", remainder, re.IGNORECASE)
+        or re.match(r"would\b.*\bif\b", remainder, re.IGNORECASE)
+        or re.search(
+            r"\b(?:is|are|was|were)\s+(?:the\s+)?"
+            r"(?:best|worst|better|worse|favourite|favorite)\b",
+            remainder,
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"\b(?:is|are|was|were)\s+(?:right|wrong|good|bad)\b"
+            r"(?:\s+(?:about|for)\b|\s*[?!.]*$)",
+            remainder,
+            re.IGNORECASE,
+        )
+    ):
+        return None
     if word == "were" and re.match(r"did\b", remainder, re.IGNORECASE):
         word = "where"
     elif word in {"did", "does", "do", "was", "were", "is", "are", "has", "have", "had"}:
@@ -699,12 +727,19 @@ def concrete_factual_question_word(text: str) -> str | None:
             r"(?:you|we|i)\s+(?:agree|believe|feel|hope|prefer|suppose|think|want)\b",
             remainder,
             re.IGNORECASE,
+        ) or re.search(
+            r"\b(?:best|worst|right|wrong|good|bad|favourite|favorite)\b"
+            r"(?:\s+(?:about|for)\b|\s*[?!.]*$)",
+            remainder,
+            re.IGNORECASE,
         )
         factual_marker = (
             re.search(r"\b\d{3,4}\b", remainder)
             or re.search(
                 r"\b(?:became|began|born|died|elected|ended|happen(?:ed)?|held|introduced|"
-                r"join(?:ed)?|left|located|lost|occurred|passed|published|served|signed|won)\b",
+                r"join(?:ed)?|left|located|lost|occurred|passed|published|served|signed|won|"
+                r"costs?|declin(?:e|ed)|decreas(?:e|ed)|drop(?:ped)?|fall(?:en)?|fell|grew|grow(?:n)?|"
+                r"higher|increas(?:e|ed)|lower|ris(?:e|en)|rose)\b",
                 remainder,
                 re.IGNORECASE,
             )
@@ -712,6 +747,45 @@ def concrete_factual_question_word(text: str) -> str | None:
         )
         if subjective or not factual_marker:
             return None
+    if word in {"what", "which"} and (
+        re.match(
+            r"(?:do|did|would)\s+you\s+"
+            r"(?:believe|feel|prefer|suppose|think|want)\b",
+            remainder,
+            re.IGNORECASE,
+        )
+        or re.match(
+            r"(?:is|are|was|were)\s+your\s+"
+            r"(?:assessment|opinion|preference|reaction|thoughts?|view)\b",
+            remainder,
+            re.IGNORECASE,
+        )
+        or re.search(r"\b(?:should|ought\s+to)\b", remainder, re.IGNORECASE)
+        or (
+            word == "what"
+            and re.match(
+                r"(?:could|would)\s+(?:i|we|you)\b|"
+                r"would\s+happen\b.*\bif\b",
+                remainder,
+                re.IGNORECASE,
+            )
+        )
+        or (
+            word == "which"
+            and re.search(r"\b(?:could|would)\s+(?:i|we|you)\b", remainder, re.IGNORECASE)
+        )
+    ):
+        return None
+    explicit_temporal_category = bool(
+        word in {"what", "which"}
+        and re.match(
+            r"(?:calendar\s+)?(?:date|day|decade|month|period|time|week|year)\b",
+            remainder,
+            re.IGNORECASE,
+        )
+    )
+    if explicit_temporal_category:
+        word = "when"
     if word == "what" and re.match(
         r"(?:a|an|the|this|that)\s+(?:[\w'-]+\s+){0,2}"
         r"(?:day|disaster|joke|mess|shame|surprise)\s*[!?]*$",
@@ -720,7 +794,15 @@ def concrete_factual_question_word(text: str) -> str | None:
     ):
         return None
     if "?" not in candidate:
-        if word in {"which", "whose", "how_many", "how_long"}:
+        if explicit_temporal_category:
+            if not re.search(
+                r"\b(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
+                r"should|happened|became|began|ended|occurred|took)\b",
+                remainder,
+                re.IGNORECASE,
+            ):
+                return None
+        elif word in {"which", "whose", "how_many", "how_long"}:
             if not re.search(
                 r"\b(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
                 r"should|happened|became|began|ended|occurred|took)\b",
@@ -782,16 +864,35 @@ def direct_factual_answer_error(
         generic = {"a", "an", "he", "it", "she", "that", "the", "they", "this", "we"}
         if not any(word[0].isupper() and word.casefold() not in generic for word in answer_words):
             return "who questions require a person or office-holder in the first sentence"
+    elif question_word == "whose" and not (
+        re.search(
+            r"\b[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*"
+            r"['\N{RIGHT SINGLE QUOTATION MARK}]s\b",
+            first_sentence,
+            re.UNICODE,
+        )
+        or re.search(r"\bof\s+[^,.;!?]+", lowered)
+        or re.search(r"\b(?:belonged|belongs)\s+to\b", lowered)
+    ):
+        return "whose questions require an explicit attribution in the first sentence"
     elif question_word == "when" and not (
         ABSOLUTE_TEMPORAL_ANSWER_RE.search(lowered)
         or RELATIVE_TEMPORAL_ANSWER_RE.search(lowered)
     ):
         return "when questions require a time or period in the first sentence"
+    elif question_word == "when" and VAGUE_RELATIVE_TEMPORAL_ANSWER_RE.search(lowered):
+        return "when questions require a concrete time, period or event in the first sentence"
     elif question_word == "where" and not re.search(
         r"\b(?:at|from|in|inside|into|north|south|east|west|outside|to|towards?)\b",
         lowered,
     ):
         return "where questions require a place or direction in the first sentence"
+    elif (
+        question_word == "which"
+        and re.search(r"\bwhich\s+(?:direction|side|way)\b", str(question or ""), re.IGNORECASE)
+        and not re.search(r"\b(?:east|west|north|south|left|right)\b", lowered)
+    ):
+        return "directional which questions require the requested direction in the first sentence"
     elif question_word == "how_many" and not QUANTITY_ANSWER_RE.search(lowered):
         return "how many questions require a quantity in the first sentence"
     elif question_word == "how_long" and not DURATION_ANSWER_RE.search(lowered):

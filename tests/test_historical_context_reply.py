@@ -664,3 +664,31 @@ def test_dry_run_makes_no_post_and_includes_count(tmp_path):
     assert result == {"status": "dry_run", "parent_post_id": "111", "quote_id": "a" * 64,
                       "reply_text": "Context", "character_count": 7}
     assert not store.history_path.exists() and not store.receipt_path.exists()
+
+
+def test_dry_run_does_not_reconcile_or_remove_an_existing_receipt(tmp_path):
+    store = HistoricalContextReplyStore(tmp_path / "history.json", tmp_path / "receipt.json")
+    receipt = {
+        "schema_version": 1,
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": "a" * 64,
+        "reply_text": "Previously confirmed context.",
+        "reply_epoch": 123,
+        "confirmed_at": "2026-07-19T08:00:00Z",
+    }
+    store.receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    receipt_before = store.receipt_path.read_bytes()
+
+    result = store.post(
+        parent_post_id="111",
+        quote_id="a" * 64,
+        reply_text="Dry run context.",
+        create_post=lambda **kwargs: pytest.fail("dry run must not post"),
+        now_epoch=lambda: 456,
+        dry_run=True,
+    )
+
+    assert result["status"] == "dry_run"
+    assert store.receipt_path.read_bytes() == receipt_before
+    assert not store.history_path.exists()
