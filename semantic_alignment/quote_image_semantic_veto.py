@@ -22,8 +22,9 @@ from .io import atomic_write_json, atomic_write_text, sha256_file
 SCHEMA_VERSION = 1
 POLICY_VERSION = "material-veto-v2-postrun-corrected-shadow-v1"
 ATTRIBUTION_CLEANED_V3_POLICY_VERSION = (
-    "affirmative-material-contradiction-rules-v3-attribution-cleanup-candidate"
+    "affirmative-material-contradiction-rules-v3-runtime-eligible-610"
 )
+ATTRIBUTION_ELIGIBILITY_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 DEFAULT_MANIFEST = (
     "semantic_alignment_research/quote_image_semantic_veto_001/shadow/"
     "material_veto_v2_shadow_manifest.json"
@@ -439,12 +440,12 @@ def _validate_attribution_cleaned_v3_manifest(
     value: dict[str, Any], *, strict: bool
 ) -> dict[str, Any]:
     exact = {
-        "quote_count": 613,
+        "quote_count": 610,
         "image_count": 91,
-        "pair_count": 22_157,
-        "allow_count": 22_028,
-        "veto_count": 129,
-        "quotes_with_allowed_candidate": 612,
+        "pair_count": 22_066,
+        "allow_count": 21_938,
+        "veto_count": 128,
+        "quotes_with_allowed_candidate": 609,
         "quotes_without_allowed_candidate": 1,
         "unknown_pair_count_excluded_from_lookup": 167,
     }
@@ -475,15 +476,32 @@ def _validate_attribution_cleaned_v3_manifest(
         image_hashes.add(image_hash)
         counts[decision] += 1
 
-    _expect(counts == {"allow": 22_028, "veto": 129}, "v3 manifest decision totals mismatch")
-    _expect(len(quote_ids) == 613, "v3 manifest quotation coverage mismatch")
+    _expect(counts == {"allow": 21_938, "veto": 128}, "v3 manifest decision totals mismatch")
+    _expect(len(quote_ids) == 610, "v3 manifest quotation coverage mismatch")
     _expect(len(image_hashes) == 91, "v3 manifest authorised image set mismatch")
     flags = value.get("quote_has_allowed_candidate")
     _expect(isinstance(flags, dict) and set(flags) == quote_ids, "v3 global quote safety flags are incomplete")
-    _expect(sum(flag is True for flag in flags.values()) == 612, "v3 global quote safety flag totals mismatch")
+    _expect(sum(flag is True for flag in flags.values()) == 609, "v3 global quote safety flag totals mismatch")
     _expect(sum(flag is False for flag in flags.values()) == 1, "v3 no-safe-image flag total mismatch")
     aliases = value.get("runtime_quote_aliases") or {}
     _expect(isinstance(aliases, dict) and len(aliases) == 5, "v3 runtime quote aliases mismatch")
+    runtime_quote_ids = value.get("runtime_eligible_quote_ids")
+    _expect(
+        isinstance(runtime_quote_ids, list)
+        and len(runtime_quote_ids) == 610
+        and len(set(runtime_quote_ids)) == 610
+        and all(HEX64.fullmatch(str(quote_id)) is not None for quote_id in runtime_quote_ids),
+        "v3 runtime eligibility IDs are invalid",
+    )
+    resolved_runtime_ids = {
+        str(aliases.get(str(quote_id)) or quote_id)
+        for quote_id in runtime_quote_ids
+    }
+    _expect(resolved_runtime_ids == quote_ids, "v3 runtime eligibility set differs from pair coverage")
+    _expect(
+        value.get("attribution_rule_version") == ATTRIBUTION_ELIGIBILITY_RULE_VERSION,
+        "v3 attribution rule version mismatch",
+    )
     source_hashes = value.get("source_file_hashes")
     _expect(isinstance(source_hashes, dict) and source_hashes, "v3 source hashes are missing")
     for name, source in source_hashes.items():
@@ -493,6 +511,11 @@ def _validate_attribution_cleaned_v3_manifest(
             and HEX64.fullmatch(str(source.get("sha256") or "")) is not None,
             f"v3 source hash record is invalid: {name}",
         )
+    _expect(
+        {"runtime_eligible_quote_manifest", "completed_quote_research", "attribution_predicate"}
+        <= set(source_hashes),
+        "v3 eligibility freshness sources are incomplete",
+    )
     return {
         "valid": True,
         "schema_version": SCHEMA_VERSION,
@@ -640,6 +663,7 @@ class ShadowRuntime:
         *,
         verify_source_hashes: bool = True,
         enable_history: bool = True,
+        expected_runtime_quote_ids: set[str] | None = None,
     ) -> "ShadowRuntime":
         errors = validate_shadow_config(config)
         if errors:
@@ -665,6 +689,28 @@ class ShadowRuntime:
                     reason=f"source hash mismatch: {stale[0]}", status="manifest_stale",
                     load_time_ms=(time.perf_counter() - started) * 1000,
                 )
+            if expected_runtime_quote_ids is not None:
+                flags = manifest.get("quote_has_allowed_candidate") or {}
+                aliases = manifest.get("runtime_quote_aliases") or {}
+                resolved_expected = {
+                    str(aliases.get(str(quote_id)) or quote_id)
+                    for quote_id in expected_runtime_quote_ids
+                }
+                if resolved_expected != set(flags):
+                    extra = sorted(set(flags) - resolved_expected)
+                    missing = sorted(resolved_expected - set(flags))
+                    return cls(
+                        False,
+                        path,
+                        manifest_sha256=sha256_file(path),
+                        policy_version=str(manifest.get("policy_version") or ""),
+                        reason=(
+                            "runtime quotation eligibility mismatch: "
+                            f"manifest_extra={extra[:1]} runtime_missing={missing[:1]}"
+                        ),
+                        status="manifest_stale",
+                        load_time_ms=(time.perf_counter() - started) * 1000,
+                    )
             runtime = cls(
                 True,
                 path,
@@ -810,7 +856,14 @@ def percentile(values: Sequence[float], fraction: float) -> float | None:
     return ordered[low] + (ordered[high] - ordered[low]) * (index - low)
 
 
-def summarise_events(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
+def _manifest_event_key(row: dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(row.get("manifest_policy_version") or "unavailable"),
+        str(row.get("manifest_sha256") or ""),
+    )
+
+
+def _summarise_event_subset(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
     statuses = Counter(str(row.get("shadow_status") or "unknown") for row in events)
     veto_rows = [row for row in events if row.get("shadow_status") == "veto"]
     latency = [float(row["lookup_latency_ms"]) for row in events if isinstance(row.get("lookup_latency_ms"), (int, float))]
@@ -857,6 +910,46 @@ def summarise_events(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "production_selection_change_failures": sum(row.get("production_selection_changed") is not False for row in events),
         "last_event": events[-1] if events else None,
     }
+
+
+def summarise_events(
+    events: Sequence[dict[str, Any]],
+    *,
+    current_manifest_sha256: str | None = None,
+    current_policy_version: str | None = None,
+) -> dict[str, Any]:
+    all_events = list(events)
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in all_events:
+        grouped.setdefault(_manifest_event_key(row), []).append(row)
+    if current_manifest_sha256 is not None:
+        selected_key = next(
+            (key for key in grouped if key[1] == current_manifest_sha256),
+            (str(current_policy_version or "unavailable"), current_manifest_sha256),
+        )
+    elif all_events:
+        selected_key = _manifest_event_key(all_events[-1])
+    else:
+        selected_key = (str(current_policy_version or "unavailable"), str(current_manifest_sha256 or ""))
+    selected_events = grouped.get(selected_key, [])
+    summary = _summarise_event_subset(selected_events)
+    summary["manifest_policy_version"] = selected_key[0]
+    summary["manifest_sha256"] = selected_key[1]
+    summary.update({
+        "history_events_all_manifests": len(all_events),
+        "events_excluded_from_current_manifest_summary": len(all_events) - len(selected_events),
+        "mixed_manifest_versions": len(grouped) > 1,
+        "manifest_strata": [
+            {
+                "manifest_policy_version": key[0],
+                "manifest_sha256": key[1],
+                "events": len(rows),
+                "status_counts": _summarise_event_subset(rows)["status_counts"],
+            }
+            for key, rows in grouped.items()
+        ],
+    })
+    return summary
 
 
 def _iter_log_records(project_dir: Path, since_days: int) -> list[tuple[datetime, str, str, int]]:
@@ -1072,7 +1165,6 @@ def shadow_status(project_dir: Path) -> dict[str, Any]:
     config = local.get("quote_image_semantic_veto") if isinstance(local, dict) else None
     enabled = isinstance(config, dict) and config.get("enabled") is True and config.get("mode") == "shadow"
     history = read_shadow_history(project_dir / RUNTIME_DIR_NAME)
-    summary = summarise_events(history)
     manifest_path = str((config or {}).get("manifest_path") or DEFAULT_MANIFEST)
     manifest = Path(manifest_path)
     if not manifest.is_absolute():
@@ -1081,14 +1173,23 @@ def shadow_status(project_dir: Path) -> dict[str, Any]:
     try:
         value = _read_object(manifest)
         audit = validate_compiled_manifest(value)
+        configured_manifest_sha256 = sha256_file(manifest)
+        configured_policy_version = str(value.get("policy_version") or "unavailable")
         validity = {
             "valid": True,
             **audit,
-            "sha256": sha256_file(manifest),
+            "sha256": configured_manifest_sha256,
             "source_file_hashes": value.get("source_file_hashes", {}),
         }
     except Exception as exc:
+        configured_manifest_sha256 = None
+        configured_policy_version = None
         validity = {"valid": False, "reason": f"{type(exc).__name__}: {exc}"}
+    summary = summarise_events(
+        history,
+        current_manifest_sha256=configured_manifest_sha256,
+        current_policy_version=configured_policy_version,
+    )
     return {
         "schema_version": 1,
         "generated_at": utc_now(),
@@ -1097,7 +1198,10 @@ def shadow_status(project_dir: Path) -> dict[str, Any]:
         "manifest_path": str(manifest),
         "manifest": validity,
         **summary,
-        "observation_progress": {"toward_100": min(len(history), 100), "toward_200": min(len(history), 200)},
+        "observation_progress": {
+            "toward_100": min(int(summary["events"]), 100),
+            "toward_200": min(int(summary["events"]), 200),
+        },
         "active_enforcement": False,
         "network_calls": 0,
     }

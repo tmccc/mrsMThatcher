@@ -9,7 +9,6 @@ It never posts and never writes production state, histories, receipts or media.
 from __future__ import annotations
 
 import argparse
-import base64
 import builtins
 import copy
 import hashlib
@@ -17,12 +16,12 @@ import importlib
 import io
 import json
 import os
-import pickle
 import random
 import resource
 import socket
 import sqlite3
 import statistics
+import subprocess
 import sys
 import time
 import zlib
@@ -242,7 +241,7 @@ class OpenAudit:
 
 @contextmanager
 def block_outbound_network() -> Iterator[None]:
-    """Block socket connections and DNS for the whole Python process."""
+    """Block networking and ordinary child-process escape routes while offline."""
     originals = {
         "create_connection": socket.create_connection,
         "connect": socket.socket.connect,
@@ -265,6 +264,16 @@ def block_outbound_network() -> Iterator[None]:
     socket.gethostbyname = blocked
     socket.gethostbyname_ex = blocked
     socket.gethostbyaddr = blocked
+    process_originals: dict[str, Any] = {"subprocess.Popen": subprocess.Popen}
+    subprocess.Popen = blocked  # type: ignore[assignment]
+    guarded_os_calls = (
+        "fork", "forkpty", "popen", "posix_spawn", "posix_spawnp", "spawnl", "spawnle",
+        "spawnlp", "spawnlpe", "spawnv", "spawnve", "spawnvp", "spawnvpe", "system",
+    )
+    for name in guarded_os_calls:
+        if hasattr(os, name):
+            process_originals[f"os.{name}"] = getattr(os, name)
+            setattr(os, name, blocked)
     try:
         yield
     finally:
@@ -276,6 +285,11 @@ def block_outbound_network() -> Iterator[None]:
         socket.gethostbyname = originals["gethostbyname"]
         socket.gethostbyname_ex = originals["gethostbyname_ex"]
         socket.gethostbyaddr = originals["gethostbyaddr"]
+        subprocess.Popen = process_originals["subprocess.Popen"]  # type: ignore[assignment]
+        for name in guarded_os_calls:
+            original = process_originals.get(f"os.{name}")
+            if original is not None:
+                setattr(os, name, original)
 
 
 def stable_file_record(source: Path, destination: Path, retries: int = 8) -> dict[str, Any]:
@@ -1616,15 +1630,20 @@ def simulation_checkpoint(
         "state": state,
         "images_used": sorted(images_used),
         "lines_used": sorted(lines_used),
-        "rng_state": base64.b64encode(pickle.dumps(rng_state, protocol=4)).decode("ascii"),
+        "rng_state": production_sim.rng_state_encode(rng_state),
     }
 
 
 def restore_simulation_checkpoint(payload: dict[str, Any]) -> tuple[int, int, dict[str, Any], set[str], set[str], object]:
+    try:
+        rng_state = production_sim.rng_state_decode(payload["rng_state"])
+    except (KeyError, TypeError, production_sim.SimulationSafetyError) as exc:
+        raise HarnessError(
+            "unsafe, legacy, or malformed simulation checkpoint rejected; restart this seed"
+        ) from exc
     return (
         int(payload["event_index"]), int(payload["virtual_epoch"]), payload["state"],
-        set(payload["images_used"]), set(payload["lines_used"]),
-        pickle.loads(base64.b64decode(payload["rng_state"].encode("ascii"))),
+        set(payload["images_used"]), set(payload["lines_used"]), rng_state,
     )
 
 

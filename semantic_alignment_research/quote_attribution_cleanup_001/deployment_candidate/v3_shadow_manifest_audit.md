@@ -1,14 +1,15 @@
 # Attribution-cleaned v3 shadow manifest
 
 - Result: **PASS**
-- Manifest SHA-256: `8b202352ddf89af5860446f4dd20577832981fcf778316b2b01121f7c5550706`
-- Quotations: 613
+- Manifest SHA-256: `dd52144300f0c9dc5d5ed12034b9ee1b3af40650771a713776f0d1142a9f98bb`
+- Quotations: 610
 - Images: 91
-- Pairs: 22157 (22028 allow, 129 veto)
+- Pairs: 22066 (21938 allow, 128 veto)
 - Current-winner coverage: 100.00%
 - Seasonal-boundary coverage: 100.00%
 - Stateful weighted coverage: 99.77%
 - Removed and unresolved quotations: absent
 - Modes accepted by runtime: disabled, shadow
-- Live manifest replaced: no
+- Configured manifest file rebuilt: yes
+- Running shadow runtime reloaded: no (the current process retains its prior in-memory lookup)
 - New AI calls: 0

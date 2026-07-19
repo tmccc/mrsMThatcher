@@ -191,6 +191,59 @@ def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, 
 
 
 @pytest.mark.parametrize(
+    "lane",
+    ["regular_quote", "meme", "mention", "quote_tweet", "historical_context"],
+)
+def test_existing_ambiguity_marker_blocks_each_lane_before_preparation(
+    lane: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import historical_context_formatter
+
+    install_paths(monkeypatch, tmp_path)
+    (tmp_path / "ambiguous_post_outcome.json").write_text("{}\n", encoding="utf-8")
+    calls: list[str] = []
+
+    def prepared(name: str):
+        calls.append(name)
+        pytest.fail(f"{name} preparation must not run after an ambiguous post")
+
+    if lane == "regular_quote":
+        monkeypatch.setattr(bot, "reconcile_main_post_receipts", lambda *_args: prepared("receipt reconciliation"))
+        invoke = lambda: bot.post_random_quote(set(), set(), bot.default_state())
+    elif lane == "meme":
+        monkeypatch.setattr(bot, "both_main_post_receipts_exist", lambda: prepared("meme receipt check"))
+        invoke = lambda: bot.post_next_meme(bot.default_state())
+    elif lane == "mention":
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "get_mentions", lambda *_args: prepared("mention fetch"))
+        invoke = lambda: bot.maybe_reply_to_mentions(bot.default_state())
+    elif lane == "quote_tweet":
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(bot, "build_quote_lookup_post_ids", lambda *_args: prepared("quote lookup"))
+        invoke = lambda: bot.maybe_reply_to_quote_tweets(bot.default_state())
+    else:
+        monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
+        monkeypatch.setattr(
+            historical_context_formatter,
+            "load_and_validate_corpus",
+            lambda *_args: prepared("historical research load"),
+        )
+        invoke = lambda: bot.maybe_post_historical_context_reply(
+            quote_hash="a" * 64,
+            quote_text="Quote",
+            parent_post_id="123",
+        )
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome, match="Unreconciled ambiguous"):
+        invoke()
+
+    assert calls == []
+
+
+@pytest.mark.parametrize(
     ("body", "message"),
     [(b"not json", "non-JSON"), (b"[]", "JSON object")],
 )

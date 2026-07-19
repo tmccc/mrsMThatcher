@@ -37,7 +37,8 @@ CANNED_PATTERNS = (
 CONCRETE_QUESTION_RE = re.compile(
     r"^(?:@[A-Za-z0-9_]+\s+)*(?:(?:please\s+)?(?:(?:(?:can|could|would)\s+you\s+)?"
     r"tell\s+me|do\s+you\s+know)\s+)?"
-    r"(?P<word>who|what|where|when|were(?=\s+did\b))\b",
+    r"(?P<word>how\s+(?:long|many)|who|whose|what|where|when|which|"
+    r"were(?=\s+did\b)|did|does|do|was|were|is|are|has|have|had)\b",
     re.IGNORECASE,
 )
 ABSTRACT_ANSWER_OPENINGS = (
@@ -102,6 +103,22 @@ ABSOLUTE_TEMPORAL_ANSWER_RE = re.compile(
     re.IGNORECASE,
 )
 RELATIVE_TEMPORAL_ANSWER_RE = re.compile(r"\b(?:after|before|during)\s+([^,.;!?]+)", re.IGNORECASE)
+QUANTITY_ANSWER_RE = re.compile(
+    r"\b(?:\d+(?:[.,]\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|"
+    r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
+    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"
+    r"billion|dozen)\b",
+    re.IGNORECASE,
+)
+DURATION_ANSWER_RE = re.compile(
+    r"(?:\b(?:for\s+)?(?:\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|"
+    r"ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
+    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)"
+    r"(?:[-\s](?:one|two|three|four|five|six|seven|eight|nine))?\s+"
+    r"(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?|decades?|centuries?)\b|"
+    r"\bfrom\s+[^,.;!?]+?\s+(?:to|through|until)\s+[^,.;!?]+)",
+    re.IGNORECASE,
+)
 VAGUE_FACTUAL_PREDICATE_RE = re.compile(
     r"\b(?:is|are|was|were)\s+(?:complex|consequential|important|noteworthy|"
     r"remarkable|serious|significant)\b",
@@ -646,7 +663,7 @@ def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str |
 
 
 def concrete_factual_question_word(text: str) -> str | None:
-    """Return the leading who/what/where/when word for a concrete question."""
+    """Return the requested fact class for a leading concrete question."""
     value = " ".join(str(text or "").split())
     candidate = value
     for _ in range(3):
@@ -673,7 +690,28 @@ def concrete_factual_question_word(text: str) -> str | None:
     if not match:
         return None
     remainder = candidate[match.end():].lstrip()
-    word = match.group("word").lower()
+    word = "_".join(match.group("word").lower().split())
+    if word == "were" and re.match(r"did\b", remainder, re.IGNORECASE):
+        word = "where"
+    elif word in {"did", "does", "do", "was", "were", "is", "are", "has", "have", "had"}:
+        word = "yes_no"
+        subjective = re.match(
+            r"(?:you|we|i)\s+(?:agree|believe|feel|hope|prefer|suppose|think|want)\b",
+            remainder,
+            re.IGNORECASE,
+        )
+        factual_marker = (
+            re.search(r"\b\d{3,4}\b", remainder)
+            or re.search(
+                r"\b(?:became|began|born|died|elected|ended|happen(?:ed)?|held|introduced|"
+                r"join(?:ed)?|left|located|lost|occurred|passed|published|served|signed|won)\b",
+                remainder,
+                re.IGNORECASE,
+            )
+            or re.search(r"\b[A-Z][A-Za-z'-]{2,}\b", remainder)
+        )
+        if subjective or not factual_marker:
+            return None
     if word == "what" and re.match(
         r"(?:a|an|the|this|that)\s+(?:[\w'-]+\s+){0,2}"
         r"(?:day|disaster|joke|mess|shame|surprise)\s*[!?]*$",
@@ -682,14 +720,25 @@ def concrete_factual_question_word(text: str) -> str | None:
     ):
         return None
     if "?" not in candidate:
-        if not re.match(
+        if word in {"which", "whose", "how_many", "how_long"}:
+            if not re.search(
+                r"\b(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
+                r"should|happened|became|began|ended|occurred|took)\b",
+                remainder,
+                re.IGNORECASE,
+            ):
+                return None
+        elif word == "yes_no":
+            if not remainder:
+                return None
+        elif not re.match(
             r"(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
             r"should|happened|became|began|ended|occurred|took)\b",
             remainder,
             re.IGNORECASE,
         ):
             return None
-    return "where" if word == "were" else word
+    return word
 
 
 def direct_factual_answer_error(
@@ -743,6 +792,12 @@ def direct_factual_answer_error(
         lowered,
     ):
         return "where questions require a place or direction in the first sentence"
+    elif question_word == "how_many" and not QUANTITY_ANSWER_RE.search(lowered):
+        return "how many questions require a quantity in the first sentence"
+    elif question_word == "how_long" and not DURATION_ANSWER_RE.search(lowered):
+        return "how long questions require a duration in the first sentence"
+    elif question_word == "yes_no" and not re.match(r"^(?:yes|no)\b", lowered):
+        return "yes-or-no questions require an explicit answer in the first sentence"
 
     question_lower = question.lower()
     if "berlin wall" in question_lower and question_word == "where":
@@ -861,6 +916,9 @@ def direct_factual_answer_error(
             }
             if not (location_tokens - question_tokens) & evidence_tokens:
                 return "where answers require an evidence-supported place or direction"
+        elif question_word == "yes_no":
+            if len(question_tokens & evidence_tokens) < 2:
+                return "yes-or-no answers require evidence supporting the questioned proposition"
         elif not novel_supported_answer_tokens:
             return "concrete factual answers must be supported by the selected evidence"
     return None
@@ -877,7 +935,8 @@ def direct_question_prompt_guidance(question: str, *, clarification: bool = Fals
     )
     return (
         prefix
-        + "Answer the requested who, what, where, or when fact directly in the first sentence. "
+        + "Answer the requested who, what, where, when, which, whose, quantity, duration, or yes/no "
+        "fact directly in the first sentence. "
         "Do not substitute an ideological summary, researched principle, joke, or rhetorical flourish. "
         "Use historical_context or historical_correction with grounded evidence, humour_tone=none, "
         "and at most one brief contextual sentence after the answer. If the supplied evidence is "

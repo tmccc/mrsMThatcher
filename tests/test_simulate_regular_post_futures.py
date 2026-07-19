@@ -393,6 +393,20 @@ def test_rng_state_round_trip() -> None:
     assert [restored.random() for _ in range(3)] == expected
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "not-json",
+        '{}',
+        '{"schema_version":2,"state_version":3,"internal_state":[],"gauss_next":null}',
+        '{"schema_version":1,"state_version":3,"internal_state":[true],"gauss_next":null}',
+    ],
+)
+def test_rng_state_decoder_rejects_legacy_or_malformed_payloads(value: str) -> None:
+    with pytest.raises(sim.SimulationSafetyError):
+        sim.rng_state_decode(value)
+
+
 def test_consistent_group_snapshot_reads_complete_files(tmp_path: Path) -> None:
     a = tmp_path / "a.json"
     b = tmp_path / "b.json"

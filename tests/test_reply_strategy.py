@@ -602,6 +602,15 @@ def test_concrete_question_syntax_does_not_require_terminal_punctuation() -> Non
         ("Can I ask when it happened?", "when"),
         ("Could you explain what happened?", "what"),
         ("Please explain what happened?", "what"),
+        ("Which side did people move towards when the wall fell?", "which"),
+        ("How many years did the wall stand?", "how_many"),
+        ("How long did the wall stand?", "how_long"),
+        ("Whose government introduced the policy?", "whose"),
+        ("Did the wall divide East and West?", "yes_no"),
+        ("Was the treaty signed in London", "yes_no"),
+        ("Is freedom important?", None),
+        ("Do you think leadership matters?", None),
+        ("Would socialism work?", None),
         ("What a mess?", None),
         ("What an absolute mess?", None),
         ("What a complete disaster?", None),
@@ -639,6 +648,63 @@ def test_grounded_metadata_cannot_rescue_a_non_answer_to_a_factual_question() ->
             allowed_quote_ids={"a" * 64},
             direct_question_text="Who was Prime Minister in 1979?",
         )
+
+
+def test_which_and_how_many_questions_require_the_requested_supported_fact() -> None:
+    packet = {
+        "quote_text": "The Berlin Wall divided East Berlin from West Berlin from 1961 until 1989.",
+        "verified_text": "The Berlin Wall divided East Berlin from West Berlin from 1961 until 1989.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
+        "historical_context": "The wall stood for 28 years before movement opened from East to West.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
+
+    assert direct_factual_answer_error(
+        "Which side did people move towards when the Berlin Wall fell?",
+        "People moved towards West Berlin and West Germany.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "Which side did people move towards when the Berlin Wall fell?",
+        "When free to choose, people choose freedom.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "How many years did the Berlin Wall stand?",
+        "It stood for 28 years.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "How many years did the Berlin Wall stand?",
+        "It stood for many years.",
+        evidence,
+    ) is not None
+
+
+def test_yes_no_factual_question_requires_an_explicit_grounded_answer() -> None:
+    packet = {
+        "quote_text": "The treaty was signed in London.",
+        "verified_text": "The treaty was signed in London.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["London"],
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The treaty.", packet)]
+
+    assert direct_factual_answer_error(
+        "Was the treaty signed in London?",
+        "Yes, it was signed in London.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "Was the treaty signed in London?",
+        "The location was London.",
+        evidence,
+    ) is not None
 
 
 def test_direct_who_answer_must_be_supported_by_selected_evidence() -> None:

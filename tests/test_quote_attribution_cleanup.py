@@ -259,8 +259,8 @@ def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> N
 
     manifest = cleanup.read_json(path)
     audit = validate_compiled_manifest(manifest, strict=True)
-    assert audit["quote_count"] == 613
-    assert audit["pair_count"] == 22_157
+    assert audit["quote_count"] == 610
+    assert audit["pair_count"] == 22_066
     config = {
         "enabled": True,
         "mode": "shadow",
@@ -271,3 +271,25 @@ def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> N
     }
     runtime = ShadowRuntime.load(cleanup.ROOT, config, verify_source_hashes=True, enable_history=False)
     assert runtime.available, runtime.reason
+    eligibility = cleanup.read_json(
+        cleanup.DEFAULT_RUN / "deployment_candidate/runtime_eligible_quote_manifest.json"
+    )
+    expected_runtime_ids = set(eligibility["runtime_eligible_quote_ids"])
+    runtime = ShadowRuntime.load(
+        cleanup.ROOT,
+        config,
+        verify_source_hashes=True,
+        enable_history=False,
+        expected_runtime_quote_ids=expected_runtime_ids,
+    )
+    assert runtime.available, runtime.reason
+
+    stale = ShadowRuntime.load(
+        cleanup.ROOT,
+        config,
+        verify_source_hashes=True,
+        enable_history=False,
+        expected_runtime_quote_ids=expected_runtime_ids - {next(iter(expected_runtime_ids))},
+    )
+    assert stale.available is False
+    assert stale.status == "manifest_stale"

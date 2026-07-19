@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -117,6 +118,71 @@ def test_default_log_discovery_excludes_selftest_logs(tmp_path):
     assert production in discovered
     assert rotation in discovered
     assert selftest not in discovered
+
+
+def test_repeated_identical_records_in_one_log_are_preserved(tmp_path: Path) -> None:
+    path = tmp_path / "mrsMThatcher.log"
+    line = "2026-07-10 12:00:00 INFO     worker:9 - identical event\n"
+    path.write_text(line + line, encoding="utf-8")
+
+    records = digest.read_records([path], None, None)
+
+    assert len(records) == 2
+    assert [record.ordinal for record in records] == [1, 2]
+
+
+def test_overlapping_rotations_preserve_maximum_occurrence_cardinality(tmp_path: Path) -> None:
+    current = tmp_path / "mrsMThatcher.log"
+    rotation = tmp_path / "mrsMThatcher.log.1"
+    line = "2026-07-10 12:00:00 INFO     worker:9 - identical event\n"
+    current.write_text(line + line, encoding="utf-8")
+    rotation.write_text(line, encoding="utf-8")
+
+    records = digest.read_records([current, rotation], None, None)
+
+    assert len(records) == 2
+    assert all(record.path == str(current) for record in records)
+
+
+def test_resume_boundary_counts_preserve_new_identical_occurrence(tmp_path: Path) -> None:
+    timestamp = datetime(2026, 7, 10, 12, 0, 0)
+    first = digest.Record(timestamp, "INFO", "worker", 9, "identical event", "bot.log", 1)
+    second = digest.Record(timestamp, "INFO", "worker", 9, "identical event", "bot.log", 2)
+    fingerprint = digest.record_fingerprint(first)
+
+    filtered = digest.filter_resume_boundary_records(
+        [first, second],
+        timestamp,
+        Counter({fingerprint: 1}),
+    )
+
+    assert filtered == [second]
+
+    state_file = tmp_path / ".resume.json"
+    report = {
+        "latest_state": {},
+        "latest_config": {},
+        "summary": {},
+        "generated_image_spacing": {},
+        "resume_context": {},
+    }
+    digest.save_resume_time(state_file, timestamp, [first], report, [tmp_path / "bot.log"])
+    digest.save_resume_time(
+        state_file,
+        timestamp,
+        [second],
+        report,
+        [tmp_path / "bot.log"],
+        merge_existing_boundary_occurrences=True,
+    )
+    saved = json.loads(state_file.read_text(encoding="utf-8"))
+    assert saved["last_log_entry_fingerprint_counts"] == {fingerprint: 2}
+
+
+def test_legacy_resume_fingerprint_list_maps_to_one_occurrence_each() -> None:
+    assert digest.resume_boundary_fingerprint_counts(
+        {"last_log_entry_fingerprints": ["a", "b"]}
+    ) == Counter({"a": 1, "b": 1})
 
 
 def test_selftest_records_cannot_supply_production_state_or_config():

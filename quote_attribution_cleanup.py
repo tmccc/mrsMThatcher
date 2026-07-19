@@ -1149,8 +1149,13 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         raise CleanupError(f"project directory must be {ROOT}")
     run_dir = run_dir.resolve()
     from semantic_alignment.quote_image_semantic_veto import (
+        ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
         ShadowRuntime,
         validate_compiled_manifest,
+    )
+    from historical_context_formatter import (
+        THATCHER_ATTRIBUTION_RULE_VERSION,
+        packet_is_attributed_to_margaret_thatcher,
     )
 
     source_path = run_dir / "deployment_candidate/semantic_veto_shadow_manifest.json"
@@ -1176,24 +1181,131 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
     if validation.get("passed") is not True:
         raise CleanupError("reduced-corpus simulator validation did not pass")
 
-    active_ids = set(active.get("active_quote_ids") or [])
+    historical_active_ids = set(active.get("active_quote_ids") or [])
     excluded_ids = set(active.get("attribution_exclusion_quote_ids") or [])
     unresolved_ids = set(active.get("research_unresolved_quote_ids") or [])
     pair_quote_ids = {str(row.get("quote_id") or "") for row in (source.get("pairs") or {}).values()}
-    if len(active_ids) != EXPECTED_CONFIRMED or pair_quote_ids != active_ids:
+    if len(historical_active_ids) != EXPECTED_CONFIRMED or pair_quote_ids != historical_active_ids:
         raise CleanupError("v3 shadow pair quotation set differs from the 613 active IDs")
     if pair_quote_ids & (excluded_ids | unresolved_ids):
         raise CleanupError("removed or unresolved quotation entered the v3 shadow manifest")
 
+    packets_path = RESEARCH_RUN / "research_packets.json"
+    packets = read_json(packets_path).get("items") or {}
+    current_source_ids = {
+        row["quote_id"] for row in source_records((ROOT / SOURCE_NAME).read_bytes())
+    }
+    runtime_quote_ids = {
+        quote_id(str(packet.get("quote_text") or ""))
+        for packet in packets.values()
+        if isinstance(packet, dict)
+        and packet_is_attributed_to_margaret_thatcher(packet)
+        and quote_id(str(packet.get("quote_text") or "")) in current_source_ids
+    }
+    if len(runtime_quote_ids) != 610:
+        raise CleanupError(
+            f"current attribution predicate yielded {len(runtime_quote_ids)} runtime quotations; expected 610"
+        )
+    aliases = source.get("runtime_quote_aliases") or {}
+    resolved_runtime_ids = {
+        str(aliases.get(runtime_id) or runtime_id)
+        for runtime_id in runtime_quote_ids
+    }
+    stale_quote_ids = pair_quote_ids - resolved_runtime_ids
+    missing_quote_ids = resolved_runtime_ids - pair_quote_ids
+    expected_stale_ids = {
+        "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
+        "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
+        "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+    }
+    if stale_quote_ids != expected_stale_ids or missing_quote_ids:
+        raise CleanupError(
+            "v3 runtime eligibility delta is not the three evidence-backed stale quotations: "
+            f"stale={sorted(stale_quote_ids)} missing={sorted(missing_quote_ids)}"
+        )
+
+    candidate_manifest = read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json")
+    stale_unknown_pairs = [
+        row for row in (candidate_manifest.get("records") or {}).values()
+        if str(row.get("quote_id") or "") in stale_quote_ids
+        and row.get("decision") == "unknown"
+    ]
+    if stale_unknown_pairs:
+        raise CleanupError("stale quotations contain unknown pairs; unknown totals require reconciliation")
+
+    eligibility_path = run_dir / "deployment_candidate/runtime_eligible_quote_manifest.json"
+    stale_packet_evidence = []
+    for packet_id in sorted(stale_quote_ids):
+        packet = packets.get(packet_id) or {}
+        stale_packet_evidence.append({
+            "quote_id": packet_id,
+            "quote_text": packet.get("quote_text"),
+            "speaker": packet.get("speaker"),
+            "verification_status": packet.get("verification_status"),
+            "reason": "excluded_by_current_attribution_predicate",
+        })
+    eligibility_manifest = {
+        "schema_version": 1,
+        "eligibility_rule_version": THATCHER_ATTRIBUTION_RULE_VERSION,
+        "source_record_count": len(current_source_ids),
+        "runtime_eligible_quote_count": len(runtime_quote_ids),
+        "runtime_eligible_quote_ids": sorted(runtime_quote_ids),
+        "resolved_manifest_quote_ids": sorted(resolved_runtime_ids),
+        "runtime_quote_aliases": dict(sorted(aliases.items())),
+        "stale_manifest_quote_evidence": stale_packet_evidence,
+        "source_file_hashes": {
+            "active_source": sha256_file(ROOT / SOURCE_NAME),
+            "completed_quote_research": sha256_file(packets_path),
+            "attribution_predicate": sha256_file(ROOT / "historical_context_formatter.py"),
+        },
+    }
+    atomic_write_json(eligibility_path, eligibility_manifest)
+
     source_files = {
         "active_source": ROOT / SOURCE_NAME,
-        "active_quote_manifest": active_path,
+        "runtime_eligible_quote_manifest": eligibility_path,
+        "completed_quote_research": packets_path,
+        "attribution_predicate": ROOT / "historical_context_formatter.py",
         "candidate_manifest_v3": DEFAULT_REMEDIATION / "candidate_manifest_v3.json",
         "quote_contracts_v3": DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl",
         "image_contracts_v3": DEFAULT_REMEDIATION / "image_contracts_v3.jsonl",
         "simulator_validation": validation_path,
     }
     manifest = json.loads(json.dumps(source))
+    manifest["pairs"] = {
+        key: row
+        for key, row in manifest["pairs"].items()
+        if str(row.get("quote_id") or "") in resolved_runtime_ids
+    }
+    decisions = Counter(str(row.get("decision") or "") for row in manifest["pairs"].values())
+    manifest["policy_version"] = ATTRIBUTION_CLEANED_V3_POLICY_VERSION
+    manifest["source_run_id"] = f"{source.get('source_run_id', 'v3')}-runtime-eligible-610"
+    manifest["quote_count"] = len(resolved_runtime_ids)
+    manifest["pair_count"] = len(manifest["pairs"])
+    manifest["allow_count"] = decisions["allow"]
+    manifest["veto_count"] = decisions["veto"]
+    manifest["quote_text"] = {
+        quote_key: text for quote_key, text in (manifest.get("quote_text") or {}).items()
+        if quote_key in resolved_runtime_ids
+    }
+    manifest["quote_has_allowed_candidate"] = {
+        quote_key: flag
+        for quote_key, flag in (manifest.get("quote_has_allowed_candidate") or {}).items()
+        if quote_key in resolved_runtime_ids
+    }
+    manifest["quotes_with_allowed_candidate"] = sum(
+        flag is True for flag in manifest["quote_has_allowed_candidate"].values()
+    )
+    manifest["quotes_without_allowed_candidate"] = sum(
+        flag is False for flag in manifest["quote_has_allowed_candidate"].values()
+    )
+    manifest["quotes_without_allowed_candidate_ids"] = sorted(
+        quote_key for quote_key, flag in manifest["quote_has_allowed_candidate"].items()
+        if flag is False
+    )
+    manifest["runtime_eligible_quote_ids"] = sorted(runtime_quote_ids)
+    manifest["attribution_rule_version"] = THATCHER_ATTRIBUTION_RULE_VERSION
+    manifest["compiled_at"] = str(source.get("compiled_at") or "")
     source_records_by_pair = {
         (str(row.get("quote_id") or ""), str(row.get("image_hash") or "")): row
         for row in (read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json").get("records") or {}).values()
@@ -1210,7 +1322,6 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
             )
         row["veto_reason_codes"] = reasons
         normalised_veto_reason_count += 1
-    manifest["compiled_at"] = utc_now()
     manifest["source_file_hashes"] = {
         name: {"path": str(path.relative_to(ROOT)), "sha256": sha256_file(path)}
         for name, path in source_files.items()
@@ -1224,6 +1335,8 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "production_selection_invariant_failures": gates["production_selection_invariant_failures"],
         "removed_quote_count": len(excluded_ids),
         "unresolved_quote_count": len(unresolved_ids),
+        "runtime_eligible_quote_count": len(runtime_quote_ids),
+        "stale_manifest_quote_count_removed": len(stale_quote_ids),
         "new_ai_spend_usd": 0.0,
     }
     audit = validate_compiled_manifest(manifest, strict=True)
@@ -1251,9 +1364,13 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "runtime_memory_bytes": runtime.memory_bytes,
         "validation_evidence": manifest["validation_evidence"],
         "removed_or_unresolved_quote_ids_present": [],
+        "stale_quote_ids_removed": sorted(stale_quote_ids),
+        "runtime_eligibility_manifest_path": str(eligibility_path.relative_to(ROOT)),
+        "runtime_eligibility_manifest_sha256": sha256_file(eligibility_path),
         "active_enforcement": False,
         "new_ai_calls": 0,
-        "live_manifest_replaced": False,
+        "configured_manifest_file_rebuilt": True,
+        "running_shadow_runtime_reloaded": False,
         "veto_reason_rows_normalised_from_prior_judgement": normalised_veto_reason_count,
     }
     atomic_write_json(run_dir / "deployment_candidate/v3_shadow_manifest_audit.json", result)
@@ -1269,7 +1386,8 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         f"- Stateful weighted coverage: {gates['stateful_weighted_winner_coverage']:.2%}",
         "- Removed and unresolved quotations: absent",
         "- Modes accepted by runtime: disabled, shadow",
-        "- Live manifest replaced: no",
+        "- Configured manifest file rebuilt: yes",
+        "- Running shadow runtime reloaded: no (the current process retains its prior in-memory lookup)",
         "- New AI calls: 0", "",
     ]))
     return result

@@ -19,6 +19,8 @@ from semantic_alignment.quote_image_semantic_veto import (
     historical_replay,
     sha256_value,
     shadow_preflight,
+    shadow_status,
+    summarise_events,
     validate_compiled_manifest,
     validate_shadow_config,
 )
@@ -95,8 +97,8 @@ def test_attribution_cleaned_v3_policy_is_strictly_validated() -> None:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     assert manifest["policy_version"] == ATTRIBUTION_CLEANED_V3_POLICY_VERSION
     audit = validate_compiled_manifest(manifest)
-    assert (audit["quote_count"], audit["image_count"]) == (613, 91)
-    assert (audit["allow_count"], audit["veto_count"]) == (22_028, 129)
+    assert (audit["quote_count"], audit["image_count"]) == (610, 91)
+    assert (audit["allow_count"], audit["veto_count"]) == (21_938, 128)
 
 
 def test_attribution_cleaned_v3_rejects_old_corpus_counts() -> None:
@@ -240,6 +242,7 @@ def test_startup_loader_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
     })()
     monkeypatch.setattr(bot, "quote_image_semantic_veto", enabled_config())
     monkeypatch.setattr(bot, "_QUOTE_IMAGE_SEMANTIC_VETO_SHADOW", None)
+    monkeypatch.setattr(bot, "completed_research_quote_hashes", lambda: {"c" * 64})
     monkeypatch.setattr(module.ShadowRuntime, "load", lambda *args, **kwargs: calls.append(1) or runtime)
     bot.initialise_quote_image_semantic_veto_shadow()
     bot.initialise_quote_image_semantic_veto_shadow()
@@ -397,6 +400,100 @@ def test_digest_classifies_legacy_veto_without_category_as_coverage_gap() -> Non
     assert summary["coverage_gap_no_safe_image"] == 2
     assert summary["quotes_with_no_globally_allowed_candidate"] == 1
     assert summary["examples"][0]["veto_category"] == "coverage_gap_no_safe_image"
+
+
+def test_runtime_summary_does_not_mix_manifest_versions() -> None:
+    old = {
+        "shadow_status": "veto",
+        "manifest_policy_version": "old-policy",
+        "manifest_sha256": "a" * 64,
+        "alternative_available": True,
+        "production_selection_changed": False,
+    }
+    current = {
+        "shadow_status": "allow",
+        "manifest_policy_version": "current-policy",
+        "manifest_sha256": "b" * 64,
+        "production_selection_changed": False,
+    }
+
+    summary = summarise_events(
+        [old, current],
+        current_manifest_sha256="b" * 64,
+        current_policy_version="current-policy",
+    )
+
+    assert summary["events"] == 1
+    assert summary["allowed"] == 1
+    assert summary["vetoed"] == 0
+    assert summary["history_events_all_manifests"] == 2
+    assert summary["events_excluded_from_current_manifest_summary"] == 1
+    assert summary["mixed_manifest_versions"] is True
+    assert len(summary["manifest_strata"]) == 2
+
+
+def test_shadow_status_progress_uses_only_configured_manifest(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_bytes(MANIFEST.read_bytes())
+    manifest_value = json.loads(manifest.read_text(encoding="utf-8"))
+    manifest_hash = sha256_file(manifest)
+    (tmp_path / "mrsMThatcher.local.json").write_text(
+        json.dumps({"quote_image_semantic_veto": enabled_config(manifest)}),
+        encoding="utf-8",
+    )
+    runtime = tmp_path / "quote_image_semantic_veto_runtime"
+    runtime.mkdir()
+    rows = [
+        {
+            "shadow_status": "veto",
+            "manifest_policy_version": "retired-policy",
+            "manifest_sha256": "f" * 64,
+            "production_selection_changed": False,
+        },
+        {
+            "shadow_status": "allow",
+            "manifest_policy_version": manifest_value["policy_version"],
+            "manifest_sha256": manifest_hash,
+            "production_selection_changed": False,
+        },
+    ]
+    (runtime / "shadow_history.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+    status = shadow_status(tmp_path)
+
+    assert status["events"] == 1
+    assert status["allowed"] == 1
+    assert status["vetoed"] == 0
+    assert status["observation_progress"] == {"toward_100": 1, "toward_200": 1}
+    assert status["events_excluded_from_current_manifest_summary"] == 1
+
+
+def test_digest_reports_latest_manifest_without_inheriting_old_vetoes() -> None:
+    old = {
+        "shadow_status": "veto",
+        "manifest_policy_version": "old-policy",
+        "manifest_sha256": "a" * 64,
+        "alternative_available": True,
+        "production_selection_changed": False,
+    }
+    current = {
+        "shadow_status": "allow",
+        "manifest_policy_version": "current-policy",
+        "manifest_sha256": "b" * 64,
+        "production_selection_changed": False,
+    }
+
+    summary = digest.quote_image_semantic_veto_summary([old, current])
+
+    assert summary["selection_time_observations"] == 1
+    assert summary["allowed_production_winners"] == 1
+    assert summary["vetoed_production_winners"] == 0
+    assert summary["window_event_count_all_manifests"] == 2
+    assert summary["events_excluded_from_current_manifest_summary"] == 1
+    assert summary["mixed_manifest_versions"] is True
 
 
 def test_digest_old_logs_and_missing_runtime_remain_compatible(tmp_path: Path) -> None:

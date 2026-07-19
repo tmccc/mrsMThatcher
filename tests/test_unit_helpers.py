@@ -6777,6 +6777,61 @@ def test_append_unique_capped_discards_oldest_items() -> None:
     assert bot.append_unique_capped(["a", "b", "c"], "d", 3) == ["b", "c", "d"]
 
 
+def test_completed_reply_target_ledger_never_evicts_old_ids() -> None:
+    existing = ["oldest", *(str(index) for index in range(2500))]
+    updated = bot.append_unique_durable(existing, "newest")
+
+    assert updated[0] == "oldest"
+    assert updated[-1] == "newest"
+    assert len(updated) == 2502
+    assert bot.append_unique_durable(updated, "oldest") == updated
+
+
+def test_quote_tweet_completed_ledger_is_not_a_bounded_seen_cache() -> None:
+    state = bot.default_state()
+    state["replied_to_quote_post_ids"] = ["oldest", *(str(index) for index in range(2500))]
+
+    bot.mark_quote_tweet_replied(state, "newest")
+
+    assert "oldest" in state["replied_to_quote_post_ids"]
+    assert state["replied_to_quote_post_ids"][-1] == "newest"
+    assert len(state["replied_to_quote_post_ids"]) == 2502
+
+
+def test_terminal_reply_evaluation_ledger_never_evicts_old_targets() -> None:
+    state = bot.default_state()
+    state["reply_evaluation_records"] = {
+        "oldest": {
+            "target_id": "oldest",
+            "lane": "mention",
+            "outcome": "no_reply",
+            "reason": "terminal",
+            "evaluated_epoch": 1,
+        },
+        **{
+            str(index): {
+                "target_id": str(index),
+                "lane": "mention",
+                "outcome": "no_reply",
+                "reason": "terminal",
+                "evaluated_epoch": index + 2,
+            }
+            for index in range(2100)
+        },
+    }
+
+    bot.record_terminal_reply_evaluation(
+        state,
+        target_id="newest",
+        lane="mention",
+        reason="terminal",
+    )
+
+    assert bot.terminal_reply_evaluation(state, "oldest") is not None
+    assert bot.terminal_reply_evaluation(state, "newest") is not None
+    assert len(state["reply_evaluation_records"]) == 2102
+
+
 @pytest.mark.parametrize(
     "reply,expected",
     [

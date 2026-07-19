@@ -965,7 +965,12 @@ def initialise_quote_image_semantic_veto_shadow() -> None:
         return
     from semantic_alignment.quote_image_semantic_veto import ShadowRuntime
 
-    runtime = ShadowRuntime.load(BASE_DIR, quote_image_semantic_veto, verify_source_hashes=True)
+    runtime = ShadowRuntime.load(
+        BASE_DIR,
+        quote_image_semantic_veto,
+        verify_source_hashes=True,
+        expected_runtime_quote_ids=completed_research_quote_hashes(),
+    )
     _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW = runtime
     if runtime.available:
         log.info(
@@ -1587,6 +1592,16 @@ def append_unique_capped(values: object, item: object, max_items: int) -> list[s
     existing = [value for value in existing if value != item_text]
     existing.append(item_text)
     return existing[-max_items:]
+
+
+def append_unique_durable(values: object, item: object) -> list[str]:
+    """Append once without evicting an authoritative completed-target record."""
+    item_text = str(item)
+    existing = [str(value) for value in values] if isinstance(values, list) else []
+    deduplicated = list(dict.fromkeys(existing))
+    if item_text not in deduplicated:
+        deduplicated.append(item_text)
+    return deduplicated
 
 
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
@@ -3894,6 +3909,11 @@ def block_if_ambiguous_remote_post() -> None:
         )
 
 
+def ambiguous_remote_post_is_blocking() -> bool:
+    """Return the global write barrier state without starting any remote work."""
+    return _AMBIGUOUS_REMOTE_POST_SEEN or AMBIGUOUS_POST_OUTCOME_FILE.exists()
+
+
 def record_ambiguous_remote_post(payload: dict) -> None:
     """Persist a manual-reconciliation barrier without claiming success or failure."""
     global _AMBIGUOUS_REMOTE_POST_SEEN
@@ -4855,6 +4875,8 @@ def maybe_post_historical_context_reply(
     dry_run: bool = False,
 ) -> dict:
     """Post an optional canonical context reply without affecting the main post."""
+    if not dry_run:
+        block_if_ambiguous_remote_post()
     if not historical_context_reply.get("enabled") and not dry_run:
         return {"status": "disabled"}
     try:
@@ -6857,6 +6879,7 @@ def choose_regular_quote_image_pair(
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     log.info("Starting quote/image post cycle")
+    block_if_ambiguous_remote_post()
 
     receipt_status = reconcile_main_post_receipts(lines_used, images_used, state)
     if receipt_status.get("regular"):
@@ -7373,6 +7396,7 @@ def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | No
 
 def post_next_meme(state: dict) -> None:
     log.info("Starting daily meme post cycle")
+    block_if_ambiguous_remote_post()
     if both_main_post_receipts_exist():
         log.critical(
             "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
@@ -8359,12 +8383,6 @@ def record_terminal_reply_evaluation(
         "reason": str(reason or "model_selected_no_reply"),
         "evaluated_epoch": now_epoch(),
     }
-    if len(records) > 2000:
-        ordered = sorted(
-            records.items(),
-            key=lambda item: (int(item[1].get("evaluated_epoch", 0) or 0), item[0]),
-        )
-        records = dict(ordered[-2000:])
     state["reply_evaluation_records"] = records
 
 
@@ -8606,10 +8624,9 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
     else:
         replied_to_ids = set(str(x) for x in state.get("replied_to_ids", []))
         already_recorded = target_id in replied_to_ids
-        state["replied_to_ids"] = append_unique_capped(
+        state["replied_to_ids"] = append_unique_durable(
             state.get("replied_to_ids", []),
             target_id,
-            1000,
         )
 
     state["own_auto_reply_ids"] = append_unique_capped(
@@ -8753,6 +8770,7 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
 
 def maybe_reply_to_mentions(state: dict) -> str:
     log.info("Starting mention reply check")
+    block_if_ambiguous_remote_post()
 
     if not ENABLE_AUTO_REPLIES:
         log.info("Auto replies disabled")
@@ -9198,10 +9216,9 @@ def maybe_reply_to_mentions(state: dict) -> str:
                 )
                 replied_to_ids.add(mention_id)
                 clear_pending_strategy_reply(state, mention_id, str(candidate_source))
-                state["replied_to_ids"] = append_unique_capped(
+                state["replied_to_ids"] = append_unique_durable(
                     state.get("replied_to_ids", []),
                     mention_id,
-                    1000,
                 )
                 mark_mention_seen_if_applicable(state, mention)
                 save_state(state, durable=True)
@@ -9604,10 +9621,9 @@ def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
         quote_id,
         2000,
     )
-    state["replied_to_quote_post_ids"] = append_unique_capped(
+    state["replied_to_quote_post_ids"] = append_unique_durable(
         state.get("replied_to_quote_post_ids", []),
         quote_id,
-        2000,
     )
 
 
@@ -9624,6 +9640,7 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
 
 def maybe_reply_to_quote_tweets(state: dict) -> str:
     log.info("Starting quote-tweet reply check")
+    block_if_ambiguous_remote_post()
 
     if not ENABLE_QUOTE_TWEET_CHECKS:
         log.info("Quote-tweet checks disabled")
@@ -10101,6 +10118,7 @@ def run_reply_lane_checks_for_tick(
     last_reply_check_epoch: int,
     last_quote_tweet_check_epoch: int,
 ) -> tuple[int, int]:
+    ambiguity_blocked = False
     last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
         state,
         "last_reply_check_epoch",
@@ -10125,7 +10143,7 @@ def run_reply_lane_checks_for_tick(
     )
 
     def run_normal_check(*, forced: bool = False) -> bool:
-        nonlocal last_reply_check_epoch
+        nonlocal last_reply_check_epoch, ambiguity_blocked
 
         if forced:
             log.info(
@@ -10135,8 +10153,17 @@ def run_reply_lane_checks_for_tick(
         else:
             log.info("Due to check mentions")
 
-        normal_check_status = maybe_reply_to_mentions(state)
+        try:
+            normal_check_status = maybe_reply_to_mentions(state)
+        except AmbiguousRemotePostOutcome:
+            ambiguity_blocked = True
+            log.critical("Normal reply lane stopped by the global ambiguous-post barrier")
+            return False
         log.info("Normal/hot-post reply check status=%s", normal_check_status)
+        if ambiguous_remote_post_is_blocking():
+            ambiguity_blocked = True
+            log.critical("Normal reply lane created an ambiguous-post barrier; skipping all later lanes")
+            return False
 
         if normal_check_status != NORMAL_CHECK_STATUS_SKIPPED_SPACING:
             last_reply_check_epoch = current
@@ -10160,13 +10187,22 @@ def run_reply_lane_checks_for_tick(
         return False
 
     def run_quote_check() -> bool:
-        nonlocal last_quote_tweet_check_epoch
+        nonlocal last_quote_tweet_check_epoch, ambiguity_blocked
 
         log.info("Due to check quote tweets")
         priority_at_check = str(state.get("next_reply_lane_priority", reply_lane_priority) or reply_lane_priority)
-        quote_check_status = maybe_reply_to_quote_tweets(state)
+        try:
+            quote_check_status = maybe_reply_to_quote_tweets(state)
+        except AmbiguousRemotePostOutcome:
+            ambiguity_blocked = True
+            log.critical("Quote-tweet lane stopped by the global ambiguous-post barrier")
+            return False
 
         log.info("Quote-tweet check status=%s", quote_check_status)
+        if ambiguous_remote_post_is_blocking():
+            ambiguity_blocked = True
+            log.critical("Quote-tweet lane created an ambiguous-post barrier; skipping all later lanes")
+            return False
         log_event("quote_check_status", status=quote_check_status, priority=priority_at_check)
 
         if quote_check_status == QUOTE_CHECK_STATUS_POSTED:
@@ -10194,11 +10230,11 @@ def run_reply_lane_checks_for_tick(
 
     if reply_spacing_open and quote_check_due and reply_lane_priority == "quote":
         quote_posted = run_quote_check()
-        if not quote_posted and mention_check_due:
+        if not quote_posted and mention_check_due and not ambiguity_blocked:
             run_normal_check()
     elif mention_check_due:
         normal_posted = run_normal_check()
-        if not normal_posted and quote_check_due:
+        if not normal_posted and quote_check_due and not ambiguity_blocked:
             run_quote_check()
     elif (
         reply_spacing_open
@@ -10207,7 +10243,7 @@ def run_reply_lane_checks_for_tick(
         and ENABLE_AUTO_REPLIES
     ):
         normal_posted = run_normal_check(forced=True)
-        if not normal_posted:
+        if not normal_posted and not ambiguity_blocked:
             run_quote_check()
     elif quote_check_due:
         run_quote_check()
@@ -10340,9 +10376,21 @@ def main() -> None:
 
     log.info("Bot started successfully")
 
+    ambiguity_pause_logged = False
     while True:
         current = now_epoch()
         log.debug("Main loop tick. epoch=%s", current)
+
+        if ambiguous_remote_post_is_blocking():
+            if not ambiguity_pause_logged:
+                log.critical(
+                    "All remote posting and reply lanes are paused by the ambiguous-post barrier; "
+                    "manual reconciliation and a controlled restart are required"
+                )
+                ambiguity_pause_logged = True
+            sleep(60)
+            continue
+        ambiguity_pause_logged = False
 
         last_reply_check_epoch, last_quote_tweet_check_epoch = run_reply_lane_checks_for_tick(
             state,
@@ -10350,6 +10398,8 @@ def main() -> None:
             last_reply_check_epoch,
             last_quote_tweet_check_epoch,
         )
+        if ambiguous_remote_post_is_blocking():
+            continue
 
         next_quote_epoch = int(state.get("next_quote_post_epoch", 0))
         if current >= next_quote_epoch:
@@ -10383,6 +10433,9 @@ def main() -> None:
                 "Not due to post quote/image. seconds_until_next=%s",
                 max(0, next_quote_epoch - current),
             )
+
+        if ambiguous_remote_post_is_blocking():
+            continue
 
         if ENABLE_DAILY_MEME_POSTS:
             next_meme_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
@@ -10575,8 +10628,17 @@ def run_test_cycle() -> int:
     quote_status = None
     before_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
 
+    def finish_if_ambiguity_blocked() -> bool:
+        if not ambiguous_remote_post_is_blocking():
+            return False
+        log.critical("Test cycle stopped after an ambiguous remote post; no later lane will run")
+        save_state(state)
+        return True
+
     if reply_lane_priority == "quote":
         quote_status = maybe_reply_to_quote_tweets(state)
+        if finish_if_ambiguity_blocked():
+            return 0
         log.info("Test-cycle quote-tweet check status=%s", quote_status)
         log_event("quote_check_status", status=quote_status, priority="test_cycle")
         after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)
@@ -10587,6 +10649,8 @@ def run_test_cycle() -> int:
             log.info("Test-cycle quote-tweet lane posted; next reply-lane priority=normal")
         else:
             maybe_reply_to_mentions(state)
+            if finish_if_ambiguity_blocked():
+                return 0
             after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
             if after_reply_epoch != after_quote_epoch:
                 state["next_reply_lane_priority"] = "quote"
@@ -10594,6 +10658,8 @@ def run_test_cycle() -> int:
                 log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
     else:
         maybe_reply_to_mentions(state)
+        if finish_if_ambiguity_blocked():
+            return 0
         after_reply_epoch = int(state.get("last_reply_epoch", 0) or 0)
 
         if after_reply_epoch != before_reply_epoch:
@@ -10602,6 +10668,8 @@ def run_test_cycle() -> int:
             log.info("Test-cycle normal/hot-post lane posted; next reply-lane priority=quote")
         else:
             quote_status = maybe_reply_to_quote_tweets(state)
+            if finish_if_ambiguity_blocked():
+                return 0
             log.info("Test-cycle quote-tweet check status=%s", quote_status)
             log_event("quote_check_status", status=quote_status, priority="test_cycle")
             after_quote_epoch = int(state.get("last_reply_epoch", 0) or 0)

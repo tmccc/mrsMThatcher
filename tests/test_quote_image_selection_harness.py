@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import socket
@@ -89,6 +90,14 @@ def test_network_guard_blocks_connections_udp_and_dns() -> None:
                 datagram.sendto(b"x", ("127.0.0.1", 9))
         with pytest.raises(harness.IsolationError):
             socket.getaddrinfo("example.com", 443)
+
+
+def test_network_guard_blocks_child_process_and_shell_escape() -> None:
+    with harness.block_outbound_network():
+        with pytest.raises(harness.IsolationError):
+            subprocess.run([sys.executable, "-c", "print('escape')"], check=True)
+        with pytest.raises(harness.IsolationError):
+            __import__("os").system("true")
 
 
 def test_open_audit_blocks_production_write_and_allows_private_write(tmp_path: Path) -> None:
@@ -501,6 +510,23 @@ def test_checkpoint_round_trip_is_deterministic() -> None:
     restored = harness.restore_simulation_checkpoint(payload)
     assert restored[:5] == (4, 100, {"x": 1}, {"a"}, {"b"})
     assert restored[5] == random_state
+
+
+def test_checkpoint_rejects_legacy_executable_pickle_without_running_it(tmp_path: Path) -> None:
+    marker = tmp_path / "pickle-ran"
+    legacy_pickle = f"cos\nsystem\n(S'touch {marker}'\ntR.".encode("utf-8")
+    payload = harness.simulation_checkpoint(
+        event_index=4,
+        virtual_epoch=100,
+        state={"x": 1},
+        images_used={"a"},
+        lines_used={"b"},
+        rng_state=__import__("random").Random(7).getstate(),
+    )
+    payload["rng_state"] = base64.b64encode(legacy_pickle).decode("ascii")
+    with pytest.raises(harness.HarnessError, match="checkpoint rejected"):
+        harness.restore_simulation_checkpoint(payload)
+    assert not marker.exists()
 
 
 def test_current_semantic_veto_replay_observations_are_not_dropped() -> None:

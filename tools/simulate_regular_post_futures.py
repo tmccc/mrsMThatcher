@@ -10,7 +10,6 @@ simulation session directory.
 from __future__ import annotations
 
 import argparse
-import base64
 import copy
 import hashlib
 import importlib
@@ -18,7 +17,6 @@ import json
 import logging
 import math
 import os
-import pickle
 import platform
 import random
 import shutil
@@ -798,11 +796,62 @@ def select_policy_image_with_recovery(
 
 
 def rng_state_encode(state: object) -> str:
-    return base64.b64encode(pickle.dumps(state, protocol=4)).decode("ascii")
+    normalised = _normalise_rng_state(state)
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "state_version": normalised[0],
+            "internal_state": list(normalised[1]),
+            "gauss_next": normalised[2],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 def rng_state_decode(value: str) -> object:
-    return pickle.loads(base64.b64decode(value.encode("ascii")))
+    if not isinstance(value, str) or len(value.encode("utf-8")) > 65536:
+        raise SimulationSafetyError("RNG checkpoint must be a bounded JSON string")
+    try:
+        payload = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise SimulationSafetyError(
+            "legacy or malformed RNG checkpoint rejected; restart this seed from its initial state"
+        ) from exc
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema_version", "state_version", "internal_state", "gauss_next"
+    }:
+        raise SimulationSafetyError("RNG checkpoint has an invalid schema")
+    if payload["schema_version"] != 1:
+        raise SimulationSafetyError("unsupported RNG checkpoint schema version")
+    return _normalise_rng_state(
+        (payload["state_version"], payload["internal_state"], payload["gauss_next"])
+    )
+
+
+def _normalise_rng_state(state: object) -> tuple[int, tuple[int, ...], float | None]:
+    if not isinstance(state, (tuple, list)) or len(state) != 3:
+        raise SimulationSafetyError("RNG state must contain exactly three fields")
+    state_version, internal_state, gauss_next = state
+    if type(state_version) is not int or state_version not in (2, 3):
+        raise SimulationSafetyError("unsupported Python RNG state version")
+    if not isinstance(internal_state, (tuple, list)) or len(internal_state) != 625:
+        raise SimulationSafetyError("RNG internal state must contain exactly 625 integers")
+    if any(type(item) is not int or item < -(2**63) or item >= 2**64 for item in internal_state):
+        raise SimulationSafetyError("RNG internal state contains an invalid integer")
+    if gauss_next is not None:
+        if isinstance(gauss_next, bool) or not isinstance(gauss_next, (int, float)):
+            raise SimulationSafetyError("RNG Gaussian cache must be numeric or null")
+        gauss_next = float(gauss_next)
+        if not math.isfinite(gauss_next):
+            raise SimulationSafetyError("RNG Gaussian cache must be finite")
+    normalised = (state_version, tuple(internal_state), gauss_next)
+    try:
+        random.Random().setstate(normalised)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise SimulationSafetyError("RNG checkpoint is not accepted by Python's random module") from exc
+    return normalised
 
 
 def load_private_state(snapshot: Path) -> tuple[dict, set[str], set[str]]:

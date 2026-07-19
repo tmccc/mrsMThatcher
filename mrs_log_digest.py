@@ -594,6 +594,7 @@ def save_resume_time(
     logs: List[Path],
     *,
     preserve_existing_context: bool = True,
+    merge_existing_boundary_occurrences: bool = False,
 ) -> None:
     old = read_resume_data(state_file) if preserve_existing_context else {}
 
@@ -617,25 +618,22 @@ def save_resume_time(
             for key, value in latest_generated_image_spacing.items()
             if not str(key).startswith("_")
         }
-    boundary_fingerprints = {
+    boundary_fingerprint_counts = Counter(
         record_fingerprint(record)
         for record in records
         if record.ts == last_ts
-    }
+    )
     try:
         old_last_ts = parse_dt(old.get("last_log_entry_time"))
     except Exception:
         old_last_ts = None
-    if old_last_ts == last_ts:
-        boundary_fingerprints.update(
-            str(value)
-            for value in old.get("last_log_entry_fingerprints", [])
-            if value
-        )
+    if merge_existing_boundary_occurrences and old_last_ts == last_ts:
+        boundary_fingerprint_counts.update(resume_boundary_fingerprint_counts(old))
 
     data = {
         "last_log_entry_time": dt_text(last_ts),
-        "last_log_entry_fingerprints": sorted(boundary_fingerprints),
+        "last_log_entry_fingerprints": sorted(boundary_fingerprint_counts),
+        "last_log_entry_fingerprint_counts": dict(sorted(boundary_fingerprint_counts.items())),
         "last_run_record_count": report.get("summary", {}).get("record_count"),
         "last_run_time_start": report.get("summary", {}).get("time_start"),
         "last_run_time_end": report.get("summary", {}).get("time_end"),
@@ -787,6 +785,42 @@ def record_fingerprint(record: Record) -> str:
     return hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
 
 
+def resume_boundary_fingerprint_counts(data: Dict[str, Any]) -> Counter[str]:
+    raw_counts = data.get("last_log_entry_fingerprint_counts")
+    counts: Counter[str] = Counter()
+    if isinstance(raw_counts, dict):
+        for fingerprint, raw_count in raw_counts.items():
+            if not fingerprint or isinstance(raw_count, bool):
+                continue
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if count > 0:
+                counts[str(fingerprint)] = count
+        return counts
+    for fingerprint in data.get("last_log_entry_fingerprints", []):
+        if fingerprint:
+            counts[str(fingerprint)] += 1
+    return counts
+
+
+def filter_resume_boundary_records(
+    records: List[Record],
+    boundary: datetime,
+    processed_counts: Counter[str],
+) -> List[Record]:
+    remaining = Counter(processed_counts)
+    filtered: List[Record] = []
+    for record in records:
+        fingerprint = record_fingerprint(record)
+        if record.ts == boundary and remaining[fingerprint] > 0:
+            remaining[fingerprint] -= 1
+            continue
+        filtered.append(record)
+    return filtered
+
+
 def iter_records(path: Path) -> Iterable[Record]:
     current: Optional[Dict[str, Any]] = None
     ordinal = 0
@@ -825,8 +859,8 @@ def read_records(
     *,
     since_exclusive: bool = False,
 ) -> List[Record]:
-    seen = set()
-    out: List[Record] = []
+    occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
+    path_priority = {str(path): index for index, path in enumerate(paths)}
     for path in paths:
         if not path.exists():
             print(f"WARNING: missing log file: {path}", file=sys.stderr)
@@ -840,12 +874,18 @@ def read_records(
                     continue
             if until and r.ts > until:
                 continue
-            # Logs are often uploaded with overlap; dedupe exact records.
+            # Preserve repeated occurrences within a source. For overlapping
+            # rotations, retain the greatest occurrence count seen in any one
+            # source instead of collapsing the record globally.
             key = (r.ts, r.level, r.src, r.line, r.msg)
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(r)
+            occurrences.setdefault(key, {}).setdefault(str(path), []).append(r)
+    out: List[Record] = []
+    for by_path in occurrences.values():
+        _selected_path, selected_records = min(
+            by_path.items(),
+            key=lambda item: (-len(item[1]), path_priority.get(item[0], len(paths))),
+        )
+        out.extend(selected_records)
     out.sort(key=lambda r: (r.ts, r.path, r.ordinal))
     return out
 
@@ -1999,7 +2039,14 @@ def quote_image_semantic_veto_category(event: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def quote_image_semantic_veto_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _quote_image_semantic_veto_manifest_key(event: Dict[str, Any]) -> tuple[str, str]:
+    return (
+        str(event.get("manifest_policy_version") or "unavailable"),
+        str(event.get("manifest_sha256") or ""),
+    )
+
+
+def _quote_image_semantic_veto_summary_subset(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     statuses = Counter(str(event.get("shadow_status") or "unknown") for event in events)
     vetoed = [event for event in events if event.get("shadow_status") == "veto"]
     deltas = [
@@ -2047,6 +2094,38 @@ def quote_image_semantic_veto_summary(events: List[Dict[str, Any]]) -> Dict[str,
         "veto_reason_counts": dict(reasons.most_common()),
         "examples": examples,
     }
+
+
+def quote_image_semantic_veto_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    grouped: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
+    for event in events:
+        grouped.setdefault(_quote_image_semantic_veto_manifest_key(event), []).append(event)
+    current_key = (
+        _quote_image_semantic_veto_manifest_key(events[-1])
+        if events else
+        ("unavailable", "")
+    )
+    current_events = grouped.get(current_key, [])
+    summary = _quote_image_semantic_veto_summary_subset(current_events)
+    summary["manifest_policy_version"] = current_key[0]
+    summary["manifest_sha256"] = current_key[1]
+    summary.update({
+        "window_event_count_all_manifests": len(events),
+        "events_excluded_from_current_manifest_summary": len(events) - len(current_events),
+        "mixed_manifest_versions": len(grouped) > 1,
+        "manifest_strata": [
+            {
+                "manifest_policy_version": key[0],
+                "manifest_sha256": key[1],
+                "selection_time_observations": len(rows),
+                "status_counts": dict(Counter(
+                    str(row.get("shadow_status") or "unknown") for row in rows
+                )),
+            }
+            for key, rows in grouped.items()
+        ],
+    })
+    return summary
 
 
 def analyse(
@@ -4552,6 +4631,13 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 f"confirmed successful posts: **{summary.get('confirmed_successful_posts', 0)}**. "
                 "Unconfirmed observations are not counted as posted outcomes."
             )
+            if summary.get("mixed_manifest_versions"):
+                out.append(
+                    f"The window contains **{summary.get('window_event_count_all_manifests', 0)}** observations "
+                    f"across **{len(summary.get('manifest_strata') or [])}** manifest versions; headline figures "
+                    f"use the latest manifest only and exclude "
+                    f"**{summary.get('events_excluded_from_current_manifest_summary', 0)}** older-manifest observations."
+                )
             allowed = summary.get("allowed_production_winners", 0)
             vetoed = summary.get("vetoed_production_winners", 0)
             unknown = summary.get("unknown_unjudged", 0)
@@ -4569,6 +4655,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
         else:
             summary = veto_runtime
             out.append(f"Runtime observations retained: **{summary.get('events', 0)}**.")
+            if summary.get("mixed_manifest_versions"):
+                out.append(
+                    f"Runtime history contains **{summary.get('history_events_all_manifests', 0)}** observations; "
+                    f"the displayed counts exclude **{summary.get('events_excluded_from_current_manifest_summary', 0)}** "
+                    "observations from other manifests."
+                )
             allowed = summary.get("allowed", 0)
             vetoed = summary.get("vetoed", 0)
             unknown = summary.get("unknown", 0)
@@ -5107,7 +5199,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
 
     since_source = None
     since_exclusive = False
-    resume_boundary_fingerprints: set[str] = set()
+    resume_boundary_counts: Counter[str] = Counter()
     resume_data: Dict[str, Any] = {}
 
     if args.since:
@@ -5127,25 +5219,17 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
                     file=sys.stderr,
                 )
                 since = None
-            resume_boundary_fingerprints = {
-                str(value)
-                for value in resume_data.get("last_log_entry_fingerprints", [])
-                if value
-            }
+            resume_boundary_counts = resume_boundary_fingerprint_counts(resume_data)
         if since:
             since_source = "saved resume state"
-            since_exclusive = not bool(resume_boundary_fingerprints)
+            since_exclusive = not bool(resume_boundary_counts)
     else:
         since = None
 
     until = parse_dt(args.until)
     records = read_records(logs, since, until, since_exclusive=since_exclusive)
-    if since is not None and resume_boundary_fingerprints:
-        records = [
-            record
-            for record in records
-            if not (record.ts == since and record_fingerprint(record) in resume_boundary_fingerprints)
-        ]
+    if since is not None and resume_boundary_counts:
+        records = filter_resume_boundary_records(records, since, resume_boundary_counts)
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     initial_active_xai_context = None
     initial_pending_mention = None
@@ -5179,7 +5263,8 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["requested_since"] = dt_text(since) if since else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
-    report["resume_boundary_fingerprint_count"] = len(resume_boundary_fingerprints)
+    report["resume_boundary_fingerprint_count"] = len(resume_boundary_counts)
+    report["resume_boundary_occurrence_count"] = sum(resume_boundary_counts.values())
     report["project_dir"] = str(project_dir)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
@@ -5263,6 +5348,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             report,
             logs,
             preserve_existing_context=not args.reset_state,
+            merge_existing_boundary_occurrences=since_source == "saved resume state",
         )
 
     return 0

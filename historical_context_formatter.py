@@ -59,6 +59,7 @@ _FORMATTER_METADATA_KEYS = {
     "historical_confidence", "shortening_applied",
 }
 _MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
+THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 
 
 class AmbiguousContextReplyOutcome(RuntimeError):
