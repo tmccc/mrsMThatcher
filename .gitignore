@@ -29,6 +29,7 @@ semantic_alignment_research/hybrid_reply_retrieval_*/index_history/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/backups/
 semantic_alignment_research/hybrid_reply_retrieval_*/manual_review/*_raw_responses/
 digest*.md
+!digest*_report.md
 .DS_Store
 ._*
 mrsMThatcher.env

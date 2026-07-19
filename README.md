@@ -20,6 +20,14 @@ All bot state is created under pytest temporary directories. The harness sets:
 - `X_UPLOAD_BASE_URL=<fake server>`
 - `XAI_API_BASE_URL=<fake server>/v1`
 
+The complete offline test and research-tool dependency set is recorded in
+`requirements-dev.txt`. Install it when running the full repository suite:
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q
+```
+
 ### Manual Fake-Server Run
 
 Start the fake API server with one of the scenario fixtures:
@@ -125,8 +133,10 @@ deployed as a coherent set:
 - `mrs_log_digest.py`
 - `README.md`
 - `runMrsMThatcher2`
+- `deploy/systemd-user/*`
 - `mrsMThatcher.env.example`
 - `requirements.txt`
+- `requirements-dev.txt`
 - `mrsMThatcher.local.example.json`
 - `extra_quote_watch_post_ids.example.txt`
 - `mrsMThatcher.txt`
@@ -254,8 +264,9 @@ already-completed, failed, skipped and dry-run events.
 ## Local Runtime Files
 
 `mrsMThatcher.local.example.json` is a sanitized example of the optional local
-config file. To use those settings on a host, copy it to the untracked runtime
-name:
+config file. Optional production and shadow features are represented with safe,
+source-default-disabled values. To use those settings on a host, copy it to the
+untracked runtime name:
 
 ```bash
 cp mrsMThatcher.local.example.json mrsMThatcher.local.json
@@ -341,6 +352,42 @@ happens inside the Python process.
 
 The real `mrsMThatcher.env` is intentionally ignored by Git. Do not commit live
 API credentials.
+
+## User Systemd Units
+
+Canonical user units are versioned under `deploy/systemd-user/`. Check the live
+installation for drift with:
+
+```bash
+deploy/systemd-user/install.sh --check
+```
+
+Install updated units as regular files and reload the user manager with:
+
+```bash
+deploy/systemd-user/install.sh --install
+```
+
+The installer uses atomic per-file replacement. It does not enable, start, stop,
+or restart any unit. Enable units separately when required:
+
+```bash
+systemctl --user enable mrsMThatcher.service
+systemctl --user enable mrs-engagement-analytics.timer
+```
+
+Systemd supports linked unit files, but the repository is on
+`/disks/disk1`, a separately mounted ZFS dataset. A lingering user manager may
+scan `default.target` before that dataset is available. In that case a symlinked
+unit cannot be read, so its bounded `ExecStartPre` mount wait cannot run. The
+live units are therefore deliberate copies in `~/.config/systemd/user/`, with
+the tracked installer providing drift detection and reproducible installation.
+
+Boot-before-login operation also requires user lingering. Check it with:
+
+```bash
+loginctl show-user "$USER" -p Linger
+```
 
 ## Deployment Smoke Test
 

@@ -1,0 +1,14 @@
+-r requirements.txt
+-r tools/generated_image_review/requirements.txt
+
+# Offline research, image-analysis, semantic-retrieval, and full-suite support.
+beautifulsoup4>=4.10
+google-genai>=2.11,<3
+ImageHash>=4.3
+Jinja2>=3.0
+jsonschema>=3.2
+lxml>=4.9
+numpy==2.2.6
+onnxruntime==1.22.1
+Pillow>=9
+tokenizers==0.21.4

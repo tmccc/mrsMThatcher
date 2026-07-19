@@ -71,7 +71,9 @@ Bounded historical collection additionally requires a date bound or maximum pair
 count, a request limit, `--execute-read`, and `--confirm-read-only`. There is no
 unbounded backfill mode.
 
-The service and timer templates in `deploy/` are user units. Install them under
-`~/.config/systemd/user/`, then use `systemctl --user daemon-reload` and
-`systemctl --user enable --now mrs-engagement-analytics.timer`. User lingering
-must be enabled so the timer continues without an interactive login.
+The canonical service and timer in `deploy/systemd-user/` are user units. Use
+`deploy/systemd-user/install.sh --check` to detect local drift and `--install`
+to copy all tracked user units atomically and reload the user manager. Then use
+`systemctl --user enable --now mrs-engagement-analytics.timer` when activation
+is intended. User lingering must be enabled so the timer continues without an
+interactive login.
