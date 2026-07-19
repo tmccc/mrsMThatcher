@@ -71,6 +71,49 @@ def test_output_file_failure_does_not_advance_resume(tmp_path, monkeypatch):
     assert state.read_bytes() == before
 
 
+def test_output_cannot_alias_input_log(tmp_path):
+    project, log = project_with_log(tmp_path)
+    before = log.read_bytes()
+
+    with pytest.raises(SystemExit, match="output path aliases an input log"):
+        digest.main(main_args(project, log, "--no-state", "--output", str(log)))
+
+    assert log.read_bytes() == before
+
+
+def test_output_cannot_alias_resume_state(tmp_path):
+    project, log = project_with_log(tmp_path)
+    state = project / ".resume.json"
+    state.write_text('{"last_log_entry_time":"2026-07-09 00:00:00"}\n')
+    before = state.read_bytes()
+
+    with pytest.raises(SystemExit, match="output path aliases the resume-state file"):
+        digest.main(main_args(project, log, "--output", str(state)))
+
+    assert state.read_bytes() == before
+
+
+def test_adjacent_output_names_do_not_alias_temporary_files(tmp_path):
+    project, log = project_with_log(tmp_path)
+    primary = tmp_path / "report.md.tmp"
+    markdown = tmp_path / "report.md"
+
+    assert digest.main(main_args(
+        project,
+        log,
+        "--no-state",
+        "--output",
+        str(primary),
+        "--markdown-output",
+        str(markdown),
+    )) == 0
+
+    assert primary.is_file()
+    assert markdown.is_file()
+    assert "# MrsMThatcher log digest" in primary.read_text(encoding="utf-8")
+    assert "# MrsMThatcher log digest" in markdown.read_text(encoding="utf-8")
+
+
 def test_successful_output_advances_resume_once(tmp_path, monkeypatch):
     project, log = project_with_log(tmp_path)
     calls = []
@@ -80,6 +123,36 @@ def test_successful_output_advances_resume_once(tmp_path, monkeypatch):
     assert digest.main(main_args(project, log, "--output", str(output))) == 0
     assert output.exists() and "# MrsMThatcher log digest" in output.read_text()
     assert len(calls) == 1 and (project / ".resume.json").exists()
+
+
+def test_invalid_persisted_resume_timestamp_warns_and_recovers(tmp_path, capsys):
+    project, log = project_with_log(tmp_path)
+    state = project / ".resume.json"
+    state.write_text('{"last_log_entry_time":"not-a-time"}\n', encoding="utf-8")
+    output = tmp_path / "report.md"
+
+    assert digest.main([
+        "--project-dir", str(project),
+        "--state-file", str(state),
+        "--output", str(output),
+        str(log),
+    ]) == 0
+
+    assert "ignoring invalid resume timestamp" in capsys.readouterr().err
+    assert "# MrsMThatcher log digest" in output.read_text(encoding="utf-8")
+    assert digest.parse_dt(json.loads(state.read_text(encoding="utf-8"))["last_log_entry_time"])
+
+
+def test_invalid_manual_datetime_remains_a_cli_error(tmp_path):
+    project, log = project_with_log(tmp_path)
+
+    with pytest.raises(SystemExit, match="Could not parse datetime"):
+        digest.main([
+            "--project-dir", str(project),
+            "--no-state",
+            "--since", "not-a-time",
+            str(log),
+        ])
 
 
 def test_project_dir_is_explicit_from_foreign_cwd(tmp_path, monkeypatch):
@@ -144,6 +217,56 @@ def test_overlapping_rotations_preserve_maximum_occurrence_cardinality(tmp_path:
     assert all(record.path == str(current) for record in records)
 
 
+def test_physical_record_order_preserves_clock_rollback_append_order(tmp_path: Path) -> None:
+    path = tmp_path / "mrsMThatcher.log"
+    path.write_text(
+        "2026-10-25 01:59:50 ERROR    worker:9 - before fallback\n"
+        "2026-10-25 01:00:10 ERROR    worker:9 - after fallback\n",
+        encoding="utf-8",
+    )
+
+    records = digest.read_records([path], None, None, physical_order=True)
+
+    assert [record.msg for record in records] == ["before fallback", "after fallback"]
+
+
+def test_resume_tail_keeps_post_fallback_record_after_rotation(tmp_path: Path) -> None:
+    project, _names = pool(tmp_path, 2)
+    current = project / "mrsMThatcher.log"
+    rotation = project / "mrsMThatcher.log.1"
+    state = project / ".resume.json"
+    report = project / "report.md"
+    current.write_text(
+        "2026-10-25 01:59:50 ERROR    worker:9 - before fallback\n",
+        encoding="utf-8",
+    )
+    args = [
+        "--project-dir", str(project),
+        "--state-file", state.name,
+        "--output", str(report),
+        str(current),
+    ]
+
+    assert digest.main(args) == 0
+    assert "before fallback" in report.read_text(encoding="utf-8")
+    current.replace(rotation)
+    current.write_text(
+        "2026-10-25 01:00:10 ERROR    worker:9 - after fallback\n",
+        encoding="utf-8",
+    )
+
+    assert digest.main(args) == 0
+    second = report.read_text(encoding="utf-8")
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert "after fallback" in second
+    assert "before fallback" not in second
+    assert saved["last_log_entry_time"] == "2026-10-25 01:59:50"
+    assert saved["last_log_entry_fingerprint_tail"]
+
+    assert digest.main(args) == 0
+    assert "no matching records" in report.read_text(encoding="utf-8")
+
+
 def test_resume_boundary_counts_preserve_new_identical_occurrence(tmp_path: Path) -> None:
     timestamp = datetime(2026, 7, 10, 12, 0, 0)
     first = digest.Record(timestamp, "INFO", "worker", 9, "identical event", "bot.log", 1)
@@ -177,6 +300,19 @@ def test_resume_boundary_counts_preserve_new_identical_occurrence(tmp_path: Path
     )
     saved = json.loads(state_file.read_text(encoding="utf-8"))
     assert saved["last_log_entry_fingerprint_counts"] == {fingerprint: 2}
+
+
+def test_resume_tail_preserves_new_identical_occurrence() -> None:
+    timestamp = datetime(2026, 7, 10, 12, 0, 0)
+    first = digest.Record(timestamp, "INFO", "worker", 9, "identical event", "bot.log", 1)
+    second = digest.Record(timestamp, "INFO", "worker", 9, "identical event", "bot.log", 2)
+    fingerprint = digest.record_fingerprint(first)
+
+    assert digest.locate_resume_fingerprint_tail([first, second], [fingerprint]) == (1, 1)
+    assert digest.locate_resume_fingerprint_tail(
+        [first, second],
+        [fingerprint, fingerprint],
+    ) == (2, 2)
 
 
 def test_legacy_resume_fingerprint_list_maps_to_one_occurrence_each() -> None:

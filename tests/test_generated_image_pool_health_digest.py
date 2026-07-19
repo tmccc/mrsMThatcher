@@ -97,6 +97,24 @@ def test_malformed_json_and_missing_quarantine_are_nonfatal(tmp_path):
     assert "analysis_malformed" in kinds and "used_history_malformed" in kinds and snapshot["quarantined_generated_images"] == 0
 
 
+def test_malformed_quarantine_images_field_is_nonfatal(tmp_path):
+    base, _ = pool(tmp_path)
+    manifest = base / "generated_image_quarantine" / "transactions" / "bad" / "manifest.json"
+    dump(manifest, {
+        "transaction_id": "bad",
+        "kind": "quarantine",
+        "status": "completed",
+        "created_at": "2026-07-10T12:00:00+00:00",
+        "images": 1,
+    })
+
+    snapshot = digest.generated_pool_health_snapshot(base)
+
+    assert snapshot["health"] == "WARNING"
+    assert snapshot["completed_quarantine_transactions"] == 0
+    assert any(item["kind"] == "transaction_schema_invalid" for item in snapshot["warnings"])
+
+
 def test_incomplete_quarantine_record_warns(tmp_path):
     base, names = pool(tmp_path); directory = quarantine(base, [names[0]]); manifest = json.load(open(directory / "manifest.json")); manifest["images"][0].pop("analysis_record"); dump(directory / "manifest.json", manifest)
     snapshot = digest.generated_pool_health_snapshot(base); assert any(item["kind"] == "incomplete_quarantine" for item in snapshot["warnings"])

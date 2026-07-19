@@ -35,6 +35,7 @@ import os
 import re
 import statistics
 import sys
+import tempfile
 from collections import Counter
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
@@ -53,6 +54,7 @@ GENERATED_ANALYSIS_SCHEMA_VERSION = 3
 GENERATED_ANALYSIS_KIND = "images"
 GENERATED_AUDIT_SCHEMA_VERSION = 1
 GENERATED_AUDIT_KIND = "generated_image_identity_dependence_audit"
+RESUME_FINGERPRINT_TAIL_LIMIT = 128
 
 
 def file_sha256(path: Path) -> str:
@@ -104,34 +106,95 @@ def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, An
         value = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(value, dict):
             raise ValueError("status root is not an object")
+        if "mixed_manifest_versions" not in value:
+            history_path = path.with_name("shadow_history.jsonl")
+            history_rows: List[Dict[str, Any]] = []
+            if history_path.is_file():
+                for line in history_path.read_text(encoding="utf-8", errors="replace").splitlines()[-10_000:]:
+                    try:
+                        row = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(row, dict):
+                        history_rows.append(row)
+            if history_rows:
+                reconstructed = quote_image_semantic_veto_summary(history_rows)
+                value = {
+                    **value,
+                    "events": reconstructed.get("selection_time_observations", 0),
+                    "allowed": reconstructed.get("allowed_production_winners", 0),
+                    "vetoed": reconstructed.get("vetoed_production_winners", 0),
+                    "unknown": reconstructed.get("unknown_unjudged", 0),
+                    "generated_out_of_scope": reconstructed.get("generated_out_of_scope", 0),
+                    "vetoed_with_alternative": reconstructed.get("vetoed_with_allowed_alternative", 0),
+                    "vetoed_without_alternative": reconstructed.get("vetoed_without_allowed_alternative", 0),
+                    "selection_error_candidate_available": reconstructed.get(
+                        "selection_error_candidate_available", 0
+                    ),
+                    "coverage_gap_no_safe_image": reconstructed.get("coverage_gap_no_safe_image", 0),
+                    "quotes_with_no_globally_allowed_candidate": reconstructed.get(
+                        "quotes_with_no_globally_allowed_candidate", 0
+                    ),
+                    "veto_reason_counts": reconstructed.get("veto_reason_counts", {}),
+                    "alternative_score_delta_median": reconstructed.get("median_alternative_score_delta"),
+                    "manifest_policy_version": reconstructed.get("manifest_policy_version", "unavailable"),
+                    "manifest_sha256": reconstructed.get("manifest_sha256", ""),
+                    "production_selection_change_failures": reconstructed.get(
+                        "production_selection_change_failures", 0
+                    ),
+                    "history_events_all_manifests": reconstructed.get("window_event_count_all_manifests", 0),
+                    "events_excluded_from_current_manifest_summary": reconstructed.get(
+                        "events_excluded_from_current_manifest_summary", 0
+                    ),
+                    "mixed_manifest_versions": reconstructed.get("mixed_manifest_versions", False),
+                    "manifest_strata": reconstructed.get("manifest_strata", []),
+                }
+        counts = {
+            key: int(value.get(key, 0) or 0)
+            for key in (
+                "events", "allowed", "vetoed", "unknown", "generated_out_of_scope",
+                "manifest_unavailable", "manifest_stale", "vetoed_with_alternative",
+                "vetoed_without_alternative", "coverage_gap_no_safe_image",
+                "quotes_with_no_globally_allowed_candidate",
+                "production_selection_change_failures",
+            )
+        }
+        measurements = {
+            key: None if value.get(key) is None else float(value[key])
+            for key in (
+                "alternative_score_delta_median", "lookup_latency_p50_ms",
+                "lookup_latency_p95_ms", "lookup_latency_max_ms",
+            )
+        }
+        selection_error = int(
+            value.get("selection_error_candidate_available", value.get("vetoed_with_alternative", 0)) or 0
+        )
+        history_events_all_manifests = int(
+            value.get("history_events_all_manifests", value.get("events", 0)) or 0
+        )
+        events_excluded = int(value.get("events_excluded_from_current_manifest_summary", 0) or 0)
+        mixed_manifest_versions = value.get("mixed_manifest_versions", False)
+        if type(mixed_manifest_versions) is not bool:
+            raise ValueError("mixed_manifest_versions must be boolean")
+        manifest_strata = value.get("manifest_strata", [])
+        if not isinstance(manifest_strata, list) or not all(isinstance(item, dict) for item in manifest_strata):
+            raise ValueError("manifest_strata must be a list of objects")
     except FileNotFoundError:
         return {"available": False, "reason": "shadow mode disabled or no events observed"}
     except Exception as exc:
         return {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"}
     return {
         "available": True,
-        "events": int(value.get("events", 0) or 0),
-        "allowed": int(value.get("allowed", 0) or 0),
-        "vetoed": int(value.get("vetoed", 0) or 0),
-        "unknown": int(value.get("unknown", 0) or 0),
-        "generated_out_of_scope": int(value.get("generated_out_of_scope", 0) or 0),
-        "manifest_unavailable": int(value.get("manifest_unavailable", 0) or 0),
-        "manifest_stale": int(value.get("manifest_stale", 0) or 0),
-        "vetoed_with_alternative": int(value.get("vetoed_with_alternative", 0) or 0),
-        "vetoed_without_alternative": int(value.get("vetoed_without_alternative", 0) or 0),
-        "selection_error_candidate_available": int(
-            value.get("selection_error_candidate_available", value.get("vetoed_with_alternative", 0)) or 0
-        ),
-        "coverage_gap_no_safe_image": int(value.get("coverage_gap_no_safe_image", 0) or 0),
-        "quotes_with_no_globally_allowed_candidate": int(value.get("quotes_with_no_globally_allowed_candidate", 0) or 0),
+        **counts,
+        **measurements,
+        "selection_error_candidate_available": selection_error,
+        "history_events_all_manifests": history_events_all_manifests,
+        "events_excluded_from_current_manifest_summary": events_excluded,
+        "mixed_manifest_versions": mixed_manifest_versions,
+        "manifest_strata": manifest_strata,
         "veto_reason_counts": value.get("veto_reason_counts") if isinstance(value.get("veto_reason_counts"), dict) else {},
-        "alternative_score_delta_median": value.get("alternative_score_delta_median"),
-        "lookup_latency_p50_ms": value.get("lookup_latency_p50_ms"),
-        "lookup_latency_p95_ms": value.get("lookup_latency_p95_ms"),
-        "lookup_latency_max_ms": value.get("lookup_latency_max_ms"),
         "manifest_policy_version": str(value.get("manifest_policy_version") or "unavailable"),
         "manifest_sha256": str(value.get("manifest_sha256") or ""),
-        "production_selection_change_failures": int(value.get("production_selection_change_failures", 0) or 0),
         "updated_at": value.get("updated_at"),
     }
 
@@ -265,11 +328,18 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
             if transaction.get("status") != "completed":
                 continue
             kind = transaction.get("kind")
+            image_values = transaction.get("images")
+            if not isinstance(image_values, list):
+                warning(
+                    "transaction_schema_invalid",
+                    manifest_path.parent.name,
+                    "images must be a list",
+                )
+                continue
             try:
                 timestamp = datetime.fromisoformat(str(transaction.get("created_at") or "").replace("Z", "+00:00"))
                 if timestamp.tzinfo is None: timestamp = timestamp.replace(tzinfo=now.tzinfo)
                 timestamp = timestamp.astimezone(now.tzinfo)
-                image_values = transaction.get("images") or []
                 event_names = {str(item.get("basename") if isinstance(item, dict) else item) for item in image_values}
                 event_names.discard("")
                 if kind in {"quarantine", "restore"}: curation_events.append((str(kind), timestamp, event_names))
@@ -279,7 +349,7 @@ def generated_pool_health_snapshot(base_dir: Path, now: Optional[datetime] = Non
                 completed_quarantines += 1
                 if latest_quarantine is None or str(transaction.get("created_at") or "") > str(latest_quarantine.get("created_at") or ""):
                     latest_quarantine = transaction
-                for entry in transaction.get("images") or []:
+                for entry in image_values:
                     if not isinstance(entry, dict): continue
                     name = str(entry.get("basename") or "")
                     image_path = manifest_path.parent / "images" / name
@@ -562,7 +632,7 @@ def parse_dt(value: Optional[str]) -> Optional[datetime]:
             return datetime.strptime(value, fmt)
         except ValueError:
             pass
-    raise SystemExit(f"Could not parse datetime: {value!r}. Use e.g. '2026-06-25 08:00'.")
+    raise ValueError(f"Could not parse datetime: {value!r}. Use e.g. '2026-06-25 08:00'.")
 
 
 def dt_text(value: datetime) -> str:
@@ -595,6 +665,7 @@ def save_resume_time(
     *,
     preserve_existing_context: bool = True,
     merge_existing_boundary_occurrences: bool = False,
+    cursor_fingerprint_tail: Optional[List[str]] = None,
 ) -> None:
     old = read_resume_data(state_file) if preserve_existing_context else {}
 
@@ -629,11 +700,19 @@ def save_resume_time(
         old_last_ts = None
     if merge_existing_boundary_occurrences and old_last_ts == last_ts:
         boundary_fingerprint_counts.update(resume_boundary_fingerprint_counts(old))
+    if cursor_fingerprint_tail is None:
+        cursor_fingerprint_tail = [
+            *resume_fingerprint_tail(old),
+            *(record_fingerprint(record) for record in records),
+        ]
+    cursor_fingerprint_tail = cursor_fingerprint_tail[-RESUME_FINGERPRINT_TAIL_LIMIT:]
 
     data = {
+        "resume_cursor_schema_version": 1,
         "last_log_entry_time": dt_text(last_ts),
         "last_log_entry_fingerprints": sorted(boundary_fingerprint_counts),
         "last_log_entry_fingerprint_counts": dict(sorted(boundary_fingerprint_counts.items())),
+        "last_log_entry_fingerprint_tail": cursor_fingerprint_tail,
         "last_run_record_count": report.get("summary", {}).get("record_count"),
         "last_run_time_start": report.get("summary", {}).get("time_start"),
         "last_run_time_end": report.get("summary", {}).get("time_end"),
@@ -785,6 +864,32 @@ def record_fingerprint(record: Record) -> str:
     return hashlib.sha256(body.encode("utf-8", errors="replace")).hexdigest()
 
 
+def resume_fingerprint_tail(data: Dict[str, Any]) -> List[str]:
+    raw = data.get("last_log_entry_fingerprint_tail")
+    if not isinstance(raw, list):
+        return []
+    return [
+        value
+        for value in raw[-RESUME_FINGERPRINT_TAIL_LIMIT:]
+        if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+    ]
+
+
+def locate_resume_fingerprint_tail(records: List[Record], tail: List[str]) -> Optional[Tuple[int, int]]:
+    """Locate the saved append-order tail, tolerating bounded rotation loss."""
+    if not records or not tail:
+        return None
+    fingerprints = [record_fingerprint(record) for record in records]
+    minimum = min(8, len(tail))
+    for length in range(len(tail), minimum - 1, -1):
+        needle = tail[-length:]
+        limit = len(fingerprints) - length + 1
+        for start in range(max(0, limit)):
+            if fingerprints[start:start + length] == needle:
+                return start + length, length
+    return None
+
+
 def resume_boundary_fingerprint_counts(data: Dict[str, Any]) -> Counter[str]:
     raw_counts = data.get("last_log_entry_fingerprint_counts")
     counts: Counter[str] = Counter()
@@ -858,6 +963,7 @@ def read_records(
     until: Optional[datetime],
     *,
     since_exclusive: bool = False,
+    physical_order: bool = False,
 ) -> List[Record]:
     occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
     path_priority = {str(path): index for index, path in enumerate(paths)}
@@ -886,8 +992,49 @@ def read_records(
             key=lambda item: (-len(item[1]), path_priority.get(item[0], len(paths))),
         )
         out.extend(selected_records)
-    out.sort(key=lambda r: (r.ts, r.path, r.ordinal))
+    if physical_order:
+        canonical = []
+        for path in paths:
+            match = re.fullmatch(r"(?P<base>.+\.log)(?:\.(?P<rotation>\d+))?", path.name)
+            canonical.append((path, match))
+        same_rotation_family = bool(canonical) and all(match for _path, match in canonical)
+        if same_rotation_family:
+            families = {(path.parent.resolve(), match.group("base")) for path, match in canonical if match}
+            same_rotation_family = len(families) == 1
+        if same_rotation_family:
+            ordered_paths = sorted(
+                (path for path, _match in canonical),
+                key=lambda path: (
+                    1 if re.fullmatch(r".+\.log", path.name) else 0,
+                    -int(path.name.rsplit(".", 1)[1]) if path.name.rsplit(".", 1)[1].isdigit() else 0,
+                ),
+            )
+        else:
+            def physical_path_key(path: Path) -> Tuple[int, str]:
+                try:
+                    return path.stat().st_mtime_ns, str(path)
+                except OSError:
+                    return 0, str(path)
+
+            ordered_paths = sorted(paths, key=physical_path_key)
+        physical_priority = {str(path): index for index, path in enumerate(ordered_paths)}
+        out.sort(key=lambda r: (physical_priority.get(r.path, len(paths)), r.ordinal, r.ts))
+    else:
+        out.sort(key=lambda r: (r.ts, r.path, r.ordinal))
     return out
+
+
+def filter_records_by_time(
+    records: List[Record],
+    since: Optional[datetime],
+    *,
+    since_exclusive: bool,
+) -> List[Record]:
+    if since is None:
+        return list(records)
+    if since_exclusive:
+        return [record for record in records if record.ts > since]
+    return [record for record in records if record.ts >= since]
 
 
 def summarize_input_files(
@@ -1381,7 +1528,7 @@ def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tu
         later = [
             candidate
             for candidate in records[idx + 1:idx + 40]
-            if 0 <= (candidate.ts - record.ts).total_seconds() <= 180
+            if seconds_between(candidate.ts, record.ts) <= 180
         ]
         v1_success = next((candidate for candidate in later if is_media_v1_success(candidate)), None)
         post_success = next((candidate for candidate in later if is_main_post_success(candidate)), None)
@@ -3758,6 +3905,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
         mode = "exclusive" if report.get("since_exclusive") else "inclusive"
         source = report.get("since_source") or "manual"
         out.append(f"Requested since: `{report.get('requested_since')}` ({mode}, source={source})")
+    if report.get("resume_cursor_mode") == "fingerprint_tail":
+        out.append(
+            "Resume cursor: `physical append order` "
+            f"({report.get('resume_tail_match_length', 0)} fingerprint(s) matched)"
+        )
+    if report.get("local_clock_rollback_count"):
+        out.append(
+            f"Input warning: **detected {report.get('local_clock_rollback_count')} local clock rollback(s); "
+            "records are shown and resumed in physical append order**"
+        )
     if report.get("resume_state_file"):
         out.append(f"Resume state file: `{report.get('resume_state_file')}`")
     out.append(f"Records parsed: `{s.get('record_count')}`")
@@ -5119,19 +5276,47 @@ def deliver_report(rendered: str, output_path: Optional[Path] = None) -> None:
         return
     output_path = output_path.expanduser().resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = output_path.with_suffix(output_path.suffix + ".tmp")
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{output_path.name}.",
+        suffix=".tmp",
+        dir=output_path.parent,
+        text=True,
+    )
+    tmp = Path(tmp_name)
     try:
-        with tmp.open("w", encoding="utf-8") as handle:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(rendered)
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(tmp, output_path)
     except Exception:
         try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
             tmp.unlink()
         except FileNotFoundError:
             pass
         raise
+
+
+def validate_output_destinations(
+    output_paths: Iterable[Path],
+    logs: Iterable[Path],
+    state_file: Path,
+) -> None:
+    """Reject destinations that would destroy digest inputs or resume state."""
+    resolved_logs = {path.expanduser().resolve() for path in logs}
+    resolved_state = state_file.expanduser().resolve()
+    for output in output_paths:
+        resolved_output = output.expanduser().resolve()
+        if resolved_output in resolved_logs:
+            raise SystemExit(f"Refusing to write digest: output path aliases an input log: {resolved_output}")
+        if resolved_output == resolved_state:
+            raise SystemExit(
+                f"Refusing to write digest: output path aliases the resume-state file: {resolved_output}"
+            )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -5197,13 +5382,25 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             f"Auto-discovery pattern was: {args.glob!r}"
         )
 
+    validate_output_destinations(
+        (path for path in (args.output, args.markdown_output, args.json_output) if path is not None),
+        logs,
+        state_file,
+    )
+
     since_source = None
     since_exclusive = False
     resume_boundary_counts: Counter[str] = Counter()
+    saved_resume_tail: List[str] = []
+    resume_cursor_mode = "timestamp"
+    resume_tail_match_length = 0
     resume_data: Dict[str, Any] = {}
 
     if args.since:
-        since = parse_dt(args.since)
+        try:
+            since = parse_dt(args.since)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         since_source = "manual --since"
         since_exclusive = False
     elif not args.no_state and not args.reset_state:
@@ -5220,16 +5417,39 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
                 )
                 since = None
             resume_boundary_counts = resume_boundary_fingerprint_counts(resume_data)
-        if since:
+            saved_resume_tail = resume_fingerprint_tail(resume_data)
+        if since or saved_resume_tail:
             since_source = "saved resume state"
             since_exclusive = not bool(resume_boundary_counts)
     else:
         since = None
 
-    until = parse_dt(args.until)
-    records = read_records(logs, since, until, since_exclusive=since_exclusive)
-    if since is not None and resume_boundary_counts:
-        records = filter_resume_boundary_records(records, since, resume_boundary_counts)
+    try:
+        until = parse_dt(args.until)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    physical_records = read_records(logs, None, until, physical_order=True)
+    tail_match = None
+    if since_source == "saved resume state" and saved_resume_tail:
+        tail_match = locate_resume_fingerprint_tail(physical_records, saved_resume_tail)
+    if tail_match is not None:
+        cursor_end, resume_tail_match_length = tail_match
+        records = physical_records[cursor_end:]
+        resume_cursor_mode = "fingerprint_tail"
+    else:
+        if saved_resume_tail:
+            print(
+                "WARNING: saved physical resume cursor was not found in retained logs; "
+                "falling back to the timestamp boundary",
+                file=sys.stderr,
+            )
+        records = filter_records_by_time(
+            physical_records,
+            since,
+            since_exclusive=since_exclusive,
+        )
+        if since is not None and resume_boundary_counts:
+            records = filter_resume_boundary_records(records, since, resume_boundary_counts)
     input_files = summarize_input_files(logs, since, until, since_exclusive=since_exclusive)
     initial_active_xai_context = None
     initial_pending_mention = None
@@ -5250,12 +5470,16 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         initial_pending_mention=initial_pending_mention,
         initial_pending_qt=initial_pending_qt,
     )
-    report_window_end = until or (records[-1].ts if records else None)
+    report_window_end = until or (max((record.ts for record in records), default=None))
 
     report["log_files"] = [str(p) for p in logs]
     report["input_files"] = input_files
     report["input_warning"] = None
-    if not records and any(int(item.get("records_in_window") or 0) > 0 for item in input_files):
+    if (
+        not records
+        and resume_cursor_mode != "fingerprint_tail"
+        and any(int(item.get("records_in_window") or 0) > 0 for item in input_files)
+    ):
         report["input_warning"] = (
             "selected log sources contain timestamped records inside the requested window, "
             "but 0 records survived filtering"
@@ -5263,6 +5487,12 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["requested_since"] = dt_text(since) if since else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
+    report["resume_cursor_mode"] = resume_cursor_mode
+    report["resume_tail_match_length"] = resume_tail_match_length
+    report["local_clock_rollback_count"] = sum(
+        current.ts < previous.ts
+        for previous, current in zip(records, records[1:])
+    )
     report["resume_boundary_fingerprint_count"] = len(resume_boundary_counts)
     report["resume_boundary_occurrence_count"] = sum(resume_boundary_counts.values())
     report["project_dir"] = str(project_dir)
@@ -5340,7 +5570,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
         deliver_report(json.dumps(report, indent=2, ensure_ascii=False) + "\n", args.json_output)
 
     if records and not args.no_state and not args.no_update_state:
-        last_ts = records[-1].ts
+        last_ts = max(record.ts for record in physical_records)
         save_resume_time(
             state_file,
             last_ts,
@@ -5349,6 +5579,10 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             logs,
             preserve_existing_context=not args.reset_state,
             merge_existing_boundary_occurrences=since_source == "saved resume state",
+            cursor_fingerprint_tail=[
+                record_fingerprint(record)
+                for record in physical_records[-RESUME_FINGERPRINT_TAIL_LIMIT:]
+            ],
         )
 
     return 0

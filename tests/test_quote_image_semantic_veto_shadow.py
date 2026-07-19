@@ -501,3 +501,94 @@ def test_digest_old_logs_and_missing_runtime_remain_compatible(tmp_path: Path) -
     report["quote_image_semantic_veto_shadow"]["runtime_summary"] = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
     assert report["quote_image_semantic_veto_shadow"]["runtime_summary"]["available"] is False
     assert "Unavailable" in digest.render_markdown(report)
+
+
+def test_digest_malformed_runtime_numeric_fields_are_nonfatal(tmp_path: Path) -> None:
+    runtime = tmp_path / "quote_image_semantic_veto_runtime"
+    runtime.mkdir()
+    (runtime / "shadow_status.json").write_text(
+        json.dumps({"events": "not-an-integer"}),
+        encoding="utf-8",
+    )
+
+    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
+
+    assert summary == {
+        "available": False,
+        "reason": "shadow status unavailable: ValueError",
+    }
+
+
+def test_digest_runtime_fallback_preserves_manifest_stratification(tmp_path: Path) -> None:
+    runtime = tmp_path / "quote_image_semantic_veto_runtime"
+    runtime.mkdir()
+    (runtime / "shadow_status.json").write_text(
+        json.dumps({
+            "events": 1,
+            "allowed": 1,
+            "history_events_all_manifests": 3,
+            "events_excluded_from_current_manifest_summary": 2,
+            "mixed_manifest_versions": True,
+            "manifest_strata": [
+                {"manifest_policy_version": "old", "events": 2},
+                {"manifest_policy_version": "current", "events": 1},
+            ],
+            "manifest_policy_version": "current",
+            "manifest_sha256": "a" * 64,
+        }),
+        encoding="utf-8",
+    )
+
+    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
+    report = digest.analyse([])
+    report["quote_image_semantic_veto_shadow"]["runtime_summary"] = summary
+    rendered = digest.render_markdown(report)
+
+    assert summary["mixed_manifest_versions"] is True
+    assert summary["history_events_all_manifests"] == 3
+    assert summary["events_excluded_from_current_manifest_summary"] == 2
+    assert len(summary["manifest_strata"]) == 2
+    assert "Runtime history contains **3** observations" in rendered
+    assert "displayed counts exclude **2** observations" in rendered
+
+
+def test_digest_reconstructs_stratification_for_legacy_runtime_status(tmp_path: Path) -> None:
+    runtime = tmp_path / "quote_image_semantic_veto_runtime"
+    runtime.mkdir()
+    (runtime / "shadow_status.json").write_text(
+        json.dumps({
+            "events": 2,
+            "allowed": 1,
+            "vetoed": 1,
+            "manifest_policy_version": "current",
+            "manifest_sha256": "b" * 64,
+        }),
+        encoding="utf-8",
+    )
+    history = [
+        {
+            "shadow_status": "veto",
+            "manifest_policy_version": "old",
+            "manifest_sha256": "a" * 64,
+            "production_selection_changed": False,
+        },
+        {
+            "shadow_status": "allow",
+            "manifest_policy_version": "current",
+            "manifest_sha256": "b" * 64,
+            "production_selection_changed": False,
+        },
+    ]
+    (runtime / "shadow_history.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in history),
+        encoding="utf-8",
+    )
+
+    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
+
+    assert summary["events"] == 1
+    assert summary["allowed"] == 1
+    assert summary["vetoed"] == 0
+    assert summary["history_events_all_manifests"] == 2
+    assert summary["events_excluded_from_current_manifest_summary"] == 1
+    assert summary["mixed_manifest_versions"] is True
