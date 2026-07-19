@@ -416,6 +416,22 @@ or restart any unit. Enable units separately when required:
 ```bash
 systemctl --user enable mrsMThatcher.service
 systemctl --user enable mrs-engagement-analytics.timer
+systemctl --user enable mrs-semantic-veto-shadow-health.timer
+```
+
+The semantic-veto health timer runs daily at 23:35 Europe/London. It validates
+the configured shadow manifest and source hashes, records cumulative shadow
+status, and makes no network call. Durable snapshots are written to:
+
+```text
+~/.local/state/mrsMThatcher/semantic-veto-health/latest.json
+~/.local/state/mrsMThatcher/semantic-veto-health/history/YYYY-MM-DD.json
+```
+
+Its JSON output is also retained by the user journal:
+
+```bash
+journalctl --user -u mrs-semantic-veto-shadow-health.service
 ```
 
 Systemd supports linked unit files, but the repository is on

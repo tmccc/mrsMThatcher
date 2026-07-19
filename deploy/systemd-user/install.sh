@@ -7,6 +7,8 @@ readonly UNITS=(
   mrsMThatcher.service
   mrs-engagement-analytics.service
   mrs-engagement-analytics.timer
+  mrs-semantic-veto-shadow-health.service
+  mrs-semantic-veto-shadow-health.timer
 )
 
 usage() {

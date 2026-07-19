@@ -16,6 +16,8 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     main = (SYSTEMD_DIR / "mrsMThatcher.service").read_text(encoding="utf-8")
     analytics = (SYSTEMD_DIR / "mrs-engagement-analytics.service").read_text(encoding="utf-8")
     timer = (SYSTEMD_DIR / "mrs-engagement-analytics.timer").read_text(encoding="utf-8")
+    shadow_health = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.service").read_text(encoding="utf-8")
+    shadow_timer = (SYSTEMD_DIR / "mrs-semantic-veto-shadow-health.timer").read_text(encoding="utf-8")
 
     assert "ExecStart=/usr/local/bin/runMrsMThatcher2" in main
     assert "Restart=on-failure" in main
@@ -28,7 +30,15 @@ def test_canonical_user_units_cover_live_services_without_secrets() -> None:
     assert "ProtectSystem=strict" in analytics
     assert "OnCalendar=*:0/15" in timer
 
-    combined = main + analytics + timer
+    assert "semantic_veto_shadow_health.py" in shadow_health
+    assert "Semantic-veto health inputs unavailable after 120 seconds" in shadow_health
+    assert "RestrictAddressFamilies=AF_UNIX" in shadow_health
+    assert "ReadWritePaths=/home/tonym/.local/state/mrsMThatcher/semantic-veto-health" in shadow_health
+    assert "OnCalendar=*-*-* 23:35:00 Europe/London" in shadow_timer
+    assert "Persistent=true" in shadow_timer
+    assert "AccuracySec=1s" in shadow_timer
+
+    combined = main + analytics + timer + shadow_health + shadow_timer
     assert not re.search(r"(?i)(api[_-]?key|access[_-]?token|client[_-]?secret)\s*=\s*\S+", combined)
 
 

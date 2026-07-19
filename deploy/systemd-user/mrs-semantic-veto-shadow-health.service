@@ -1,0 +1,40 @@
+[Unit]
+Description=Validate and record MrsMThatcher semantic-veto shadow health
+Documentation=file:///disks/disk1/etc/mrsMThatcher/
+
+[Service]
+Type=oneshot
+WorkingDirectory=/disks/disk1/etc/mrsMThatcher
+ExecStartPre=/bin/bash -c 'for _ in {1..12}; do if [[ -r /disks/disk1/etc/mrsMThatcher/semantic_veto_shadow_health.py && -r /disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json ]]; then exit 0; fi; echo "Semantic-veto health inputs not ready; retrying in 10 seconds" >&2; /bin/sleep 10; done; echo "Semantic-veto health inputs unavailable after 120 seconds" >&2; exit 1'
+ExecStart=/usr/bin/python3 /disks/disk1/etc/mrsMThatcher/semantic_veto_shadow_health.py --project-dir /disks/disk1/etc/mrsMThatcher --manifest /disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json --output-dir /home/tonym/.local/state/mrsMThatcher/semantic-veto-health
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mrs-semantic-veto-shadow-health
+Nice=10
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+MemoryHigh=256M
+MemoryMax=512M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectProc=invisible
+ProcSubset=pid
+ReadOnlyPaths=/disks/disk1/etc/mrsMThatcher
+ReadWritePaths=/home/tonym/.local/state/mrsMThatcher/semantic-veto-health
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+UMask=0077
+TimeoutStartSec=150s
+
+# User unit. Install as ~/.config/systemd/user/mrs-semantic-veto-shadow-health.service.
