@@ -54,18 +54,22 @@ PRODUCTION_RECEIPTS = (
 
 
 class SimulationSafetyError(RuntimeError):
+    """Raised when the simulator attempts a prohibited operation."""
     pass
 
 
 class SelectionCaptureError(RuntimeError):
+    """Raised when a simulated production selection cannot be captured."""
     pass
 
 
 def sha256_bytes(data: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -74,27 +78,33 @@ def sha256_file(path: Path) -> str:
 
 
 def is_same_or_child(path: Path, parent: Path) -> bool:
+    """Return whether is same or child."""
     resolved = path.resolve()
     parent_resolved = parent.resolve()
     return resolved == parent_resolved or parent_resolved in resolved.parents
 
 
 class PrivateWriter:
+    """Persist and manage private records."""
     def __init__(self, session_dir: Path):
+        """Initialise the private writer."""
         self.session_dir = session_dir.resolve()
 
     def check(self, path: Path) -> Path:
+        """Reject any attempted write to a protected production path."""
         resolved = path.resolve()
         if not is_same_or_child(resolved, self.session_dir):
             raise SimulationSafetyError(f"simulation write escaped private session: {resolved}")
         return resolved
 
     def mkdir(self, path: Path) -> Path:
+        """Return the mkdir."""
         checked = self.check(path)
         checked.mkdir(parents=True, exist_ok=True)
         return checked
 
     def atomic_json(self, path: Path, value: object) -> None:
+        """Perform the atomic JSON operation."""
         checked = self.check(path)
         checked.parent.mkdir(parents=True, exist_ok=True)
         temp = checked.with_name(checked.name + ".tmp")
@@ -107,11 +117,13 @@ class PrivateWriter:
         os.replace(temp, checked)
 
     def write_text(self, path: Path, text: str) -> None:
+        """Write text."""
         checked = self.check(path)
         checked.parent.mkdir(parents=True, exist_ok=True)
         checked.write_text(text, encoding="utf-8")
 
     def atomic_text(self, path: Path, text: str) -> None:
+        """Perform the atomic text operation."""
         checked = self.check(path)
         checked.parent.mkdir(parents=True, exist_ok=True)
         temp = checked.with_name(checked.name + ".tmp")
@@ -123,6 +135,7 @@ class PrivateWriter:
         os.replace(temp, checked)
 
     def append_jsonl(self, path: Path, value: object) -> None:
+        """Append jsonl."""
         checked = self.check(path)
         checked.parent.mkdir(parents=True, exist_ok=True)
         with checked.open("a", encoding="utf-8") as handle:
@@ -133,11 +146,13 @@ class PrivateWriter:
 
 
 def stat_identity(path: Path) -> tuple[int, int, int, int]:
+    """Return the stat identity."""
     stat = path.stat()
     return (stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
 
 
 def read_stable_group_once(paths: Iterable[Path]) -> dict[Path, bytes] | None:
+    """Read stable group once."""
     paths = list(paths)
     before = {path: stat_identity(path) for path in paths}
     payload = {path: path.read_bytes() for path in paths}
@@ -152,6 +167,7 @@ def read_consistent_group(
     retries: int = 8,
     quiescence_seconds: float = 0.1,
 ) -> dict[Path, bytes]:
+    """Read consistent group."""
     paths = list(paths)
     for attempt in range(1, retries + 1):
         first = read_stable_group_once(paths)
@@ -167,6 +183,7 @@ def read_consistent_group(
 
 
 def copy_stable_file(source: Path, destination: Path, retries: int = 5) -> str:
+    """Copy stable file."""
     for attempt in range(1, retries + 1):
         before = stat_identity(source)
         data = source.read_bytes()
@@ -182,6 +199,7 @@ def copy_stable_file(source: Path, destination: Path, retries: int = 5) -> str:
 
 
 def validate_mutable_snapshot(payload: dict[Path, bytes]) -> None:
+    """Validate mutable snapshot."""
     by_name = {path.name: json.loads(data) for path, data in payload.items()}
     state = by_name["bot_state.json"]
     images_used = {str(value) for value in by_name["images_used.json"]}
@@ -195,10 +213,12 @@ def validate_mutable_snapshot(payload: dict[Path, bytes]) -> None:
 
 
 def git_output(*args: str) -> str:
+    """Return the git output."""
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
 
 
 def parse_start_time(value: str) -> int:
+    """Parse start time."""
     if value.lower() == "now":
         return int(datetime.now().timestamp())
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -208,10 +228,12 @@ def parse_start_time(value: str) -> int:
 
 
 def default_session_id() -> str:
+    """Return the default session ID."""
     return datetime.now().strftime("regular_post_sim_%Y%m%d_%H%M%S")
 
 
 def validate_session_path(path: Path) -> Path:
+    """Validate session path."""
     resolved = path.expanduser().resolve()
     sensitive = {
         (ROOT / name).resolve()
@@ -227,6 +249,7 @@ def validate_session_path(path: Path) -> Path:
 
 
 def make_session_directory(path: Path, *, overwrite: bool, resume: bool) -> tuple[Path, PrivateWriter]:
+    """Create session directory."""
     path = validate_session_path(path)
     if resume:
         if not (path / SESSION_MARKER).is_file():
@@ -249,6 +272,7 @@ def make_session_directory(path: Path, *, overwrite: bool, resume: bool) -> tupl
 
 
 def snapshot_inputs(session_dir: Path, writer: PrivateWriter) -> tuple[Path, dict]:
+    """Return the snapshot inputs."""
     snapshot = writer.mkdir(session_dir / "input_snapshot")
     hashes: dict[str, str] = {}
 
@@ -325,6 +349,7 @@ def snapshot_inputs(session_dir: Path, writer: PrivateWriter) -> tuple[Path, dic
 
 
 def copy_existing_snapshot(source: Path, session_dir: Path, writer: PrivateWriter) -> tuple[Path, dict]:
+    """Copy existing snapshot."""
     source = source.expanduser().resolve()
     if not (source / "manifest.json").is_file():
         raise ValueError(f"snapshot directory has no manifest.json: {source}")
@@ -342,6 +367,7 @@ def copy_existing_snapshot(source: Path, session_dir: Path, writer: PrivateWrite
 
 
 def configure_session_logging(bot: Any, log_path: Path) -> None:
+    """Configure session logging."""
     for handler in list(bot.log.handlers):
         bot.log.removeHandler(handler)
         try:
@@ -357,6 +383,7 @@ def configure_session_logging(bot: Any, log_path: Path) -> None:
 
 
 def import_production_bot(session_dir: Path) -> Any:
+    """Return the import production bot."""
     import_base = Path("/tmp") / f"mrsMThatcher-simulator-{os.getpid()}"
     import_base.mkdir(parents=True, exist_ok=True)
     env = {
@@ -393,6 +420,7 @@ def import_production_bot(session_dir: Path) -> Any:
 
 
 def apply_snapshot_config(bot: Any, snapshot: Path) -> dict:
+    """Apply snapshot config."""
     config = json.loads((snapshot / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
     candidate: dict[str, object] = {}
     for key, value in config.items():
@@ -408,6 +436,7 @@ def apply_snapshot_config(bot: Any, snapshot: Path) -> dict:
 
 
 def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
+    """Configure snapshot paths."""
     bot.LINES_FILE = snapshot / "mrsMThatcher.txt"
     bot.QUOTE_ANALYSIS_FILE = snapshot / "quote_analysis.json"
     bot.COMPLETED_QUOTE_RESEARCH_FILE = snapshot / "research_packets.json"
@@ -459,6 +488,7 @@ def configure_snapshot_paths(bot: Any, snapshot: Path, run_dir: Path) -> None:
 
 
 def forbidden_operation(name: str):
+    """Return the forbidden operation."""
     def fail(*args: object, **kwargs: object) -> Any:
         raise SimulationSafetyError(f"forbidden simulator operation attempted: {name}")
 
@@ -466,6 +496,7 @@ def forbidden_operation(name: str):
 
 
 def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
+    """Install hard guards."""
     for name in (
         "upload_media",
         "create_post",
@@ -502,6 +533,7 @@ def install_hard_guards(bot: Any, writer: PrivateWriter) -> None:
 
 @contextmanager
 def block_process_network() -> Iterable[None]:
+    """Block process network."""
     original_create_connection = socket.create_connection
     original_connect = socket.socket.connect
     original_connect_ex = socket.socket.connect_ex
@@ -524,14 +556,18 @@ def block_process_network() -> Iterable[None]:
 
 
 class JsonEventCapture(logging.Handler):
+    """Represent JSON event capture data."""
     def __init__(self) -> None:
+        """Initialise the JSON event capture."""
         super().__init__(logging.INFO)
         self.messages: list[str] = []
 
     def emit(self, record: logging.LogRecord) -> None:
+        """Capture one structured event emitted by the isolated simulator."""
         self.messages.append(record.getMessage())
 
     def payload(self, prefix: str) -> dict | None:
+        """Return the payload."""
         for message in reversed(self.messages):
             if message.startswith(prefix):
                 return json.loads(message[len(prefix) :])
@@ -540,6 +576,7 @@ class JsonEventCapture(logging.Handler):
 
 @contextmanager
 def capture_shadow_selection(bot: Any) -> Iterable[dict]:
+    """Yield capture shadow selection values."""
     capture: dict[str, Any] = {"scored_ids": []}
     events = JsonEventCapture()
     bot.log.addHandler(events)
@@ -593,6 +630,7 @@ def capture_shadow_selection(bot: Any) -> Iterable[dict]:
 
 @contextmanager
 def capture_scored_selection(bot: Any) -> Iterable[dict]:
+    """Yield capture scored selection values."""
     capture: dict[str, Any] = {"scored_ids": []}
     original_editorial = bot.log_original_editorial_shadow_result
     original_identity = bot.log_generated_identity_policy_shadow_result
@@ -631,6 +669,7 @@ def select_with_production_recovery(
     *,
     evaluate_shadows: bool = True,
 ) -> dict:
+    """Select with production recovery."""
     capture_context = capture_shadow_selection(bot) if evaluate_shadows else capture_scored_selection(bot)
     with capture_context as capture:
         try:
@@ -665,15 +704,18 @@ def select_with_production_recovery(
 
 
 class CounterfactualPolicyExhausted(RuntimeError):
+    """Raised when a counterfactual policy has no eligible candidate."""
     pass
 
 
 def derived_branch_seed(run_seed: int, branch: str) -> int:
+    """Return the derived branch seed."""
     digest = hashlib.sha256(f"mrs-counterfactual-v1:{run_seed}:{branch}".encode()).digest()
     return int.from_bytes(digest[:8], "big")
 
 
 def policy_candidate_rows(bot: Any, quote: dict, scored: list[dict], branch: str) -> list[dict]:
+    """Return the policy candidate rows."""
     rows: list[dict] = []
     editorial = bot.load_original_editorial_analysis() if branch == "editorial" else None
     audit = bot.load_generated_identity_audit() if branch == "identity" else None
@@ -707,6 +749,7 @@ def policy_candidate_rows(bot: Any, quote: dict, scored: list[dict], branch: str
 
 
 def choose_policy_winner(bot: Any, rows: list[dict]) -> dict:
+    """Select policy winner."""
     eligible = [row for row in rows if not row.get("policy_excluded")]
     if not eligible:
         raise CounterfactualPolicyExhausted("policy excluded every scored candidate")
@@ -716,6 +759,7 @@ def choose_policy_winner(bot: Any, rows: list[dict]) -> dict:
 
 
 def observational_policy_winner(rows: list[dict], production_basename: str) -> str | None:
+    """Return the observational policy winner."""
     eligible = [row for row in rows if not row.get("policy_excluded")]
     if not eligible:
         return None
@@ -735,6 +779,7 @@ def score_exact_quote_phase(
     phase: str,
     cycle_boundary_exclusions: set[str] | None = None,
 ) -> tuple[dict, list[dict]]:
+    """Score exact quote phase."""
     force_reset = phase != "normal"
     avoid_last = phase != "last_image_fallback"
     rng_before = bot.random.getstate()
@@ -764,6 +809,7 @@ def select_policy_image_with_recovery(
     state: dict,
     branch: str,
 ) -> dict:
+    """Select policy image with recovery."""
     phases = ("normal", "forced_cycle_reset", "last_image_fallback")
     cycle_boundary_exclusions: set[str] = set()
     last_error: Exception | None = None
@@ -796,6 +842,7 @@ def select_policy_image_with_recovery(
 
 
 def rng_state_encode(state: object) -> str:
+    """Return the RNG state encode."""
     normalised = _normalise_rng_state(state)
     return json.dumps(
         {
@@ -811,6 +858,7 @@ def rng_state_encode(state: object) -> str:
 
 
 def rng_state_decode(value: str) -> object:
+    """Return the RNG state decode."""
     if not isinstance(value, str) or len(value.encode("utf-8")) > 65536:
         raise SimulationSafetyError("RNG checkpoint must be a bounded JSON string")
     try:
@@ -855,6 +903,7 @@ def _normalise_rng_state(state: object) -> tuple[int, tuple[int, ...], float | N
 
 
 def load_private_state(snapshot: Path) -> tuple[dict, set[str], set[str]]:
+    """Load private state."""
     state = json.loads((snapshot / "bot_state.json").read_text(encoding="utf-8"))
     images_used = {str(item) for item in json.loads((snapshot / "images_used.json").read_text(encoding="utf-8"))}
     lines_used = {str(item) for item in json.loads((snapshot / "lines_used.json").read_text(encoding="utf-8"))}
@@ -862,6 +911,7 @@ def load_private_state(snapshot: Path) -> tuple[dict, set[str], set[str]]:
 
 
 def persist_private_state(writer: PrivateWriter, run_dir: Path, state: dict, images_used: set[str], lines_used: set[str]) -> None:
+    """Persist private state."""
     writer.atomic_json(run_dir / "state.json", state)
     writer.atomic_json(run_dir / "images_used.json", sorted(images_used))
     writer.atomic_json(run_dir / "lines_used.json", sorted(lines_used))
@@ -878,6 +928,7 @@ def checkpoint_payload(
     images_used: set[str],
     lines_used: set[str],
 ) -> dict:
+    """Return the checkpoint payload."""
     return {
         "schema_version": 1,
         "run_id": run_id,
@@ -893,6 +944,7 @@ def checkpoint_payload(
 
 
 def reconcile_jsonl_to_checkpoint(writer: PrivateWriter, output_path: Path, completed_posts: int) -> list[dict]:
+    """Reconcile jsonl to checkpoint."""
     if not output_path.exists():
         if completed_posts:
             raise RuntimeError("checkpoint records completed posts but selections.jsonl is missing")
@@ -912,6 +964,7 @@ def reconcile_jsonl_to_checkpoint(writer: PrivateWriter, output_path: Path, comp
 
 
 def candidate_detail_rows(bot: Any, selection: dict, mode: str) -> list[dict]:
+    """Return the candidate detail rows."""
     if mode == "none":
         return []
     scored = selection["scored"]
@@ -958,6 +1011,7 @@ def apply_simulated_success(
     quote_delay: int | None = None,
     meme_delay: int | None = None,
 ) -> int:
+    """Apply simulated success."""
     quote = selection["quote"]
     image = selection["image"]
 
@@ -997,6 +1051,7 @@ def trace_image_lifecycle(
     image_cycle_reset: bool,
     spacing_allowed_before: bool,
 ) -> dict:
+    """Return the trace image lifecycle."""
     quote = selection["quote"]
     scored_by_name = {item["basename"]: item for item in selection["scored"]}
     paths = {Path(path).name: path for path in bot.current_image_paths()}
@@ -1065,6 +1120,7 @@ def make_selection_record(
     candidate_detail: str,
     image_traces: list[dict],
 ) -> dict:
+    """Create selection record."""
     quote = selection["quote"]
     image = selection["image"]
     scored = selection["scored"]
@@ -1144,6 +1200,7 @@ def run_future(
     stop_after_post: int | None = None,
     failure_hook: Any = None,
 ) -> list[dict]:
+    """Run future."""
     run_id = f"run_{run_index:04d}"
     run_dir = writer.mkdir(session_dir / "runs" / run_id)
     checkpoint_path = run_dir / "checkpoint.json"
@@ -1249,6 +1306,7 @@ def run_future(
 
 
 def load_all_records(session_dir: Path) -> list[dict]:
+    """Load all records."""
     records: list[dict] = []
     for path in sorted((session_dir / "runs").glob("run_*/selections.jsonl")):
         with path.open(encoding="utf-8") as handle:
@@ -1260,6 +1318,7 @@ BRANCHES = ("production", "editorial", "identity")
 
 
 def counterfactual_paths(run_dir: Path) -> dict[str, Path]:
+    """Return the counterfactual paths."""
     base = run_dir
     return {
         "shared": base / "shared_quotes.jsonl",
@@ -1269,6 +1328,7 @@ def counterfactual_paths(run_dir: Path) -> dict[str, Path]:
 
 
 def counterfactual_candidate_detail(rows: list[dict], mode: str) -> list[dict]:
+    """Return the counterfactual candidate detail."""
     if mode == "none":
         return []
     ordered = sorted(
@@ -1309,6 +1369,7 @@ def counterfactual_branch_record(
     image_cycle_reset: bool,
     candidate_detail: str,
 ) -> dict:
+    """Return the counterfactual branch record."""
     winner = selection["image"]
     rows = selection["scored"]
     return {
@@ -1355,6 +1416,7 @@ def counterfactual_checkpoint_payload(
     virtual_epoch: int,
     branches: dict[str, dict],
 ) -> dict:
+    """Return the counterfactual checkpoint payload."""
     return {
         "schema_version": 1,
         "run_id": run_id,
@@ -1374,6 +1436,7 @@ def counterfactual_checkpoint_payload(
 
 
 def restore_counterfactual_branches(checkpoint: dict) -> dict[str, dict]:
+    """Restore counterfactual branches."""
     return {
         name: {
             "state": copy.deepcopy(value["state"]),
@@ -1390,6 +1453,7 @@ def reconcile_counterfactual_outputs(
     paths: dict[str, Path],
     completed_posts: int,
 ) -> None:
+    """Reconcile counterfactual outputs."""
     for path in paths.values():
         reconcile_jsonl_to_checkpoint(writer, path, completed_posts)
 
@@ -1410,6 +1474,7 @@ def run_counterfactual_future(
     stop_after_post: int | None = None,
     failure_hook: Any = None,
 ) -> None:
+    """Run counterfactual future."""
     run_id = f"run_{run_index:04d}"
     run_dir = writer.mkdir(session_dir / "counterfactual" / "runs" / run_id)
     paths = counterfactual_paths(run_dir)
@@ -1648,6 +1713,7 @@ def run_counterfactual_future(
 
 
 def entropy(counter: Counter[str]) -> float:
+    """Return the entropy."""
     total = sum(counter.values())
     if not total:
         return 0.0
@@ -1655,12 +1721,14 @@ def entropy(counter: Counter[str]) -> float:
 
 
 def variation(values: list[float]) -> dict:
+    """Return the variation."""
     if not values:
         return {"min": 0.0, "median": 0.0, "max": 0.0}
     return {"min": min(values), "median": statistics.median(values), "max": max(values)}
 
 
 def five_number(values: list[float]) -> dict:
+    """Return the five number."""
     if not values:
         return {"min": 0.0, "lower_quartile": 0.0, "median": 0.0, "upper_quartile": 0.0, "max": 0.0}
     ordered = sorted(values)
@@ -1675,6 +1743,7 @@ def five_number(values: list[float]) -> dict:
 
 
 def concentration(counter: Counter[str], denominator: int | None = None) -> dict:
+    """Return the concentration."""
     total = sum(counter.values()) if denominator is None else denominator
     return {
         "observations": total,
@@ -1685,6 +1754,7 @@ def concentration(counter: Counter[str], denominator: int | None = None) -> dict
 
 
 def summarize_records(records: list[dict], runtime_seconds: float) -> dict:
+    """Summarise records."""
     production = Counter(record["production_source"] for record in records)
     images = Counter(record["production_image"] for record in records)
     phases = Counter(record["selection_phase"] for record in records)
@@ -1920,6 +1990,7 @@ def summarize_records(records: list[dict], runtime_seconds: float) -> dict:
 
 
 def markdown_report(session_manifest: dict, summary: dict) -> str:
+    """Return the markdown report."""
     prod = summary["production"]
     editorial = summary["original_editorial_shadow"]
     identity = summary["generated_identity_shadow"]
@@ -2014,6 +2085,7 @@ def markdown_report(session_manifest: dict, summary: dict) -> str:
 
 
 def load_counterfactual_records(session_dir: Path) -> tuple[dict[str, list[dict]], list[dict]]:
+    """Load counterfactual records."""
     branch_records = {branch: [] for branch in BRANCHES}
     comparisons: list[dict] = []
     for run_dir in sorted((session_dir / "counterfactual" / "runs").glob("run_*")):
@@ -2031,6 +2103,7 @@ def load_counterfactual_records(session_dir: Path) -> tuple[dict[str, list[dict]
 
 
 def branch_diversity(records: list[dict]) -> dict:
+    """Return the branch diversity."""
     winners = Counter(record["winner"] for record in records)
     per_run_last: dict[tuple[str, str], int] = {}
     intervals: list[int] = []
@@ -2061,6 +2134,7 @@ def summarize_counterfactual(
     comparisons: list[dict],
     runtime_seconds: float,
 ) -> dict:
+    """Summarise counterfactual."""
     total = len(comparisons)
     per_branch: dict[str, dict] = {}
     for branch, records in branch_records.items():
@@ -2185,6 +2259,7 @@ def summarize_counterfactual(
 
 
 def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str:
+    """Return the counterfactual markdown report."""
     lines = [
         "# Counterfactual Policy Branch Simulation Report",
         "",
@@ -2261,6 +2336,7 @@ def counterfactual_markdown_report(session_manifest: dict, summary: dict) -> str
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(
         description="Offline production-parity regular quote/image simulator. Never posts or calls network APIs."
     )
@@ -2281,6 +2357,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     if args.runs <= 0 or args.posts_per_run <= 0:
         raise SystemExit("--runs and --posts-per-run must be positive")

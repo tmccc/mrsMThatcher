@@ -96,7 +96,9 @@ SOURCE_PERSON_ALIASES: tuple[tuple[str, tuple[str, ...]], ...] = (
 
 
 class ArchiveRateLimitExhausted(RuntimeError):
+    """Raised when bounded archive rate-limit retries are exhausted."""
     def __init__(self, retry_after: float):
+        """Initialise the archive rate limit exhausted."""
         super().__init__("archive image endpoint remained rate limited after one retry")
         self.retry_after = retry_after
 
@@ -256,18 +258,22 @@ TRIAGE_RESPONSE_SCHEMA: dict[str, Any] = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_bytes(value: Any) -> bytes:
+    """Return the canonical bytes."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def sha256_value(value: Any) -> str:
+    """Return the SHA-256 value."""
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
 def append_jsonl(path: Path, row: dict[str, Any]) -> None:
+    """Append jsonl."""
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True, ensure_ascii=False) + "\n")
@@ -276,12 +282,14 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
 
 
 def read_jsonl_if_exists(path: Path) -> list[dict[str, Any]]:
+    """Read jsonl if exists."""
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def assert_isolated_path(research_dir: Path, target: Path) -> None:
+    """Assert isolated path."""
     root = research_dir.resolve()
     resolved = target.resolve(strict=False)
     if resolved != root and root not in resolved.parents:
@@ -291,6 +299,7 @@ def assert_isolated_path(research_dir: Path, target: Path) -> None:
 
 
 def load_baseline(path: Path) -> dict[str, Any]:
+    """Load baseline."""
     baseline = read_json(path)
     if not isinstance(baseline, dict) or baseline.get("schema_version") != 3:
         raise RuntimeError("image baseline must use schema version 3")
@@ -315,6 +324,7 @@ def _count(values: Iterable[str]) -> dict[str, int]:
 
 
 def build_coverage_profile(baseline: dict[str, Any]) -> dict[str, Any]:
+    """Build coverage profile."""
     rows = [baseline["items"][digest]["analysis"] for digest in sorted(baseline["current_hashes"])]
     flattened: dict[str, list[str]] = defaultdict(list)
     qualities: list[int] = []
@@ -386,6 +396,7 @@ BRIEF_GROUPS = (
 
 
 def build_discovery_briefs(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build discovery briefs."""
     baseline_hash = str(profile["baseline_hash"])
     result = []
     for index, (brief_id, focus) in enumerate(BRIEF_GROUPS, 1):
@@ -406,6 +417,7 @@ def build_discovery_briefs(profile: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def write_coverage_outputs(baseline_path: Path, research_dir: Path) -> dict[str, Any]:
+    """Write coverage outputs."""
     assert_isolated_path(research_dir, research_dir / "coverage_profile.json")
     baseline = load_baseline(baseline_path)
     profile = build_coverage_profile(baseline)
@@ -481,6 +493,7 @@ def _repair_single_missing_outer_brace(text: str) -> str:
 
 
 def parse_json_response(raw: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Parse JSON response."""
     repairs: list[str] = []
     parsed = raw.get("parsed")
     if isinstance(parsed, dict):
@@ -575,6 +588,7 @@ class GeminiHuntClient:
         client: Any | None = None,
         timeout_seconds: float = 300,
     ):
+        """Initialise the gemini hunt client."""
         if transport not in {"developer_api", "vertex"}:
             raise ValueError("unsupported Gemini transport")
         self.transport = transport
@@ -593,6 +607,7 @@ class GeminiHuntClient:
         self.timeout_seconds = timeout_seconds
 
     def settings_signature(self, phase: str, schema: dict[str, Any]) -> dict[str, Any]:
+        """Return the settings signature."""
         return {
             "model": self.model,
             "phase": phase,
@@ -605,6 +620,7 @@ class GeminiHuntClient:
         }
 
     def config(self, phase: str, schema: dict[str, Any]) -> types.GenerateContentConfig:
+        """Return the config."""
         return types.GenerateContentConfig(
             response_mime_type=None if phase == "discovery" else "application/json",
             response_json_schema=None,
@@ -623,6 +639,7 @@ class GeminiHuntClient:
         schema: dict[str, Any],
         images: Sequence[tuple[str, bytes, str]] = (),
     ) -> dict[str, Any]:
+        """Submit one grounded or multimodal image-hunt request."""
         if self.transport == "developer_api" and phase == "discovery" and not images:
             return self._call_developer_grounded_rest(prompt, schema)
         parts: list[types.Part] = [types.Part(text=prompt)]
@@ -659,6 +676,7 @@ class GeminiHuntClient:
         }
 
     def developer_grounded_payload(self, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
+        """Return the developer grounded payload."""
         del schema  # Grounded search currently rejects transport-enforced JSON Schema.
         return {
             "contents": [{"role": "user", "parts": [{"text": prompt}]}],
@@ -701,6 +719,7 @@ class GeminiHuntClient:
 def require_transport_parity(
     developer: GeminiHuntClient, vertex: GeminiHuntClient, phase: str, schema: dict[str, Any],
 ) -> None:
+    """Require transport parity."""
     if developer.settings_signature(phase, schema) != vertex.settings_signature(phase, schema):
         raise RuntimeError(f"Gemini {phase} transport parity failed")
 
@@ -719,6 +738,7 @@ class LogicalCallRouter:
         developer_limit: float = DEVELOPER_COST_LIMIT_USD,
         vertex_limit: float = VERTEX_COST_LIMIT_USD,
     ):
+        """Initialise the logical call router."""
         self.research_dir = research_dir
         self.run_id = research_dir.name
         self.developer = developer
@@ -834,6 +854,7 @@ class LogicalCallRouter:
         schema: dict[str, Any],
         images: Sequence[tuple[str, bytes, str]] = (),
     ) -> dict[str, Any]:
+        """Run one logical image-hunt call with persisted provider routing."""
         prompt_hash = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         image_hashes = [hashlib.sha256(payload).hexdigest() for _label, payload, _mime in images]
         cached = self.state["completed_logical_calls"].get(logical_call_id)
@@ -955,6 +976,7 @@ class LogicalCallRouter:
 
 
 def discovery_prompt(brief: dict[str, Any]) -> str:
+    """Return the discovery prompt."""
     return f"""You are finding reputable archive SOURCE PAGES containing photographs of Margaret Thatcher.
 
 Research focus: {brief['focus']}
@@ -967,6 +989,7 @@ Summarise up to 20 distinct source pages likely to yield usable photographs in c
 
 
 def records_from_provider_grounding(grounding: dict[str, Any], brief: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the records from provider grounding."""
     records: list[dict[str, Any]] = []
     queries = [str(value) for value in grounding.get("queries") or []][:6]
     for source in grounding.get("sources") or []:
@@ -993,6 +1016,7 @@ def records_from_provider_grounding(grounding: dict[str, Any], brief: dict[str, 
 
 
 def triage_prompt(candidate_ids: Sequence[str], gap_priorities: Sequence[str]) -> str:
+    """Return the triage prompt."""
     labels = ", ".join(candidate_ids)
     gaps = "; ".join(gap_priorities)
     transport_schema = json.dumps(TRIAGE_RESPONSE_SCHEMA, sort_keys=True, separators=(",", ":"))
@@ -1017,6 +1041,7 @@ def _normalise_url(url: str) -> str:
 
 
 def validate_public_url(url: str, *, resolve_dns: bool = True) -> str:
+    """Validate public URL."""
     normalised = _normalise_url(url)
     hostname = urlparse(normalised).hostname or ""
     if hostname.casefold() in {"localhost", "localhost.localdomain"}:
@@ -1048,6 +1073,7 @@ def resolve_grounded_sources(
     grounding: dict[str, Any], session: requests.Session, *, timeout: float = 30,
     resolution_cache: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    """Resolve grounded sources."""
     resolution_cache = resolution_cache or {}
     resolved: list[dict[str, Any]] = []
     for source in grounding.get("sources") or []:
@@ -1077,6 +1103,7 @@ def resolve_grounded_sources(
 def validate_grounded_discovery_records(
     parsed: dict[str, Any], grounding: dict[str, Any], resolved_sources: Sequence[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Validate grounded discovery records."""
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     records = parsed.get("records") if isinstance(parsed, dict) else None
@@ -1147,6 +1174,7 @@ def _iter_jsonld_images(value: Any, inherited_text: str = "") -> Iterable[tuple[
 
 
 def extract_image_references(page_url: str, page_html: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Extract image references."""
     soup = BeautifulSoup(page_html, "lxml")
     title = html.unescape((soup.title.string if soup.title and soup.title.string else "").strip())
     description_tag = soup.find("meta", attrs={"name": re.compile("description", re.I)})
@@ -1243,6 +1271,7 @@ def source_named_people_from_evidence(
 
 
 def source_identity_evidence(reference: dict[str, Any], page: dict[str, Any], discovery: dict[str, Any]) -> dict[str, Any]:
+    """Return the source identity evidence."""
     metadata = " ".join(str(reference.get(key) or "") for key in ("alt_text", "metadata_text"))
     candidates = [("source_caption", str(reference.get("caption") or ""), "high")]
     candidates.append(("archive_record" if "json_ld" in (reference.get("origins") or []) else "source_metadata", metadata, "high"))
@@ -1268,6 +1297,7 @@ def source_identity_evidence(reference: dict[str, Any], page: dict[str, Any], di
 
 
 def classify_rights(*values: str, host: str = "") -> tuple[str, str]:
+    """Classify rights."""
     evidence = " ".join(value for value in values if value).strip()
     folded = evidence.casefold()
     if any(term in folded for term in ("do not reproduce", "all rights reserved", "rights managed")):
@@ -1286,6 +1316,7 @@ def classify_rights(*values: str, host: str = "") -> tuple[str, str]:
 
 
 def publisher_name_for_url(url: str, fallback: str = "") -> str:
+    """Return the publisher name for URL."""
     host = (urlparse(url).hostname or "").casefold()
     known = (
         ("commons.wikimedia.org", "Wikimedia Commons"),
@@ -1316,6 +1347,7 @@ def _plain_metadata(value: Any) -> str:
 def commons_image_candidate(
     page: dict[str, Any], *, grounding_parent_url: str, require_title_attribution: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Return the commons image candidate."""
     title = str(page.get("title") or "")
     image_info = (page.get("imageinfo") or [{}])[0]
     mime = str(image_info.get("mime") or "").casefold()
@@ -1415,6 +1447,7 @@ def expand_grounded_commons_categories(
     candidates_by_id: dict[str, dict[str, Any]],
     session: requests.Session,
 ) -> dict[str, Any]:
+    """Return the expand grounded commons categories."""
     roots: list[tuple[str, str]] = []
     for row in source_pages:
         url = str(row.get("source_page_url") or "")
@@ -1647,6 +1680,7 @@ def expand_grounded_commons_categories(
 def fetch_source_page(
     record: dict[str, Any], session: requests.Session, *, timeout: float = 30,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Fetch source page."""
     url = validate_public_url(record["source_page_url"])
     response = session.get(url, timeout=timeout, allow_redirects=True)
     response.raise_for_status()
@@ -1705,6 +1739,7 @@ def fetch_source_page(
 def download_candidate(
     candidate: dict[str, Any], research_dir: Path, session: requests.Session, *, timeout: float = 45,
 ) -> dict[str, Any]:
+    """Download candidate."""
     if candidate.get("identity_confidence") == "low" or not candidate.get("identity_evidence"):
         raise ValueError("candidate attribution is not source-verified")
     url = validate_public_url(candidate["direct_image_url"])
@@ -1767,6 +1802,7 @@ def download_candidate(
 
 
 def recover_downloaded_candidate(candidate: dict[str, Any], research_dir: Path) -> dict[str, Any] | None:
+    """Recover downloaded candidate."""
     matches = sorted((research_dir / "downloaded").glob(f"{candidate['candidate_id']}.*"))
     for path in matches:
         try:
@@ -1794,6 +1830,7 @@ def recover_downloaded_candidate(candidate: dict[str, Any], research_dir: Path) 
 def harvest_saved_discovery(
     research_dir: Path, *, session: requests.Session | None = None,
 ) -> dict[str, Any]:
+    """Return the harvest saved discovery."""
     session = session or requests.Session()
     session.headers.update({"User-Agent": "mrsMThatcher-image-research/1.0 (archive research)"})
     normal_dir = research_dir / "grounded_discovery" / "normalised"
@@ -1927,6 +1964,7 @@ def _hash_distance(left: str, right: str) -> int:
 
 
 def classify_image_similarity(candidate: dict[str, Any], other: dict[str, Any]) -> str:
+    """Classify image similarity."""
     if candidate["sha256"] == other["sha256"]:
         return "exact_duplicate"
     phash = _hash_distance(candidate["phash"], other["phash"])
@@ -1949,6 +1987,7 @@ def _baseline_image_path(baseline_path: Path, filename: str) -> Path:
 
 
 def build_dedupe_manifest(baseline_path: Path, research_dir: Path) -> dict[str, Any]:
+    """Build dedupe manifest."""
     baseline = load_baseline(baseline_path)
     existing: list[dict[str, Any]] = []
     for filename, digest in sorted(baseline["path_index"].items()):
@@ -2012,6 +2051,7 @@ def build_dedupe_manifest(baseline_path: Path, research_dir: Path) -> dict[str, 
 
 
 def create_thumbnail(path: Path, output: Path, *, maximum: int = 768) -> tuple[bytes, str]:
+    """Create thumbnail."""
     output.parent.mkdir(parents=True, exist_ok=True)
     with Image.open(path) as source:
         image = source.convert("RGB")
@@ -2023,6 +2063,7 @@ def create_thumbnail(path: Path, output: Path, *, maximum: int = 768) -> tuple[b
 
 
 def validate_triage_response(parsed: dict[str, Any], expected_ids: Sequence[str]) -> list[dict[str, Any]]:
+    """Validate triage response."""
     rows = parsed.get("records") if isinstance(parsed, dict) else None
     if not isinstance(rows, list):
         raise ValueError("triage records must be a list")
@@ -2043,6 +2084,7 @@ def validate_triage_response(parsed: dict[str, Any], expected_ids: Sequence[str]
 
 
 def recover_saved_triage_response(research_dir: Path, normalised_path: Path) -> dict[str, Any]:
+    """Recover saved triage response."""
     value = read_json(normalised_path)
     if isinstance(value.get("parsed"), dict):
         return value
@@ -2064,6 +2106,7 @@ def recover_saved_triage_response(research_dir: Path, normalised_path: Path) -> 
 
 
 def remaining_logical_call_capacity(phases: dict[str, str], phase: str) -> int:
+    """Return the remaining logical call capacity."""
     phase_limit = MAX_DISCOVERY_CALLS if phase == "discovery" else MAX_TRIAGE_CALLS
     return max(0, min(phase_limit - Counter(phases.values())[phase], MAX_LOGICAL_CALLS - len(phases)))
 
@@ -2071,6 +2114,7 @@ def remaining_logical_call_capacity(phases: dict[str, str], phase: str) -> int:
 def run_triage_batches(
     research_dir: Path, router: LogicalCallRouter, *, maximum_calls: int | None = None,
 ) -> dict[str, Any]:
+    """Run triage batches."""
     candidates = {row["candidate_id"]: row for row in read_jsonl_if_exists(research_dir / "raw_candidates.jsonl")}
     dedupe = read_json(research_dir / "dedupe_manifest.json")
     retained_ids = [row["candidate_id"] for row in dedupe["candidates"] if row["retained_for_triage"]]
@@ -2178,6 +2222,7 @@ def _candidate_novel_attributes(analysis: dict[str, Any], profile: dict[str, Any
 def build_candidate_manifest(
     baseline_path: Path, research_dir: Path, *, embedder: Any | None = None,
 ) -> dict[str, Any]:
+    """Build candidate manifest."""
     baseline = load_baseline(baseline_path)
     profile = read_json(research_dir / "coverage_profile.json")
     raw = {row["candidate_id"]: row for row in read_jsonl_if_exists(research_dir / "raw_candidates.jsonl")}
@@ -2288,6 +2333,7 @@ fetch('/api/state').then(r=>r.json()).then(v=>{payload=v;draw()});
 
 
 def save_review(research_dir: Path, candidate_id: str, decision: str, note: str = "") -> dict[str, Any]:
+    """Save review."""
     if decision not in REVIEW_DECISIONS:
         raise ValueError("invalid review decision")
     manifest = read_json(research_dir / "candidate_manifest.json")
@@ -2319,6 +2365,7 @@ def save_review(research_dir: Path, candidate_id: str, decision: str, note: str 
 
 
 def refresh_review_manifests(research_dir: Path, state: dict[str, Any] | None = None) -> None:
+    """Perform the refresh review manifests operation."""
     state = state or (read_json(research_dir / "review_state.json") if (research_dir / "review_state.json").exists() else {"reviews": {}})
     reviews = state.get("reviews") or {}
     kept = [row for row in reviews.values() if row.get("decision") in {"keep", "keep_as_replacement"}]
@@ -2328,6 +2375,7 @@ def refresh_review_manifests(research_dir: Path, state: dict[str, Any] | None = 
 
 
 def review_api_state(research_dir: Path) -> dict[str, Any]:
+    """Return the review API state."""
     manifest = read_json(research_dir / "candidate_manifest.json")
     state = read_json(research_dir / "review_state.json") if (research_dir / "review_state.json").exists() else {"reviews": {}}
     reviews = state.get("reviews") or {}
@@ -2338,6 +2386,7 @@ def review_api_state(research_dir: Path) -> dict[str, Any]:
 
 
 def make_review_handler(research_dir: Path, baseline_path: Path) -> type[BaseHTTPRequestHandler]:
+    """Create review handler."""
     manifest = read_json(research_dir / "candidate_manifest.json")
     candidates = {row["candidate_id"]: row for row in manifest["records"]}
     baseline = load_baseline(baseline_path)
@@ -2402,6 +2451,7 @@ def make_review_handler(research_dir: Path, baseline_path: Path) -> type[BaseHTT
 
 
 def serve_review(research_dir: Path, baseline_path: Path, host: str, port: int) -> None:
+    """Serve review."""
     server = ThreadingHTTPServer((host, port), make_review_handler(research_dir, baseline_path))
     print(f"Review server: http://{host}:{port}")
     try:
@@ -2411,6 +2461,7 @@ def serve_review(research_dir: Path, baseline_path: Path, host: str, port: int) 
 
 
 def export_kept(research_dir: Path, output_dir: Path) -> dict[str, Any]:
+    """Export kept."""
     assert_isolated_path(research_dir, output_dir)
     manifest = read_json(research_dir / "candidate_manifest.json")
     state = read_json(research_dir / "review_state.json")
@@ -2583,6 +2634,7 @@ def load_project_environment(path: Path) -> None:
 
 
 def api_preflight(research_dir: Path) -> dict[str, Any]:
+    """Return the API preflight."""
     developer_configured = bool(os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_LOCATION") or "global"
@@ -2619,6 +2671,7 @@ def api_preflight(research_dir: Path) -> dict[str, Any]:
 
 
 def create_clients() -> tuple[GeminiHuntClient, GeminiHuntClient]:
+    """Create clients."""
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     project = os.getenv("GOOGLE_CLOUD_PROJECT")
     location = os.getenv("GOOGLE_CLOUD_LOCATION") or "global"
@@ -2632,6 +2685,7 @@ def create_clients() -> tuple[GeminiHuntClient, GeminiHuntClient]:
 def run_discovery_calls(
     research_dir: Path, router: LogicalCallRouter, *, maximum_briefs: int,
 ) -> dict[str, Any]:
+    """Run discovery calls."""
     briefs = read_json(research_dir / "discovery_briefs.json")["briefs"]
     completed_before = set(router.state["completed_logical_calls"])
     made = 0
@@ -2679,6 +2733,7 @@ def run_discovery_calls(
 
 
 def pilot_gate(harvest: dict[str, Any], dedupe: dict[str, Any]) -> dict[str, Any]:
+    """Return the pilot gate."""
     checks = {
         "at_least_15_attributed_downloads": harvest["downloaded_candidates"] >= 15,
         "at_least_10_visually_distinct": dedupe["retained_count"] >= 10,
@@ -2689,6 +2744,7 @@ def pilot_gate(harvest: dict[str, Any], dedupe: dict[str, Any]) -> dict[str, Any
 
 
 def build_final_report(research_dir: Path, baseline_path: Path) -> dict[str, Any]:
+    """Build final report."""
     profile = read_json(research_dir / "coverage_profile.json")
     route = read_json(research_dir / "provider_route_state.json") if (research_dir / "provider_route_state.json").exists() else {}
     pages = read_json(research_dir / "source_pages.json") if (research_dir / "source_pages.json").exists() else {"pages": []}
@@ -2878,6 +2934,7 @@ def build_final_report(research_dir: Path, baseline_path: Path) -> dict[str, Any
 def run_pipeline(
     baseline_path: Path, research_dir: Path, *, execute: bool, confirmed_cost: float | None,
 ) -> dict[str, Any]:
+    """Run pipeline."""
     write_coverage_outputs(baseline_path, research_dir)
     preflight = api_preflight(research_dir)
     if not execute:
@@ -2934,6 +2991,7 @@ def run_pipeline(
 
 
 def status(research_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     result: dict[str, Any] = {"research_dir": str(research_dir)}
     for name in ("coverage_profile.json", "api_preflight.json", "provider_route_state.json", "pilot_gate.json", "dedupe_manifest.json", "candidate_manifest.json", "review_state.json"):
         path = research_dir / name
@@ -2947,6 +3005,7 @@ def status(research_dir: Path) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("profile", "preflight", "run", "status", "serve-review", "export-kept"))
     parser.add_argument("--project-dir", type=Path, default=Path.cwd())
@@ -2962,6 +3021,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     project_dir = args.project_dir.resolve()
     baseline_path = (args.baseline or project_dir / "image_analysis.json").resolve()

@@ -89,10 +89,12 @@ AUDIT_SCHEMA: dict[str, Any] = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -101,6 +103,7 @@ def sha256_file(path: Path) -> str:
 
 
 def generated_origin_hash(basename: str) -> str:
+    """Return the generated origin hash."""
     match = GENERATED_RE.fullmatch(basename)
     if not match:
         raise ValueError(f"Invalid generated image basename: {basename}")
@@ -108,6 +111,7 @@ def generated_origin_hash(basename: str) -> str:
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write a JSON document atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
@@ -131,15 +135,18 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def load_json(path: Path) -> Any:
+    """Load JSON."""
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def read_text(path: Path) -> str:
+    """Read text."""
     return path.read_text(encoding="utf-8").strip() if path.is_file() else ""
 
 
 def finite_number(value: Any, name: str, low: float, high: float) -> float:
+    """Return the finite number."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{name} must be a number")
     number = float(value)
@@ -149,6 +156,7 @@ def finite_number(value: Any, name: str, low: float, high: float) -> float:
 
 
 def grounded_person_label_is_valid(label: str, grounded_people: Iterable[str]) -> bool:
+    """Return whether grounded person label is valid."""
     grounded = {str(value).strip().casefold() for value in grounded_people if str(value).strip()}
     if label.strip().casefold() in grounded:
         return True
@@ -162,6 +170,7 @@ def grounded_person_label_is_valid(label: str, grounded_people: Iterable[str]) -
 
 
 def validate_analysis(analysis: Any, grounded_people: Iterable[str] = ()) -> dict[str, Any]:
+    """Validate analysis."""
     if not isinstance(analysis, dict):
         raise ValueError("analysis must be an object")
     required = set(AUDIT_SCHEMA["required"])
@@ -204,6 +213,7 @@ def validate_analysis(analysis: Any, grounded_people: Iterable[str] = ()) -> dic
 
 
 def analysis_records_by_basename(path: Path) -> dict[str, dict[str, Any]]:
+    """Return the analysis records by basename."""
     payload = load_json(path)
     if payload.get("analysis_kind") != "images" or not isinstance(payload.get("items"), dict):
         raise ValueError(f"Unsupported generated analysis: {path}")
@@ -218,6 +228,7 @@ def analysis_records_by_basename(path: Path) -> dict[str, dict[str, Any]]:
 
 
 def grounded_people_from_origin(quote_analysis: dict[str, Any], face_audit_item: dict[str, Any] | None = None) -> list[str]:
+    """Return the grounded people from origin."""
     historical = quote_analysis.get("historical_context") if isinstance(quote_analysis.get("historical_context"), dict) else {}
     people = [str(value).strip() for value in historical.get("referenced_people") or [] if str(value).strip()]
     assessment = face_audit_item.get("assessment") if isinstance(face_audit_item, dict) and isinstance(face_audit_item.get("assessment"), dict) else {}
@@ -239,6 +250,7 @@ def build_context(
     existing_record: dict[str, Any],
     face_audit_item: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Build context."""
     origin_hash = generated_origin_hash(image_path.name)
     item_dir = origin_root / origin_hash
     if not item_dir.is_dir():
@@ -272,6 +284,7 @@ def face_correction_provenance(
     manifest_items: dict[str, Any],
     pre_face_backup: Path | None,
 ) -> dict[str, Any] | None:
+    """Return the face correction provenance."""
     item = manifest_items.get(path.name)
     if not isinstance(item, dict) or pre_face_backup is None:
         return None
@@ -304,6 +317,7 @@ def validate_inputs(
     face_manifest: Path | None = None,
     pre_face_backup: Path | None = None,
 ) -> list[dict[str, Any]]:
+    """Validate inputs."""
     records = analysis_records_by_basename(analysis_path)
     manifest_items: dict[str, Any] = {}
     if face_manifest and face_manifest.is_file():
@@ -345,11 +359,13 @@ def validate_inputs(
 
 
 def data_uri(path: Path) -> str:
+    """Return the data uri."""
     mime = mimetypes.guess_type(path.name)[0] or "image/png"
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
 def prompt_for_context(context: dict[str, Any]) -> str:
+    """Return the prompt for context."""
     supplied = {
         "basename": context["basename"],
         "origin_quote_hash": context["origin_quote_hash"],
@@ -387,6 +403,7 @@ def prompt_for_context(context: dict[str, Any]) -> str:
 
 
 def response_text(payload: dict[str, Any]) -> str:
+    """Return the response text."""
     for item in payload.get("output") or []:
         if isinstance(item, dict) and item.get("type") == "message":
             for content in item.get("content") or []:
@@ -396,6 +413,7 @@ def response_text(payload: dict[str, Any]) -> str:
 
 
 def call_xai(session: requests.Session, context: dict[str, Any], model: str, api_base: str, timeout: float, retries: int) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the call xAI."""
     payload = {
         "model": model,
         "input": [{"role": "user", "content": [
@@ -429,6 +447,7 @@ def call_xai(session: requests.Session, context: dict[str, Any], model: str, api
 
 
 def empty_output(model: str) -> dict[str, Any]:
+    """Return the empty output."""
     return {
         "schema_version": SCHEMA_VERSION,
         "analysis_kind": ANALYSIS_KIND,
@@ -443,6 +462,7 @@ def empty_output(model: str) -> dict[str, Any]:
 
 
 def load_output(path: Path, model: str) -> dict[str, Any]:
+    """Load output."""
     if not path.exists():
         return empty_output(model)
     payload = load_json(path)
@@ -454,6 +474,7 @@ def load_output(path: Path, model: str) -> dict[str, Any]:
 
 
 def item_is_current(item: Any, context: dict[str, Any], model: str) -> bool:
+    """Return whether item is current."""
     return bool(
         isinstance(item, dict)
         and item.get("image_sha256") == context["image_sha256"]
@@ -465,10 +486,12 @@ def item_is_current(item: Any, context: dict[str, Any], model: str) -> bool:
 
 
 def policy_fixed_penalty(policy: str) -> float | None:
+    """Return the policy fixed penalty."""
     return {"unrestricted": 0.0, "small_penalty": 6.0, "strong_penalty": 18.0, "origin_quote_only": None}[policy]
 
 
 def continuous_identity_penalty(analysis: dict[str, Any], maximum: float = 24.0) -> float:
+    """Return the continuous identity penalty."""
     dependence = {"none": 0.0, "low": 0.2, "medium": 0.5, "high": 0.8, "essential": 1.0}[analysis["identity_dependence"]]
     recognisability = finite_number(analysis["recognisability_to_typical_viewer"], "recognisability", 0, 10) / 10
     retention = finite_number(analysis["meaning_retention_without_identity"], "retention", 0, 10) / 10
@@ -476,6 +499,7 @@ def continuous_identity_penalty(analysis: dict[str, Any], maximum: float = 24.0)
 
 
 def adjusted_cross_quote_score(score: float, analysis: dict[str, Any], policy_name: str) -> float | None:
+    """Return the adjusted cross quote score."""
     if policy_name == "continuous":
         return score - continuous_identity_penalty(analysis)
     penalty = policy_fixed_penalty(analysis["recommended_cross_quote_policy"])
@@ -483,6 +507,7 @@ def adjusted_cross_quote_score(score: float, analysis: dict[str, Any], policy_na
 
 
 def parse_recent_candidate_groups(log_path: Path) -> list[dict[str, Any]]:
+    """Parse recent candidate groups."""
     selected_re = re.compile(r"^(?P<time>\S+ \S+).*Selected matched image basename=(?P<name>\S+).* score=(?P<score>-?[0-9.]+)")
     candidate_re = re.compile(r"Image match candidate basename=(?P<name>\S+) score=(?P<score>-?[0-9.]+)")
     post_re = re.compile(r"Posting quote/image\. line_no=(?P<line>\d+) quote_hash=(?P<quote>[0-9a-f]{64})")
@@ -512,6 +537,7 @@ def parse_recent_candidate_groups(log_path: Path) -> list[dict[str, Any]]:
 
 
 def simulate_policies(groups: list[dict[str, Any]], audit_items: dict[str, Any]) -> dict[str, Any]:
+    """Return the simulate policies."""
     results = []
     for group in groups:
         rows = []
@@ -549,10 +575,12 @@ def simulate_policies(groups: list[dict[str, Any]], audit_items: dict[str, Any])
 
 
 def distribution(items: dict[str, Any], field: str) -> dict[str, int]:
+    """Return the distribution."""
     return dict(sorted(Counter((item.get("analysis") or {}).get(field) for item in items.values()).items(), key=lambda pair: str(pair[0])))
 
 
 def create_contact_sheets(items: dict[str, Any], image_dir: Path, output_dir: Path) -> list[str]:
+    """Create contact sheets."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
@@ -592,6 +620,7 @@ def create_contact_sheets(items: dict[str, Any], image_dir: Path, output_dir: Pa
 
 
 def report_markdown(output: dict[str, Any], diagnostic_quote: str, diagnostic_cross_quote: str, diagnostic_score: float) -> str:
+    """Report markdown."""
     items = output["items"]
     analyses = [item["analysis"] for item in items.values()]
     specific = sum(bool(item["contains_specific_intended_person"]) for item in analyses)
@@ -637,6 +666,7 @@ def report_markdown(output: dict[str, Any], diagnostic_quote: str, diagnostic_cr
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--image-dir", type=Path, default=DEFAULT_IMAGE_DIR)
     parser.add_argument("--origin-root", type=Path, default=DEFAULT_ORIGIN_ROOT)
@@ -661,6 +691,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     contexts = validate_inputs(

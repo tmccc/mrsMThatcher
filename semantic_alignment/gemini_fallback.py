@@ -1,3 +1,5 @@
+"""Provide resumable Developer API to Vertex Gemini failover controls."""
+
 from __future__ import annotations
 
 import os
@@ -28,6 +30,7 @@ RESET_HEADERS = ("Retry-After", "X-RateLimit-Reset", "RateLimit-Reset")
 
 
 def utc_iso(value: float | datetime) -> str:
+    """Return the UTC iso."""
     moment = datetime.fromtimestamp(value, timezone.utc) if isinstance(value, (int, float)) else value
     if moment.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
@@ -86,6 +89,7 @@ def quota_reset_metadata(
 
 
 def verify_adc_access(env: dict[str, str], *, run: Callable[..., Any] = subprocess.run) -> dict[str, str]:
+    """Verify adc access."""
     from .vertex_recovery import validate_vertex_environment
 
     values = validate_vertex_environment(env)
@@ -119,6 +123,7 @@ def classify_developer_failure(exc: BaseException) -> dict[str, Any]:
 
 
 def settings_signature(client: Any) -> dict[str, Any]:
+    """Return the settings signature."""
     config = client.config() if hasattr(client, "config") else None
     if config is not None:
         return {
@@ -146,6 +151,7 @@ def settings_signature(client: Any) -> dict[str, Any]:
 
 
 def require_transport_parity(developer: Any, vertex: Any) -> None:
+    """Require transport parity."""
     left, right = settings_signature(developer), settings_signature(vertex)
     if left != right:
         changed = sorted(key for key in set(left) | set(right) if left.get(key) != right.get(key))
@@ -230,6 +236,7 @@ def fallback_status(run_dir: Path, *, now: datetime | None = None) -> dict[str, 
 
 
 def format_fallback_status(status: dict[str, Any]) -> str:
+    """Format fallback status."""
     dev, ver, logical, pause, fallback = (status[key] for key in ("developer_api", "vertex_ai", "logical_gemini", "quota_pause", "fallback"))
     reset = pause.get("expected_reset_at") or "unknown"
     if pause.get("expected_reset_at") and pause.get("expected_reset_timezone"):
@@ -265,6 +272,7 @@ def _pid_is_running(pid: Any) -> bool:
 
 
 def clear_expired_quota_pause(run_dir: Path, *, now: datetime | None = None) -> dict[str, Any]:
+    """Clear expired quota pause."""
     state_path = run_dir / "gemini_transport_state.json"
     state = read_json(state_path, None)
     if not isinstance(state, dict):
@@ -319,6 +327,7 @@ class GeminiFallbackWorker:
         schema_version: int = BAKEOFF_SCHEMA_VERSION,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        """Initialise the gemini fallback worker."""
         self.provider = "gemini"
         self.cases = cases
         self.quotes = quotes
@@ -385,6 +394,7 @@ class GeminiFallbackWorker:
         return developer, vertex, results, state
 
     def prepare_status(self) -> dict[str, Any]:
+        """Prepare status."""
         self._load()
         return fallback_status(self.run_dir)
 
@@ -563,6 +573,7 @@ class GeminiFallbackWorker:
         return "failed"
 
     def run(self):
+        """Run pending Gemini work with persisted transport failover state."""
         try:
             return self._run()
         finally:

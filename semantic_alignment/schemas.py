@@ -1,3 +1,5 @@
+"""Define and validate semantic fingerprint and critic schemas."""
+
 from __future__ import annotations
 
 import math
@@ -124,6 +126,7 @@ def _claims(value: Any, key: str, *, image: bool = False) -> list[dict[str, Any]
 
 
 def validate_quote_fingerprint(item: Any) -> dict[str, Any]:
+    """Validate quote fingerprint."""
     if not isinstance(item, dict) or item.get("schema_version") != QUOTE_SCHEMA_VERSION or item.get("analysis_kind") != "quote_semantic_fingerprint":
         raise ValueError("invalid quote fingerprint header")
     if not HEX64.fullmatch(str(item.get("quote_hash", ""))):
@@ -138,6 +141,7 @@ def validate_quote_fingerprint(item: Any) -> dict[str, Any]:
 
 
 def validate_image_fingerprint(item: Any) -> dict[str, Any]:
+    """Validate image fingerprint."""
     if not isinstance(item, dict) or item.get("schema_version") != IMAGE_SCHEMA_VERSION or item.get("analysis_kind") != "image_implied_message":
         raise ValueError("invalid image fingerprint header")
     _text(item.get("image_basename"), "image_basename")
@@ -153,6 +157,7 @@ def validate_image_fingerprint(item: Any) -> dict[str, Any]:
 
 
 def validate_critic_result(item: Any) -> dict[str, Any]:
+    """Validate critic result."""
     if not isinstance(item, dict) or item.get("schema_version") != CRITIC_SCHEMA_VERSION or item.get("analysis_kind") != "quote_image_semantic_alignment":
         raise ValueError("invalid critic result header")
     if not HEX64.fullmatch(str(item.get("quote_hash", ""))):

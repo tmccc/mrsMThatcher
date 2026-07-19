@@ -19,10 +19,12 @@ PILOT_LINES = (1, 5, 35, 65, 69, 77, 120, 416, 556, 632)
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("--output-dir", type=Path, default=Path(__file__).parent)

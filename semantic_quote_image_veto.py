@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Manage the offline quotation-image semantic-veto shadow manifest."""
+
 from __future__ import annotations
 
 import argparse
@@ -17,6 +19,7 @@ from semantic_alignment.quote_image_semantic_veto import (
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description="Offline quote/image semantic-veto shadow tooling")
     sub = parser.add_subparsers(dest="command", required=True)
 

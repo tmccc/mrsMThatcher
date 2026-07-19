@@ -51,6 +51,7 @@ DEFAULT_ENV = Path("/disks/disk1/etc/mrsMThatcher/mrsMThatcher.env")
 
 
 def load_env_file(path: Path) -> None:
+    """Load env file."""
     if not path.exists():
         return
     for raw in path.read_text(encoding="utf-8").splitlines():
@@ -69,10 +70,12 @@ def load_env_file(path: Path) -> None:
 
 
 def print_json(value: object) -> None:
+    """Log JSON."""
     print(json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2))
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -163,6 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     if args.command == "corpus-status":
         _, unresolved, metadata = validate_corpus_invariants(args.research_run)

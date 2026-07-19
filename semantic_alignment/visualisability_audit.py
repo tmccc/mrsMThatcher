@@ -1,3 +1,5 @@
+"""Score quotation visualisability and produce calibrated audit outputs."""
+
 from __future__ import annotations
 
 import html
@@ -30,6 +32,7 @@ HUMAN_DECISIONS = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -47,6 +50,7 @@ def _bin(value: float, cuts: tuple[float, float, float, float]) -> int:
 
 
 def category_for(packet: dict[str, Any]) -> str:
+    """Return the category for."""
     haystack = " ".join(_text(packet.get(k)) for k in ("quote_text", "historical_context", "immediate_subject", "intended_argument", "broader_principle", "mechanism")).lower()
     ranked = [(sum(word in haystack for word in words), index, name) for index, (name, words) in enumerate(CATEGORIES)]
     ranked.sort(key=lambda row: (-row[0], row[1]))
@@ -54,6 +58,7 @@ def category_for(packet: dict[str, Any]) -> str:
 
 
 def load_calibration(review_dirs: list[Path], packets: dict[str, dict[str, Any]], quote_analysis: dict[str, Any]) -> dict[str, Any]:
+    """Load calibration."""
     cases = []
     for directory in review_dirs:
         manifest = read_json(directory / "manifest.json"); results = read_json(directory / "review" / "review_results.json")
@@ -77,6 +82,7 @@ def load_calibration(review_dirs: list[Path], packets: dict[str, dict[str, Any]]
 
 
 def rubric(calibration: dict[str, Any]) -> dict[str, Any]:
+    """Return the rubric."""
     return {"rubric_version": RUBRIC_VERSION, "basis": ["canonical packet fields", "existing quote-analysis visual_matchability and standalone_clarity", "observable concept/symbol/event counts", "40 blinded Medium/High reviews including 18 neither cases"], "dimension_scale": {"1":"very weak/low; for risks, minimal", "2":"weak/limited", "3":"mixed/moderate", "4":"strong/high", "5":"very strong; for risks, severe"}, "observable_mappings": {"visual_matchability_to_1_5":"existing 0-100 score binned at 20/40/60/80", "emotional_intensity_to_1_5":"existing 0-100 score binned at 20/40/60/80", "concept_count_to_symbolic_clarity":"0/1/2/3+ concrete concepts map to 1/2/3/4, with a fifth point for named visible symbols", "historical_specificity":"date/event/entity and prior specific-history flags", "risks":"counts of explicit mistakes/avoidances, abstraction terms, portrait-only preferences, and historical constraints"}, "aggregate_formula": {"inherent_visualisability":"mean(concept_immediacy, symbolic_clarity, emotional_impact, composition_potential, static_image_suitability, visual_distinctiveness) scaled to 0-100, minus text-dependency and misinterpretation penalties", "current_concept_quality_raw":"observable concept dimensions minus generic, overload, and misinterpretation penalties", "current_concept_quality_calibration":"unreviewed raw estimates are shrunk toward 50 by observed metadata reliability; reviewed neither cases are capped at 45; reviewed successes retain raw estimates", "generation_priority":"45% inherent + 35% calibrated current concept + 20% inverse generic/misinterpretation risk"}, "grades": {"A":"inherent >=75, concept >=68, static suitability >=4, generic and misinterpretation risks <=3", "B":"inherent >=60 and concept >=50", "C":"inherent >=40 or a viable historical/symbolic treatment exists", "D":"otherwise; also forced when static suitability <=1, text dependency >=4, and concept immediacy <=2"}, "calibration_summary": {"cases":40,"neither":18,"neither_rate":calibration["neither_rate"],"metadata_concept_reliability":calibration["metadata_concept_reliability"]}}
 
 
@@ -85,6 +91,7 @@ def _qa_fields(qa_record: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def score_packet(qid: str, packet: dict[str, Any], qa_record: dict[str, Any] | None, calibration: dict[str, Any], current_prompt: str | None = None) -> dict[str, Any]:
+    """Score packet."""
     qa = _qa_fields(qa_record); qa_scores = qa.get("scores") or {}; guidance = packet.get("editorial_guidance") or {}; history = qa.get("historical_context") or {}
     concepts = [x for x in qa.get("literal_visual_concepts") or [] if _text(x)]
     symbols = ((qa.get("archive_image_preferences") or {}).get("preferred_visible_symbols") or [])
@@ -164,6 +171,7 @@ def _validate_record(record: dict[str, Any]) -> None:
 
 
 def calibrate(research_run: Path, review_dirs: list[Path], output: Path) -> dict[str, Any]:
+    """Return the calibrate."""
     packets, unresolved, eligible_hash=load_corpus(research_run);qa=read_json(Path("quote_analysis.json"),{"items":{}})["items"]
     cal=load_calibration(review_dirs,packets,qa);output.mkdir(parents=True,exist_ok=True);atomic_write_json(output/"calibration_cases.json",cal);atomic_write_json(output/"rubric.json",rubric(cal))
     obs=cal["observed_features"]
@@ -189,6 +197,7 @@ def _review_index(review_dirs:list[Path])->dict[str,dict[str,Any]]:
 
 
 def run_audit(research_run: Path, output: Path, review_dirs: list[Path]) -> dict[str,Any]:
+    """Run audit."""
     packets,unresolved,eligible_hash=load_corpus(research_run);qa=read_json(Path("quote_analysis.json"),{"items":{}})["items"];cal=read_json(output/"calibration_cases.json");prompts=_prompt_index(review_dirs);reviews=_review_index(review_dirs)
     records={qid:score_packet(qid,packet,qa.get(qid),cal,prompts.get(qid)) for qid,packet in sorted(packets.items())}
     for qid,record in records.items():record.update({"historical_context_summary":_text(packets[qid].get("historical_context"))[:600],"current_prompt":prompts.get(qid),"prior_review":reviews.get(qid)})
@@ -203,6 +212,7 @@ def run_audit(research_run: Path, output: Path, review_dirs: list[Path]) -> dict
 
 
 def _dedupe_best(records:list[dict[str,Any]],limit=50)->list[dict[str,Any]]:
+    """Return the dedupe best."""
     selected=[];category_counts=Counter()
     for record in sorted(records,key=lambda x:(-x["generation_priority_score"],category_counts[x["category"]],x["quote_id"])):
         if any(_near_duplicate(record["quote_text"],x["quote_text"]) for x in selected):continue
@@ -275,6 +285,7 @@ def _append_review_audit(path: Path, record: dict[str, Any]) -> None:
 
 def save_human_review(audit_dir: Path, quote_id: str, grade: str, note: str = "",
                       advanced_overrides: dict[str, Any] | None = None) -> tuple[dict[str, Any], bool]:
+    """Save human review."""
     if grade not in HUMAN_DECISIONS: raise ValueError("invalid human decision")
     base = read_json(audit_dir / "quote_visualisability.json")["items"]
     if quote_id not in base: raise KeyError(quote_id)
@@ -298,6 +309,7 @@ def save_human_review(audit_dir: Path, quote_id: str, grade: str, note: str = ""
 
 
 def human_review_summary(audit_dir: Path) -> dict[str, Any]:
+    """Return the human review summary."""
     base = read_json(audit_dir / "quote_visualisability.json")["items"]
     reviews = _ensure_review_store(audit_dir)["items"]; counts = Counter(x["human_grade"] for x in reviews.values())
     matrix = {grade: dict(Counter(reviews[qid]["human_grade"] for qid in reviews if base[qid]["grade"] == grade)) for grade in "ABCD"}
@@ -320,6 +332,7 @@ def human_review_summary(audit_dir: Path) -> dict[str, Any]:
 
 
 def write_human_review_outputs(audit_dir: Path) -> dict[str, Any]:
+    """Write human review outputs."""
     paths = _review_paths(audit_dir); summary = human_review_summary(audit_dir); atomic_write_json(paths["summary"], summary)
     lines = ["# Human Visualisability Review", "", f"Reviewed: **{summary['reviewed_count']}/{summary['total']}** ({summary['reviewed_percentage']:.2f}%).",
         "", "| Decision | Count |", "|---|---:|", f"| Excellent candidate | {summary['excellent_count']} |",
@@ -331,6 +344,7 @@ def write_human_review_outputs(audit_dir: Path) -> dict[str, Any]:
 
 def _filter_sort_records(base: dict[str, Any], reviews: dict[str, Any], filter_name: str = "all",
                          sort_name: str = "priority") -> list[dict[str, Any]]:
+    """Filter sort records."""
     def include(qid, row):
         human = reviews.get(qid); grade = human.get("human_grade") if human else None; scores = row["scores"]
         return {"all": True, "unreviewed": human is None, "reviewed": human is not None,
@@ -350,15 +364,18 @@ def _filter_sort_records(base: dict[str, Any], reviews: dict[str, Any], filter_n
 
 
 def status(audit_dir:Path)->dict[str,Any]:
+    """Return the status."""
     summary=read_json(audit_dir/"visualisability_summary.json",{}); review=write_human_review_outputs(audit_dir)
     return {**summary,"human_reviews":review}
 
 
 def _page_css() -> str:
+    """Return the page CSS."""
     return """body{font:16px system-ui;margin:0;background:#f4f4f1;color:#202020}main{max-width:1080px;margin:auto;padding:14px}header,.toolbar,nav,.panel{background:#fff;padding:12px;margin-bottom:10px;border:1px solid #ddd}.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:end}label{display:block}select,input,textarea,button{font:inherit}blockquote{font-size:clamp(1.15rem,2.5vw,1.7rem);line-height:1.35;margin:12px 0;padding:18px;border-left:5px solid #a51d2d;background:#fff}.concepts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.decision-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.decision{min-height:72px;border:2px solid #bbb;background:#fff;font-weight:700;padding:10px}.decision.selected{border-color:#111;background:#e8efe8;box-shadow:inset 0 0 0 2px #fff}.save{background:#202020;color:#fff;border:0;padding:14px 22px;font-weight:700}.muted{color:#666}.scores{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.scores label{background:#f5f5f5;padding:7px}.advanced-editor[hidden]{display:none}textarea{width:100%;box-sizing:border-box;min-height:64px}nav{display:flex;justify-content:space-between;align-items:center}.progress{height:7px;background:#ddd}.progress span{display:block;height:100%;background:#28704a}.disabled{opacity:.55}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.summary-grid div{background:#fff;padding:14px;border:1px solid #ddd}@media(max-width:760px){.concepts,.decision-grid,.summary-grid{grid-template-columns:1fr}.scores{grid-template-columns:1fr 1fr}main{padding:8px}.decision{min-height:62px}}"""
 
 
 def serve(audit_dir:Path,host:str,port:int)->None:
+    """Serve the local quotation-visualisability review interface."""
     base=read_json(audit_dir/"quote_visualisability.json")["items"]; _ensure_review_store(audit_dir); write_human_review_outputs(audit_dir)
     class Handler(BaseHTTPRequestHandler):
         def send(self,code,body,mime="text/html; charset=utf-8"):self.send_response(code);self.send_header("Content-Type",mime);self.send_header("Content-Length",str(len(body)));self.send_header("Cache-Control","no-store");self.end_headers();self.wfile.write(body)

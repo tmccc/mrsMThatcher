@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse improved pairwise pilot artefacts."""
+
 from __future__ import annotations
 import csv,json,statistics
 from collections import Counter
@@ -7,10 +9,14 @@ from semantic_alignment.io import atomic_write_json
 
 ROOT=Path(__file__).resolve().parent;RUN=ROOT/'semantic_alignment_research/pairwise_improved_pilot_20260713_run_v1'
 EVEREST='230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a';FREE='1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b'
-def load(p):return json.loads(Path(p).read_text())
+def load(p):
+ """Load a JSON document."""
+ return json.loads(Path(p).read_text())
 def write_csv(path,rows):
+ """Write CSV."""
  with path.open('w',newline='',encoding='utf-8') as f:w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
 def main():
+ """Run the command-line entry point."""
  manifest=load(RUN/'pilot_manifest.json')['items'];blind=load(RUN/'candidate_blind_map.json')['items'];human=load(RUN/'human_pairwise_reviews.json')['items'];providers=load(RUN/'provider_results_recovered.json')['providers']
  if len(manifest)!=25 or len(human)!=25 or any(len(x)!=25 for x in providers.values()):raise RuntimeError('pilot inputs are incomplete')
  def norm(cid,choice):

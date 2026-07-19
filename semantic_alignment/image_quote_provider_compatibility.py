@@ -1,3 +1,5 @@
+"""Compare provider compatibility on fixed image-to-quotation cases."""
+
 from __future__ import annotations
 
 import argparse
@@ -41,6 +43,7 @@ PROVIDER_LIMITS_USD = {"openai": 4.0, "anthropic": 2.5}
 
 
 def single_image_schema() -> dict[str, Any]:
+    """Return the single image schema."""
     schema = copy.deepcopy(BATCH_SCHEMA)
     schema["properties"]["records"]["minItems"] = 1
     schema["properties"]["records"]["maxItems"] = 1
@@ -89,6 +92,7 @@ def select_pilot_images(
     split: dict[str, Any],
     prior_results: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """Select pilot images."""
     suitable = _suitable_sets(prior_results)
     calibration = set(split["calibration_image_ids"])
     evaluation = set(split["evaluation_image_ids"])
@@ -146,6 +150,7 @@ def _expected_cost(provider: str, input_tokens: int) -> float:
 
 
 def prepare_trial(source_trial: Path, output_dir: Path) -> dict[str, Any]:
+    """Prepare trial."""
     if output_dir.exists() and (output_dir / "compatibility_manifest.json").exists():
         existing = read_json(output_dir / "compatibility_manifest.json")
         if existing.get("source_trial") != str(source_trial.resolve()):
@@ -322,6 +327,7 @@ def normalise_provider_content(
     value: Any,
     expected_shortlists: list[dict[str, Any]] | None = None,
 ) -> tuple[Any, list[dict[str, Any]]]:
+    """Normalise provider content."""
     normalised = copy.deepcopy(value)
     changes: list[dict[str, Any]] = []
     if provider != "anthropic" or not isinstance(normalised, dict):
@@ -422,6 +428,7 @@ def recover_received_items(
     state: dict[str, Any],
     shortlists: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    """Recover received items."""
     provider_dir = output_dir / "providers" / provider
     attempts_path = provider_dir / "attempts.jsonl"
     for candidate_id, received in sorted(state["received_items"].items()):
@@ -474,6 +481,7 @@ def recover_received_items(
 
 
 def run_provider(output_dir: Path, provider: str, api_key: str) -> dict[str, Any]:
+    """Run provider."""
     manifest = read_json(output_dir / "compatibility_manifest.json")
     schema = read_json(output_dir / "response_schema.json")
     source_trial = Path(manifest["source_trial"])
@@ -641,6 +649,7 @@ def run_provider(output_dir: Path, provider: str, api_key: str) -> dict[str, Any
 
 
 def run_trial(project_dir: Path, output_dir: Path, *, execute: bool, confirmed_cost: float) -> dict[str, Any]:
+    """Run trial."""
     if not execute:
         raise RuntimeError("live compatibility calls require --execute")
     if confirmed_cost != HARD_COMBINED_LIMIT_USD:
@@ -674,6 +683,7 @@ def _load_provider_records(output_dir: Path, provider: str) -> list[dict[str, An
 
 
 def build_report(output_dir: Path) -> dict[str, Any]:
+    """Build report."""
     manifest = read_json(output_dir / "compatibility_manifest.json")
     source_trial = Path(manifest["source_trial"])
     split = read_json(source_trial / "calibration_split.json")
@@ -844,6 +854,7 @@ def build_report(output_dir: Path) -> dict[str, Any]:
 
 
 def status(output_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     manifest = read_json(output_dir / "compatibility_manifest.json")
     return {
         "trial_name": manifest["trial_name"],
@@ -863,6 +874,7 @@ def status(output_dir: Path) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description="Bounded OpenAI/Claude image-quote compatibility pilot")
     sub = parser.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare")
@@ -882,6 +894,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     if args.command == "prepare":
         value = prepare_trial(args.source_trial.resolve(), args.output.resolve())

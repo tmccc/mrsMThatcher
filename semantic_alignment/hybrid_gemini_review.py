@@ -1,3 +1,5 @@
+"""Run structured Gemini reviews of blind hybrid-retrieval evidence sets."""
+
 from __future__ import annotations
 
 import hashlib
@@ -119,19 +121,23 @@ RESPONSE_SCHEMA = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_json(value: Any) -> bytes:
+    """Return the canonical JSON."""
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def sha256(value: Any) -> str:
+    """Return the SHA-256."""
     data = value if isinstance(value, bytes) else canonical_json(value)
     return hashlib.sha256(data).hexdigest()
 
 
 def estimate_tokens(text: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(text.encode("utf-8")) / 3)
 
 
@@ -157,6 +163,7 @@ def _packet_for_prompt(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def case_for_prompt(case: dict[str, Any]) -> dict[str, Any]:
+    """Return the case for prompt."""
     basis = case.get("query_basis") or {}
     return {
         "case_id": str(case["case_id"]),
@@ -180,6 +187,7 @@ def case_for_prompt(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def review_prompt(cases: list[dict[str, Any]]) -> str:
+    """Return the review prompt."""
     payload = [case_for_prompt(case) for case in cases]
     return f"""Prompt version: {PROMPT_VERSION}
 You are the blind editorial reviewer for a conversational historical-evidence retrieval trial.
@@ -225,6 +233,7 @@ def validate_batch_response(
     allow_insufficient_context_intervention_inconsistency: bool = False,
     allow_historical_correction_without_factual_claim: bool = False,
 ) -> list[dict[str, Any]]:
+    """Validate batch response."""
     if not isinstance(value, dict) or not isinstance(value.get("reviews"), list):
         raise ValueError("response must contain a reviews array")
     expected = {str(case["case_id"]): case for case in cases}
@@ -323,6 +332,7 @@ def validate_batch_response(
 
 
 def parsed_response_from_raw(raw: dict[str, Any]) -> dict[str, Any]:
+    """Return the parsed response from raw."""
     text = "".join(
         str(part.get("text") or "")
         for candidate in raw.get("candidates") or []
@@ -357,6 +367,7 @@ def _usage(response: Any) -> dict[str, int]:
 
 
 def calculate_cost(usage: dict[str, int]) -> float:
+    """Calculate cost."""
     price = PRICES["gemini"]
     return (
         (usage["input_tokens"] - usage["cached_tokens"]) * price["input"]
@@ -366,6 +377,7 @@ def calculate_cost(usage: dict[str, int]) -> float:
 
 
 class GeminiReviewClient:
+    """Provide the gemini review client."""
     def __init__(
         self,
         *,
@@ -376,6 +388,7 @@ class GeminiReviewClient:
         client: Any | None = None,
         timeout_seconds: float = 240,
     ):
+        """Initialise the gemini review client."""
         if transport not in {"developer_api", "vertex_ai"}:
             raise ValueError("invalid Gemini transport")
         self.transport = transport
@@ -396,6 +409,7 @@ class GeminiReviewClient:
         self.timeout_seconds = timeout_seconds
 
     def config(self) -> types.GenerateContentConfig:
+        """Return the config."""
         return types.GenerateContentConfig(
             response_mime_type="application/json",
             response_json_schema=RESPONSE_SCHEMA,
@@ -406,6 +420,7 @@ class GeminiReviewClient:
         )
 
     def settings_signature(self) -> dict[str, Any]:
+        """Return the settings signature."""
         config = self.config()
         return {
             "model": self.model,
@@ -418,6 +433,7 @@ class GeminiReviewClient:
         }
 
     def call(self, prompt: str) -> dict[str, Any]:
+        """Submit one typed review prompt to Gemini."""
         started = time.monotonic()
         response = self.client.models.generate_content(model=self.model, contents=prompt, config=self.config())
         elapsed = time.monotonic() - started
@@ -436,6 +452,7 @@ class GeminiReviewClient:
 
 
 def require_transport_parity(developer: GeminiReviewClient, vertex: GeminiReviewClient) -> None:
+    """Require transport parity."""
     if developer.settings_signature() != vertex.settings_signature():
         raise RuntimeError("Gemini review transport settings parity failed")
 
@@ -462,6 +479,7 @@ def _append_jsonl(path: Path, value: dict[str, Any]) -> None:
 
 
 def prepare_gemini_review(retrieval_dir: Path) -> dict[str, Any]:
+    """Prepare gemini review."""
     payload = browser_review_payload(retrieval_dir)
     cases = payload["items"]
     if len(cases) != 100 or payload["context_unavailable_count"]:
@@ -521,6 +539,7 @@ def prepare_gemini_review(retrieval_dir: Path) -> dict[str, Any]:
 
 
 class GeminiReviewRunner:
+    """Run gemini review operations."""
     def __init__(
         self,
         retrieval_dir: Path,
@@ -533,6 +552,7 @@ class GeminiReviewRunner:
         fallback_enabled: bool = True,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        """Initialise the gemini review runner."""
         self.retrieval_dir = retrieval_dir
         self.review_dir = retrieval_dir / "manual_review"
         self.developer = developer
@@ -713,6 +733,7 @@ class GeminiReviewRunner:
         return "failed"
 
     def run(self) -> dict[str, Any]:
+        """Run all incomplete Gemini review batches within the cost guard."""
         if self.fallback_enabled:
             if self.vertex is None:
                 raise RuntimeError("Vertex fallback enabled without a Vertex client")
@@ -761,6 +782,7 @@ class GeminiReviewRunner:
 
 
 def write_gemini_review_report(retrieval_dir: Path) -> dict[str, Any]:
+    """Write gemini review report."""
     review_dir = retrieval_dir / "manual_review"
     results = read_json(review_dir / "gemini_reviews.json", {"items": {}})
     costs = read_json(review_dir / "gemini_review_cost_ledger.json", {})
@@ -852,6 +874,7 @@ def write_gemini_review_report(retrieval_dir: Path) -> dict[str, Any]:
 
 
 def recover_gemini_reviews_offline(retrieval_dir: Path) -> dict[str, Any]:
+    """Recover gemini reviews offline."""
     review_dir = retrieval_dir / "manual_review"
     payload = browser_review_payload(retrieval_dir)
     cases_by_id = {str(case["case_id"]): case for case in payload["items"]}

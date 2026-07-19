@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse semantic alignment bakeoff artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +20,7 @@ DEFAULT_OUTPUT=Path("semantic_alignment_research/provider_bakeoff_25_20260712")
 
 
 def parser():
+    """Build the command-line argument parser."""
     ap=argparse.ArgumentParser(description="Blinded provider critic bake-off; external calls require explicit provider flags.")
     ap.add_argument("--source-run",type=Path,default=DEFAULT_SOURCE); ap.add_argument("--output-dir",type=Path,default=DEFAULT_OUTPUT)
     sub=ap.add_subparsers(dest="command",required=True)
@@ -27,11 +30,13 @@ def parser():
 
 
 def load_source(source):
+    """Load source."""
     read=lambda name:json.loads((source/name).read_text())
     return read("quote_semantic_fingerprints.json")["items"],read("image_implied_messages_generated.json")["items"],read("semantic_alignment_critic.json")["items"]
 
 
 def verify_pricing(output):
+    """Verify pricing."""
     openai=read_json(output/"pricing/openai_models.json",{}); grok=read_json(output/"pricing/grok_models.json",{})
     openai_ids={row.get("id") for row in openai.get("data",[])}; grok_rows={row.get("id"):row for row in grok.get("data",[])}
     if PROVIDER_MODELS["openai"] not in openai_ids: raise RuntimeError("selected OpenAI model absent from authenticated model list")
@@ -42,6 +47,7 @@ def verify_pricing(output):
 
 
 def verify_anthropic(output):
+    """Verify anthropic."""
     data=read_json(output/"pricing/anthropic_models.json",{}); row=next((x for x in data.get("data",[]) if x.get("id")==PROVIDER_MODELS["anthropic"]),None)
     if not row: raise RuntimeError("Claude Sonnet 4.6 absent from authenticated Anthropic model list")
     if not ((row.get("capabilities") or {}).get("structured_outputs") or {}).get("supported"): raise RuntimeError("selected Claude model lacks structured outputs")
@@ -49,23 +55,27 @@ def verify_anthropic(output):
 
 
 def verify_gemini(output):
+    """Verify gemini."""
     data=read_json(output/"pricing/gemini_models_retry.json",{}) or read_json(output/"pricing/gemini_models.json",{}); row=next((x for x in data.get("models",[]) if x.get("name")=="models/"+PROVIDER_MODELS["gemini"]),None)
     if not row or "generateContent" not in row.get("supportedGenerationMethods",[]): raise RuntimeError("Gemini 3.1 Pro Preview unavailable")
     result={"schema_version":1,"verified":True,"model":row,"stable":False,"preview_required_because_stable_2_5_unavailable_to_new_users":True,"structured_outputs":True,"prices_usd_per_million":{"input":2.0,"cached_input":0.20,"output_including_thinking":12.0},"source":"https://ai.google.dev/gemini-api/docs/pricing","tools_enabled":False}; atomic_write_json(output/"pricing/gemini_pricing_verification.json",result); return result
 
 
 def ensure_prepared(source,output):
+    """Ensure prepared."""
     output.mkdir(parents=True,exist_ok=True); quotes,images,old=load_source(source); cases_path=output/"cases.json"
     if not cases_path.exists(): atomic_write_json(cases_path,select_cases(list(old.values()),quotes,images))
     create_blinding(output); return quotes,images,old,read_json(cases_path)["items"]
 
 
 def provider_usage(output,provider):
+    """Return the provider usage."""
     ledger=read_json(output/f"{provider}_cost_ledger.json",{}) or {}; rows=ledger.get("calls",[])
     return {"calls":len(rows),"input_tokens":sum(x.get("input_tokens",0) for x in rows),"cached_tokens":sum(x.get("cached_tokens",0) for x in rows),"reasoning_tokens":sum(x.get("reasoning_tokens",0) for x in rows),"output_tokens":sum(x.get("output_tokens",0) for x in rows),"cost_usd":sum(x.get("cost_usd",0) for x in rows),"latency_mean":statistics.mean([x["latency_seconds"] for x in rows]) if rows else None,"latency_median":statistics.median([x["latency_seconds"] for x in rows]) if rows else None,"latency_total":sum(x.get("latency_seconds",0) for x in rows),"blocked":ledger.get("blocked",False),"ambiguous_requests":len(ledger.get("ambiguous_requests",[])),"retries":sum(x.get("retry_count",0) for x in rows)}
 
 
 def write_report(output,comparison,cases):
+    """Write report."""
     usage={p:provider_usage(output,p) for p in ("grok","openai")}; free=next(x for x in cases if (x["quote_hash"],x["image_basename"])==FREE_TRADE_KEY); grok=read_json(output/"grok_results.json")["items"][free["case_id"]]; openai=read_json(output/"openai_results.json")["items"][free["case_id"]]
     mapping=read_json(output/"sealed_provider_mapping.json"); provider_to_critic={provider:critic for critic,provider in mapping.items()}; results={"grok":grok,"openai":openai}
     def blinded(value):
@@ -82,6 +92,7 @@ def write_report(output,comparison,cases):
 
 
 def main(argv=None):
+    """Run the command-line entry point."""
     args=parser().parse_args(argv); source=args.source_run.resolve(); output=args.output_dir.resolve(); quotes,images,_,cases=ensure_prepared(source,output)
     if args.command=="prepare": print(f"cases={len(cases)}"); return 0
     estimate=preflight(cases,quotes,images); atomic_write_json(output/"preflight_four_provider.json",estimate)

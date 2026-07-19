@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Recover incomplete Gemini work through the Vertex transport."""
+
 from __future__ import annotations
 import argparse,hashlib,json,shutil,statistics,subprocess,time
 from collections import Counter
@@ -15,6 +17,7 @@ RECOVERY=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1_vert
 SOURCE=Path('semantic_alignment_research/runs/v2_20260711T111526Z')
 
 def load():
+    """Load a JSON document."""
     cases=json.load(open(PARENT/'cases.json'));by={x['case_id']:x for x in cases['items']};ledger=json.load(open(PARENT/'gemini_ledger.json'));original=json.load(open(PARENT/'gemini_results.json'))
     eligible=sorted(ledger['exhausted'])
     if len(eligible)!=23:raise RuntimeError(f'expected 23 original exhausted cases, found {len(eligible)}')
@@ -28,11 +31,13 @@ def load():
     return cases,by,ledger,original,prior,q,i,eligible,target
 
 def preflight(by,q,i,eligible,target,env):
+    """Build the deterministic execution preflight."""
     prompts=[common_prompt(q[by[c]['quote_hash']],i[by[c]['image_basename']]) for c in target];inp=sum(estimate_tokens(x) for x in prompts);out=900*len(target);maximum_out=MAX_OUTPUT_TOKENS*len(target)
     expected=inp*PRICES['gemini']['input']/1e6+out*PRICES['gemini']['output']/1e6;base=inp*PRICES['gemini']['input']/1e6+maximum_out*PRICES['gemini']['output']/1e6
     return {'parent_run_id':PARENT.name,'eligible_original_cases':23,'already_recovered_developer_api':len(eligible)-len(target),'vertex_target_cases':len(target),'case_ids':target,'original_model':VERTEX_MODEL,'vertex_model':VERTEX_MODEL,'model_available':True,'project':env['project'],'location':env['location'],'adc_verified':True,'prompt_version':'provider-neutral-picture-editor-v1','schema_version':1,'thinking_budget':THINKING_BUDGET,'max_output_tokens':MAX_OUTPUT_TOKENS,'response_mime_type':'application/json','structured_output':'response_json_schema','tools_enabled':False,'estimated_input_tokens':inp,'estimated_output_tokens':out,'expected_cost_usd':expected,'conservative_base_cost_usd':base,'conservative_two_attempt_cost_usd':base*2,'vertex_ceiling_usd':VERTEX_LIMIT,'combined_recovery_ceiling_usd':COMBINED_RECOVERY_LIMIT,'input_price_per_million':2.0,'output_including_thinking_price_per_million':12.0}
 
 def prepare():
+    """Prepare and validate the Vertex recovery run."""
     env=validate_vertex_environment();_,by,_,original,prior,q,i,eligible,target=load();RECOVERY.mkdir(parents=True,exist_ok=True)
     parent_hash=hashlib.sha256((PARENT/'cases.json').read_bytes()).hexdigest();manifest={'schema_version':1,'record_kind':'vertex_gemini_postrun_recovery','parent_run_id':PARENT.name,'parent_manifest_hash':parent_hash,'provider':'gemini_vertex','original_provider':'gemini_developer_api','eligible_cases':23,'case_ids':eligible,'vertex_target_case_ids':target,'original_model':VERTEX_MODEL,'vertex_model':VERTEX_MODEL,'created_at':time.time(),'status':'prepared'};atomic_write_json(RECOVERY/'recovery_manifest.json',manifest)
     pf=preflight(by,q,i,eligible,target,env)
@@ -42,6 +47,7 @@ def prepare():
     atomic_write_text(RECOVERY/'vertex_gemini_recovery_preflight.md','\n'.join(lines)+'\n');return pf,by,q,i,target,original,prior
 
 def recovered_view(original,prior,vertex,supplemental):
+    """Return the recovered view."""
     view=RECOVERY/'recovered_view';view.mkdir(exist_ok=True)
     merged=json.loads(json.dumps(original));merged['items'].update(prior.get('items',{}));merged['items'].update(vertex.get('items',{}));merged['items'].update(supplemental.get('items',{}));merged['recovered_completeness_view']=True
     for name in ('cases.json','grok_results.json','openai_results.json','anthropic_results.json','grok_worker_summary.json','openai_worker_summary.json','anthropic_worker_summary.json','gemini_worker_summary.json','human_validation.json'):
@@ -50,6 +56,7 @@ def recovered_view(original,prior,vertex,supplemental):
     atomic_write_json(view/'gemini_results.json',merged);return view,merged
 
 def final_report(pf,original,prior,vertex,supplemental,merged):
+    """Perform the final report operation."""
     old_comp=read_json(PARENT/'comparison.json');new_comp=read_json(RECOVERY/'recovered_view/comparison.json');ledger=read_json(RECOVERY/'vertex_ledger.json');summary=read_json(RECOVERY/'vertex_summary.json');old_meta=read_json(PARENT/'meta_results.json')['items'];new_meta=read_json(RECOVERY/'recovered_view/meta_results.json')['items'];old_dis=read_json(PARENT/'disagreement_results.json')['items'];new_dis=read_json(RECOVERY/'recovered_view/disagreement_results.json')['items'];old_out=read_json(Path('semantic_alignment_research/provider_outlier_analysis/provider_outlier_summary.json'));new_out=read_json(RECOVERY/'provider_outliers/provider_outlier_summary.json');validation=read_json(RECOVERY/'validation/validation_summary.json')
     vertex_rows=list(vertex.get('items',{}).values());supplemental_rows=list(supplemental.get('items',{}).values());all_vertex_rows=vertex_rows+supplemental_rows;calls=ledger['calls'];supplemental_ledger=read_json(RECOVERY/'vertex_final_case_retry_v1/ledger.json',{}) or {'calls':[]};all_calls=calls+supplemental_ledger.get('calls',[]);old_rows=list(original['items'].values());old_meta_map={x['case_id']:x for x in old_meta};new_meta_map={x['case_id']:x for x in new_meta};shared=set(old_meta_map)&set(new_meta_map)
     shared_meta_changes=sum(old_meta_map[k]!=new_meta_map[k] for k in shared);failed=sorted(ledger['final_failures']);traffic=dict(Counter(x.get('traffic_type') for x in calls));vertex_decisions=dict(Counter(x['keep_or_replace'] for x in vertex_rows));vertex_taxonomy=dict(Counter(x['primary_relationship'] for x in vertex_rows));old_actions=dict(Counter(x['recommended_action'] for x in old_meta));new_actions=dict(Counter(x['recommended_action'] for x in new_meta));old_bands=dict(Counter(x['disagreement_band'] for x in old_dis));new_bands=dict(Counter(x['disagreement_band'] for x in new_dis));old_gemini=dict(Counter(x['keep_or_replace'] for x in old_rows));new_gemini=dict(Counter(x['keep_or_replace'] for x in merged['items'].values()))
@@ -60,6 +67,7 @@ def final_report(pf,original,prior,vertex,supplemental,merged):
     atomic_write_text(RECOVERY/'vertex_gemini_recovery_report.md','\n'.join(lines)+'\n')
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser();p.add_argument('command',choices=('dry-run','execute','report'));p.add_argument('--execute-gemini-vertex',action='store_true');p.add_argument('--confirm-gemini-vertex-recovery-limit-usd',type=float);p.add_argument('--confirm-combined-recovery-limit-usd',type=float);a=p.parse_args();pf,by,q,i,target,original,prior=prepare()
     if a.command=='dry-run':print(json.dumps(pf,indent=2));return
     if a.command=='execute':

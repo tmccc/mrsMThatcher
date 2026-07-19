@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Recover the final incomplete Gemini case through Vertex."""
+
 from __future__ import annotations
 import argparse,json,time
 from pathlib import Path
@@ -10,6 +12,7 @@ from semantic_alignment.vertex_recovery import GeminiVertexClient,VERTEX_MODEL,e
 CASE_ID='378fbf96d18c2e10f5a3';PARENT=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1');SOURCE=Path('semantic_alignment_research/runs/v2_20260711T111526Z');ROOT=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1_vertex_recovery/vertex_final_case_retry_v1');LIMIT=.10
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser();p.add_argument('command',choices=('dry-run','execute'));p.add_argument('--execute',action='store_true');p.add_argument('--confirm-limit-usd',type=float);a=p.parse_args();env=validate_vertex_environment();case=next(x for x in json.load(open(PARENT/'cases.json'))['items'] if x['case_id']==CASE_ID);q=json.load(open(SOURCE/'quote_semantic_fingerprints.json'))['items'];i=json.load(open(SOURCE/'image_implied_messages_generated.json'))['items'];prompt=common_prompt(q[case['quote_hash']],i[case['image_basename']]);maximum=(case['estimated_input_tokens']*PRICES['gemini']['input']+1600*PRICES['gemini']['output'])/1e6
     ROOT.mkdir(parents=True,exist_ok=True);manifest={'schema_version':1,'record_kind':'operator_authorized_vertex_final_case_retry','parent_recovery':'provider_bakeoff_250_20260712_v1_vertex_recovery','case_id':CASE_ID,'model':VERTEX_MODEL,'input_hash':case['normalised_input_hash'],'maximum_attempts':1,'maximum_cost_usd':maximum,'ceiling_usd':LIMIT,'status':'prepared'};atomic_write_json(ROOT/'manifest.json',manifest)
     if a.command=='dry-run':print(json.dumps(manifest,indent=2));return

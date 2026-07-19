@@ -26,10 +26,12 @@ ANALYSIS_SCHEMA = 1
 
 
 class DatasetError(ValueError):
+    """Raised when a simulation dataset fails validation."""
     pass
 
 
 def read_json(path: Path) -> dict:
+    """Read JSON."""
     with path.open(encoding="utf-8") as handle:
         value = json.load(handle)
     if not isinstance(value, dict):
@@ -38,6 +40,7 @@ def read_json(path: Path) -> dict:
 
 
 def read_jsonl(path: Path) -> list[dict]:
+    """Read jsonl."""
     rows = []
     with path.open(encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, 1):
@@ -52,6 +55,7 @@ def read_jsonl(path: Path) -> list[dict]:
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -60,6 +64,7 @@ def sha256_file(path: Path) -> str:
 
 
 def finite_number(value: Any, label: str) -> float:
+    """Return the finite number."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise DatasetError(f"{label} must be numeric")
     value = float(value)
@@ -69,6 +74,7 @@ def finite_number(value: Any, label: str) -> float:
 
 
 def percentile(values: list[float], fraction: float) -> float | None:
+    """Return the percentile."""
     if not values:
         return None
     ordered = sorted(values)
@@ -81,6 +87,7 @@ def percentile(values: list[float], fraction: float) -> float | None:
 
 
 def distribution(values: Iterable[float]) -> dict:
+    """Return the distribution."""
     vals = [float(value) for value in values]
     if not vals:
         return {key: None for key in ("count", "min", "lower_quartile", "median", "mean", "upper_quartile", "max", "standard_deviation")}
@@ -93,16 +100,19 @@ def distribution(values: Iterable[float]) -> dict:
 
 
 def entropy(counter: Counter) -> float:
+    """Return the entropy."""
     total = sum(counter.values())
     return -sum((count / total) * math.log2(count / total) for count in counter.values()) if total else 0.0
 
 
 def top_share(counter: Counter, n: int) -> float:
+    """Return the top share."""
     total = sum(counter.values())
     return sum(sorted(counter.values(), reverse=True)[:n]) / total if total else 0.0
 
 
 def run_paths(run_dir: Path) -> dict[str, Path]:
+    """Run paths."""
     paths = {
         "shared": run_dir / "shared_quotes.jsonl",
         "comparison": run_dir / "branch_comparison.jsonl",
@@ -113,6 +123,7 @@ def run_paths(run_dir: Path) -> dict[str, Path]:
 
 
 def validate_indices(rows: list[dict], expected: int, label: str) -> None:
+    """Validate indices."""
     indices = [row.get("post_index") for row in rows]
     wanted = list(range(1, expected + 1))
     if indices != wanted:
@@ -122,6 +133,7 @@ def validate_indices(rows: list[dict], expected: int, label: str) -> None:
 
 
 def load_and_validate(session_dir: Path, allow_incomplete: bool = False) -> dict:
+    """Load and validate."""
     session_dir = session_dir.resolve()
     manifest = read_json(session_dir / "session_manifest.json")
     if manifest.get("mode") != "counterfactual" or manifest.get("quote_coupling") != "shared":
@@ -216,6 +228,7 @@ def load_and_validate(session_dir: Path, allow_incomplete: bool = False) -> dict
 
 
 def divergence_episodes(flags: list[bool], run_id: str, pair: str) -> list[dict]:
+    """Return the divergence episodes."""
     episodes = []
     start = None
     for index, same in enumerate(flags, 1):
@@ -230,6 +243,7 @@ def divergence_episodes(flags: list[bool], run_id: str, pair: str) -> list[dict]
 
 
 def reuse_intervals(rows: list[dict]) -> list[int]:
+    """Return the reuse intervals."""
     previous = {}
     intervals = []
     for row in rows:
@@ -241,6 +255,7 @@ def reuse_intervals(rows: list[dict]) -> list[int]:
 
 
 def analyse(dataset: dict, top_n: int = 10, image_filter: str | None = None, quote_filter: str | None = None) -> dict:
+    """Analyse the configured artefacts."""
     all_rows = {branch: [] for branch in BRANCHES}
     comparisons = []
     shared = []
@@ -378,6 +393,7 @@ def analyse(dataset: dict, top_n: int = 10, image_filter: str | None = None, quo
 
 
 def build_case_studies(dataset: dict, top_n: int) -> dict:
+    """Build case studies."""
     editorial, identity = [], []
     origin_only = []
     both_same = []
@@ -412,6 +428,7 @@ def build_case_studies(dataset: dict, top_n: int) -> dict:
 
 
 def atomic_write(path: Path, data: bytes) -> None:
+    """Perform the atomic write operation."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with temporary.open("wb") as handle:
@@ -422,10 +439,12 @@ def atomic_write(path: Path, data: bytes) -> None:
 
 
 def write_json(path: Path, value: Any) -> None:
+    """Write JSON."""
     atomic_write(path, (json.dumps(value, indent=2, sort_keys=True, ensure_ascii=True) + "\n").encode())
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
+    """Write CSV."""
     if not rows:
         atomic_write(path, b"")
         return
@@ -440,6 +459,7 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def make_manifest(dataset: dict, manifest_path: Path, overwrite: bool = False) -> dict:
+    """Create manifest."""
     if manifest_path.exists() and not overwrite:
         existing = read_json(manifest_path)
         validate_manifest_hashes(existing, dataset["session_dir"])
@@ -470,6 +490,7 @@ def make_manifest(dataset: dict, manifest_path: Path, overwrite: bool = False) -
 
 
 def validate_manifest_hashes(manifest: dict, session_dir: Path) -> None:
+    """Validate manifest hashes."""
     lines = []
     for row in manifest.get("files", []):
         path = session_dir / row["path"]
@@ -481,6 +502,7 @@ def validate_manifest_hashes(manifest: dict, session_dir: Path) -> None:
 
 
 def render_bar_chart(path: Path, title: str, labels: list[str], values: list[float]) -> None:
+    """Render bar chart."""
     from PIL import Image, ImageDraw, ImageFont
     width, height = 1000, 560
     image = Image.new("RGB", (width, height), "white"); draw = ImageDraw.Draw(image); font = ImageFont.load_default()
@@ -499,6 +521,7 @@ def render_bar_chart(path: Path, title: str, labels: list[str], values: list[flo
 
 
 def make_charts(output_dir: Path, result: dict) -> list[str]:
+    """Create charts."""
     charts = output_dir / "charts"; charts.mkdir(parents=True, exist_ok=True)
     metrics = result["metrics"]
     paths = []
@@ -519,6 +542,7 @@ def make_charts(output_dir: Path, result: dict) -> list[str]:
 
 
 def make_contact_sheet(path: Path, title: str, images: list[tuple[str, str]], snapshot: Path) -> None:
+    """Create contact sheet."""
     from PIL import Image, ImageDraw, ImageFont
     font = ImageFont.load_default(); tile_w, tile_h = 250, 220; cols = 4; rows = math.ceil(len(images) / cols)
     sheet = Image.new("RGB", (cols * tile_w, 35 + rows * tile_h), "white"); draw = ImageDraw.Draw(sheet); draw.text((10, 10), title, fill="black", font=font)
@@ -531,6 +555,7 @@ def make_contact_sheet(path: Path, title: str, images: list[tuple[str, str]], sn
 
 
 def make_contact_sheets(output_dir: Path, result: dict, snapshot: Path) -> list[str]:
+    """Create contact sheets."""
     directory = output_dir / "contact_sheets"; directory.mkdir(parents=True, exist_ok=True); outputs = []
     groups = {
         "editorial_gainers.png": [(row["image"], f"net {row['editorial_net_vs_production']:+d}") for row in result["metrics"]["editorial"]["top_net_gainers"][:8]],
@@ -543,6 +568,7 @@ def make_contact_sheets(output_dir: Path, result: dict, snapshot: Path) -> list[
 
 
 def markdown_report(dataset: dict, manifest: dict, result: dict) -> str:
+    """Return the markdown report."""
     m = result["metrics"]
     return f"""# Counterfactual canonical dataset analysis
 
@@ -600,10 +626,12 @@ This is a counterfactual selector simulation over the current corpus, analyses, 
 
 
 def output_hashes(output_dir: Path) -> dict:
+    """Return the output hashes."""
     return {path.relative_to(output_dir).as_posix(): sha256_file(path) for path in sorted(output_dir.rglob("*")) if path.is_file() and path.name != "output_hashes.json"}
 
 
 def run_analysis(args: argparse.Namespace) -> dict:
+    """Run analysis."""
     session_dir = args.session_dir.resolve(); output_dir = args.output_dir.resolve()
     if output_dir == session_dir or session_dir in output_dir.parents:
         raise DatasetError("output directory must not be inside the source session")
@@ -640,6 +668,7 @@ def run_analysis(args: argparse.Namespace) -> dict:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     value = argparse.ArgumentParser(description="Validate and analyse completed counterfactual simulation records. Never invokes simulation or network services.")
     value.add_argument("--session-dir", type=Path, required=True)
     value.add_argument("--manifest", type=Path)
@@ -659,6 +688,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args()
     try:
         run_analysis(args)

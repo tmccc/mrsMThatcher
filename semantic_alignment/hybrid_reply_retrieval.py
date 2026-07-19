@@ -110,14 +110,17 @@ TOPIC_RULES = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -126,10 +129,12 @@ def sha256_file(path: Path) -> str:
 
 
 def canonical_json(value: Any) -> bytes:
+    """Return the canonical JSON."""
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
 def atomic_write_bytes(path: Path, value: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -146,14 +151,17 @@ def atomic_write_bytes(path: Path, value: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write a JSON document atomically."""
     atomic_write_bytes(path, json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2).encode("utf-8") + b"\n")
 
 
 def atomic_write_text(path: Path, value: str) -> None:
+    """Write text atomically."""
     atomic_write_bytes(path, value.encode("utf-8"))
 
 
 def normalise_text(value: Any, *, maximum: int = 4000) -> str:
+    """Normalise text."""
     text = unicodedata.normalize("NFKC", html.unescape(str(value or "")))
     text = URL_RE.sub(" ", text)
     text = LEADING_HANDLES_RE.sub("", text)
@@ -163,6 +171,7 @@ def normalise_text(value: Any, *, maximum: int = 4000) -> str:
 
 
 def substantive_query(value: str) -> tuple[bool, str]:
+    """Return the substantive query."""
     text = normalise_text(value, maximum=1000)
     if not text:
         return False, "empty_after_normalisation"
@@ -179,6 +188,7 @@ def substantive_query(value: str) -> tuple[bool, str]:
 
 
 def query_language_hint(value: str) -> str:
+    """Return the query language hint."""
     letters = [char for char in str(value or "") if unicodedata.category(char).startswith("L")]
     if any("CYRILLIC" in unicodedata.name(char, "") for char in letters):
         return "cyrillic-script"
@@ -192,6 +202,7 @@ def query_language_hint(value: str) -> str:
 
 
 def has_non_ascii_letters(value: str) -> bool:
+    """Return whether has non ascii letters."""
     return any(ord(char) > 127 and unicodedata.category(char).startswith("L") for char in str(value or ""))
 
 
@@ -200,6 +211,7 @@ def build_query(
     parent_context: str = "",
     thread_context: str = "",
 ) -> dict[str, Any]:
+    """Build query."""
     incoming = normalise_text(incoming_text, maximum=1200)
     parent = normalise_text(parent_context, maximum=1200)
     thread = normalise_text(thread_context, maximum=1200)
@@ -252,6 +264,7 @@ def _policy_topics(packet: dict[str, Any]) -> list[str]:
 
 
 def build_retrieval_document(quote_id: str, packet: dict[str, Any]) -> dict[str, Any]:
+    """Build retrieval document."""
     entities = _normalise_list(packet.get("entities"))
     document: dict[str, Any] = {
         "quote_id": quote_id,
@@ -284,6 +297,7 @@ def build_retrieval_document(quote_id: str, packet: dict[str, Any]) -> dict[str,
 
 
 def validate_corpus_invariants(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str], dict[str, Any]]:
+    """Validate corpus invariants."""
     packets, unresolved = load_and_validate_corpus(research_run)
     if len(packets) != 626 or len(unresolved) != 6:
         raise RuntimeError(f"hybrid index requires 626 completed and six unresolved records; got {len(packets)} and {len(unresolved)}")
@@ -317,6 +331,7 @@ def validate_corpus_invariants(research_run: Path) -> tuple[dict[str, dict[str, 
 
 
 def model_preflight(model_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
+    """Return the model preflight."""
     installed: dict[str, str | None] = {}
     try:
         from importlib.metadata import version
@@ -345,6 +360,7 @@ def model_preflight(model_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
 
 
 def model_is_complete(model_dir: Path) -> bool:
+    """Return whether model is complete."""
     manifest = model_dir / "model_manifest.json"
     if not manifest.is_file():
         return False
@@ -359,6 +375,7 @@ def model_is_complete(model_dir: Path) -> bool:
 
 
 def download_model(model_dir: Path, confirmation: str) -> dict[str, Any]:
+    """Download model."""
     if confirmation != MODEL_ID:
         raise RuntimeError(f"exact --confirm-model {MODEL_ID} is required")
     if model_is_complete(model_dir):
@@ -412,6 +429,7 @@ class LocalE5Embedder:
     """Pinned ONNX E5 embedding runtime with no network-capable code path."""
 
     def __init__(self, model_dir: Path = DEFAULT_MODEL_DIR):
+        """Initialise the local e5 embedder."""
         if not model_is_complete(model_dir):
             raise RuntimeError(f"pinned local model is unavailable or invalid: {model_dir}")
         from importlib.metadata import version
@@ -435,6 +453,7 @@ class LocalE5Embedder:
         self.input_names = {item.name for item in self.session.get_inputs()}
 
     def encode(self, texts: Sequence[str], *, query: bool = False, batch_size: int = 16) -> np.ndarray:
+        """Encode documents or queries with the pinned local E5 model."""
         outputs: list[np.ndarray] = []
         prefix = "query: " if query else "passage: "
         for start in range(0, len(texts), batch_size):
@@ -455,6 +474,7 @@ class LocalE5Embedder:
 
 
 def build_index(research_run: Path, output: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
+    """Build index."""
     packets, unresolved, corpus = validate_corpus_invariants(research_run)
     documents = [build_retrieval_document(qid, packets[qid]) for qid in sorted(packets)]
     template_hash = sha256_bytes("\n".join(item["text"] for item in documents).encode("utf-8"))
@@ -529,10 +549,12 @@ def build_index(research_run: Path, output: Path, model_dir: Path = DEFAULT_MODE
 
 
 def load_documents(path: Path) -> list[dict[str, Any]]:
+    """Load documents."""
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def validate_index(retrieval_dir: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
+    """Validate index."""
     manifest_path = retrieval_dir / "index" / "index_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     ids_path = retrieval_dir / "index" / "quote_ids.json"
@@ -562,6 +584,7 @@ def validate_index(retrieval_dir: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> 
 
 
 def exact_cosine_search(matrix: np.ndarray, query: np.ndarray, quote_ids: Sequence[str], count: int) -> list[tuple[str, float]]:
+    """Return the exact cosine search."""
     if query.shape != (matrix.shape[1],):
         raise ValueError("query embedding dimensions differ from index")
     scores = np.asarray(matrix @ query, dtype=np.float32)
@@ -594,6 +617,7 @@ def fuse_results(
     query: str,
     thresholds: dict[str, Any],
 ) -> list[dict[str, Any]]:
+    """Return the fuse results."""
     lexical_by_id = {qid: (rank, float(score)) for rank, (qid, score) in enumerate(lexical, 1)}
     semantic_by_id = {qid: (rank, float(score)) for rank, (qid, score) in enumerate(semantic, 1)}
     k = int(thresholds["rrf_k"])
@@ -640,7 +664,9 @@ def fuse_results(
 
 
 class HybridRetriever:
+    """Represent hybrid retriever data."""
     def __init__(self, retrieval_dir: Path, research_run: Path, model_dir: Path = DEFAULT_MODEL_DIR):
+        """Initialise the hybrid retriever."""
         started = time.perf_counter()
         self.manifest = validate_index(retrieval_dir, model_dir)
         packets, _, corpus = validate_corpus_invariants(research_run)
@@ -682,6 +708,7 @@ class HybridRetriever:
         thread_context: str = "",
         production_lexical: Sequence[RetrievedEvidence] | None = None,
     ) -> dict[str, Any]:
+        """Retrieve fused lexical and semantic evidence for one reply query."""
         started = time.perf_counter()
         query = build_query(incoming_text, parent_context, thread_context)
         if not query["substantive_query"]:
@@ -760,6 +787,7 @@ class HybridRetriever:
 
 
 def disagreement_class(lexical_ids: Sequence[str], hybrid_ids: Sequence[str]) -> str:
+    """Return the disagreement class."""
     lexical, hybrid = set(lexical_ids), set(hybrid_ids)
     if list(lexical_ids) == list(hybrid_ids):
         return "same_evidence"
@@ -778,6 +806,7 @@ def make_shadow_result(
     *, event_id: str, lane: str, target_id: str, result: dict[str, Any],
     manifest: dict[str, Any], status: str = "completed", reason: str = "",
 ) -> dict[str, Any]:
+    """Create shadow result."""
     lexical_rows = [{"quote_id": qid, "rank": rank, "score": score} for rank, (qid, score) in enumerate(result.get("lexical", []), 1)]
     semantic_rows = [{"quote_id": qid, "rank": rank, "cosine_similarity": score} for rank, (qid, score) in enumerate(result.get("semantic", []), 1)]
     lexical_ids = list(result.get("production_lexical_quote_ids", []))
@@ -813,7 +842,9 @@ def make_shadow_result(
 
 
 class ShadowHistoryWriter:
+    """Persist and manage shadow history records."""
     def __init__(self, runtime_dir: Path, maximum_records: int):
+        """Initialise the shadow history writer."""
         self.runtime_dir = runtime_dir
         self.path = runtime_dir / "shadow_history.jsonl"
         self.status_path = runtime_dir / "shadow_status.json"
@@ -847,6 +878,7 @@ class ShadowHistoryWriter:
         }
 
     def append(self, record: dict[str, Any]) -> None:
+        """Append one event while enforcing the bounded shadow history."""
         line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         with self.lock:
             event_id = str(record.get("event_id") or "")
@@ -879,6 +911,7 @@ class ShadowHistoryWriter:
 
 
 def read_shadow_records(runtime_dir: Path, maximum: int = 5000) -> list[dict[str, Any]]:
+    """Read shadow records."""
     path = runtime_dir / "shadow_history.jsonl"
     if maximum <= 0:
         return []
@@ -910,6 +943,7 @@ def read_shadow_records(runtime_dir: Path, maximum: int = 5000) -> list[dict[str
 
 
 def percentile(values: Sequence[float], fraction: float) -> float | None:
+    """Return the percentile."""
     if not values:
         return None
     ordered = sorted(float(value) for value in values)
@@ -922,6 +956,7 @@ def percentile(values: Sequence[float], fraction: float) -> float | None:
 
 
 def shadow_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Return the shadow summary."""
     completed = [record for record in records if record.get("status") == "completed"]
     latencies = [float(record["latency_ms"]) for record in completed if isinstance(record.get("latency_ms"), (int, float))]
     overlaps = [
@@ -973,6 +1008,7 @@ class ShadowWorker:
         event_logger: Callable[..., None] | None = None,
         retriever_factory: Callable[[], HybridRetriever] | None = None,
     ):
+        """Initialise the shadow worker."""
         self.project_dir = project_dir
         self.retrieval_dir = retrieval_dir
         self.research_run = research_run
@@ -987,6 +1023,7 @@ class ShadowWorker:
         self.thread.start()
 
     def submit(self, job: dict[str, Any]) -> bool:
+        """Submit one shadow retrieval job without blocking production."""
         try:
             self.jobs.put_nowait(job)
             return True
@@ -996,6 +1033,7 @@ class ShadowWorker:
             return False
 
     def drain(self, timeout: float = 10.0) -> bool:
+        """Return the drain."""
         deadline = time.monotonic() + timeout
         while self.jobs.unfinished_tasks and time.monotonic() < deadline:
             time.sleep(0.01)
@@ -1113,6 +1151,7 @@ _WORKERS_LOCK = threading.Lock()
 
 
 def validate_shadow_config(value: Any) -> list[str]:
+    """Validate that semantic veto configuration is disabled or shadow-only."""
     expected = {
         "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
         "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
@@ -1225,6 +1264,7 @@ MULTILINGUAL_SMOKE_QUERIES = (
 
 
 def packet_evaluation_queries(packets: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the packet evaluation queries."""
     fields = ("immediate_subject", "mechanism", "broader_principle", "claimed_consequence", "intended_argument")
     rows: list[dict[str, Any]] = []
     for quote_id in sorted(packets):
@@ -1350,6 +1390,7 @@ def _multilingual_threshold_score(
 
 
 def evaluate_retrieval(retrieval_dir: Path, research_run: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> dict[str, Any]:
+    """Evaluate retrieval."""
     packets, _, _ = validate_corpus_invariants(research_run)
     retriever = HybridRetriever(retrieval_dir, research_run, model_dir)
     queries = packet_evaluation_queries(packets)
@@ -1549,6 +1590,7 @@ def replay_context_snapshot(candidate: dict[str, Any]) -> dict[str, str]:
 
 
 def replay_historical(project_dir: Path, retrieval_dir: Path, research_run: Path, since_days: int = 30) -> dict[str, Any]:
+    """Replay historical."""
     retriever = HybridRetriever(retrieval_dir, research_run)
     candidates = _load_state_candidates(project_dir, since_days)
     results: list[dict[str, Any]] = []
@@ -2039,6 +2081,7 @@ def audit_review_context(
     strict: bool = False,
     apply: bool = True,
 ) -> dict[str, Any]:
+    """Audit review context."""
     sample_path = retrieval_dir / "review_sample_100.json"
     blind_path = retrieval_dir / "blind_assignment_manifest.json"
     replay_path = retrieval_dir / "replay_30d" / "replay_results.json"
@@ -2354,6 +2397,7 @@ def audit_review_context(
 
 
 def build_review_sample(retrieval_dir: Path, count: int = 100) -> dict[str, Any]:
+    """Build review sample."""
     existing_path = retrieval_dir / "review_sample_100.json"
     if existing_path.exists():
         existing = json.loads(existing_path.read_text(encoding="utf-8"))
@@ -2443,6 +2487,7 @@ INTERVENTIONS = {"historical_correction", "historical_context", "researched_prin
 
 
 def save_review(retrieval_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
+    """Save review."""
     sample = json.loads((retrieval_dir / "review_sample_100.json").read_text(encoding="utf-8"))
     valid_cases = {row["case_id"] for row in sample["items"]}
     case_id = str(payload.get("case_id") or "")
@@ -2488,6 +2533,7 @@ def save_review(retrieval_dir: Path, payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def review_results(retrieval_dir: Path) -> dict[str, Any]:
+    """Return the review results."""
     sample = json.loads((retrieval_dir / "review_sample_100.json").read_text(encoding="utf-8"))
     blind = json.loads((retrieval_dir / "blind_assignment_manifest.json").read_text(encoding="utf-8"))
     reviews = json.loads((retrieval_dir / "manual_review" / "human_reviews.json").read_text(encoding="utf-8"))
@@ -2610,6 +2656,7 @@ Promise.all([fetch('/api/cases').then(r=>r.json()),fetch('/api/reviews').then(r=
 
 
 def serve_review(retrieval_dir: Path, host: str, port: int) -> None:
+    """Serve review."""
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     if host not in {"127.0.0.1", "localhost", "::1", "0.0.0.0"} and not re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host):
         raise ValueError("host must be loopback or an explicit LAN address")
@@ -2671,6 +2718,7 @@ def serve_review(retrieval_dir: Path, host: str, port: int) -> None:
 
 
 def write_hybrid_report(retrieval_dir: Path, project_dir: Path) -> dict[str, Any]:
+    """Write hybrid report."""
     index = json.loads((retrieval_dir / "index" / "index_manifest.json").read_text(encoding="utf-8"))
     model = json.loads((retrieval_dir / "model_manifest.json").read_text(encoding="utf-8"))
     thresholds = json.loads((retrieval_dir / "thresholds.json").read_text(encoding="utf-8"))

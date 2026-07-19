@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse provider outliers artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -20,14 +22,17 @@ DEFAULT_OUT = Path("semantic_alignment_research/provider_outlier_analysis")
 
 
 def load(path: Path):
+    """Load a JSON document."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def pct(n: int, d: int) -> str:
+    """Return a percentage value."""
     return "unavailable" if not d else f"{n / d:.1%} ({n}/{d})"
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description="Offline provider operational-outlier analysis")
     parser.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
     parser.add_argument("--old-run-dir", type=Path, default=DEFAULT_OLD)
@@ -241,6 +246,7 @@ def main() -> None:
 
 
 def build_report(summary, outliers, human_rows, regression, queue) -> str:
+    """Build report."""
     profiles = summary["provider_profiles"]
     lines = [
         "# Provider operational-outlier analysis", "", "## Executive summary", "",

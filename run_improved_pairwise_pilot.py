@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Run improved pairwise pilot."""
+
 from __future__ import annotations
 
 import argparse,json
@@ -19,6 +21,7 @@ DEFAULT_RUN=ROOT/'semantic_alignment_research/pairwise_improved_pilot_20260713_r
 LIMITS={'grok':3.0,'openai':5.0,'anthropic':3.0,'gemini':3.0}
 
 def prepare(run:Path):
+ """Prepare the improved pairwise-pilot workspace."""
  run.mkdir(parents=True,exist_ok=True)
  manifest=load(READY/'pairwise_improved_pilot_manifest.json');blind=load(READY/'candidate_blind_map.json')
  if not manifest['readiness']['ready'] or manifest['case_count']!=25:raise RuntimeError('pilot readiness gate failed')
@@ -27,6 +30,7 @@ def prepare(run:Path):
  return manifest
 
 def rendered_prompts(manifest):
+ """Return the rendered prompts."""
  intents=load(SOURCE/'quote_visual_intents.json')['items'];first=load(SOURCE/'image_first_impressions.json')['items'];supplement=load(SUPPLEMENT)['items'];
  if set(first)&set(supplement):raise RuntimeError('supplement overlaps original first-impression records')
  first={**first,**supplement};quotes=load(FINGERPRINTS/'quote_semantic_fingerprints.json')['items'];images=load(FINGERPRINTS/'image_implied_messages_generated.json')['items'];ed=load(ROOT/'generated_image_analysis.json');editorial={n:ed['items'][ed['path_index'][n]] for n in ed['path_index']};out={}
@@ -37,6 +41,7 @@ def rendered_prompts(manifest):
  return out
 
 def preflight(run,prompts):
+ """Build the deterministic execution preflight."""
  tokens=sum(estimate_tokens(x) for x in prompts.values());providers={}
  for p,limit in LIMITS.items():
   expected=tokens*PRICES[p]['input']/1e6+25*700*PRICES[p]['output']/1e6;maximum=tokens*PRICES[p]['input']/1e6+25*1200*PRICES[p]['output']/1e6
@@ -45,6 +50,7 @@ def preflight(run,prompts):
  doc={'schema_version':1,'cases':25,'providers':providers,'combined_expected_cost_usd':sum(x['expected_cost_usd'] for x in providers.values()),'combined_conservative_maximum_cost_usd':sum(x['conservative_maximum_cost_usd'] for x in providers.values()),'combined_limit_usd':16.0,'prompt_parity':True,'human_labels_in_prompts':False,'winner_identity_in_prompts':False};atomic_write_json(run/'preflight.json',doc);return doc
 
 def main():
+ """Run the command-line entry point."""
  p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,default=DEFAULT_RUN);p.add_argument('--dry-run',action='store_true');p.add_argument('--execute-grok',action='store_true');p.add_argument('--execute-openai',action='store_true');p.add_argument('--execute-claude',action='store_true');p.add_argument('--execute-gemini',action='store_true');p.add_argument('--enable-gemini-vertex-fallback',action='store_true');p.add_argument('--confirm-grok-limit-usd',type=float);p.add_argument('--confirm-openai-limit-usd',type=float);p.add_argument('--confirm-claude-limit-usd',type=float);p.add_argument('--confirm-gemini-developer-limit-usd',type=float);p.add_argument('--confirm-gemini-vertex-fallback-limit-usd',type=float);p.add_argument('--confirm-combined-limit-usd',type=float);p.add_argument('--resume',action='store_true');a=p.parse_args();run=a.run_dir.resolve();manifest=prepare(run);prompts=rendered_prompts(manifest);pf=preflight(run,prompts);print(json.dumps(pf,indent=2))
  if a.dry_run:return
  flags=[a.execute_grok,a.execute_openai,a.execute_claude,a.execute_gemini]

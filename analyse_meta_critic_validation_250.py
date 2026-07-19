@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse meta critic validation 250 artefacts."""
+
 from __future__ import annotations
 import argparse,csv,json,math
 from collections import Counter
@@ -12,11 +14,13 @@ OUT=Path('semantic_alignment_research/meta_critic_validation_250')
 PROVIDERS=('grok','openai','anthropic','gemini')
 
 def wilson(k,n,z=1.96):
+    """Return the wilson."""
     if not n:return None
     p=k/n;d=1+z*z/n;c=(p+z*z/(2*n))/d;h=z*math.sqrt(p*(1-p)/n+z*z/(4*n*n))/d
     return [max(0,c-h),min(1,c+h)]
 
 def metrics(pred,human):
+    """Return the metrics."""
     ids=sorted(set(pred)&set(human)); actionable=[k for k in ids if pred[k] in {'keep','replace'}]
     tp=sum(pred[k]=='keep' and human[k]=='keep' for k in actionable);fp=sum(pred[k]=='keep' and human[k]=='replace' for k in actionable)
     tn=sum(pred[k]=='replace' and human[k]=='replace' for k in actionable);fn=sum(pred[k]=='replace' and human[k]=='keep' for k in actionable);correct=tp+tn
@@ -27,10 +31,12 @@ def metrics(pred,human):
             'uncertain':len(ids)-len(actionable),'wilson_95':wilson(correct,len(actionable))}
 
 def majority(votes):
+    """Return the majority."""
     c=Counter(votes); value,count=c.most_common(1)[0]
     return value if count>len(votes)/2 else 'unsure'
 
 def main(argv=None):
+    """Run the command-line entry point."""
     global RUN,OUT
     parser=argparse.ArgumentParser();parser.add_argument('--run-dir',type=Path,default=RUN);parser.add_argument('--output-dir',type=Path,default=OUT);args=parser.parse_args(argv)
     RUN=args.run_dir;OUT=args.output_dir

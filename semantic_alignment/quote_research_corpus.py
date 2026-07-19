@@ -1,3 +1,5 @@
+"""Build, validate, and resume the canonical quotation research corpus."""
+
 from __future__ import annotations
 
 import hashlib
@@ -46,6 +48,7 @@ def _append_jsonl(path: Path, row: dict[str, Any], lock: threading.RLock | None 
 
 
 def build_corpus_manifest(source: dict[str, Any]) -> dict[str, Any]:
+    """Build corpus manifest."""
     records = source.get("records") or []
     occurrences = source.get("occurrences") or []
     if len(records) != 632 or len({row["quote_id"] for row in records}) != 632:
@@ -82,6 +85,7 @@ def build_corpus_manifest(source: dict[str, Any]) -> dict[str, Any]:
 
 
 def verify_corpus_manifest(manifest: dict[str, Any]) -> None:
+    """Verify corpus manifest."""
     expected = manifest.get("manifest_sha256")
     check = dict(manifest)
     check.pop("manifest_sha256", None)
@@ -96,6 +100,7 @@ def verify_corpus_manifest(manifest: dict[str, Any]) -> None:
 
 def corpus_preflight(records: list[dict[str, Any]], completed: int = 0,
                      remaining_records: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Return the corpus preflight."""
     remaining = remaining_records if remaining_records is not None else records[completed:]
     base = pilot_preflight(remaining)
     expected = float(base["expected_cost_usd"])
@@ -114,6 +119,7 @@ def corpus_preflight(records: list[dict[str, Any]], completed: int = 0,
 
 
 def repair_prompt(record: dict[str, Any], raw_text: str, validation_error: str) -> str:
+    """Return the repair prompt."""
     bounded = raw_text[:24000]
     return f"""Prompt version: {PROMPT_VERSION}-schema-repair
 Repair and revalidate the grounded research packet below. Return only one JSON object matching the same research-packet schema. You MUST invoke Google Search at least once during this repair. Re-check every material historical claim against the returned search evidence. Preserve supported content, but do not invent facts, sources, dates, locators, or missing evidence. Use "unknown" where a string is permitted and evidence is absent. Preserve quote_id and quote_text exactly. A response without grounding metadata linked to at least one supporting source is invalid.
@@ -134,6 +140,7 @@ def _raw_text(raw: dict[str, Any]) -> str:
 
 
 class CorpusRunner:
+    """Run corpus operations."""
     def __init__(self, run_dir: Path, manifest: dict[str, Any], developer: Any, vertex: Any,
                  developer_limit: float, vertex_limit: float, combined_limit: float,
                  developer_concurrency: int = 2, vertex_concurrency: int = 2,
@@ -141,6 +148,7 @@ class CorpusRunner:
                  prompt_builder: Callable[[dict[str, Any]], str] = research_prompt,
                  repair_builder: Callable[[dict[str, Any], str, str], str] = repair_prompt,
                  identity_binder: Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]] | None = None):
+        """Initialise the corpus runner."""
         verify_corpus_manifest(manifest)
         self.run_dir = run_dir
         self.manifest = manifest
@@ -253,6 +261,7 @@ class CorpusRunner:
             atomic_write_json(self.paths["status.json"], self.status_payload())
 
     def request_stop(self, reason: str = "operator_signal") -> None:
+        """Perform the request stop operation."""
         with self.lock:
             self.stop_event.set()
             self.state["shutdown_requested"] = True
@@ -510,6 +519,7 @@ class CorpusRunner:
 
     def eligible(self, only_quote_id: str | None = None,
                  statuses: set[str] | None = None) -> list[dict[str, Any]]:
+        """Return the eligible."""
         records = []
         for quote_id in self.order:
             if only_quote_id and quote_id != only_quote_id:
@@ -521,6 +531,7 @@ class CorpusRunner:
 
     def run(self, max_items: int | None = None, only_quote_id: str | None = None,
             statuses: set[str] | None = None) -> dict[str, Any]:
+        """Run the selected resumable quotation-research workload."""
         require_transport_parity(self.developer, self.vertex)
         self.state["shutdown_requested"] = False
         self.state.pop("shutdown_reason", None)
@@ -551,6 +562,7 @@ class CorpusRunner:
         return self.status_payload()
 
     def reset_permanent(self, quote_id: str) -> None:
+        """Reset permanent."""
         with self.lock:
             if quote_id not in self.records or quote_id not in self.permanent["items"]:
                 raise RuntimeError("quote is not a recorded permanent failure")
@@ -565,6 +577,7 @@ class CorpusRunner:
             self._persist_all()
 
     def status_payload(self) -> dict[str, Any]:
+        """Return the status payload."""
         counts = Counter(row["status"] for row in self.state["items"].values())
         valid = counts["valid"]
         costs = self.costs
@@ -607,6 +620,7 @@ class CorpusRunner:
 
 
 def install_signal_handlers(runner: CorpusRunner) -> dict[int, Any]:
+    """Install signal handlers."""
     previous = {}
     for signum in (signal.SIGINT, signal.SIGTERM):
         previous[signum] = signal.getsignal(signum)
@@ -615,5 +629,6 @@ def install_signal_handlers(runner: CorpusRunner) -> dict[int, Any]:
 
 
 def restore_signal_handlers(previous: dict[int, Any]) -> None:
+    """Restore signal handlers."""
     for signum, handler in previous.items():
         signal.signal(signum, handler)

@@ -121,8 +121,12 @@ The integration harness and golden tests assume these files are versioned or
 deployed as a coherent set:
 
 - `mrsMThatcher2.py`
+- `reply_strategy.py`
 - `historical_context_formatter.py`
 - `historical_context_reply_schema.json`
+- `semantic_quote_image_veto.py`
+- `semantic_alignment/quote_image_semantic_veto.py`
+- `semantic_alignment/hybrid_reply_retrieval.py`
 - `semantic_alignment/quote_research_gemini.py`
 - `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
@@ -140,6 +144,10 @@ deployed as a coherent set:
 - `mrsMThatcher.local.example.json`
 - `extra_quote_watch_post_ids.example.txt`
 - `mrsMThatcher.txt`
+- `quote_analysis.json`
+- `image_analysis.json`
+- `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/runtime_eligible_quote_manifest.json`
+- `semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json`
 - `images/t*.jpg`
 - `final_posting_queue_top90_as_is/images/*`
 - `final_posting_queue_top90_as_is/renamed_png_v3_top90_posting_queue.json`
@@ -163,15 +171,20 @@ generated, the final score, whether a generated image matched its origin quote,
 and the boost that was applied. `mrs_log_digest.py` reports these as
 observational metrics only: regular image selections, original versus generated
 counts, generated origin matches, and generated cross-quote selections. There is
-currently no generated-image frequency cap.
+a minimum spacing rule: after a generated regular image is selected, two
+original-image posts must be completed before another generated image is
+eligible. The generated pool remains disabled by source default.
 
 ## Historical Context Replies
 
 The optional historical-context stage posts a neutral, corpus-backed threaded reply only
 after a regular quotation post has been confirmed. It does not change the quotation,
-image selection, schedule, or main-post receipt semantics. Startup validates the canonical
-research corpus as exactly 626 completed packets and six unresolved quotations. A quote
-without a matching completed packet receives no context reply.
+image selection, schedule, or main-post receipt semantics. Startup validates the immutable
+research archive as exactly 626 completed packets and six unresolved quotations. The
+current 619 canonical source records are then filtered to exactly 610 attribution-eligible
+runtime quotations; six unresolved and three additional attribution-ineligible records
+remain unavailable for posting. A quote without an eligible completed packet receives no
+context reply.
 
 Enable it in the ignored `mrsMThatcher.local.json` file:
 
@@ -227,9 +240,10 @@ Enable it through the ignored local configuration after review:
 }
 ```
 
-The corpus is validated as 626 completed and six unresolved records before an
-enabled production run starts. Strategy metadata is attached to the confirmed
-reply receipt and retained in `reply_strategy_history` after reconciliation.
+The historical corpus is validated as 626 completed and six unresolved records,
+then filtered to exactly 610 attribution-eligible packets before an enabled
+production run starts. Strategy metadata is attached to the confirmed reply
+receipt and retained in `reply_strategy_history` after reconciliation.
 `mrs_log_digest.py` reports decision mode, confidence, evidence count, and
 grounding status without publishing internal quote IDs.
 
@@ -260,6 +274,17 @@ remain valid and are treated as formatter v1 by offline analytics.
 
 `mrs_log_digest.py` reports structured context outcomes by status, including completed,
 already-completed, failed, skipped and dry-run events.
+
+## Architecture And Python API
+
+The maintained module map, side-effect boundaries, active corpus accounting and
+PEP 257 documentation policy are recorded in
+[`docs/python_api.md`](docs/python_api.md). Check module and public-definition
+docstring coverage without additional dependencies:
+
+```bash
+python3 tools/check_python_documentation.py
+```
 
 ## Local Runtime Files
 

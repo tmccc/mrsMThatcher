@@ -54,6 +54,7 @@ DEFAULT_TARGET_MIB = 120
 
 
 def directory_size(path: Path) -> int:
+    """Return the directory size."""
     total = 0
 
     for entry in path.rglob("*"):
@@ -64,6 +65,7 @@ def directory_size(path: Path) -> int:
 
 
 def human_size(value: int) -> str:
+    """Return the human size."""
     units = ["B", "KiB", "MiB", "GiB"]
     size = float(value)
 
@@ -76,6 +78,7 @@ def human_size(value: int) -> str:
 
 
 def load_corpus_index(path: Path) -> dict[str, Any]:
+    """Load corpus index."""
     data = json.loads(path.read_text(encoding="utf-8"))
 
     if not isinstance(data, dict):
@@ -94,6 +97,7 @@ def add_bytes(
     arcname: str,
     content: bytes,
 ) -> None:
+    """Add bytes."""
     info = tarfile.TarInfo(name=arcname)
     info.size = len(content)
     info.mtime = 0
@@ -105,6 +109,7 @@ def add_bytes(
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument(

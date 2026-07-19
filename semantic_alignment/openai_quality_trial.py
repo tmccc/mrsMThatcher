@@ -1,3 +1,5 @@
+"""Compare OpenAI image quality settings on a fixed quotation sample."""
+
 from __future__ import annotations
 
 import base64
@@ -43,10 +45,12 @@ TEXT_INPUT_PER_MILLION = 5.0
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def load_corpus(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str], str]:
+    """Load corpus."""
     packets = read_json(research_run / "research_packets.json")["items"]
     records = {row["quote_id"]: row for row in read_json(research_run / "corpus_manifest.json")["records"]}
     status = read_json(research_run / "final_unresolved" / "final_research_status.json")
@@ -79,6 +83,7 @@ def _extra_prior_ids(root: Path) -> set[str]:
 
 
 def select_quality_packets(packets: dict[str, dict[str, Any]], excluded: set[str], count: int) -> list[dict[str, Any]]:
+    """Select quality packets."""
     if count not in {10, 30}:
         raise ValueError("quality trials support exactly 10 or 30 cases")
     per_category = count // len(CATEGORIES)
@@ -109,12 +114,14 @@ def select_quality_packets(packets: dict[str, dict[str, Any]], excluded: set[str
 
 
 def request_payload(prompt: str, quality: str) -> dict[str, Any]:
+    """Return the request payload."""
     if quality not in QUALITIES:
         raise ValueError(quality)
     return {"model": MODEL, "prompt": prompt, "n": 1, "quality": quality, "size": SIZE, "output_format": "png"}
 
 
 def payload_difference_is_quality_only(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Return whether payload difference is quality only."""
     keys = set(a) | set(b)
     return {key for key in keys if a.get(key) != b.get(key)} == {"quality"}
 
@@ -124,6 +131,7 @@ def _input_cost(prompt: str) -> float:
 
 
 def prepare_trial(research_run: Path, trial: Path, count: int = 10) -> dict[str, Any]:
+    """Prepare trial."""
     packets, unresolved, eligible_hash = load_corpus(research_run)
     excluded = prior_generation_quote_ids(research_run.parent) | _extra_prior_ids(research_run.parent)
     selected = select_quality_packets(packets, excluded, count)
@@ -167,6 +175,7 @@ def _selection_report(trial: Path, manifest: dict[str, Any]) -> None:
 
 
 def preflight(trial: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build the deterministic execution preflight."""
     input_cost = sum(_input_cost((trial / "prompts" / f"{row['quote_id']}.txt").read_text()) for row in manifest["items"])
     case_count = len(manifest["items"])
     output_cost = case_count * sum(OUTPUT_COST.values())
@@ -177,6 +186,7 @@ def preflight(trial: Path, manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def render_preflight(pf: dict[str, Any]) -> str:
+    """Render preflight."""
     return "\n".join(["# OpenAI Quality Trial Preflight", "", f"- Model: `{pf['model']}`", "- Settings: Medium vs High; 1024x1024 PNG", f"- Planned calls/images: {pf['calls']} / {pf['images']}", f"- Medium output cost: ${pf['medium_output_cost_usd']:.3f}", f"- High output cost: ${pf['high_output_cost_usd']:.3f}", f"- Estimated prompt input: ${pf['estimated_prompt_input_cost_usd']:.4f}", f"- Expected total: **${pf['expected_total_cost_usd']:.4f}**", f"- Conservative maximum with one transport retry per request: **${pf['conservative_maximum_cost_usd']:.4f}**", f"- Exact confirmation required: **${pf['required_exact_confirmation_usd']:.2f}**", f"- Prompt parity: `{pf['prompt_parity_verified']}`", f"- Quality is sole payload difference: `{pf['quality_only_difference_verified']}`", f"- Output: `{pf['output_directory']}`", "- No generation API call was made during preparation.", ""])
 
 
@@ -196,6 +206,7 @@ def _generate(prompt: str, quality: str, api_key: str, session: requests.Session
 
 
 def generate_trial(trial: Path, confirmed: float, session: requests.Session | None = None, sleep=time.sleep) -> dict[str, Any]:
+    """Generate trial."""
     manifest = read_json(trial / "manifest.json"); pf = preflight(trial, manifest)
     if confirmed != pf["required_exact_confirmation_usd"]:
         raise RuntimeError(f"exact --confirm-max-cost-usd {pf['required_exact_confirmation_usd']:.2f} required")
@@ -226,12 +237,14 @@ def generate_trial(trial: Path, confirmed: float, session: requests.Session | No
 
 
 def status(trial: Path) -> dict[str, Any]:
+    """Return the status."""
     manifest = read_json(trial / "manifest.json", {"items": []}); state = read_json(trial / "generation_state.json", {"items": {}, "attempts": [], "known_cost_usd": {"medium": 0, "high": 0}}); reviews = read_json(trial / "review" / "decisions.json", {"items": {}})["items"]
     generated = {q: sum(state["items"].get(f"{q}:{row['quote_id']}", {}).get("status") == "completed" for row in manifest["items"]) for q in QUALITIES}
     return {"trial_dir": str(trial), "eligible_corpus_size": manifest.get("eligible_corpus_size"), "cases": len(manifest["items"]), "generated": generated, "attempts": len(state["attempts"]), "known_cost_usd": state["known_cost_usd"], "reviews_completed": len(reviews), "review_complete": len(reviews) == len(manifest["items"]) and bool(manifest["items"])}
 
 
 def serve_review(trial: Path, host: str, port: int) -> None:
+    """Serve review."""
     manifest = read_json(trial / "manifest.json"); blind = read_json(trial / "review" / "blind_map.json")["assignments"]; decisions_path = trial / "review" / "decisions.json"; rows = manifest["items"]; by_id = {x["quote_id"]: x for x in rows}
     class Handler(BaseHTTPRequestHandler):
         def send(self, code: int, body: bytes, mime="text/html; charset=utf-8"):
@@ -270,6 +283,7 @@ def serve_review(trial: Path, host: str, port: int) -> None:
 
 
 def report_results(trial: Path) -> str:
+    """Report results."""
     manifest=read_json(trial/"manifest.json"); blind=read_json(trial/"review/blind_map.json")["assignments"]; decisions=read_json(trial/"review/decisions.json",{"items":{}})["items"]
     if len(decisions)!=len(manifest["items"]):raise RuntimeError("all reviews must be complete")
     state=read_json(trial/"generation_state.json"); counts={"medium":0,"high":0,"equal":0,"neither":0}; reasons={x:0 for x in REASON_TAGS}; rows=[]

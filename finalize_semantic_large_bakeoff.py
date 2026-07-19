@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Finalise semantic large bakeoff."""
+
 from __future__ import annotations
 import json,statistics
 from collections import Counter
@@ -6,6 +8,7 @@ from pathlib import Path
 from semantic_alignment.io import atomic_write_json,atomic_write_text
 P=('grok','openai','anthropic','gemini');R=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1');O=Path('semantic_alignment_research/provider_bakeoff_25_20260712')
 def main():
+    """Run the command-line entry point."""
     manifest=json.load(open(R/'cases.json'));results={p:json.load(open(R/f'{p}_results.json')) for p in P};ledgers={p:json.load(open(R/f'{p}_ledger.json')) for p in P};summaries={p:json.load(open(R/f'{p}_worker_summary.json')) for p in P};comp=json.load(open(R/'comparison.json'));coord=json.load(open(R/'coordinator_summary.json'));meta=json.load(open(R/'meta_results.json'))['items'];dis=json.load(open(R/'disagreement_results.json'))['items'];json.load(open(R/'policy_comparison.json'));old={p:json.load(open(O/f'{p}_results.json'))['items'] for p in P};reg=[x for x in manifest['items'] if x.get('original_case_id')]
     regression={}
     for p in P:

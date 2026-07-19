@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local first impression review interface."""
+
 from __future__ import annotations
 import argparse,html,json,secrets,sys
 from datetime import datetime,timezone
@@ -9,9 +11,11 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from semantic_alignment.io import atomic_write_json,read_json
 
 def parser():
+    """Build the command-line argument parser."""
     p=argparse.ArgumentParser();p.add_argument('--project-dir',type=Path,required=True);p.add_argument('--run-dir',type=Path,required=True);p.add_argument('--host',default='127.0.0.1');p.add_argument('--port',type=int,default=8771);return p
 
 def serve(project:Path,run:Path,host='127.0.0.1',port=8771):
+    """Serve the configured local interface."""
     if host not in {'127.0.0.1','localhost'}:raise ValueError('reviewer must bind to loopback')
     cases=read_json(run/'validation_cases.json')['items'];quotes=read_json(project/'semantic_alignment_research/runs/v2_20260711T111526Z/quote_semantic_fingerprints.json')['items'];images=read_json(run/'image_first_impressions.json',{'items':{}})['items'];reviews_path=run/'human_reviews.json';pair_reviews_path=run/'pairwise_human_reviews.json';pairs=read_json(run/'pairwise_rankings.json',{'items':{}}).get('items',{});csrf=secrets.token_urlsafe(24)
     providers={p:(read_json(run/f'{p}_first_impression_results.json') or read_json(run/f'{p}_results.json') or {'items':{}})['items'] for p in ('grok','openai','anthropic','gemini')}
@@ -49,5 +53,6 @@ def serve(project:Path,run:Path,host='127.0.0.1',port=8771):
     server=ThreadingHTTPServer((host,port),Handler);print(f'http://{host}:{port}');server.serve_forever()
 
 def main(argv=None):
+    """Run the command-line entry point."""
     a=parser().parse_args(argv);serve(a.project_dir.resolve(),a.run_dir.resolve(),a.host,a.port)
 if __name__=='__main__':main()

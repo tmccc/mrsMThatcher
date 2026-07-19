@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Recover the improved pairwise pilot through Vertex."""
+
 from __future__ import annotations
 import json,os,time
 from pathlib import Path
@@ -9,8 +11,11 @@ from semantic_alignment.vertex_recovery import GeminiVertexClient,error_details,
 from run_improved_pairwise_pilot import rendered_prompts
 
 ROOT=Path(__file__).resolve().parent;RUN=ROOT/'semantic_alignment_research/pairwise_improved_pilot_20260713_run_v1'
-def load(p):return json.loads(Path(p).read_text())
+def load(p):
+ """Load a JSON document."""
+ return json.loads(Path(p).read_text())
 def main():
+ """Run the command-line entry point."""
  original=load(RUN/'gemini_pilot_results.json');targets=sorted(original['failures'])
  if len(targets)>2:raise SystemExit('recovery is limited to the two confirmed failed Gemini cases')
  manifest=load(RUN/'pilot_manifest.json');prompts=rendered_prompts(manifest);env=validate_vertex_environment(os.environ);client=GeminiVertexClient(project=env['project'],location=env['location'],model='gemini-3.1-pro-preview',response_schema=PAIRWISE_SCHEMA,max_output_tokens=1200)

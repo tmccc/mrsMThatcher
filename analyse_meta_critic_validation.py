@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse meta critic validation artefacts."""
+
 from __future__ import annotations
 import csv,json,math,statistics
 from collections import Counter
@@ -10,15 +12,20 @@ from semantic_alignment.meta_critic import PROVIDERS,policy_actions
 ROOT=Path('semantic_alignment_research'); META=ROOT/'meta_critic'; BAKE=ROOT/'provider_bakeoff_25_20260712'; RUN=ROOT/'runs/v2_20260711T111526Z'
 
 def wilson(success,total,z=1.96):
+    """Return the wilson."""
     if not total:return None
     p=success/total; den=1+z*z/total; centre=(p+z*z/(2*total))/den; half=z*math.sqrt(p*(1-p)/total+z*z/(4*total*total))/den; return [centre-half,centre+half]
 def metrics(pred,human):
+    """Return the metrics."""
     keys=sorted(set(pred)&set(human)); exact=sum(pred[k]==human[k] for k in keys); actionable=[k for k in keys if pred[k] in {'keep','replace'}]
     tp=sum(pred[k]=='keep' and human[k]=='keep' for k in actionable); fp=sum(pred[k]=='keep' and human[k]=='replace' for k in actionable); tn=sum(pred[k]=='replace' and human[k]=='replace' for k in actionable); fn=sum(pred[k]=='replace' and human[k]=='keep' for k in actionable)
     return {'cases':len(keys),'exact_agreement':exact/len(keys),'exact_correct':exact,'actionable':len(actionable),'coverage':len(actionable)/len(keys),'actionable_accuracy':(tp+tn)/len(actionable) if actionable else None,'keep_precision':tp/(tp+fp) if tp+fp else None,'keep_recall':tp/(tp+fn) if tp+fn else None,'replace_precision':tn/(tn+fn) if tn+fn else None,'replace_recall':tn/(tn+fp) if tn+fp else None,'false_keeps':fp,'false_replaces':fn,'uncertain_predictions':len(keys)-len(actionable),'wilson_95':wilson(tp+tn,len(actionable))}
-def fmt(v): return 'unavailable' if v is None else f'{v:.1%}'
+def fmt(v):
+    """Format a display value."""
+    return 'unavailable' if v is None else f'{v:.1%}'
 
 def main():
+    """Run the command-line entry point."""
     human_doc=json.load(open(META/'human_validation.json')); human={k:v['human_action'] for k,v in human_doc['items'].items()}; meta_list=json.load(open(META/'meta_results.json'))['items']; meta={x['case_id']:x for x in meta_list}; disagreements={x['case_id']:x for x in json.load(open(META/'disagreement_results.json'))['items']}; queue={x['case_id']:x for x in json.load(open(META/'review_queue.json'))['items']}; cases={x['case_id']:x for x in json.load(open(BAKE/'cases.json'))['items']}; quotes=json.load(open(RUN/'quote_semantic_fingerprints.json'))['items']; providers={p:json.load(open(BAKE/f'{p}_results.json'))['items'] for p in PROVIDERS}
     ids=sorted(human); expected=set(cases); sources={'human':set(ids),'meta':set(meta),'disagreement':set(disagreements),'queue':set(queue),**{p:set(x) for p,x in providers.items()}}
     inconsistent={k:sorted(expected^v) for k,v in sources.items() if v!=expected}

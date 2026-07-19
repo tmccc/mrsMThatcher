@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local semantic alignment calibration app interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -22,6 +24,7 @@ from semantic_alignment.io import atomic_write_json
 
 
 def create_server(*, project_dir: Path, dataset_path: Path, host: str, port: int):
+    """Create server."""
     csrf=secrets.token_urlsafe(24)
     def load(): return migrate_review_dataset(json.loads(dataset_path.read_text()))
     class Handler(BaseHTTPRequestHandler):
@@ -78,6 +81,7 @@ def create_server(*, project_dir: Path, dataset_path: Path, host: str, port: int
 
 
 def main():
+    """Run the command-line entry point."""
     ap=argparse.ArgumentParser(); ap.add_argument('--project-dir',type=Path,default=Path(__file__).resolve().parents[1]); ap.add_argument('--dataset',type=Path,required=True); ap.add_argument('--host',default='127.0.0.1'); ap.add_argument('--port',type=int,default=8766); args=ap.parse_args()
     if args.host not in {'127.0.0.1','localhost','::1'}: raise SystemExit('Calibration app is loopback-only')
     server=create_server(project_dir=args.project_dir.resolve(),dataset_path=args.dataset.resolve(),host=args.host,port=args.port); print(f'http://{args.host}:{server.server_port}'); server.serve_forever()

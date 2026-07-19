@@ -1,3 +1,5 @@
+"""Build and adjudicate compact image-to-quotation reranking shortlists."""
+
 from __future__ import annotations
 
 import argparse
@@ -93,14 +95,17 @@ BATCH_SCHEMA = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def estimate_tokens(text: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(text.encode("utf-8")) / 3)
 
 
 def image_query(record: dict[str, Any]) -> str:
+    """Return the image query."""
     visual = record["visual"]
     people = visual.get("people") or {}
     pairing = visual.get("pairing") or {}
@@ -150,6 +155,7 @@ def build_shortlists(
     work_dir: Path,
     retrieval_dir: Path,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Build shortlists."""
     packets, corpus_meta = load_completed_corpus(research_run)
     packet_by_id = {row["quote_id"]: row for row in packets}
     images = load_image_records(work_dir)
@@ -257,6 +263,7 @@ def build_shortlists(
 
 
 def coherent_human_pairs(work_dir: Path) -> list[dict[str, Any]]:
+    """Return the coherent human pairs."""
     matching = read_json(work_dir / "quote_matching_dry_run.json")
     reviews = (read_json(work_dir / "human_pairing_review.json").get("reviews") or {})
     rows = []
@@ -280,6 +287,7 @@ def coherent_human_pairs(work_dir: Path) -> list[dict[str, Any]]:
 
 
 def calibration_split(work_dir: Path, eligible_quote_ids: set[str] | None = None) -> dict[str, Any]:
+    """Return the calibration split."""
     rows = coherent_human_pairs(work_dir)
     if eligible_quote_ids is not None:
         rows = [row for row in rows if row["quote_hash"] in eligible_quote_ids]
@@ -310,6 +318,7 @@ def calibration_split(work_dir: Path, eligible_quote_ids: set[str] | None = None
 def calibration_examples(
     split: dict[str, Any], shortlists: list[dict[str, Any]], quote_by_id: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Return the calibration examples."""
     image_by_id = {row["candidate_id"]: row for row in shortlists}
     examples = []
     by_image: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -343,6 +352,7 @@ def build_prompt(
     *,
     response_schema: dict[str, Any] = BATCH_SCHEMA,
 ) -> str:
+    """Build prompt."""
     provider_rows = [{
         "candidate_id": row["candidate_id"],
         "image_sha256": row["image_sha256"],
@@ -378,6 +388,7 @@ CASES:
 
 
 def validate_response(value: Any, batch: list[dict[str, Any]]) -> dict[str, Any]:
+    """Validate response."""
     if not isinstance(value, dict) or set(value) != {"records"} or not isinstance(value["records"], list):
         raise ValueError("response must contain only records")
     if len(value["records"]) != len(batch):
@@ -438,6 +449,7 @@ def _batches(rows: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
 def prepare_trial(
     research_run: Path, work_dir: Path, retrieval_dir: Path, output_dir: Path,
 ) -> dict[str, Any]:
+    """Prepare trial."""
     shortlists, shortlist_meta = build_shortlists(research_run, work_dir, retrieval_dir)
     compact_packets = [compact_quote_record(row) for row in load_completed_corpus(research_run)[0]]
     quote_by_id = {row["id"]: row for row in compact_packets}
@@ -493,6 +505,7 @@ def _provider_token_estimate(provider: str, prompt: str) -> int:
 
 
 def build_preflight(output_dir: Path) -> dict[str, Any]:
+    """Build preflight."""
     manifest = read_json(output_dir / "trial_manifest.json")
     prompts = [(output_dir / row["prompt_path"]).read_text(encoding="utf-8") for row in manifest["batches"]]
     providers = {}
@@ -554,6 +567,7 @@ def _save_state(output_dir: Path, provider: str, state: dict[str, Any]) -> None:
 
 
 def total_spend(output_dir: Path) -> float:
+    """Return the total spend."""
     total = 0.0
     for provider in PROVIDERS:
         if provider == "gemini":
@@ -565,6 +579,7 @@ def total_spend(output_dir: Path) -> float:
 
 
 def total_ambiguous_exposure(output_dir: Path) -> float:
+    """Return the total ambiguous exposure."""
     return round(sum(
         float(_state(output_dir, provider).get("ambiguous_exposure_usd") or 0.0)
         for provider in PROVIDERS
@@ -601,6 +616,7 @@ def _guard_cost(output_dir: Path, provider: str, prompt: str) -> None:
 
 
 def run_http_provider(output_dir: Path, manifest: dict[str, Any], provider: str, api_key: str) -> None:
+    """Run HTTP provider."""
     client = ProviderClient(provider, api_key)
     provider_dir = output_dir / "providers" / provider
     state = _state(output_dir, provider)
@@ -736,6 +752,7 @@ def run_http_provider(output_dir: Path, manifest: dict[str, Any], provider: str,
 
 
 def run_gemini(output_dir: Path, manifest: dict[str, Any]) -> None:
+    """Run gemini."""
     provider = "gemini"
     provider_dir = output_dir / "providers/gemini"
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -784,6 +801,7 @@ def run_gemini(output_dir: Path, manifest: dict[str, Any]) -> None:
 
 
 def run_trial(project_dir: Path, output_dir: Path, *, execute: bool, confirmed_cost: float) -> dict[str, Any]:
+    """Run trial."""
     if not execute:
         raise RuntimeError("live calls require --execute")
     if confirmed_cost != HARD_COMBINED_LIMIT_USD:
@@ -806,6 +824,7 @@ def run_trial(project_dir: Path, output_dir: Path, *, execute: bool, confirmed_c
 
 
 def provider_records(output_dir: Path, provider: str) -> list[dict[str, Any]]:
+    """Return the provider records."""
     state = _state(output_dir, provider)
     rows = []
     for _batch, item in sorted(state.get("completed_batches", {}).items()):
@@ -846,6 +865,7 @@ def _metrics(
 
 
 def compile_results(output_dir: Path) -> dict[str, Any]:
+    """Compile results."""
     manifest = read_json(output_dir / "trial_manifest.json")
     split = read_json(output_dir / "calibration_split.json")
     provider_sets: dict[str, set[tuple[str, str]]] = {}
@@ -1003,6 +1023,7 @@ def _pct(value: float | None) -> str:
 
 
 def write_report(output_dir: Path, manifest: dict[str, Any], result: dict[str, Any]) -> None:
+    """Write report."""
     lines = [
         "# Focused image-to-quote shortlist rerank", "",
         "## Design", "",
@@ -1077,6 +1098,7 @@ def write_report(output_dir: Path, manifest: dict[str, Any], result: dict[str, A
 
 
 def status(output_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     manifest = read_json(output_dir / "trial_manifest.json")
     return {
         "trial_name": manifest["trial_name"], "image_count": manifest["image_count"],
@@ -1094,6 +1116,7 @@ def status(output_dir: Path) -> dict[str, Any]:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     value = argparse.ArgumentParser(description="Focused four-provider image/quote rerank")
     sub = value.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare")
@@ -1115,6 +1138,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args(argv)
     if args.command == "prepare":
         result = prepare_trial(args.research_run, args.image_work_dir, args.retrieval_dir, args.output)

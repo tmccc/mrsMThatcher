@@ -1,3 +1,5 @@
+"""Load and normalise generated-image review candidates."""
+
 from __future__ import annotations
 
 import csv
@@ -16,6 +18,7 @@ QUOTE_HASH_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
 
 @dataclass(frozen=True)
 class ReviewItem:
+    """Represent review item data."""
     quote_hash: str
     grade: str
     overall_score: str
@@ -28,6 +31,7 @@ class ReviewItem:
 
 @dataclass
 class LoadSummary:
+    """Represent load summary data."""
     rows_loaded: int = 0
     grade_rows: int = 0
     reviewable: int = 0
@@ -38,6 +42,7 @@ class LoadSummary:
     warnings: list[str] = field(default_factory=list)
 
     def warn(self, message: str) -> None:
+        """Perform the warn operation."""
         self.warnings.append(message)
         LOGGER.warning(message)
 
@@ -48,6 +53,7 @@ def load_review_items(
     *,
     grade: str = "X",
 ) -> tuple[list[ReviewItem], LoadSummary]:
+    """Load review items."""
     assessment_file = Path(assessment_file)
     corpus_root = Path(corpus_root)
     if not assessment_file.is_file():
@@ -122,6 +128,7 @@ def load_review_items(
 
 
 def load_corpus_review_items(corpus_root: Path) -> tuple[list[ReviewItem], LoadSummary]:
+    """Load corpus review items."""
     corpus_root = Path(corpus_root)
     if not corpus_root.is_dir():
         raise FileNotFoundError(f"Generated-image corpus root does not exist: {corpus_root}")
@@ -186,6 +193,7 @@ def load_corpus_review_items(corpus_root: Path) -> tuple[list[ReviewItem], LoadS
 
 
 def normalise_flags(value: Any) -> list[str]:
+    """Normalise flags."""
     if _is_empty(value):
         return []
     values: list[Any]

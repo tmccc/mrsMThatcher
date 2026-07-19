@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Run pairwise calibration."""
+
 from __future__ import annotations
 
 import argparse, hashlib, json, os, time
@@ -21,15 +23,19 @@ FINGERPRINT_RUN=ROOT/'semantic_alignment_research/runs/v2_20260711T111526Z'
 CEILINGS={'grok':2.0,'openai':3.0,'anthropic':2.0,'gemini':2.0}
 KEYS={'grok':'XAI_API_KEY','openai':'OPENAI_API_KEY','anthropic':'ANTHROPIC_API_KEY','gemini':'GEMINI_API_KEY'}
 
-def load(path): return json.loads(Path(path).read_text())
+def load(path):
+    """Load a JSON document from disk."""
+    return json.loads(Path(path).read_text())
 
 def sources():
+    """Return the sources."""
     intents=load(SOURCE/'quote_visual_intents.json')['items']; first=load(SOURCE/'image_first_impressions.json')['items']
     quotes=load(FINGERPRINT_RUN/'quote_semantic_fingerprints.json')['items']; images=load(FINGERPRINT_RUN/'image_implied_messages_generated.json')['items']
     editorial_doc=load(ROOT/'generated_image_analysis.json'); editorial={n:editorial_doc['items'][editorial_doc['path_index'][n]] for n in editorial_doc['path_index']}
     return intents,first,quotes,images,editorial
 
 def prompts(run, case_ids=None):
+    """Return the prompts."""
     manifest={x['case_id']:x for x in load(run/'pairwise_manifest.json')['items']}; case_ids=case_ids or load(run/'calibration_cases.json')['case_ids']; intents,first,quotes,images,editorial=sources(); out={}
     for cid in case_ids:
         row=manifest[cid]
@@ -39,6 +45,7 @@ def prompts(run, case_ids=None):
     return out
 
 def preflight(run):
+    """Build the deterministic execution preflight."""
     rendered=prompts(run); total=sum(estimate_tokens(x) for x in rendered.values()); providers={}
     for provider,ceiling in CEILINGS.items():
         expected=total*PRICES[provider]['input']/1e6+15*700*PRICES[provider]['output']/1e6
@@ -50,6 +57,7 @@ def preflight(run):
     atomic_write_json(run/'calibration_preflight.json',doc);return doc
 
 def worker(provider,run,rendered,execute,vertex_fallback,*,stem='pairwise_calibration',ceiling=None):
+    """Return the worker."""
     ceiling=CEILINGS[provider] if ceiling is None else ceiling
     result_path=run/f'{provider}_{stem}_results.json'; ledger_path=run/f'{provider}_{stem}_ledger.json'
     result=load(result_path) if result_path.exists() else {'schema_version':1,'provider':provider,'prompt_version':PAIRWISE_PROMPT_VERSION,'items':{},'failures':{},'calls':[]}
@@ -94,6 +102,7 @@ def worker(provider,run,rendered,execute,vertex_fallback,*,stem='pairwise_calibr
     return result
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,default=DEFAULT_RUN);p.add_argument('--dry-run',action='store_true');p.add_argument('--execute-calibration',action='store_true');p.add_argument('--execute-remaining',action='store_true');p.add_argument('--execute-openai-compatibility-check',action='store_true');p.add_argument('--execute-anthropic-compatibility-check',action='store_true');p.add_argument('--compatibility-output-dir',type=Path);p.add_argument('--enable-gemini-vertex-fallback',action='store_true');p.add_argument('--confirm-combined-cost-limit-usd',type=float);p.add_argument('--confirm-remaining-cost-limit-usd',type=float);p.add_argument('--confirm-openai-limit-usd',type=float);p.add_argument('--confirm-anthropic-limit-usd',type=float);args=p.parse_args();run=args.run_dir.resolve();pre=preflight(run);print(json.dumps(pre,indent=2))
     if args.dry_run:return
     compatibility=[p for p,enabled in (("openai",args.execute_openai_compatibility_check),("anthropic",args.execute_anthropic_compatibility_check)) if enabled]

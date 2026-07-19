@@ -1,3 +1,5 @@
+"""Construct the structured semantic-alignment calibration critic prompt."""
+
 from __future__ import annotations
 
 import json
@@ -11,6 +13,7 @@ CALIBRATION_CRITIC_PROMPT_VERSION = "picture-editor-critic-v3-calibration-1"
 def calibration_critic_prompt(quote: dict[str, Any], image: dict[str, Any],
                               quote_decomposition: dict[str, Any],
                               image_decomposition: dict[str, Any]) -> str:
+    """Return the calibration critic prompt."""
     payload = {
         "quote_fingerprint": quote,
         "image_fingerprint": image,

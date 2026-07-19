@@ -1,3 +1,5 @@
+"""Serve the local generated-image swipe-review application."""
+
 from __future__ import annotations
 
 import argparse
@@ -33,6 +35,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 @dataclass(frozen=True)
 class AppConfig:
+    """Represent app config data."""
     assessment_file: Path | None
     corpus_root: Path
     database: Path
@@ -42,6 +45,7 @@ class AppConfig:
 
 
 def create_app(config: AppConfig) -> FastAPI:
+    """Create app."""
     if config.mode not in {"review", "confirm-allowed", "reconfirm-allowed"}:
         raise RuntimeError(f"Unsupported review mode: {config.mode}")
     if config.assessment_file is None:
@@ -167,6 +171,7 @@ def create_app(config: AppConfig) -> FastAPI:
 
 
 def next_pending_item(app: FastAPI) -> ReviewItem | None:
+    """Return the next pending item."""
     for item in app.state.items:
         if is_pending_for_mode(app, item):
             return item
@@ -174,15 +179,18 @@ def next_pending_item(app: FastAPI) -> ReviewItem | None:
 
 
 def progress_payload(app: FastAPI) -> dict[str, int]:
+    """Return the progress payload."""
     progress = mode_progress(app.state.store, app.state.items, app.state.config.mode)
     return asdict(progress)
 
 
 def mode_progress(store: ReviewStore, items: list[ReviewItem], mode: str):
+    """Return the mode progress."""
     return store.progress(queue_hashes_for_mode(store, items, mode), stage=stage_for_mode(mode))
 
 
 def queue_hashes_for_mode(store: ReviewStore, items: list[ReviewItem], mode: str) -> list[str]:
+    """Return the queue hashes for mode."""
     if mode == "review":
         return [item.quote_hash for item in items]
     if mode == "confirm-allowed":
@@ -201,6 +209,7 @@ def queue_hashes_for_mode(store: ReviewStore, items: list[ReviewItem], mode: str
 
 
 def stage_for_mode(mode: str) -> str:
+    """Return the stage for mode."""
     if mode == "confirm-allowed":
         return STAGE_CONFIRM_ALLOWED
     if mode == "reconfirm-allowed":
@@ -209,10 +218,12 @@ def stage_for_mode(mode: str) -> str:
 
 
 def current_stage(app: FastAPI) -> str:
+    """Return the current stage."""
     return stage_for_mode(app.state.config.mode)
 
 
 def is_pending_for_mode(app: FastAPI, item: ReviewItem) -> bool:
+    """Return whether is pending for mode."""
     mode = app.state.config.mode
     store = app.state.store
     if mode == "review":
@@ -233,6 +244,7 @@ def is_pending_for_mode(app: FastAPI, item: ReviewItem) -> bool:
 
 
 def item_payload(item: ReviewItem) -> dict[str, Any]:
+    """Return the item payload."""
     return {
         "quote_hash": item.quote_hash,
         "grade": item.grade,
@@ -246,6 +258,7 @@ def item_payload(item: ReviewItem) -> dict[str, Any]:
 
 
 def export_if_configured(app: FastAPI) -> None:
+    """Export if configured."""
     app.state.store.export_overrides(
         app.state.config.export_file,
         [item.quote_hash for item in app.state.items],
@@ -254,6 +267,7 @@ def export_if_configured(app: FastAPI) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     parser = argparse.ArgumentParser(description="Manual review app for generated quote images")
     parser.add_argument("--assessment-file", default=os.environ.get("GIR_ASSESSMENT_FILE"), type=Path)
     parser.add_argument("--corpus-root", default=os.environ.get("GIR_CORPUS_ROOT"), type=Path)
@@ -284,6 +298,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def config_from_env() -> AppConfig:
+    """Return the config from env."""
     required = {
         "GIR_CORPUS_ROOT": os.environ.get("GIR_CORPUS_ROOT"),
         "GIR_DATABASE": os.environ.get("GIR_DATABASE"),
@@ -303,11 +318,13 @@ def config_from_env() -> AppConfig:
 
 
 def configured_app() -> FastAPI:
+    """Return the configured app."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     return create_app(config_from_env())
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     args = parse_args()
     config = AppConfig(

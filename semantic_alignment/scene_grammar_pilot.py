@@ -1,3 +1,5 @@
+"""Generate and assess scene-grammar variants for difficult image cases."""
+
 from __future__ import annotations
 
 import hashlib
@@ -206,6 +208,7 @@ SCENE_RECIPES: dict[str, dict[str, Any]] = {
 
 
 def classify_failures(manifest:dict[str,Any],reviews:dict[str,Any],generated:dict[str,Any],analyses:dict[str,Any])->dict[str,Any]:
+    """Classify failures."""
     rows=[]
     for case in manifest["items"]:
         review=reviews["items"][case["case_id"]]
@@ -227,6 +230,7 @@ def classify_failures(manifest:dict[str,Any],reviews:dict[str,Any],generated:dic
 
 
 def scene_spec(case:dict[str,Any],brief:dict[str,Any],failure:dict[str,Any]|None=None)->dict[str,Any]:
+    """Return the scene spec."""
     subjects=list(brief.get("must_include") or [])
     primary=brief.get("desired_primary_subject") or (subjects[0] if subjects else "a concrete human action expressing the quotation")
     quote=case["quote_text"].lower();domestic=any(x in quote for x in ("britain","nation","law","brussels","government","state","society")) or "uk" in (failure or {}).get("tony_note","").lower()
@@ -253,6 +257,7 @@ def scene_spec(case:dict[str,Any],brief:dict[str,Any],failure:dict[str,Any]|None
 
 
 def validate_spec(spec:dict[str,Any])->dict[str,Any]:
+    """Validate spec."""
     missing=[x for x in SCENE_FIELDS if x not in spec]
     if missing:raise ValueError(f"missing scene fields: {missing}")
     if not spec["primary_subject"] or not spec["camera_view"] or not spec["composition"] or not spec["scale_relationships"] or not spec["must_include"]:raise ValueError("scene grammar lacks concrete physical controls")
@@ -260,6 +265,7 @@ def validate_spec(spec:dict[str,Any])->dict[str,Any]:
 
 
 def compile_prompt(spec:dict[str,Any],style:str)->str:
+    """Compile prompt."""
     validate_spec(spec)
     if style not in STYLES:raise ValueError("unknown scene style")
     render={"scene_grammar_direct":"naturalistic documentary editorial photography, factual and restrained","scene_grammar_cinematic":"cinematic photorealism with stronger depth, atmosphere and lighting while preserving every physical fact"}[style]
@@ -267,7 +273,9 @@ def compile_prompt(spec:dict[str,Any],style:str)->str:
     return f"Prompt version: {PROMPT_VERSION}. Rendering mode: {render}.\nCreate one square editorial photograph for a quotation displayed separately. The following scene specification is mandatory and literal about objects, scale, location, viewpoint and attention. Do not add text, captions, watermarks, diagrams, collages, split screens or generic political-poster symbolism. The first item in attention_hierarchy must be what a scrolling viewer notices first.\nSCENE_SPECIFICATION:{json.dumps(semantic,sort_keys=True,ensure_ascii=False)}"
 
 
-def candidate_id(case_id:str,style:str)->str:return hashlib.sha256(f"{case_id}:{style}:{PROMPT_VERSION}".encode()).hexdigest()[:20]
+def candidate_id(case_id:str,style:str)->str:
+    """Return a stable candidate identifier."""
+    return hashlib.sha256(f"{case_id}:{style}:{PROMPT_VERSION}".encode()).hexdigest()[:20]
 
 
 def blinded_candidates(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
@@ -284,6 +292,7 @@ def blinded_candidates(rows: list[dict[str, Any]]) -> list[dict[str, str]]:
 
 
 def preflight(cases:int)->dict[str,Any]:
+    """Build the deterministic execution preflight."""
     calls=cases*2;generation=calls*.013
     identity_calls=6 if cases==20 else 0
     analysis=calls*((2.536823+.291034)/50)+identity_calls*(.291034/50)
@@ -292,6 +301,7 @@ def preflight(cases:int)->dict[str,Any]:
 
 
 def execute(run:Path,manifest:dict[str,Any],specs:dict[str,Any],client:ImageClient,limit:float,sleep=time.sleep)->dict[str,Any]:
+    """Return the execute."""
     if limit!=HARD_CEILING_USD or not preflight(len(manifest["items"]))["allowed"]:raise RuntimeError("exact $15 ceiling and passing preflight required")
     path=run/"generated_candidates.json";db=json.loads(path.read_text()) if path.exists() else {"schema_version":1,"items":{},"attempts":[]}
     for case in manifest["items"]:

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse scene grammar planning artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -15,6 +17,7 @@ SOURCE = ROOT / "semantic_alignment_research/generation_prompt_pilot_001"
 
 
 def build(output: Path) -> dict:
+    """Build the configured result."""
     manifest = read_json(SOURCE / "validation_manifest.json")
     briefs = read_json(SOURCE / "generation_briefs.json")["items"]
     failures = read_json(ROOT / "semantic_alignment_research/scene_grammar_pilot_001/failure_analysis.json")
@@ -62,6 +65,7 @@ def build(output: Path) -> dict:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()

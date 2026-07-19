@@ -64,24 +64,29 @@ TOPIC_RULES = (
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def sha256_bytes(value: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(value).hexdigest()
 
 
 def canonical_hash(value: Any) -> str:
+    """Return the canonical hash."""
     return sha256_bytes(json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode())
 
 
 def read_json(path: Path, default: Any = None) -> Any:
+    """Read JSON."""
     if not path.exists():
         return default
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def atomic_write_bytes(path: Path, value: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -104,6 +109,7 @@ def atomic_write_bytes(path: Path, value: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write a JSON document atomically."""
     atomic_write_bytes(path, (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
 
 
@@ -136,6 +142,7 @@ def _one_sentence(value: Any) -> str:
 
 
 def format_british_date(value: Any) -> str:
+    """Format british date."""
     text = _clean(value)
     if not text:
         return ""
@@ -191,6 +198,7 @@ def _distinct_count(value: Any, *against: Any) -> int:
 
 
 def meaning_decision(packet: dict[str, Any], context: str) -> dict[str, Any]:
+    """Return the meaning decision."""
     meaning = _one_sentence(packet.get("intended_argument")) or _one_sentence(packet.get("literal_meaning"))
     quote = packet["quote_text"]
     mechanism = _clean(packet.get("mechanism"))
@@ -304,6 +312,7 @@ def _render_v2_text(context: str, meaning: str, verification: str, source: dict[
 
 
 def _forbidden_candidate_text(text: str) -> list[str]:
+    """Return the forbidden candidate text."""
     findings = []
     if re.search(r"(?:^|\s)#[A-Za-z0-9_]", text): findings.append("hashtag")
     if re.search("[\U0001F000-\U0001FAFF\u2600-\u27BF]", text): findings.append("emoji")
@@ -314,6 +323,7 @@ def _forbidden_candidate_text(text: str) -> list[str]:
 
 
 def format_context_reply_v2(packet: dict[str, Any]) -> dict[str, Any]:
+    """Format a compact schema-v2 historical context reply."""
     source = select_primary_source(packet)
     if not source or not _clean(source.get("title")):
         raise ValueError(f"packet lacks a defensible source or canonical locator: {packet.get('quote_id')}")
@@ -411,6 +421,7 @@ def _overlap_band(value: float) -> str:
 
 
 def render_complete_corpus(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str]]:
+    """Render complete corpus."""
     packets, unresolved = load_and_validate_corpus(research_run)
     rows: dict[str, dict[str, Any]] = {}
     for quote_id in sorted(packets):
@@ -449,6 +460,7 @@ def render_complete_corpus(research_run: Path) -> tuple[dict[str, dict[str, Any]
 
 
 def provenance_parity(rows: dict[str, dict[str, Any]], packets: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Return the provenance parity."""
     comparisons = []
     invariant_fields = ("quote_id", "verification_status", "verification_label", "source_title", "source_locator",
                         "historical_confidence", "date", "source_event")
@@ -474,6 +486,7 @@ def provenance_parity(rows: dict[str, dict[str, Any]], packets: dict[str, dict[s
 
 
 def length_analysis(rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Return the length analysis."""
     v1 = [row["v1_weighted_count"] for row in rows.values()]
     v2 = [row["v2_weighted_count"] for row in rows.values()]
     reductions = [(a - b) / a * 100 for a, b in zip(v1, v2) if a]
@@ -495,11 +508,13 @@ def length_analysis(rows: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
 
 def _near_duplicate(left: str, right: str) -> bool:
+    """Return the near duplicate."""
     a, b = _tokens(left), _tokens(right)
     return bool(a and b and len(a & b) / len(a | b) >= 0.86)
 
 
 def select_review_sample(rows: dict[str, dict[str, Any]], count: int = 50) -> list[dict[str, Any]]:
+    """Select review sample."""
     if count != 50:
         raise ValueError("this trial requires exactly 50 review records")
     ordered = sorted(rows.values(), key=lambda row: row["quote_id"])
@@ -574,6 +589,7 @@ def select_review_sample(rows: dict[str, dict[str, Any]], count: int = 50) -> li
 
 
 def build_blind_assignments(sample: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build blind assignments."""
     items = {}
     for row in sample:
         digest = sha256_bytes(f"{SAMPLE_SEED}:blind:{row['quote_id']}".encode())
@@ -595,6 +611,7 @@ def _distribution(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
 
 
 def prepare_trial(research_run: Path, output: Path, sample_count: int = 50) -> dict[str, Any]:
+    """Prepare trial."""
     rows, unresolved = render_complete_corpus(research_run)
     packets, _ = load_and_validate_corpus(research_run)
     parity = provenance_parity(rows, packets)
@@ -655,6 +672,7 @@ def prepare_trial(research_run: Path, output: Path, sample_count: int = 50) -> d
 
 def write_preparation_reports(output: Path, rows: dict[str, dict[str, Any]], sample: list[dict[str, Any]],
                               parity: dict[str, Any], lengths: dict[str, Any]) -> None:
+    """Write preparation reports."""
     parity_lines = ["# Provenance Parity Audit", "", f"Records: **{parity['records']}**.",
                     f"Blocking regressions: **{parity['blocking_regression_count']}**.",
                     f"Result: **{'PASS' if parity['passed'] else 'FAIL'}**.", "",
@@ -690,6 +708,7 @@ def write_preparation_reports(output: Path, rows: dict[str, dict[str, Any]], sam
 
 
 def strict_audit(trial_dir: Path) -> dict[str, Any]:
+    """Return the strict audit."""
     manifest = read_json(trial_dir / "trial_manifest.json")
     rows = read_json(trial_dir / "complete_pairwise_renderings.json", {}).get("items", {})
     parity = read_json(trial_dir / "provenance_parity_audit.json")
@@ -736,6 +755,7 @@ def _review_store(trial_dir: Path) -> dict[str, Any]:
 
 
 def save_review(trial_dir: Path, quote_id: str, decision: str, reasons: list[str], note: str = "") -> tuple[dict[str, Any], bool]:
+    """Save review."""
     sample_ids = {row["quote_id"] for row in read_json(trial_dir / "review_sample_50.json")["items"]}
     if quote_id not in sample_ids: raise KeyError(quote_id)
     if decision not in DECISIONS: raise ValueError("invalid decision")
@@ -758,6 +778,7 @@ def save_review(trial_dir: Path, quote_id: str, decision: str, reasons: list[str
 
 
 def generate_review_results(trial_dir: Path) -> dict[str, Any]:
+    """Generate review results."""
     rows = read_json(trial_dir / "complete_pairwise_renderings.json", {"items": {}})["items"]
     sample = read_json(trial_dir / "review_sample_50.json", {"items": []})["items"]
     blind = read_json(trial_dir / "blind_assignment_manifest.json", {"items": {}})["items"]
@@ -833,6 +854,7 @@ def generate_review_results(trial_dir: Path) -> dict[str, Any]:
 
 
 def trial_status(trial_dir: Path) -> dict[str, Any]:
+    """Return the trial status."""
     audit = strict_audit(trial_dir); results = generate_review_results(trial_dir)
     return {"trial_dir": str(trial_dir), "audit": audit, "review": {key: results[key] for key in (
         "sample_count", "reviewed_count", "unreviewed_count", "v1_wins", "v2_wins", "equal", "neither")}}
@@ -843,6 +865,7 @@ def _css() -> str:
 
 
 def serve_trial(trial_dir: Path, host: str, port: int) -> None:
+    """Serve trial."""
     if host not in {"127.0.0.1", "localhost", "::1"}:
         print(f"Warning: serving blind review on LAN interface {host}")
     rows = read_json(trial_dir / "complete_pairwise_renderings.json")["items"]

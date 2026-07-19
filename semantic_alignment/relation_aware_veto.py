@@ -1,3 +1,5 @@
+"""Build semantic contracts and adjudicate relation-aware image vetoes."""
+
 from __future__ import annotations
 
 import argparse
@@ -172,6 +174,7 @@ def _pair_record_schema() -> dict[str, Any]:
 
 
 def pair_response_schema(count: int) -> dict[str, Any]:
+    """Return the pair response schema."""
     item = _pair_record_schema()
     return {
         "type": "object", "additionalProperties": False,
@@ -186,22 +189,27 @@ def pair_response_schema(count: int) -> dict[str, Any]:
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_bytes(value: Any) -> bytes:
+    """Return the canonical bytes."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def value_hash(value: Any) -> str:
+    """Return the value hash."""
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
 def text_hash(value: str) -> str:
+    """Return whether text hash."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def estimate_tokens(value: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(value.encode("utf-8")) / 3)
 
 
@@ -217,6 +225,7 @@ def _clean_list(value: Any, maximum_items: int = 12, maximum_text: int = 240) ->
 
 
 def compact_contract_input(packet: dict[str, Any]) -> dict[str, Any]:
+    """Return the compact contract input."""
     editorial = packet["editorial_guidance"]
     return {
         "quote_id": packet["quote_id"], "quote_text": _clean(packet["quote_text"], 1800),
@@ -243,6 +252,7 @@ def compact_contract_input(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def contract_prompt(packet: dict[str, Any]) -> str:
+    """Return the contract prompt."""
     source = compact_contract_input(packet)
     return f"""Prompt version: {PROMPT_VERSION}
 Create a strict semantic contract for one Margaret Thatcher quotation using only the supplied canonical research packet. Return JSON only.
@@ -272,6 +282,7 @@ CANONICAL PACKET:
 
 
 def validate_contract(value: Any, packet: dict[str, Any]) -> dict[str, Any]:
+    """Validate contract."""
     if not isinstance(value, dict) or set(value) != set(CONTRACT_FIELDS):
         raise ValueError("semantic contract fields mismatch")
     for field in ("quote_id", "quote_text", "verified_text", "verification_status", "research_confidence"):
@@ -334,6 +345,7 @@ def _people_count_minimum(category: Any) -> int | None:
 
 
 def _relationship_sentences(packets: Sequence[dict[str, Any]], person: str) -> list[dict[str, Any]]:
+    """Return the relationship sentences."""
     person_key = " ".join(re.findall(r"[a-z0-9]+", person.casefold()))
 
     def mentions_person(text: str) -> bool:
@@ -444,6 +456,7 @@ def rebuild_source_grounded_relationship_assertions(
 
 
 def _relationship_kind(evidence: Sequence[dict[str, Any]]) -> str:
+    """Return the relationship kind."""
     texts = [row["text"].casefold() for row in evidence]
     for text in texts:
         hostile = bool(re.search(r"\b(enemy|adversar\w*|hostil\w*|opponent)\b", text))
@@ -489,6 +502,7 @@ def _compact_visual(analysis: dict[str, Any]) -> dict[str, Any]:
 def load_image_corpus(
     project_dir: Path, work_dir: Path, packets: Sequence[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Load image corpus."""
     baseline_path = project_dir / "image_analysis.json"
     baseline = read_json(baseline_path)
     if baseline.get("schema_version") != 3 or len(baseline.get("items") or {}) != EXPECTED_BASELINE_IMAGES:
@@ -853,6 +867,7 @@ def deterministic_material_contradictions(
 
 
 def deterministic_contradictions(contract: dict[str, Any], image: dict[str, Any]) -> list[dict[str, str]]:
+    """Return the deterministic contradictions."""
     reasons: list[dict[str, str]] = []
     relationship_required = bool(contract["relationship_evidence_required"])
     relationships = [row.get("relationship", "unknown") for row in image.get("relationship_assertions") or []]
@@ -902,6 +917,7 @@ def pair_prompt(
     image: dict[str, Any],
     pairs: Sequence[dict[str, Any]],
 ) -> str:
+    """Return the pair prompt."""
     image_input = {key: image.get(key) for key in (
         "image_id", "image_sha256", "corpus", "source_caption", "source_event", "source_date",
         "identity_basis", "identity_confidence", "named_people", "source_evidence",
@@ -989,6 +1005,7 @@ PAIR CONTRACTS:
 def validate_pair_response(
     value: Any, image: dict[str, Any], pairs: Sequence[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Validate pair response."""
     if not isinstance(value, dict) or set(value) != {"records"} or not isinstance(value["records"], list):
         raise ValueError("pair response must contain only records")
     expected = {row["pair_id"]: row for row in pairs}
@@ -1055,6 +1072,7 @@ def _load_frozen_split(project_dir: Path) -> dict[str, Any]:
 def select_pilot(
     packets: Sequence[dict[str, Any]], images: Sequence[dict[str, Any]], split: dict[str, Any],
 ) -> dict[str, Any]:
+    """Select pilot."""
     packet_ids = {row["quote_id"] for row in packets}
     image_by_candidate = {
         row.get("candidate_id"): row for row in images if row.get("candidate_id")
@@ -1118,6 +1136,7 @@ def select_pilot(
 def prepare(
     project_dir: Path, research_run: Path, work_dir: Path, output_dir: Path,
 ) -> dict[str, Any]:
+    """Prepare validated relation-aware veto corpora and run manifests."""
     output_dir.mkdir(parents=True, exist_ok=True)
     packets, corpus_meta = load_completed_corpus(research_run)
     if len(packets) != EXPECTED_QUOTES or corpus_meta["unresolved_count"] != EXPECTED_UNRESOLVED:
@@ -1192,6 +1211,7 @@ def _usage(raw: dict[str, Any]) -> dict[str, int]:
 
 
 def calculate_cost(usage: dict[str, int], *, batch: bool) -> float:
+    """Calculate cost."""
     factor = BATCH_PRICE_FACTOR if batch else INTERACTIVE_PRICE_FACTOR
     uncached = max(0, usage["input_tokens"] - usage["cached_tokens"])
     output = usage["output_tokens"] + usage["thinking_tokens"]
@@ -1203,6 +1223,7 @@ def calculate_cost(usage: dict[str, int], *, batch: bool) -> float:
 
 
 def maximum_cost(prompt: str, max_output_tokens: int, *, batch: bool) -> float:
+    """Return the maximum cost."""
     factor = BATCH_PRICE_FACTOR if batch else INTERACTIVE_PRICE_FACTOR
     extra_input_tokens = int(getattr(prompt, "estimated_extra_input_tokens", 0) or 0)
     return round(factor * (
@@ -1222,6 +1243,7 @@ def _estimate_contract_cost(packets: Sequence[dict[str, Any]], *, batch: bool, m
 
 
 def build_preflight(output_dir: Path) -> dict[str, Any]:
+    """Build preflight."""
     quote_manifest = read_json(output_dir / "quote_corpus_manifest.json")
     image_manifest = read_json(output_dir / "image_corpus_manifest.json")
     pilot = read_json(output_dir / "pilot_manifest.json")
@@ -1398,6 +1420,7 @@ def build_pair_candidates(
 def select_production_top_k(
     scored: Sequence[dict[str, Any]], current_image_ids: set[str], *, top_k: int = PRODUCTION_TOP_K,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Select production top k."""
     ordered = sorted(scored, key=lambda row: (-row["selector_score"], row["image_id"]))
     expanded = ordered[:top_k]
     current = [row for row in ordered if row["image_id"] in current_image_ids][:top_k]
@@ -1416,6 +1439,7 @@ def build_production_top5_candidates(
     output_dir: Path,
     contracts: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
+    """Build production top5 candidates."""
     quote_manifest = read_json(output_dir / "quote_corpus_manifest.json")
     image_manifest = read_json(output_dir / "image_corpus_manifest.json")
     image_db = read_json(output_dir / "image_analysis_for_scoring.json")
@@ -1909,6 +1933,7 @@ def evaluate_material_veto_revision(
 
 
 def build_v2_batch_manifest(output_dir: Path) -> dict[str, Any]:
+    """Build v2 batch manifest."""
     path = output_dir / "v2_batch_manifest.json"
     candidates = read_json(output_dir / "production_top8_pair_candidates_v2.json")
     reuse = read_json(output_dir / "v2_reuse_manifest.json")
@@ -2010,6 +2035,7 @@ def _v2_runtime_items(output_dir: Path) -> tuple[dict[str, dict[str, Any]], dict
 
 
 def prepare_v2_execution(source_dir: Path, output_dir: Path) -> dict[str, Any]:
+    """Prepare v2 execution."""
     ledger = initialise_v2_cost_ledger(source_dir, output_dir)
     manifest = build_v2_batch_manifest(output_dir)
     runtime, _pairs = _v2_runtime_items(output_dir)
@@ -2076,6 +2102,7 @@ def run_material_veto_v2(
     confirmed_limit: float,
     poll_seconds: float = 30.0,
 ) -> dict[str, Any]:
+    """Run material veto v2."""
     if not execute or confirmed_limit != V2_HARD_COMBINED_CEILING_USD:
         raise RuntimeError("v2 execution requires --execute and exact --confirm-combined-limit-usd 100")
     preflight = prepare_v2_execution(source_dir, output_dir)
@@ -2432,6 +2459,7 @@ def _resolve_quote_analysis_items(
 
 
 def pilot_pairs(output_dir: Path, contracts: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the pilot pairs."""
     pilot = read_json(output_dir / "pilot_manifest.json")
     images = {
         row["image_id"]: row for row in read_json(output_dir / "image_corpus_manifest.json")["records"]
@@ -2454,6 +2482,7 @@ def pilot_pairs(output_dir: Path, contracts: dict[str, dict[str, Any]]) -> list[
 
 
 def pair_chunks(pairs: Sequence[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Return the pair chunks."""
     return [list(pairs[offset:offset + PAIR_RECORDS_PER_REQUEST]) for offset in range(0, len(pairs), PAIR_RECORDS_PER_REQUEST)]
 
 
@@ -2489,7 +2518,9 @@ def _response_truncated(result: dict[str, Any]) -> bool:
 
 
 class CostLedger:
+    """Persist and manage cost records."""
     def __init__(self, output_dir: Path):
+        """Initialise the cost ledger."""
         self.path = output_dir / "cost_ledger.json"
         existing = read_json(self.path, {})
         self.value = existing or {
@@ -2512,6 +2543,7 @@ class CostLedger:
         atomic_write_json(self.path, self.value)
 
     def reserve(self, operation_id: str, maximum_usd: float, transport: str, *, repair: bool) -> None:
+        """Perform the reserve operation."""
         if operation_id in self.value["pending_reservations"]:
             raise RuntimeError(f"cost reservation already pending: {operation_id}")
         pending = sum(float(row["maximum_usd"]) for row in self.value["pending_reservations"].values())
@@ -2544,6 +2576,7 @@ class CostLedger:
         })
         self._save()
     def release(self, operation_id: str, *, reason: str) -> None:
+        """Perform the release operation."""
         row = self.value["pending_reservations"].pop(operation_id, None)
         if row:
             self.value["operations"].append({
@@ -2553,6 +2586,7 @@ class CostLedger:
             self._save()
 
     def complete(self, operation_id: str, actual_usd: float) -> None:
+        """Perform the complete operation."""
         row = self.value["pending_reservations"].pop(operation_id)
         transport = row["transport"]
         spending_class = row["class"]
@@ -2570,12 +2604,14 @@ class CostLedger:
         self._save()
 
     def completed_cost(self, operation_id: str) -> float | None:
+        """Return the completed cost."""
         for row in reversed(self.value["operations"]):
             if row.get("operation_id") == operation_id and row.get("event") == "completed":
                 return float(row["actual_usd"])
         return None
 
     def mark_ambiguous(self, operation_id: str, *, reason: str) -> None:
+        """Mark ambiguous."""
         row = self.value["pending_reservations"].pop(operation_id)
         self.value["ambiguous_exposure_usd"] = round(
             float(self.value["ambiguous_exposure_usd"]) + float(row["maximum_usd"]), 10,
@@ -2627,6 +2663,7 @@ def initialise_v2_cost_ledger(source_dir: Path, output_dir: Path) -> CostLedger:
 
 
 class GeminiRelationClient:
+    """Provide the gemini relation client."""
     def __init__(
         self,
         transport: str,
@@ -2637,6 +2674,7 @@ class GeminiRelationClient:
         client: Any | None = None,
         timeout_seconds: float = 600,
     ):
+        """Initialise the gemini relation client."""
         if transport not in {"developer_api", "vertex_ai"}:
             raise ValueError("invalid Gemini transport")
         self.transport = transport
@@ -2653,6 +2691,7 @@ class GeminiRelationClient:
         self.timeout_seconds = timeout_seconds
 
     def config(self, schema: dict[str, Any], max_output_tokens: int, *, batch: bool = False) -> types.GenerateContentConfig:
+        """Return the config."""
         typed_schema = None
         json_schema = schema
         if batch:
@@ -2673,6 +2712,7 @@ class GeminiRelationClient:
         )
 
     def settings_signature(self, schema: dict[str, Any], max_output_tokens: int) -> dict[str, Any]:
+        """Return the settings signature."""
         config = self.config(schema, max_output_tokens)
         return {
             "model": MODEL,
@@ -2685,6 +2725,7 @@ class GeminiRelationClient:
         }
 
     def model_available(self) -> dict[str, Any]:
+        """Return whether model available."""
         model = self.client.models.get(model=MODEL)
         name = str(getattr(model, "name", "") or "")
         if MODEL not in name:
@@ -2692,6 +2733,7 @@ class GeminiRelationClient:
         return {"transport": self.transport, "requested_model": MODEL, "returned_name": name}
 
     def call(self, prompt: str, schema: dict[str, Any], max_output_tokens: int) -> dict[str, Any]:
+        """Submit one typed relation-aware prompt to Gemini."""
         started = time.monotonic()
         response = self.client.models.generate_content(
             model=MODEL,
@@ -2724,6 +2766,7 @@ def require_transport_parity(
     schema: dict[str, Any],
     max_output_tokens: int,
 ) -> None:
+    """Require transport parity."""
     if developer.settings_signature(schema, max_output_tokens) != vertex.settings_signature(schema, max_output_tokens):
         raise RuntimeError("Developer and Vertex semantic settings differ")
 
@@ -2740,6 +2783,7 @@ class RelationRouter:
         *,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        """Initialise the relation router."""
         self.output_dir = output_dir
         self.developer = developer
         self.vertex = vertex
@@ -2836,6 +2880,7 @@ class RelationRouter:
         force_transport: str | None = None,
         initial_attempt_is_repair: bool = False,
     ) -> dict[str, Any]:
+        """Route one logical request with persisted retry and failover state."""
         result_path = self.output_dir / "normalised_responses" / f"{logical_id}.json"
         existing = read_json(result_path, None)
         if isinstance(existing, dict) and existing.get("status") == "completed":
@@ -3013,6 +3058,7 @@ class DeveloperBatchRunner:
         sleep: Callable[[float], None] = time.sleep,
         poll_seconds: float = 30.0,
     ):
+        """Initialise the developer batch runner."""
         self.output_dir = output_dir
         self.router = router
         self.ledger = ledger
@@ -3062,6 +3108,7 @@ class DeveloperBatchRunner:
         items: Sequence[dict[str, Any]],
         validators: dict[str, Callable[[Any], Any]],
     ) -> dict[str, Any]:
+        """Run one resumable batch and validate every logical item."""
         existing_results = {}
         pending = []
         for item in items:
@@ -3363,6 +3410,7 @@ def transport_preflight(
     *,
     inspect_availability: bool,
 ) -> tuple[GeminiRelationClient, GeminiRelationClient | None, dict[str, Any]]:
+    """Return the transport preflight."""
     developer, vertex = _clients(project_dir, output_dir)
     results: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION, "model": MODEL,
@@ -3414,6 +3462,7 @@ def run_pilot(
     execute: bool,
     confirmed_limit: float,
 ) -> dict[str, Any]:
+    """Run pilot."""
     if not execute or confirmed_limit != HARD_COMBINED_CEILING_USD:
         raise RuntimeError("pilot requires --execute and exact --confirm-combined-limit-usd 60")
     developer, vertex, _preflight = transport_preflight(
@@ -3471,11 +3520,13 @@ def _ratio(numerator: int, denominator: int) -> float | None:
 
 
 def _positive_retention_gate(retained_count: int, positive_count: int) -> bool:
+    """Return the positive retention gate."""
     rate = _ratio(retained_count, positive_count)
     return rate is not None and rate >= 0.95
 
 
 def _all_safety_rejections_vetoed(records: Sequence[dict[str, Any]]) -> bool:
+    """Return the all safety rejections vetoed."""
     return bool(records) and all(row.get("system_decision") == "veto" for row in records)
 
 
@@ -3496,6 +3547,7 @@ def _read_jsonl(path: Path) -> list[dict[str, Any]]:
 def conservative_ambiguous_pair_vetoes(
     image: dict[str, Any], pairs: Sequence[dict[str, Any]],
 ) -> list[dict[str, Any]]:
+    """Return the conservative ambiguous pair vetoes."""
     value = {"records": [{
         "pair_id": row["pair_id"],
         "quote_id": row["quote_id"],
@@ -3516,6 +3568,7 @@ def conservative_ambiguous_pair_vetoes(
 def local_deterministic_pair_veto(
     logical_id: str, image: dict[str, Any], pair: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return the local deterministic pair veto."""
     contradictions = pair.get("deterministic_contradictions") or []
     if not contradictions:
         raise ValueError("local deterministic recovery requires a deterministic contradiction")
@@ -3558,6 +3611,7 @@ def local_deterministic_pair_veto(
 def merge_split_pair_results(
     split_results: Sequence[dict[str, Any]], expected_pair_ids: Sequence[str],
 ) -> list[dict[str, Any]]:
+    """Merge split pair results."""
     records = [
         record
         for result in split_results
@@ -3574,6 +3628,7 @@ def build_production_top5_batch_manifest(
     candidates: dict[str, Any],
     pair_db: dict[str, Any],
 ) -> dict[str, Any]:
+    """Build production top5 batch manifest."""
     path = output_dir / "production_top5_batch_manifest.json"
     if path.exists():
         saved = read_json(path)
@@ -3630,6 +3685,7 @@ def build_production_top5_preflight(
     candidates: dict[str, Any],
     batch_manifest: dict[str, Any],
 ) -> dict[str, Any]:
+    """Build production top5 preflight."""
     preflight_path = output_dir / "production_top5_preflight.json"
     if preflight_path.exists():
         saved = read_json(preflight_path)
@@ -3707,6 +3763,7 @@ def build_production_top5_preflight(
 def _simulate_lane(
     pair_ids: Sequence[str], pair_by_id: dict[str, dict[str, Any]], judgements: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return the simulate lane."""
     ordered = [pair_by_id[pair_id] for pair_id in pair_ids]
     winner = ordered[0]
     allowed = [row for row in ordered if judgements[row["pair_id"]]["final_decision"] == "allow"]
@@ -3726,6 +3783,7 @@ def _simulate_lane(
 
 
 def simulate_production_top5(output_dir: Path) -> dict[str, Any]:
+    """Return the simulate production top5."""
     candidates = read_json(output_dir / "production_top5_pair_candidates.json")
     judgements = read_json(output_dir / "pair_judgements.json")["records"]
     image_manifest = read_json(output_dir / "image_corpus_manifest.json")
@@ -3852,6 +3910,7 @@ def partition_frozen_evaluation_labels(
 
 
 def evaluate_frozen_evidence(project_dir: Path, output_dir: Path, *, scope: str) -> dict[str, Any]:
+    """Evaluate frozen evidence."""
     if scope not in {"pilot", "full"}:
         raise ValueError("evaluation scope must be pilot or full")
     split = _load_frozen_split(project_dir)
@@ -3974,6 +4033,7 @@ def run_full(
     confirmed_limit: float,
     poll_seconds: float = 30.0,
 ) -> dict[str, Any]:
+    """Run full."""
     if not execute or confirmed_limit != HARD_COMBINED_CEILING_USD:
         raise RuntimeError("full run requires --execute and exact --confirm-combined-limit-usd 60")
     pilot_evaluation = read_json(output_dir / "pilot_evaluation.json")
@@ -4102,6 +4162,7 @@ def run_full(
 
 
 def prepare_production_top5(project_dir: Path, output_dir: Path) -> dict[str, Any]:
+    """Prepare production top5."""
     full = read_json(output_dir / "full_evaluation.json")
     if not full.get("passed"):
         raise RuntimeError("completed relation-aware safety evaluation is required")
@@ -4134,11 +4195,13 @@ def run_production_top5(
     confirmed_limit: float,
     poll_seconds: float = 30.0,
 ) -> dict[str, Any]:
+    """Run production top5."""
     raise RuntimeError(
         "retired v1 production-top5 execution: the v1 contract boundary failed positive-retention "
         "and corpus-coverage requirements; prepare the material-veto v2 revision instead"
     )
 def finalise(output_dir: Path, project_dir: Path, evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Return the finalise."""
     contracts = _contract_db(output_dir)
     pair_db = read_json(output_dir / "pair_judgements.json")
     candidates = read_json(output_dir / "pair_candidates.json")
@@ -4205,6 +4268,7 @@ def finalise(output_dir: Path, project_dir: Path, evaluation: dict[str, Any]) ->
 
 
 def build_report(output_dir: Path) -> dict[str, Any]:
+    """Build report."""
     manifest = read_json(output_dir / "run_manifest.json")
     preflight = read_json(output_dir / "cost_preflight.json")
     pilot = read_json(output_dir / "pilot_evaluation.json", {})
@@ -4363,6 +4427,7 @@ def build_report(output_dir: Path) -> dict[str, Any]:
 
 
 def status(output_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     result = {
         "prepared": (output_dir / "run_manifest.json").exists(),
         "pilot_complete": (output_dir / "pilot_evaluation.json").exists(),
@@ -4405,6 +4470,7 @@ def _add_paths(parser: argparse.ArgumentParser) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description="Offline relation-aware quotation/image veto research")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in (
@@ -4428,6 +4494,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     project_dir, research_run, work_dir, output_dir = _paths(args)
     if args.command == "prepare":

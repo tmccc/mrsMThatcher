@@ -1,3 +1,5 @@
+"""Provide hashing, atomic writes, and structured-file helpers."""
+
 from __future__ import annotations
 
 import hashlib
@@ -8,6 +10,7 @@ from typing import Any, Iterable
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -16,6 +19,7 @@ def sha256_file(path: Path) -> str:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write JSON atomically and optionally durably."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as handle:
@@ -27,6 +31,7 @@ def atomic_write_json(path: Path, value: Any) -> None:
 
 
 def atomic_write_text(path: Path, text: str) -> None:
+    """Write text atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8", newline="") as handle:
@@ -37,12 +42,14 @@ def atomic_write_text(path: Path, text: str) -> None:
 
 
 def read_json(path: Path, default: Any = None) -> Any:
+    """Read JSON."""
     if not path.exists():
         return default
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Read jsonl."""
     rows = []
     with path.open(encoding="utf-8") as handle:
         for line_no, line in enumerate(handle, 1):
@@ -55,6 +62,7 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def unique_dicts(rows: Iterable[dict[str, Any]], keys: tuple[str, ...]) -> list[dict[str, Any]]:
+    """Return the unique dicts."""
     seen = set()
     result = []
     for row in rows:

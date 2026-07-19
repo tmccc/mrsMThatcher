@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local scene grammar planning review interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -19,6 +21,7 @@ DECISIONS = {"approve", "revise", "reject"}
 
 
 def validate_review(decision: object, notes: object) -> dict[str, str]:
+    """Validate review."""
     if decision not in DECISIONS:
         raise ValueError("decision must be approve, revise or reject")
     if not isinstance(notes, str):
@@ -27,6 +30,7 @@ def validate_review(decision: object, notes: object) -> dict[str, str]:
 
 
 def save_review(path: Path, case_id: str, decision: object, notes: object) -> None:
+    """Save review."""
     review = validate_review(decision, notes)
     payload = json.loads(path.read_text())
     payload["items"][case_id] = {
@@ -38,6 +42,7 @@ def save_review(path: Path, case_id: str, decision: object, notes: object) -> No
 
 
 def serve(run: Path, host: str = "127.0.0.1", port: int = 8774) -> None:
+    """Serve the configured local interface."""
     if host not in {"127.0.0.1", "localhost"}:
         raise ValueError("scene reviewer must bind to loopback")
     records = json.loads((run / "scene_specs.json").read_text())["items"]
@@ -129,6 +134,7 @@ textarea{{width:min(50rem,95%);min-height:6rem;display:block}}button,a{{padding:
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--host", default="127.0.0.1")

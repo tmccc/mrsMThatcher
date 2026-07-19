@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+"""Audit quote visualisability."""
+
 from __future__ import annotations
 import argparse,json
 from pathlib import Path
 from semantic_alignment.visualisability_audit import calibrate,run_audit,serve,status,write_human_review_outputs
 
 def main():
+ """Run the command-line entry point."""
  p=argparse.ArgumentParser(description='Offline quotation visualisability audit');s=p.add_subparsers(dest='command',required=True)
  a=s.add_parser('calibrate');a.add_argument('--research-run',type=Path,required=True);a.add_argument('--review-data',type=Path,action='append',required=True);a.add_argument('--output',type=Path,required=True)
  a=s.add_parser('audit');a.add_argument('--research-run',type=Path,required=True);a.add_argument('--output',type=Path,required=True);a.add_argument('--review-data',type=Path,action='append');a.add_argument('--resume',action='store_true')

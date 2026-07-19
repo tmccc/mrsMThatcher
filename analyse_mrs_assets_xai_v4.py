@@ -184,19 +184,23 @@ SEASON_VALUES = ["spring", "summer", "autumn", "winter"]
 
 
 class AnalysisError(RuntimeError):
+    """Base exception for image-analysis failures."""
     pass
 
 
 class PermanentAnalysisError(AnalysisError):
+    """Raised when retrying an analysis cannot succeed."""
     pass
 
 
 class TransientAnalysisError(AnalysisError):
+    """Raised when an analysis may succeed after retrying."""
     pass
 
 
 @dataclass(frozen=True)
 class PreparedImage:
+    """Represent prepared image data."""
     data: bytes
     mime_type: str
     preparation: str
@@ -204,28 +208,34 @@ class PreparedImage:
 
 @dataclass(frozen=True)
 class ApiResult:
+    """Represent API result data."""
     content: dict[str, Any]
     usage: dict[str, Any]
     response_id: str | None
 
 
 def now_iso() -> str:
+    """Return the now iso."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def sha256_bytes(data: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_text(text: str) -> str:
+    """Return the SHA-256 text."""
     return sha256_bytes(text.encode("utf-8"))
 
 
 def normalise_quote_text(text: str) -> str:
+    """Normalise quote text."""
     return re.sub(r"\s+", " ", text.strip())
 
 
 def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
+    """Read JSON."""
     if not path.exists():
         return copy.deepcopy(default)
     try:
@@ -238,6 +248,7 @@ def read_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
 
 
 def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
+    """Write a JSON document atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     temp_path = Path(temp_name)
@@ -256,6 +267,7 @@ def atomic_write_json(path: Path, value: dict[str, Any]) -> None:
 
 
 def configure_logging(log_file: Path | None, verbose: bool) -> None:
+    """Configure logging."""
     handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -269,6 +281,7 @@ def configure_logging(log_file: Path | None, verbose: bool) -> None:
 
 
 def acquire_lock(path: Path) -> Any:
+    """Return the acquire lock."""
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     try:
@@ -284,10 +297,12 @@ def acquire_lock(path: Path) -> Any:
 
 
 def enum_schema(values: list[str]) -> dict[str, Any]:
+    """Return the enum schema."""
     return {"type": "string", "enum": values}
 
 
 def string_array_schema(*, max_items: int = 12) -> dict[str, Any]:
+    """Return the string array schema."""
     return {
         "type": "array",
         "items": {"type": "string", "maxLength": 120},
@@ -296,6 +311,7 @@ def string_array_schema(*, max_items: int = 12) -> dict[str, Any]:
 
 
 def enum_array_schema(values: list[str], *, max_items: int = 10) -> dict[str, Any]:
+    """Return the enum array schema."""
     return {
         "type": "array",
         "items": enum_schema(values),
@@ -725,6 +741,7 @@ Use weak_for_topics only for notably poor fits, and leave it empty when there ar
 
 
 def fresh_quote_db(model: str, quote_file: Path) -> dict[str, Any]:
+    """Return the fresh quote database."""
     return {
         "schema_version": QUOTE_DB_SCHEMA_VERSION,
         "analysis_kind": "quotes",
@@ -741,6 +758,7 @@ def fresh_quote_db(model: str, quote_file: Path) -> dict[str, Any]:
 
 
 def fresh_image_db(model: str, image_dir: Path) -> dict[str, Any]:
+    """Return the fresh image database."""
     return {
         "schema_version": IMAGE_DB_SCHEMA_VERSION,
         "analysis_kind": "images",
@@ -757,6 +775,7 @@ def fresh_image_db(model: str, image_dir: Path) -> dict[str, Any]:
 
 
 def ensure_db_shape(db: dict[str, Any], fresh: dict[str, Any]) -> dict[str, Any]:
+    """Ensure database shape."""
     result = copy.deepcopy(fresh)
     result.update(db)
     for key in ("items", "failures"):
@@ -766,6 +785,7 @@ def ensure_db_shape(db: dict[str, Any], fresh: dict[str, Any]) -> dict[str, Any]
 
 
 def item_is_current(item: Any, model: str, prompt_version: str) -> bool:
+    """Return whether item is current."""
     return (
         isinstance(item, dict)
         and item.get("analysis_model") == model
@@ -775,6 +795,7 @@ def item_is_current(item: Any, model: str, prompt_version: str) -> bool:
 
 
 def response_retry_delay(response: requests.Response | None, attempt_index: int) -> float:
+    """Return the response retry delay."""
     if response is not None:
         retry_after = response.headers.get("Retry-After")
         if retry_after:
@@ -803,6 +824,7 @@ def call_xai_structured(
     max_tokens: int,
     max_retries: int,
 ) -> ApiResult:
+    """Return the call xAI structured."""
     payload = {
         "model": model,
         "messages": messages,
@@ -869,6 +891,7 @@ def call_xai_structured(
 
 
 def load_quotes(quote_file: Path) -> tuple[dict[str, str], dict[str, list[int]]]:
+    """Load quotes."""
     try:
         lines = quote_file.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
@@ -891,6 +914,7 @@ def load_quotes(quote_file: Path) -> tuple[dict[str, str], dict[str, list[int]]]
 
 
 def list_image_files(image_dir: Path, recursive: bool) -> list[Path]:
+    """List image files."""
     if not image_dir.is_dir():
         raise AnalysisError(f"Image directory does not exist: {image_dir}")
     iterator: Iterable[Path] = image_dir.rglob("*") if recursive else image_dir.iterdir()
@@ -909,6 +933,7 @@ def list_image_files(image_dir: Path, recursive: bool) -> list[Path]:
 
 
 def prepare_image(path: Path) -> PreparedImage:
+    """Prepare image."""
     try:
         data = path.read_bytes()
     except OSError as exc:
@@ -952,6 +977,7 @@ def prepare_image(path: Path) -> PreparedImage:
 
 
 def make_quote_messages(quote: str) -> list[dict[str, Any]]:
+    """Create quote messages."""
     return [
         {"role": "system", "content": QUOTE_SYSTEM_PROMPT},
         {"role": "user", "content": QUOTE_USER_TEMPLATE.format(quote=quote)},
@@ -959,6 +985,7 @@ def make_quote_messages(quote: str) -> list[dict[str, Any]]:
 
 
 def make_image_messages(prepared: PreparedImage, detail: str) -> list[dict[str, Any]]:
+    """Create image messages."""
     encoded = base64.b64encode(prepared.data).decode("ascii")
     data_url = f"data:{prepared.mime_type};base64,{encoded}"
     return [
@@ -977,6 +1004,7 @@ def make_image_messages(prepared: PreparedImage, detail: str) -> list[dict[str, 
 
 
 def record_failure(db: dict[str, Any], item_hash: str, *, source: str, error: Exception) -> None:
+    """Record failure."""
     old = db.setdefault("failures", {}).get(item_hash, {})
     attempts = int(old.get("attempts", 0)) + 1 if isinstance(old, dict) else 1
     db["failures"][item_hash] = {
@@ -989,6 +1017,7 @@ def record_failure(db: dict[str, Any], item_hash: str, *, source: str, error: Ex
 
 
 def process_quotes(args: argparse.Namespace, api_key: str) -> None:
+    """Process quotes."""
     quote_file = args.quote_file
     output = args.quote_output
     unique_quotes, hash_lines = load_quotes(quote_file)
@@ -1075,6 +1104,7 @@ def process_quotes(args: argparse.Namespace, api_key: str) -> None:
 
 
 def process_images(args: argparse.Namespace, api_key: str) -> None:
+    """Process images."""
     image_dir = args.image_dir
     output = args.image_output
     files = list_image_files(image_dir, args.recursive_images)
@@ -1179,6 +1209,7 @@ def process_images(args: argparse.Namespace, api_key: str) -> None:
 
 
 def positive_int(value: str) -> int:
+    """Return the positive int."""
     parsed = int(value)
     if parsed <= 0:
         raise argparse.ArgumentTypeError("must be > 0")
@@ -1186,6 +1217,7 @@ def positive_int(value: str) -> int:
 
 
 def non_negative_float(value: str) -> float:
+    """Return the non negative float."""
     parsed = float(value)
     if parsed < 0:
         raise argparse.ArgumentTypeError("must be >= 0")
@@ -1193,6 +1225,7 @@ def non_negative_float(value: str) -> float:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     parser = argparse.ArgumentParser(
         description="Analyse MrsMThatcher quotes and regular-post images with xAI and store structured JSON metadata."
     )
@@ -1228,6 +1261,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parse_args()
     configure_logging(args.log_file, args.verbose)
 

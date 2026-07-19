@@ -1,3 +1,5 @@
+"""Build, merge, and score blind human calibration datasets."""
+
 from __future__ import annotations
 
 import hashlib
@@ -45,6 +47,7 @@ CALIBRATION_CRITIC_SCHEMA = {
 
 
 def validate_calibration_critic(value: Any) -> dict[str, Any]:
+    """Validate calibration critic."""
     if not isinstance(value, dict): raise ValueError("critic result must be an object")
     if value.get("primary_relationship") not in RELATIONSHIPS: raise ValueError("invalid primary relationship")
     if value.get("secondary_relationship") not in ("none", *RELATIONSHIPS): raise ValueError("invalid secondary relationship")
@@ -78,6 +81,7 @@ def _matching(values: list[str], terms: set[str]) -> list[str]:
 
 
 def decompose_quote(item: dict[str, Any]) -> dict[str, Any]:
+    """Return the decompose quote."""
     claims = [row["claim"] for row in item["claims"]]
     concepts = item.get("specific_concepts", [])
     mechanisms = _matching(concepts, MECHANISM_TERMS)
@@ -100,6 +104,7 @@ def decompose_quote(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def decompose_image(item: dict[str, Any]) -> dict[str, Any]:
+    """Return the decompose image."""
     claims = [row["claim"] for row in item["implied_claims"]]
     mechanisms = _matching(claims, MECHANISM_TERMS | {"agent", "leads", "brings", "produces"})
     consequences = _matching(claims, CONSEQUENCE_TERMS)
@@ -116,11 +121,13 @@ def decompose_image(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def case_id(quote_hash: str, image_basename: str) -> str:
+    """Return a stable case identifier."""
     return hashlib.sha256(f"{quote_hash}:{image_basename}".encode()).hexdigest()[:20]
 
 
 def select_review_cases(critics: list[dict[str, Any]], *, limit: int = 100,
                         free_trade_key: tuple[str, str] | None = None) -> list[dict[str, Any]]:
+    """Select review cases."""
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in critics:
         groups[row["claim_relationship"]].append(row)
@@ -143,6 +150,7 @@ def select_review_cases(critics: list[dict[str, Any]], *, limit: int = 100,
 def build_review_dataset(critics: list[dict[str, Any]], quote_items: dict[str, Any],
                          image_items: dict[str, Any], *, limit: int = 100,
                          free_trade_key: tuple[str, str] | None = None) -> dict[str, Any]:
+    """Build review dataset."""
     selected = select_review_cases(critics, limit=limit, free_trade_key=free_trade_key)
     items = []
     for index, row in enumerate(selected):
@@ -163,6 +171,7 @@ def build_review_dataset(critics: list[dict[str, Any]], quote_items: dict[str, A
 
 
 def validate_human_label(label: Any) -> dict[str, Any]:
+    """Validate human label."""
     if not isinstance(label, dict): raise ValueError("human label must be an object")
     if label.get("primary_relationship") not in RELATIONSHIPS: raise ValueError("invalid primary relationship")
     secondary = label.get("secondary_relationship")
@@ -183,6 +192,7 @@ def validate_human_label(label: Any) -> dict[str, Any]:
 
 
 def review_is_complete(row: dict[str, Any]) -> bool:
+    """Return whether review is complete."""
     try:
         validate_human_label(row.get("human_label"))
         return True
@@ -191,6 +201,7 @@ def review_is_complete(row: dict[str, Any]) -> bool:
 
 
 def migrate_review_dataset(data: dict[str, Any]) -> dict[str, Any]:
+    """Migrate review dataset."""
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         raise ValueError("invalid review dataset")
     migrated = dict(data); migrated["schema_version"] = REVIEW_SCHEMA_VERSION
@@ -205,6 +216,7 @@ def migrate_review_dataset(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def merge_review_data(fresh: dict[str, Any], existing: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge review data."""
     prior = {row["case_id"]: row for row in migrate_review_dataset(existing)["items"]} if existing else {}
     merged = migrate_review_dataset(fresh)
     for row in merged["items"]:
@@ -216,6 +228,7 @@ def merge_review_data(fresh: dict[str, Any], existing: dict[str, Any] | None) ->
 
 
 def review_progress(data: dict[str, Any]) -> dict[str, int]:
+    """Return the review progress."""
     complete = sum(review_is_complete(row) for row in data.get("items", []))
     return {"total": len(data.get("items", [])), "complete": complete,
             "incomplete": len(data.get("items", [])) - complete}
@@ -233,6 +246,7 @@ def _rank(values: list[float]) -> list[float]:
 
 
 def spearman(values_a: list[float], values_b: list[float]) -> float | None:
+    """Return the spearman."""
     if len(values_a) != len(values_b) or len(values_a) < 2: return None
     a,b=_rank(values_a),_rank(values_b); ma,mb=statistics.mean(a),statistics.mean(b)
     numerator=sum((x-ma)*(y-mb) for x,y in zip(a,b)); da=sum((x-ma)**2 for x in a); db=sum((y-mb)**2 for y in b)
@@ -240,6 +254,7 @@ def spearman(values_a: list[float], values_b: list[float]) -> float | None:
 
 
 def labelled_review_statistics(data: dict[str, Any], critic_results: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the labelled review statistics."""
     rows=[row for row in data.get("items",[]) if review_is_complete(row)]
     appropriateness=[row["human_label"]["appropriateness_rating"] for row in rows]
     publish=[row["human_label"]["publish_likelihood_rating"] for row in rows]
@@ -269,6 +284,7 @@ def labelled_review_statistics(data: dict[str, Any], critic_results: dict[str, A
 
 
 def threshold_analysis(data: dict[str, Any], critic_results: dict[str, Any], *, minimum_cases: int = 20, target: str = "publish_likelihood") -> dict[str, Any]:
+    """Return the threshold analysis."""
     model=critic_results.get("items",{}); pairs=[]
     excluded=0
     for row in data.get("items",[]):
@@ -294,6 +310,7 @@ def threshold_analysis(data: dict[str, Any], critic_results: dict[str, Any], *, 
 
 
 def failure_summary(critics: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the failure summary."""
     return {
         "count": len(critics),
         "relationships": dict(sorted(Counter(row["claim_relationship"] for row in critics).items())),

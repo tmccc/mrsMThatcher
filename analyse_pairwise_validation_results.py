@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse pairwise validation results artefacts."""
+
 from __future__ import annotations
 
 import csv,json
@@ -9,11 +11,15 @@ from semantic_alignment.io import atomic_write_json
 from semantic_alignment.pairwise_validation import calibration_metrics
 
 ROOT=Path(__file__).resolve().parent;RUN=ROOT/'semantic_alignment_research/pairwise_validation_001';SOURCE=ROOT/'semantic_alignment_research/first_impression/v1_20260712'
-def load(p):return json.loads(Path(p).read_text())
+def load(p):
+    """Load a JSON document."""
+    return json.loads(Path(p).read_text())
 def write_csv(path,rows,fields):
+    """Write CSV."""
     with path.open('w',newline='',encoding='utf-8') as f:w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(rows)
 
 def main():
+    """Run the command-line entry point."""
     manifest=load(RUN/'pairwise_manifest.json')['items'];blind=load(RUN/'candidate_blind_map.json')['items'];reviews=load(RUN/'human_pairwise_reviews.json')['items'];calids=load(RUN/'calibration_cases.json')['case_ids'];intents=load(SOURCE/'quote_visual_intents.json')['items']
     providers={}
     for p in ('grok','openai','anthropic','gemini'):

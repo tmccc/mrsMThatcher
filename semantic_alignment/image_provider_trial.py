@@ -1,3 +1,5 @@
+"""Prepare, execute, and review an isolated multi-provider image trial."""
+
 from __future__ import annotations
 
 import base64
@@ -48,14 +50,17 @@ CATEGORIES = (
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def sha256_bytes(data: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -70,10 +75,12 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write a JSON document atomically."""
     atomic_write_bytes(path, (json.dumps(value, indent=2, sort_keys=True) + "\n").encode())
 
 
 def read_json(path: Path, default: Any = None) -> Any:
+    """Read JSON."""
     if not path.exists():
         return default
     return json.loads(path.read_text())
@@ -96,6 +103,7 @@ def _near_duplicate(a: str, b: str) -> bool:
 
 
 def prior_generation_quote_ids(research_root: Path) -> set[str]:
+    """Return the prior generation quote IDs."""
     result: set[str] = set()
     patterns = ("generation_prompt_pilot*", "scene_grammar*", "pairwise_*", "first_impression*")
     for pattern in patterns:
@@ -132,6 +140,7 @@ def _packet_quality(packet: dict[str, Any]) -> bool:
 
 
 def select_packets(packets: dict[str, dict[str, Any]], excluded: set[str], count: int = 10) -> list[dict[str, Any]]:
+    """Select packets."""
     if count != 10:
         raise ValueError("this frozen pilot requires exactly 10 quotations")
     pool = [(qid, p) for qid, p in packets.items() if qid not in excluded and _packet_quality(p)]
@@ -158,6 +167,7 @@ def select_packets(packets: dict[str, dict[str, Any]], excluded: set[str], count
 
 
 def canonical_prompt(packet: dict[str, Any]) -> str:
+    """Return the canonical prompt."""
     guidance = packet.get("editorial_guidance") or {}
     entities = ", ".join(_text(x, 100) for x in (packet.get("entities") or [])[:8]) or "none essential"
     return f"""Create one editorial image to accompany this Margaret Thatcher quotation on X.
@@ -188,6 +198,7 @@ Communicate the intended meaning immediately at social-media size through one st
 
 
 def provider_payload(provider: str, prompt: str) -> dict[str, Any]:
+    """Return the provider payload."""
     if provider == "grok":
         return {"model": XAI_MODEL, "prompt": prompt, "n": 1, "response_format": "url", "aspect_ratio": "1:1", "resolution": "1k"}
     if provider == "openai":
@@ -196,6 +207,7 @@ def provider_payload(provider: str, prompt: str) -> dict[str, Any]:
 
 
 def prepare_trial(research_run: Path, trial: Path, count: int = 10) -> dict[str, Any]:
+    """Prepare trial."""
     packets_doc = read_json(research_run / "research_packets.json")
     packets = packets_doc.get("items", {})
     excluded = prior_generation_quote_ids(research_run.parent)
@@ -235,6 +247,7 @@ def prepare_trial(research_run: Path, trial: Path, count: int = 10) -> dict[str,
 
 
 def write_selection_report(trial: Path, manifest: dict[str, Any]) -> None:
+    """Write selection report."""
     lines = ["# Image Provider Trial 001 Selection", "", "The ten cases were selected deterministically into predefined editorial categories from valid, medium/high-confidence packets, excluding quote IDs found in prior generation, scene-grammar, pairwise, and first-impression studies. Near-duplicate wording was rejected.", ""]
     for index, row in enumerate(manifest["items"], 1):
         lines += [f"## {index}. {row['category'].replace('_', ' ').title()}", "", f"> {row['quote_text']}", "", row["selection_rationale"], ""]
@@ -242,6 +255,7 @@ def write_selection_report(trial: Path, manifest: dict[str, Any]) -> None:
 
 
 def build_preflight(trial: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build preflight."""
     expected = 10 * XAI_COST_PER_IMAGE + 10 * OPENAI_COST_PER_IMAGE
     maximum = expected * MAX_ATTEMPTS
     parity = all(row["prompt_parity"] and len(set(row["provider_prompt_sha256"].values())) == 1 for row in manifest["items"])
@@ -249,6 +263,7 @@ def build_preflight(trial: Path, manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def render_preflight(pf: dict[str, Any]) -> str:
+    """Render preflight."""
     return "\n".join(["# Image Provider Trial 001 Preflight", "", f"- Models: `{XAI_MODEL}` and `{OPENAI_MODEL}`", "- Planned calls/images: 20 / 20", f"- Expected cost: **${pf['expected_cost_usd']:.2f}**", f"- Conservative maximum with one transport retry per pair: **${pf['conservative_maximum_cost_usd']:.2f}**", f"- Exact required confirmation: **${pf['required_exact_confirmation_usd']:.2f}**", f"- Prompt parity: `{pf['prompt_parity_verified']}`", f"- Output: `{pf['output_directory']}`", "- Preparation made no network or paid calls.", ""])
 
 
@@ -285,6 +300,7 @@ def _generate_one(provider: str, prompt: str, api_key: str, session: requests.Se
 
 
 def generate_trial(trial: Path, confirmed_cost: float, session: requests.Session | None = None, sleep=time.sleep) -> dict[str, Any]:
+    """Generate trial."""
     if confirmed_cost != MAX_COST_USD:
         raise RuntimeError(f"exact --confirm-max-cost-usd {MAX_COST_USD:.2f} required")
     manifest = read_json(trial / "manifest.json")
@@ -341,6 +357,7 @@ def generate_trial(trial: Path, confirmed_cost: float, session: requests.Session
 
 
 def trial_status(trial: Path) -> dict[str, Any]:
+    """Return the trial status."""
     manifest = read_json(trial / "manifest.json", {"items": []})
     state = read_json(trial / "generation_state.json", {"items": {}, "attempts": [], "known_cost_usd": {"grok": 0, "openai": 0}})
     decisions = read_json(trial / "review" / "decisions.json", {"items": {}})["items"]
@@ -352,6 +369,7 @@ REASON_TAGS = ("stronger immediate impact", "better historical fit", "better rep
 
 
 def serve_review(trial: Path, host: str, port: int) -> None:
+    """Serve review."""
     manifest = read_json(trial / "manifest.json")
     blind = read_json(trial / "review" / "blind_map.json")["assignments"]
     decisions_path = trial / "review" / "decisions.json"
@@ -415,6 +433,7 @@ def serve_review(trial: Path, host: str, port: int) -> None:
 
 
 def report_results(trial: Path) -> str:
+    """Report results."""
     manifest = read_json(trial / "manifest.json"); blind = read_json(trial / "review" / "blind_map.json")["assignments"]
     decisions = read_json(trial / "review" / "decisions.json", {"items": {}})["items"]
     if len(decisions) != len(manifest["items"]):

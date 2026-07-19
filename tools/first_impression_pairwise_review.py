@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local first impression pairwise review interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +18,7 @@ from semantic_alignment.pairwise_validation import REASONS, review_progress, sav
 
 
 def serve(run_dir: Path, project_dir: Path, host: str = "127.0.0.1", port: int = 8771) -> None:
+    """Serve the configured local interface."""
     if host not in {"127.0.0.1", "localhost"}:
         raise ValueError("reviewer must bind to loopback")
     manifest = json.loads((run_dir / "pairwise_manifest.json").read_text())["items"]
@@ -87,6 +90,7 @@ def serve(run_dir: Path, project_dir: Path, host: str = "127.0.0.1", port: int =
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser=argparse.ArgumentParser(); parser.add_argument("--run-dir",type=Path,required=True); parser.add_argument("--project-dir",type=Path,default=ROOT); parser.add_argument("--host",default="127.0.0.1"); parser.add_argument("--port",type=int,default=8771)
     args=parser.parse_args(); serve(args.run_dir.resolve(), args.project_dir.resolve(), args.host, args.port)
 

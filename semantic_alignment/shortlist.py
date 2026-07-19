@@ -1,3 +1,5 @@
+"""Pre-score images and build deterministic quotation shortlists."""
+
 from __future__ import annotations
 
 import re
@@ -7,10 +9,12 @@ TOKEN = re.compile(r"[a-z0-9]+")
 
 
 def terms(values: Iterable[str]) -> set[str]:
+    """Return the terms."""
     return {token for value in values for token in TOKEN.findall(str(value).lower()) if len(token) > 2}
 
 
 def pre_score(quote: dict[str, Any], image: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+    """Return the pre score."""
     q_primary = terms([quote.get("primary_issue", ""), *quote.get("primary_themes", [])])
     i_primary = terms([image.get("primary_issue", ""), *image.get("primary_themes", [])])
     q_secondary = terms([*quote.get("secondary_themes", []), *quote.get("specific_concepts", [])])
@@ -37,6 +41,7 @@ def pre_score(quote: dict[str, Any], image: dict[str, Any]) -> tuple[float, dict
 
 
 def build_shortlist(quote: dict[str, Any], images: Iterable[dict[str, Any]], *, limit: int = 15, forced: dict[str, str] | None = None) -> list[dict[str, Any]]:
+    """Build shortlist."""
     forced = forced or {}
     rows = []
     for image in images:

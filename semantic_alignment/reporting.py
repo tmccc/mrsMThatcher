@@ -1,3 +1,5 @@
+"""Summarise semantic-alignment execution ledgers and write reports."""
+
 from __future__ import annotations
 
 import csv
@@ -14,6 +16,7 @@ FREE_TRADE_IMAGE = "tg_661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be
 
 
 def stage_usage(ledger: dict[str, Any], stage: str) -> dict[str, Any]:
+    """Return the stage usage."""
     rows = [row for row in ledger.get("calls", []) if row.get("stage") == stage]
     costs = [float(row.get("cost_usd") or 0) for row in rows]
     return {
@@ -30,6 +33,7 @@ def stage_usage(ledger: dict[str, Any], stage: str) -> dict[str, Any]:
 
 
 def score_band(score: float) -> str:
+    """Score band."""
     if score >= 90: return "90-100 exceptional"
     if score >= 75: return "75-89 strong"
     if score >= 60: return "60-74 indirect"
@@ -38,6 +42,7 @@ def score_band(score: float) -> str:
 
 
 def build_execution_summary(research: Path) -> dict[str, Any]:
+    """Build execution summary."""
     quote_db = read_json(research / "quote_semantic_fingerprints.json", {}) or {}
     image_db = read_json(research / "image_implied_messages_generated.json", {}) or {}
     critic_db = read_json(research / "semantic_alignment_critic.json", {}) or {}
@@ -84,6 +89,7 @@ def build_execution_summary(research: Path) -> dict[str, Any]:
 
 
 def write_execution_report(research: Path) -> dict[str, Any]:
+    """Write execution report."""
     summary = build_execution_summary(research)
     atomic_write_json(research / "validation_execution_summary.json", summary)
     lines = ["# Semantic alignment v2 validation execution report", "", f"Exact cumulative billed cost: `${summary['exact_cumulative_cost_usd']:.6f}`", "", "## Stage usage", ""]

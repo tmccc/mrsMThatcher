@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse generation prompt pilot artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +28,7 @@ PAIR = PROJECT / "semantic_alignment_research/pairwise_improved_pilot_20260713_r
 
 
 def parser():
+    """Build the command-line argument parser."""
     p = argparse.ArgumentParser(); p.add_argument("--project-dir", type=Path, default=PROJECT); p.add_argument("--run-dir", type=Path, default=RUN)
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("prepare"); sub.add_parser("dry-run"); sub.add_parser("report")
@@ -35,6 +38,7 @@ def parser():
 
 
 def prepare(run: Path):
+    """Prepare the generation-prompt pilot workspace and manifest."""
     quotes = read_json(SOURCE / "quote_semantic_fingerprints.json")["items"]
     intents = read_json(FIRST / "quote_visual_intents.json")["items"]
     manifest = build_manifest(quotes, intents, read_json(PAIR / "pairwise_manifest.json"),
@@ -49,6 +53,7 @@ def prepare(run: Path):
 
 
 def main(argv=None):
+    """Run the command-line entry point."""
     args = parser().parse_args(argv); run = args.run_dir.resolve(); manifest, briefs = prepare(run)
     if args.command in {"prepare", "dry-run"}:
         print(json.dumps(preflight(manifest), indent=2)); return 0

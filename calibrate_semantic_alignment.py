@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Calibrate semantic alignment."""
+
 from __future__ import annotations
 
 import argparse
@@ -20,11 +22,13 @@ OBSERVED_CRITIC_MEAN_USD=0.00904056
 
 
 def load_run(run: Path):
+    """Load run."""
     read=lambda name: json.loads((run/name).read_text())
     return read('quote_semantic_fingerprints.json'),read('image_implied_messages_generated.json'),read('semantic_alignment_critic.json')
 
 
 def parser():
+    """Build the command-line argument parser."""
     ap=argparse.ArgumentParser(description='Offline human calibration; paid calls require complete human labels.')
     ap.add_argument('--run-dir',type=Path,required=True); sub=ap.add_subparsers(dest='command',required=True)
     sub.add_parser('build-review')
@@ -38,6 +42,7 @@ def parser():
 
 
 def require_labels(dataset: dict, split: str):
+    """Require labels."""
     rows=[x for x in dataset['items'] if x['split']==split]
     if len(rows)!=25: raise RuntimeError(f'{split} split must contain exactly 25 cases')
     missing=[]
@@ -49,6 +54,7 @@ def require_labels(dataset: dict, split: str):
 
 
 def main(argv=None):
+    """Run the command-line entry point."""
     args=parser().parse_args(argv); run=args.run_dir.resolve(); calibration=run/'calibration'; calibration.mkdir(exist_ok=True)
     qdb,idb,cdb=load_run(run); dataset_path=calibration/'human_review_cases.json'
     if args.command=='build-review':

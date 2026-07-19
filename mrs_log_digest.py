@@ -58,6 +58,7 @@ RESUME_FINGERPRINT_TAIL_LIMIT = 128
 
 
 def file_sha256(path: Path) -> str:
+    """Return the file SHA-256."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -540,6 +541,7 @@ def generated_image_utilisation(pool: Dict[str, Any], rates: Dict[str, Any], lim
 
 
 def generated_pool_runway(pool: Dict[str, Any], rates: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the generated pool runway."""
     remaining = max(0, int(pool.get("active_never_used", 0) or 0))
     if config.get("_runway_config_error"):
         reason = str(config["_runway_config_error"])
@@ -622,6 +624,7 @@ def load_runway_config(project_dir: Path, observed_config: Dict[str, Any]) -> Di
 
 
 def parse_dt(value: Optional[str]) -> Optional[datetime]:
+    """Parse datetime."""
     if not value:
         return None
     value = value.strip().replace("T", " ")
@@ -636,6 +639,7 @@ def parse_dt(value: Optional[str]) -> Optional[datetime]:
 
 
 def dt_text(value: datetime) -> str:
+    """Return the datetime text."""
     return value.strftime("%Y-%m-%d %H:%M:%S")
 
 
@@ -667,6 +671,7 @@ def save_resume_time(
     merge_existing_boundary_occurrences: bool = False,
     cursor_fingerprint_tail: Optional[List[str]] = None,
 ) -> None:
+    """Save resume time."""
     old = read_resume_data(state_file) if preserve_existing_context else {}
 
     latest_state = merge_context(
@@ -731,6 +736,7 @@ def save_resume_time(
 
 
 def discover_logs(directory: Path, pattern: str) -> List[Path]:
+    """Resolve eligible production log files without including test fixtures."""
     paths = []
     for p in directory.glob(pattern):
         if not p.is_file():
@@ -814,6 +820,7 @@ def digest_execution_lock(path: Path):
 
 
 def epoch_to_human(value: Any) -> Optional[str]:
+    """Return the epoch to human."""
     try:
         n = int(value)
     except Exception:
@@ -824,6 +831,7 @@ def epoch_to_human(value: Any) -> Optional[str]:
 
 
 def int_or_none(value: Any) -> Optional[int]:
+    """Return the int or none."""
     try:
         if value is None:
             return None
@@ -833,6 +841,7 @@ def int_or_none(value: Any) -> Optional[int]:
 
 
 def cooldown_state_text(until_epoch: Any, state_time_text: Any) -> str:
+    """Return the cooldown state text."""
     until = int_or_none(until_epoch)
     state_time = parse_dt(state_time_text) if state_time_text else None
     if not until or not state_time:
@@ -842,6 +851,7 @@ def cooldown_state_text(until_epoch: Any, state_time_text: Any) -> str:
 
 @dataclass(frozen=True)
 class Record:
+    """Represent record data."""
     ts: datetime
     level: str
     src: str
@@ -852,6 +862,7 @@ class Record:
 
 
 def record_fingerprint(record: Record) -> str:
+    """Record fingerprint."""
     body = "\x1f".join(
         [
             dt_text(record.ts),
@@ -865,6 +876,7 @@ def record_fingerprint(record: Record) -> str:
 
 
 def resume_fingerprint_tail(data: Dict[str, Any]) -> List[str]:
+    """Return the resume fingerprint tail."""
     raw = data.get("last_log_entry_fingerprint_tail")
     if not isinstance(raw, list):
         return []
@@ -891,6 +903,7 @@ def locate_resume_fingerprint_tail(records: List[Record], tail: List[str]) -> Op
 
 
 def resume_boundary_fingerprint_counts(data: Dict[str, Any]) -> Counter[str]:
+    """Return the resume boundary fingerprint counts."""
     raw_counts = data.get("last_log_entry_fingerprint_counts")
     counts: Counter[str] = Counter()
     if isinstance(raw_counts, dict):
@@ -915,6 +928,7 @@ def filter_resume_boundary_records(
     boundary: datetime,
     processed_counts: Counter[str],
 ) -> List[Record]:
+    """Filter resume boundary records."""
     remaining = Counter(processed_counts)
     filtered: List[Record] = []
     for record in records:
@@ -927,6 +941,7 @@ def filter_resume_boundary_records(
 
 
 def iter_records(path: Path) -> Iterable[Record]:
+    """Yield iter records values."""
     current: Optional[Dict[str, Any]] = None
     ordinal = 0
 
@@ -965,6 +980,7 @@ def read_records(
     since_exclusive: bool = False,
     physical_order: bool = False,
 ) -> List[Record]:
+    """Read and deduplicate structured and legacy log records."""
     occurrences: Dict[tuple[Any, ...], Dict[str, List[Record]]] = {}
     path_priority = {str(path): index for index, path in enumerate(paths)}
     for path in paths:
@@ -1030,6 +1046,7 @@ def filter_records_by_time(
     *,
     since_exclusive: bool,
 ) -> List[Record]:
+    """Filter records by time."""
     if since is None:
         return list(records)
     if since_exclusive:
@@ -1044,6 +1061,7 @@ def summarize_input_files(
     *,
     since_exclusive: bool = False,
 ) -> List[Dict[str, Any]]:
+    """Summarise input files."""
     summaries: List[Dict[str, Any]] = []
 
     for path in paths:
@@ -1104,6 +1122,7 @@ def lit(value: str) -> str:
 
 
 def short(value: Any, n: int) -> str:
+    """Return the short."""
     if value is None:
         return ""
     s = str(value).replace("\n", "\\n")
@@ -1117,6 +1136,7 @@ UNKNOWN_INVALID_STATE_FIELD = "unknown (invalid in latest snapshot)"
 
 
 def state_list_count(state: Dict[str, Any], key: str) -> Any:
+    """Return the state list count."""
     if key not in state:
         return UNKNOWN_MISSING_STATE_FIELD
     value = state.get(key)
@@ -1126,6 +1146,7 @@ def state_list_count(state: Dict[str, Any], key: str) -> Any:
 
 
 def state_list_tail(state: Dict[str, Any], key: str, count: int) -> Optional[List[Any]]:
+    """Return the state list tail."""
     if key not in state:
         return None
     value = state.get(key)
@@ -1135,6 +1156,7 @@ def state_list_tail(state: Dict[str, Any], key: str, count: int) -> Optional[Lis
 
 
 def state_list_head(state: Dict[str, Any], key: str, count: int) -> Optional[List[Any]]:
+    """Return the state list head."""
     if key not in state:
         return None
     value = state.get(key)
@@ -1150,6 +1172,7 @@ def summarize_latest_state(
     source: str = "log snapshot",
     source_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
+    """Summarise latest state."""
     summary = {
         "time": latest_state_ts.strftime("%Y-%m-%d %H:%M:%S") if latest_state_ts else None,
         "_state_source": source,
@@ -1201,6 +1224,7 @@ def summarize_latest_state(
 
 
 def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[str, Any]], Optional[Path], Optional[datetime]]:
+    """Load authoritative state for logs."""
     seen_dirs: set[Path] = set()
     for log in logs:
         if is_selftest_log_path(log):
@@ -1225,6 +1249,7 @@ def load_authoritative_state_for_logs(logs: List[Path]) -> Tuple[Optional[Dict[s
 
 
 def state_context_is_within_window(state: Dict[str, Any], window_end: Optional[datetime]) -> bool:
+    """Return whether state context is within window."""
     if window_end is None:
         return True
     try:
@@ -1378,6 +1403,7 @@ def find_latest_config_before(paths: List[Path], before: Optional[datetime]) -> 
     return configs, latest_ts
 
 def try_parse_response_id_text(msg: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return the try parse response ID text."""
     marker = "response="
     if marker not in msg:
         return None, None
@@ -1392,6 +1418,7 @@ def try_parse_response_id_text(msg: str) -> Tuple[Optional[str], Optional[str]]:
 
 
 def try_parse_json_object_from_msg(msg: str) -> Optional[Dict[str, Any]]:
+    """Return the try parse JSON object from msg."""
     start = msg.find("{")
     if start < 0:
         return None
@@ -1444,10 +1471,12 @@ def parse_partial_state_from_msg(msg: str) -> Optional[Dict[str, Any]]:
 
 
 def seconds_between(a: datetime, b: datetime) -> float:
+    """Return the seconds between."""
     return abs((a - b).total_seconds())
 
 
 def is_media_v2_request_failure(record: Record) -> bool:
+    """Return whether is media v2 request failure."""
     return (
         record.level in {"ERROR", "CRITICAL"}
         and record.src == "x_request"
@@ -1456,6 +1485,7 @@ def is_media_v2_request_failure(record: Record) -> bool:
 
 
 def is_reply_target_eligibility_restriction(message: str) -> bool:
+    """Return whether is reply target eligibility restriction."""
     text = str(message or "").lower()
     return any(
         marker in text
@@ -1469,6 +1499,7 @@ def is_reply_target_eligibility_restriction(message: str) -> bool:
 
 
 def is_media_fallback_warning(record: Record) -> bool:
+    """Return whether is media fallback warning."""
     return (
         record.level in {"ERROR", "CRITICAL", "WARNING"}
         and "v2 media upload failed; trying v1.1 fallback" in record.msg
@@ -1476,10 +1507,12 @@ def is_media_fallback_warning(record: Record) -> bool:
 
 
 def is_media_v1_success(record: Record) -> bool:
+    """Return whether is media v1 success."""
     return "Uploaded media via v1.1." in record.msg
 
 
 def is_media_v1_failure(record: Record) -> bool:
+    """Return whether is media v1 failure."""
     return (
         record.level in {"ERROR", "CRITICAL"}
         and record.src in {"upload_media", "upload_media_v1_1", "x_request"}
@@ -1492,6 +1525,7 @@ def is_media_v1_failure(record: Record) -> bool:
 
 
 def is_main_post_success(record: Record) -> bool:
+    """Return whether is main post success."""
     return (
         "Quote/image posted successfully." in record.msg
         or "Daily meme posted successfully." in record.msg
@@ -1500,6 +1534,7 @@ def is_main_post_success(record: Record) -> bool:
 
 
 def find_recent_media_path(records: List[Record], index: int) -> Optional[str]:
+    """Find recent media path."""
     for earlier in reversed(records[max(0, index - 20):index + 1]):
         m = re.search(r"Uploading media via X API v2: (.+)$", earlier.msg)
         if m:
@@ -1511,6 +1546,7 @@ def find_recent_media_path(records: List[Record], index: int) -> Optional[str]:
 
 
 def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tuple[List[Dict[str, Any]], set[str]]:
+    """Return the correlate media upload incidents."""
     incidents: List[Dict[str, Any]] = []
     suppressed: set[str] = set()
     used_fallbacks: set[int] = set()
@@ -1567,6 +1603,7 @@ def correlate_media_upload_incidents(records: List[Record], max_text: int) -> Tu
 
 
 def int_usage_value(value: Any) -> int:
+    """Return the int usage value."""
     try:
         return int(value or 0)
     except Exception:
@@ -1574,6 +1611,7 @@ def int_usage_value(value: Any) -> int:
 
 
 def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Parse xAI usage from msg."""
     marker = "xAI usage="
     if marker not in msg:
         return None, None
@@ -1588,6 +1626,7 @@ def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Option
 
 
 def xai_usage_context_from_pending(pending_mention: Dict[str, Any], pending_qt: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the xAI usage context from pending."""
     mention_seq = pending_mention.get("considered_seq", -1) if pending_mention else -1
     quote_seq = pending_qt.get("considered_seq", -1) if pending_qt else -1
     if pending_qt and quote_seq >= mention_seq:
@@ -1606,6 +1645,7 @@ def xai_usage_context_from_pending(pending_mention: Dict[str, Any], pending_qt: 
 
 
 def unknown_xai_usage_context() -> Dict[str, Any]:
+    """Return the unknown xAI usage context."""
     return {"lane": "unknown", "context_id": "", "author_id": ""}
 
 
@@ -1614,6 +1654,7 @@ def summarize_xai_usage_event(
     usage: Dict[str, Any],
     context: Dict[str, Any],
 ) -> Dict[str, Any]:
+    """Summarise xAI usage event."""
     prompt_details = usage.get("prompt_tokens_details")
     if not isinstance(prompt_details, dict):
         prompt_details = {}
@@ -1637,6 +1678,7 @@ def summarize_xai_usage_event(
 
 
 def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Return the xAI usage totals."""
     return {
         "successful_xai_calls": len(events),
         "prompt_tokens": sum(int_usage_value(item.get("prompt_tokens")) for item in events),
@@ -1651,6 +1693,7 @@ def xai_usage_totals(events: List[Dict[str, Any]]) -> Dict[str, int]:
 
 
 def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the regular image usage summary."""
     total = len(events)
     original = sum(1 for item in events if item.get("source") == "original")
     generated = sum(1 for item in events if item.get("source") == "generated")
@@ -1676,6 +1719,7 @@ def regular_image_usage_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the original editorial shadow summary."""
     total = len(events)
     comparable_originals = [item for item in events if item.get("production_source") == "original"]
     production_original = len(comparable_originals)
@@ -1719,6 +1763,7 @@ def original_editorial_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
 
 
 def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the generated identity shadow summary."""
     def relevant(item: Dict[str, Any]) -> bool:
         return sum(
             int(item.get(key, 0) or 0)
@@ -1793,6 +1838,7 @@ def generated_identity_shadow_summary(events: List[Dict[str, Any]]) -> Dict[str,
 
 
 def generated_identity_policy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the generated identity policy summary."""
     def relevant(item: Dict[str, Any]) -> bool:
         return sum(
             int(item.get(key, 0) or 0)
@@ -1889,6 +1935,7 @@ def _count_optional(events: List[Dict[str, Any]], field: str, values: tuple[str,
 
 
 def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the historical context quality summary."""
     items = [event for event in events if event.get("kind") == "historical_context_reply"]
     statuses = Counter({key: 0 for key in ("completed", "already_completed", "failed", "skipped", "dry_run", "unavailable")})
     skip_reasons = Counter()
@@ -1972,6 +2019,7 @@ def _no_reply_category(value: Any) -> str | None:
 
 
 def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the reply strategy summary."""
     raw_decisions = [event for event in events if event.get("kind") == "reply_strategy_decision"]
     decision_by_id: Dict[str, Dict[str, Any]] = {}
     for index, event in enumerate(raw_decisions):
@@ -2244,6 +2292,7 @@ def _quote_image_semantic_veto_summary_subset(events: List[Dict[str, Any]]) -> D
 
 
 def quote_image_semantic_veto_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return the quote image semantic veto summary."""
     grouped: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
     for event in events:
         grouped.setdefault(_quote_image_semantic_veto_manifest_key(event), []).append(event)
@@ -2283,6 +2332,7 @@ def analyse(
     initial_pending_mention: Optional[Dict[str, Any]] = None,
     initial_pending_qt: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    """Aggregate parsed production records into digest metrics."""
     stats = Counter()
     events: List[Dict[str, Any]] = []
     errors: List[Dict[str, Any]] = []
@@ -3740,6 +3790,7 @@ def analyse(
 
 
 def md_table_row(cols: List[Any]) -> str:
+    """Return the Markdown table row."""
     def esc(x: Any) -> str:
         s = short(x, 240).replace("|", "\\|")
         return s
@@ -3895,6 +3946,7 @@ def _source_bits_for_state_config(st: Dict[str, Any], cfg: Dict[str, Any]) -> Li
     return bits
 
 def render_markdown(report: Dict[str, Any]) -> str:
+    """Render digest metrics as deterministic Markdown."""
     s = report["summary"]
     out: List[str] = []
     out.append("# MrsMThatcher log digest")
@@ -5320,6 +5372,7 @@ def validate_output_destinations(
 
 
 def main(argv: Optional[List[str]] = None) -> int:
+    """Run the command-line entry point."""
     ap = argparse.ArgumentParser(description="Summarise MrsMThatcher bot logs into a compact digest.")
     ap.add_argument(
         "logs",
@@ -5371,6 +5424,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 
 def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path) -> int:
+    """Run digest analysis, delivery, and resume-state persistence transactionally."""
     if args.logs:
         logs = resolve_explicit_logs(args.logs, project_dir)
     else:

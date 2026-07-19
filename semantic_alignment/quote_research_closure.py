@@ -1,3 +1,5 @@
+"""Audit unresolved quotation research and produce closure artefacts."""
+
 from __future__ import annotations
 
 import json
@@ -83,11 +85,13 @@ TRIAGE = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 @contextmanager
 def offline_only() -> Iterator[None]:
+    """Yield offline only values."""
     original = socket.create_connection
     socket.create_connection = lambda *args, **kwargs: (_ for _ in ()).throw(
         RuntimeError("network access is forbidden during corpus closure"))
@@ -194,6 +198,7 @@ def _related_families(records: list[dict[str, Any]], quote_id: str) -> list[str]
 
 
 def build_unresolved_dossier(run_dir: Path) -> dict[str, Any]:
+    """Build unresolved dossier."""
     manifest_value = read_json(run_dir / "corpus_manifest.json")
     records = manifest_value["records"]
     manifest = {row["quote_id"]: row for row in records}
@@ -300,6 +305,7 @@ def _triage_markdown(cases: list[dict[str, Any]]) -> str:
 
 
 def corpus_closure_audit(run_dir: Path, strict: bool = False) -> dict[str, Any]:
+    """Return the corpus closure audit."""
     corpus = read_json(run_dir / "corpus_manifest.json")
     records = corpus["records"]
     manifest = {row["quote_id"]: row for row in records}
@@ -369,6 +375,7 @@ def corpus_closure_audit(run_dir: Path, strict: bool = False) -> dict[str, Any]:
 
 
 def write_final_outputs(run_dir: Path, strict: bool = True) -> dict[str, Any]:
+    """Write final outputs."""
     with offline_only():
         dossier = build_unresolved_dossier(run_dir)
         cases = dossier["cases"]

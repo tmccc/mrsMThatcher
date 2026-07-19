@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse semantic meta critic artefacts."""
+
 from __future__ import annotations
 import argparse,json,statistics
 from collections import Counter
@@ -9,6 +11,7 @@ from semantic_alignment.meta_critic import PROVIDERS,analyse_case,policy_summary
 from semantic_alignment.disagreement import disagreement,evaluation,safeguarded_policies
 
 def main(argv=None):
+    """Run the command-line entry point."""
     ap=argparse.ArgumentParser(); ap.add_argument('--bakeoff-dir',type=Path,default=Path('semantic_alignment_research/provider_bakeoff_25_20260712')); ap.add_argument('--output-dir',type=Path,default=Path('semantic_alignment_research/meta_critic')); ap.add_argument('--weights',type=Path); args=ap.parse_args(argv)
     b=args.bakeoff_dir.resolve(); out=args.output_dir.resolve(); out.mkdir(parents=True,exist_ok=True); cases=json.load(open(b/'cases.json'))['items']; results={p:json.load(open(b/f'{p}_results.json'))['items'] for p in PROVIDERS}
     weight_data=json.load(open(args.weights)) if args.weights else None

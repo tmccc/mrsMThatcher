@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local scene grammar pilot review interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,6 +20,7 @@ from semantic_alignment.scene_grammar_pilot import blinded_candidates
 
 
 def serve(run: Path, host: str = "127.0.0.1", port: int = 8773) -> None:
+    """Serve the configured local interface."""
     if host not in {"127.0.0.1", "localhost"}:
         raise ValueError("reviewer must bind to loopback")
     manifest = json.loads((run / "validation_manifest.json").read_text())["items"]
@@ -135,6 +138,7 @@ button,a{{padding:10px}}@media(max-width:760px){{.grid{{grid-template-columns:1f
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--host", default="127.0.0.1")

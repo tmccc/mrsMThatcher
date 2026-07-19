@@ -230,10 +230,12 @@ Return only the requested JSON.
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def configure_logging(verbose: bool) -> None:
+    """Configure logging."""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,
@@ -242,6 +244,7 @@ def configure_logging(verbose: bool) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     parser = argparse.ArgumentParser(
         description="Analyse original images for editorial quote-pairing usefulness using xAI vision."
     )
@@ -325,6 +328,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def make_session() -> requests.Session:
+    """Create session."""
     api_key = os.environ.get("XAI_API_KEY")
     if not api_key:
         raise SystemExit("XAI_API_KEY is not set in the environment.")
@@ -338,6 +342,7 @@ def make_session() -> requests.Session:
 
 
 def response_text(payload: dict[str, Any]) -> str:
+    """Return the response text."""
     for item in payload.get("output", []):
         if isinstance(item, dict) and item.get("type") == "message":
             for content in item.get("content", []):
@@ -351,6 +356,7 @@ def response_text(payload: dict[str, Any]) -> str:
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -359,6 +365,7 @@ def sha256_file(path: Path) -> str:
 
 
 def data_uri(path: Path) -> str:
+    """Return the data uri."""
     suffix = path.suffix.lower()
     mime = {
         ".jpg": "image/jpeg",
@@ -374,6 +381,7 @@ def data_uri(path: Path) -> str:
 
 
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write a JSON document atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     with tmp.open("w", encoding="utf-8") as handle:
@@ -385,6 +393,7 @@ def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def load_output(path: Path) -> dict[str, Any]:
+    """Load output."""
     if not path.exists():
         return {
             "schema_version": 1,
@@ -418,6 +427,7 @@ def post_json_with_retries(
     max_retries: int,
     sleep_seconds: float,
 ) -> dict[str, Any]:
+    """Post JSON with retries."""
     last_error: Exception | None = None
 
     for attempt in range(1, max_retries + 1):
@@ -463,6 +473,7 @@ def structured_vision_call(
     max_retries: int,
     sleep_seconds: float,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the structured vision call."""
     payload = {
         "model": model,
         "input": [{
@@ -498,6 +509,7 @@ def structured_vision_call(
 
 
 def discover_images(args: argparse.Namespace) -> list[Path]:
+    """Discover images."""
     input_dir = Path(args.input_dir).expanduser().resolve()
     if not input_dir.is_dir():
         raise SystemExit(f"Input directory does not exist: {input_dir}")
@@ -537,6 +549,7 @@ def discover_images(args: argparse.Namespace) -> list[Path]:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parse_args()
     configure_logging(args.verbose)
 

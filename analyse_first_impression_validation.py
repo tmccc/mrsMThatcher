@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse first impression validation artefacts."""
+
 from __future__ import annotations
 import argparse,json
 from collections import Counter
@@ -13,12 +15,17 @@ SEMANTIC=ROOT/'semantic_alignment_research/provider_bakeoff_250_20260712_v1_vert
 OUTPUT=ROOT/'semantic_alignment_research/first_impression_validation_001'
 
 def parser():
+    """Build the command-line argument parser."""
     p=argparse.ArgumentParser();p.add_argument('--project-dir',type=Path,default=ROOT);p.add_argument('--run-dir',type=Path,default=RUN);p.add_argument('--semantic-dir',type=Path,default=SEMANTIC);p.add_argument('--output-dir',type=Path,default=OUTPUT);return p
 def source_manifest(run):
+    """Return the source manifest."""
     names=['validation_cases.json','human_reviews.json','image_first_impressions.json','quote_visual_intents.json','first_impression_alignment_results.json','pairwise_rankings.json','grok_first_impression_results.json','openai_first_impression_results.json','anthropic_first_impression_results.json','gemini_results.json']
     return {'schema_version':1,'analysis_kind':'first_impression_validation_manifest','source_run':str(run),'sources':{name:{'sha256':sha256_file(run/name),'bytes':(run/name).stat().st_size} for name in names if (run/name).is_file()}}
-def pct(v):return 'n/a' if v is None else f'{100*v:.1f}%'
+def pct(v):
+    """Return a percentage value."""
+    return 'n/a' if v is None else f'{100*v:.1f}%'
 def main(argv=None):
+    """Run the command-line entry point."""
     a=parser().parse_args(argv);project=a.project_dir.resolve();run=a.run_dir.resolve();semantic=a.semantic_dir.resolve();out=a.output_dir.resolve();result=analyse(run,project,semantic);out.mkdir(parents=True,exist_ok=True)
     atomic_write_json(out/'validation_manifest.json',source_manifest(run));atomic_write_json(out/'human_label_summary.json',result['human_summary']);atomic_write_text(out/'provider_validation.csv',csv_text(result['provider_validation']));atomic_write_text(out/'provider_consistency_issues.csv',csv_text(result['consistency_issues'],['case_id','provider','issue_type','severity','reason']));atomic_write_text(out/'hard_gate_thresholds.csv',csv_text(result['hard_thresholds']));atomic_write_text(out/'soft_penalty_results.csv',csv_text(result['soft_penalties']));atomic_write_text(out/'tone_value_analysis.csv',csv_text(result['tone_analysis']));atomic_write_text(out/'ordinary_case_false_replaces.csv',csv_text(result['false_replaces']));atomic_write_text(out/'known_bad_case_corrections.csv',csv_text(result['bad_corrections']));atomic_write_text(out/'pairwise_validation.csv',csv_text(result['pairwise'],['pair_id','model_preferred','human_preferred','agreement','preference_strength']));atomic_write_text(out/'strategy_comparison.csv',csv_text(result['strategies']))
     case_by_pair={(x['quote_hash'],x['image_basename']):cid for cid,x in result['case_map'].items()};everest_id=case_by_pair[(EVEREST_QUOTE_HASH,EVEREST_IMAGE)];free_id=next(cid for cid,x in result['case_map'].items() if x['inclusion_reason']=='forced_free_trade_indirect_case')

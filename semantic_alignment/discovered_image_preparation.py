@@ -70,6 +70,7 @@ The output must still conform exactly to the canonical image-analysis schema.
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -162,6 +163,7 @@ def _source_event_summary(record: dict[str, Any]) -> str:
 
 
 def build_source_grounded_metadata(research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Build source grounded metadata."""
     records = effective_production_ready_records(work_dir)
     full_manifest = read_json(research_dir / "candidate_manifest.json")
     full_by_id = {row["candidate_id"]: row for row in full_manifest.get("records") or []}
@@ -202,6 +204,7 @@ def build_source_grounded_metadata(research_dir: Path, work_dir: Path) -> dict[s
 
 
 def source_grounded_user_prompt(context: dict[str, Any]) -> str:
+    """Return the source grounded user prompt."""
     bounded = {
         key: context.get(key)
         for key in (
@@ -251,6 +254,7 @@ def normalise_source_grounded_analysis(analysis: dict[str, Any]) -> dict[str, An
 
 
 def apply_source_identity_overlay(analysis: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Apply source identity overlay."""
     corrected = json.loads(json.dumps(analysis))
     names = [str(value) for value in context.get("named_people") or [] if str(value).strip()]
     if not names:
@@ -293,6 +297,7 @@ def apply_source_identity_overlay(analysis: dict[str, Any], context: dict[str, A
 
 
 def append_jsonl(path: Path, value: dict[str, Any]) -> None:
+    """Append jsonl."""
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = (json.dumps(value, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
     fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600)
@@ -315,6 +320,7 @@ def _safe_files(path: Path) -> list[Path]:
 
 
 def production_hashes(project_dir: Path) -> dict[str, Any]:
+    """Return the production hashes."""
     records: list[dict[str, Any]] = []
     for relative in PRODUCTION_HASH_PATHS:
         root = project_dir / relative
@@ -333,6 +339,7 @@ def production_hashes(project_dir: Path) -> dict[str, Any]:
 
 
 def prepare_export(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Prepare export."""
     work_dir.mkdir(parents=True, exist_ok=True)
     before_path = work_dir / "production_hashes_before.json"
     current_hashes = production_hashes(project_dir)
@@ -392,6 +399,7 @@ def _comparison_records(project_dir: Path, baseline: dict[str, Any]) -> list[dic
 
 
 def duplicate_audit(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the duplicate audit."""
     records = effective_production_ready_records(work_dir)
     baseline = read_json(project_dir / "image_analysis.json")
     comparisons = _comparison_records(project_dir, baseline)
@@ -459,6 +467,7 @@ def duplicate_audit(project_dir: Path, research_dir: Path, work_dir: Path) -> di
 
 
 def filename_plan(project_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the filename plan."""
     records = effective_production_ready_records(work_dir)
     existing_names = {path.name.casefold() for path in (project_dir / "images").iterdir() if path.is_file()}
     baseline_names = {name.casefold() for name in read_json(project_dir / "image_analysis.json")["path_index"]}
@@ -508,6 +517,7 @@ def filename_plan(project_dir: Path, work_dir: Path) -> dict[str, Any]:
 
 
 def planned_filename_bounds(plan: dict[str, Any]) -> list[str]:
+    """Return the planned filename bounds."""
     records = plan.get("records") or []
     if not records:
         return []
@@ -522,6 +532,7 @@ def planned_filename_bounds(plan: dict[str, Any]) -> list[str]:
 
 
 def analysis_preflight(project_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the analysis preflight."""
     baseline = read_json(project_dir / "image_analysis.json")
     costs = []
     for item in baseline["items"].values():
@@ -560,6 +571,7 @@ def _fresh_analysis_db(project_dir: Path, work_dir: Path, model: str) -> dict[st
 
 
 def analyse_candidates(project_dir: Path, research_dir: Path, work_dir: Path, *, execute: bool, confirmed_cost: float | None) -> dict[str, Any]:
+    """Analyse candidates."""
     preflight = analysis_preflight(project_dir, work_dir)
     if not execute:
         return {"status": "dry_run", **preflight}
@@ -655,6 +667,7 @@ def analyse_candidates(project_dir: Path, research_dir: Path, work_dir: Path, *,
 
 
 def source_grounded_analysis_preflight(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the source grounded analysis preflight."""
     source_metadata = build_source_grounded_metadata(research_dir, work_dir)
     records = effective_production_ready_records(work_dir)
     baseline = read_json(project_dir / "image_analysis.json")
@@ -794,6 +807,7 @@ def _write_source_grounded_cost_ledger(work_dir: Path, db: dict[str, Any]) -> di
 
 
 def recover_source_grounded_raw(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Recover source grounded raw."""
     output = work_dir / "source_grounded_image_analysis.json"
     if not output.exists():
         return {"recovered_count": 0, "remaining_failures": 0}
@@ -895,6 +909,7 @@ def recover_source_grounded_raw(project_dir: Path, research_dir: Path, work_dir:
 
 
 def refresh_source_grounded_overlays(research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the refresh source grounded overlays."""
     output = work_dir / "source_grounded_image_analysis.json"
     if not output.exists():
         return {"updated_count": 0, "reason": "source-grounded analysis does not exist"}
@@ -927,6 +942,7 @@ def refresh_source_grounded_overlays(research_dir: Path, work_dir: Path) -> dict
 
 
 def audit_source_grounded_metadata(research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Audit source grounded metadata."""
     metadata = build_source_grounded_metadata(research_dir, work_dir)
     db = read_json(work_dir / "source_grounded_image_analysis.json")
     _write_source_grounded_cost_ledger(work_dir, db)
@@ -1019,6 +1035,7 @@ def analyse_source_grounded_candidates(
     execute: bool,
     confirmed_cost: float | None,
 ) -> dict[str, Any]:
+    """Analyse source grounded candidates."""
     preflight = source_grounded_analysis_preflight(project_dir, research_dir, work_dir)
     if not execute:
         return {"status": "dry_run", **preflight}
@@ -1229,6 +1246,7 @@ def _load_production_scorer() -> Any:
 
 
 def quote_matching_dry_run(project_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the quote matching dry run."""
     source_grounded_active = (work_dir / "source_grounded_image_analysis.json").exists()
     prior_matching = None
     prior_pair_ids: set[str] = set()
@@ -1392,6 +1410,7 @@ def review_source_records(work_dir: Path) -> dict[str, dict[str, Any]]:
 
 
 def pairing_review_state(research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the pairing review state."""
     source = {row["candidate_id"]: row for row in effective_production_ready_records(work_dir)}
     source_grounded = work_dir / "source_grounded_image_analysis.json"
     analysis = read_json(source_grounded if source_grounded.exists() else work_dir / "canonical_image_analysis.json")
@@ -1418,6 +1437,7 @@ def pairing_review_state(research_dir: Path, work_dir: Path) -> dict[str, Any]:
 
 
 def save_pairing_review(work_dir: Path, pair_id: str, decision: str, note: str) -> dict[str, Any]:
+    """Save pairing review."""
     if decision not in PAIRING_DECISIONS:
         raise ValueError("invalid pairing-review decision")
     valid_ids = {row["pair_id"] for row in _review_pairs(work_dir)}
@@ -1439,6 +1459,7 @@ def save_pairing_review(work_dir: Path, pair_id: str, decision: str, note: str) 
 
 
 def save_maybe_review(work_dir: Path, candidate_id: str, decision: str, note: str) -> dict[str, Any]:
+    """Save maybe review."""
     if decision not in MAYBE_DECISIONS:
         raise ValueError("invalid maybe-review decision")
     valid_ids = {row["candidate_id"] for row in read_json(work_dir / "maybe_manifest.json")["records"]}
@@ -1601,6 +1622,7 @@ MAYBE_HTML = """<!doctype html><html><head><meta charset="utf-8"><meta name="vie
 
 
 def make_review_handler(project_dir: Path, research_dir: Path, work_dir: Path) -> type[BaseHTTPRequestHandler]:
+    """Create review handler."""
     source = review_source_records(work_dir)
     maybe = {row["candidate_id"]: row for row in read_json(work_dir / "maybe_manifest.json")["records"]}
 
@@ -1646,6 +1668,7 @@ def make_review_handler(project_dir: Path, research_dir: Path, work_dir: Path) -
 
 
 def serve_review(project_dir: Path, research_dir: Path, work_dir: Path, host: str, port: int) -> None:
+    """Serve review."""
     server = ThreadingHTTPServer((host, port), make_review_handler(project_dir, research_dir, work_dir))
     print(f"Pairing review: http://{host}:{port}")
     print(f"Maybe second pass: http://{host}:{port}/maybe")
@@ -1654,6 +1677,7 @@ def serve_review(project_dir: Path, research_dir: Path, work_dir: Path, host: st
 
 
 def verify_production_unchanged(project_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Verify production unchanged."""
     before = read_json(work_dir / "production_hashes_before.json")
     after = production_hashes(project_dir)
     value = {"schema_version": 1, "unchanged": before["aggregate_sha256"] == after["aggregate_sha256"], "before": before, "after": after, "verified_at": utc_now()}
@@ -1664,6 +1688,7 @@ def verify_production_unchanged(project_dir: Path, work_dir: Path) -> dict[str, 
 
 
 def final_report(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[str, Any]:
+    """Return the final report."""
     verification = verify_production_unchanged(project_dir, work_dir)
     production = effective_production_ready_records(work_dir)
     original_production_count = len(read_json(work_dir / "production_ready_manifest.json")["records"])
@@ -1787,6 +1812,7 @@ def final_report(project_dir: Path, research_dir: Path, work_dir: Path) -> dict[
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=(
         "prepare", "analysis-preflight", "analyse", "build-source-metadata",
@@ -1805,6 +1831,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     project_dir = args.project_dir.resolve()
     research_dir = (args.research_dir if args.research_dir.is_absolute() else project_dir / args.research_dir).resolve()

@@ -1,3 +1,5 @@
+"""Reconstruct and validate independent pairwise correction cases."""
+
 from __future__ import annotations
 
 import hashlib,json,re
@@ -12,6 +14,7 @@ MIN_PRODUCTION_SCORE=40.0
 MIN_TOPIC_SCORE=25.0
 
 def load_trace_records(root:Path)->list[dict[str,Any]]:
+    """Load trace records."""
     rows=[]
     for path in sorted(root.glob('runs/run_*/selections.jsonl')):
         with path.open(encoding='utf-8') as handle:
@@ -21,12 +24,14 @@ def load_trace_records(root:Path)->list[dict[str,Any]]:
     return rows
 
 def trace_index(rows:list[dict[str,Any]])->dict[tuple[str,str],list[dict[str,Any]]]:
+    """Return the trace index."""
     result=defaultdict(list)
     for row in rows:
         result[(row.get('quote_hash'),row.get('production_image') or row.get('winner'))].append(row)
     return result
 
 def eligible_trace_runner_up(trace:dict[str,Any],current:str,*,active:set[str],first_impressions:set[str],editorial:dict[str,Any],hashes:dict[str,str])->tuple[dict[str,Any]|None,str]:
+    """Return the eligible trace runner up."""
     current_hash=hashes.get(current)
     selector_eligible=[item for item in trace.get('candidate_detail',[]) if item.get('identity_shadow_score','eligible') is not None]
     if not selector_eligible or selector_eligible[0].get('basename')!=current:
@@ -44,6 +49,7 @@ def eligible_trace_runner_up(trace:dict[str,Any],current:str,*,active:set[str],f
     return {'image_basename':name,'source':'real_production_runner_up','production_score':score,'topic_score':topics,'editorial_quality':quality,'trace_file':trace['trace_file'],'post_index':trace.get('post_index')},'highest-scoring eligible generated runner-up in exact quote/current-winner trace'
 
 def validate_pilot_readiness(items:list[dict[str,Any]],blind:dict[str,Any],*,minimum:int=20)->dict[str,Any]:
+    """Validate pilot readiness."""
     allowed={'exact_production_runner_up','exact_simulator_runner_up','cached_identical_state_runner_up','genuinely_eligible_soft_light_alternative'}
     issues=[]
     for row in items:
@@ -56,6 +62,7 @@ def validate_pilot_readiness(items:list[dict[str,Any]],blind:dict[str,Any],*,min
             'status':'ready' if credible>=minimum and not issues else 'challenger construction still inadequate'}
 
 def reconstruct_pairs(manifest:list[dict[str,Any]],blind:dict[str,Any],traces:dict[tuple[str,str],list[dict[str,Any]]],*,active:set[str],first_impressions:set[str],editorial:dict[str,Any],hashes:dict[str,str])->list[dict[str,Any]]:
+    """Return the reconstruct pairs."""
     rows=[]
     for case in manifest:
         cid=case['case_id'];private=blind[cid];current=private['current_winner'];matches=traces.get((case['quote_hash'],current),[])
@@ -67,6 +74,7 @@ def reconstruct_pairs(manifest:list[dict[str,Any]],blind:dict[str,Any],traces:di
     return rows
 
 def build_independent_pilot(traces:list[dict[str,Any]],original_pairs:set[tuple[str,str,str]],*,active:set[str],first_impressions:set[str],editorial:dict[str,Any],hashes:dict[str,str],quote_intents:set[str],limit:int=25)->dict[str,Any]:
+    """Build independent pilot."""
     items=[];used=set()
     for trace in sorted(traces,key=lambda x:(x.get('quote_hash',''),x.get('post_index',0),x['trace_file'])):
         qhash=trace.get('quote_hash');current=trace.get('production_image') or trace.get('winner')
@@ -82,9 +90,11 @@ def build_independent_pilot(traces:list[dict[str,Any]],original_pairs:set[tuple[
     return {'schema_version':1,'analysis_kind':'improved_pairwise_pilot_manifest','case_count':len(items),'items':items,'not_executed':True,'quality_floors':{'editorial_quality':MIN_EDITORIAL_QUALITY,'production_score':MIN_PRODUCTION_SCORE,'topic_component':MIN_TOPIC_SCORE}}
 
 def validate_reconciliation(rows:list[dict[str,Any]])->None:
+    """Validate reconciliation."""
     if not rows or any(row.get('computed_value')!=row.get('rendered_value') or row.get('match') is not True for row in rows):raise ValueError('report reconciliation failed')
 
 def validate_rendered_report(text:str)->None:
+    """Validate rendered report."""
     assert_report_rendered(text)
     suspicious=[r"metrics\[",r"costs\[",r"\$\{",r"\{model_",r"\{exact\}"]
     found=[p for p in suspicious if re.search(p,text)]

@@ -92,6 +92,7 @@ class CollectorAlreadyRunning(AnalyticsError):
 
 @dataclass(frozen=True)
 class AnalyticsPaths:
+    """Represent analytics paths data."""
     project_dir: Path
     runtime_dir: Path
     database: Path
@@ -106,6 +107,7 @@ class AnalyticsPaths:
 
     @classmethod
     def for_project(cls, project_dir: Path) -> "AnalyticsPaths":
+        """Return the for project."""
         project = project_dir.expanduser().resolve()
         runtime = project / "engagement_analytics"
         return cls(
@@ -125,6 +127,7 @@ class AnalyticsPaths:
 
 @dataclass
 class ReadResult:
+    """Represent read result data."""
     status_code: int
     body: dict[str, Any]
     headers: dict[str, str]
@@ -134,10 +137,12 @@ class ReadResult:
 
 
 def utc_now() -> datetime:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc)
 
 
 def iso_utc(value: datetime | None = None) -> str:
+    """Return the iso UTC."""
     value = value or utc_now()
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
@@ -145,6 +150,7 @@ def iso_utc(value: datetime | None = None) -> str:
 
 
 def parse_datetime(value: str) -> datetime:
+    """Parse datetime."""
     text = str(value or "").strip()
     if not text:
         raise ValueError("timestamp is empty")
@@ -155,11 +161,13 @@ def parse_datetime(value: str) -> datetime:
 
 
 def quote_text_hash(text: str) -> str:
+    """Return whether quote text hash."""
     normalised = re.sub(r"\s+", " ", str(text or "").strip())
     return hashlib.sha256(normalised.encode("utf-8")).hexdigest()
 
 
 def snowflake_datetime(post_id: str) -> datetime:
+    """Return the snowflake datetime."""
     if not POST_ID_RE.fullmatch(str(post_id or "")):
         raise ValueError(f"invalid X post ID: {post_id!r}")
     milliseconds = (int(post_id) >> 22) + X_SNOWFLAKE_EPOCH_MS
@@ -167,6 +175,7 @@ def snowflake_datetime(post_id: str) -> datetime:
 
 
 def atomic_write_bytes(path: Path, content: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -189,11 +198,13 @@ def atomic_write_bytes(path: Path, content: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write JSON atomically and optionally durably."""
     content = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
     atomic_write_bytes(path, content)
 
 
 def atomic_write_text(path: Path, value: str) -> None:
+    """Write text atomically."""
     atomic_write_bytes(path, value.encode("utf-8"))
 
 
@@ -207,6 +218,7 @@ def _runtime_path(paths: AnalyticsPaths, path: Path) -> Path:
 
 @contextmanager
 def collector_lock(paths: AnalyticsPaths) -> Iterator[None]:
+    """Yield collector lock values."""
     _runtime_path(paths, paths.lock)
     paths.runtime_dir.mkdir(parents=True, exist_ok=True)
     handle = paths.lock.open("a+", encoding="utf-8")
@@ -241,6 +253,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
 
 
 def load_config(paths: AnalyticsPaths) -> dict[str, Any]:
+    """Load config."""
     config = dict(DEFAULT_CONFIG)
     if paths.config.exists():
         loaded = json.loads(paths.config.read_text(encoding="utf-8"))
@@ -277,6 +290,7 @@ def load_config(paths: AnalyticsPaths) -> dict[str, Any]:
 
 
 def configure_logging(paths: AnalyticsPaths, *, file_logging: bool) -> None:
+    """Configure logging."""
     LOG.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s %(levelname)-8s %(message)s")
     if not any(getattr(handler, "_mrs_engagement_console", False) for handler in LOG.handlers):
@@ -469,6 +483,7 @@ END;
 
 
 def connect_database(paths: AnalyticsPaths, *, readonly: bool = False, create: bool = False) -> sqlite3.Connection:
+    """Open the isolated engagement SQLite database with required pragmas."""
     if readonly:
         if not paths.database.exists():
             raise FileNotFoundError(paths.database)
@@ -489,6 +504,7 @@ def connect_database(paths: AnalyticsPaths, *, readonly: bool = False, create: b
 
 
 def initialise_database(paths: AnalyticsPaths) -> dict[str, Any]:
+    """Create or migrate the engagement analytics schema."""
     for path in (paths.runtime_dir, paths.raw_responses, paths.exports, paths.reports):
         _runtime_path(paths, path)
         path.mkdir(parents=True, exist_ok=True)
@@ -518,6 +534,7 @@ def initialise_database(paths: AnalyticsPaths) -> dict[str, Any]:
 
 
 def state_value(connection: sqlite3.Connection, key: str, default: Any = None) -> Any:
+    """Return the state value."""
     row = connection.execute(
         "SELECT value_json FROM account_or_capability_state WHERE key = ?", (key,)
     ).fetchone()
@@ -530,6 +547,7 @@ def state_value(connection: sqlite3.Connection, key: str, default: Any = None) -
 
 
 def set_state_value(connection: sqlite3.Connection, key: str, value: Any, *, now: datetime | None = None) -> None:
+    """Set state value."""
     connection.execute(
         """INSERT INTO account_or_capability_state(key, value_json, updated_at)
            VALUES (?, ?, ?)
@@ -539,6 +557,7 @@ def set_state_value(connection: sqlite3.Connection, key: str, value: Any, *, now
 
 
 def sync_state_file(paths: AnalyticsPaths, connection: sqlite3.Connection) -> None:
+    """Synchronise state file."""
     existing = _json_file(paths.state, {})
     state = dict(existing) if isinstance(existing, dict) else {}
     state.update({
@@ -1061,6 +1080,7 @@ def _pair_record(connection: sqlite3.Connection, pair_id: int) -> dict[str, Any]
 
 
 def apply_discovery(connection: sqlite3.Connection, pairs: Sequence[dict[str, Any]], *, now: datetime | None = None) -> dict[str, int]:
+    """Merge discovered post identities while preserving conflict detection."""
     now_text = iso_utc(now)
     inserted = updated = unchanged = 0
     with connection:
@@ -1161,6 +1181,7 @@ def _safe_header_map(headers: Any) -> dict[str, str]:
 
 
 def sanitise_response(value: Any) -> Any:
+    """Sanitise response."""
     if isinstance(value, dict):
         return {
             str(key): ("[REDACTED]" if SECRET_KEY_RE.search(str(key)) else sanitise_response(item))
@@ -1185,6 +1206,7 @@ class XReadClient:
         session: Any = requests,
         env: dict[str, str] | None = None,
     ) -> None:
+        """Initialise the x read client."""
         env = env or os.environ
         credentials = (
             env.get("X_CONSUMER_KEY", ""),
@@ -1200,6 +1222,7 @@ class XReadClient:
         self.auth = OAuth1(*credentials)
 
     def lookup_posts(self, post_ids: Sequence[str]) -> ReadResult:
+        """Return the lookup posts."""
         ids = [str(post_id) for post_id in post_ids]
         if not ids or len(ids) > 100 or any(not POST_ID_RE.fullmatch(post_id) for post_id in ids):
             raise AnalyticsError("lookup_posts requires from 1 to 100 valid post IDs")
@@ -1239,6 +1262,7 @@ def write_raw_response(
     *,
     collected_at: datetime,
 ) -> tuple[str, str]:
+    """Write raw response."""
     record = sanitise_response({
         "schema_version": 1,
         "collector_version": COLLECTOR_VERSION,
@@ -1272,6 +1296,7 @@ def _metric_integer(value: Any) -> int | None:
 
 
 def extract_metrics(post: dict[str, Any]) -> tuple[dict[str, int | None], dict[str, str], dict[str, Any]]:
+    """Extract metrics."""
     public = post.get("public_metrics") if isinstance(post.get("public_metrics"), dict) else {}
     non_public = post.get("non_public_metrics") if isinstance(post.get("non_public_metrics"), dict) else {}
     organic = post.get("organic_metrics") if isinstance(post.get("organic_metrics"), dict) else {}
@@ -1314,6 +1339,7 @@ def _rate(numerator: int | None, denominator: int | None) -> float | None:
 
 
 def derive_metrics(metrics: dict[str, int | None]) -> dict[str, Any]:
+    """Derive metrics."""
     impressions = metrics.get("impressions")
     engagement_count = metrics.get("provider_total_engagements")
     basis = "provider_total" if engagement_count is not None else None
@@ -1464,6 +1490,7 @@ def due_snapshot_plan(
     from_date: datetime | None = None,
     to_date: datetime | None = None,
 ) -> list[dict[str, Any]]:
+    """Return the due snapshot plan."""
     now = (now or utc_now()).astimezone(timezone.utc)
     clauses = ["s.status = 'pending'", "s.due_at <= ?"]
     params: list[Any] = [iso_utc(now)]
@@ -1667,6 +1694,7 @@ def collect_due_snapshots(
     from_date: datetime | None = None,
     to_date: datetime | None = None,
 ) -> dict[str, Any]:
+    """Collect due read-only engagement snapshots within the request budget."""
     now = (now or utc_now()).astimezone(timezone.utc)
     if type(max_api_requests) is not int or max_api_requests < 1:
         raise AnalyticsError("max_api_requests must be a positive integer")
@@ -1888,6 +1916,7 @@ def collect_due_snapshots(
 
 
 def database_status(paths: AnalyticsPaths, *, now: datetime | None = None) -> dict[str, Any]:
+    """Return the database status."""
     now = (now or utc_now()).astimezone(timezone.utc)
     if not paths.database.exists():
         return {
@@ -2006,6 +2035,7 @@ def report_summary(
     now: datetime | None = None,
     minimum_sample: int = MIN_REPORT_SAMPLE,
 ) -> dict[str, Any]:
+    """Report summary."""
     now = (now or utc_now()).astimezone(timezone.utc)
     params: list[Any] = []
     where = ""
@@ -2150,6 +2180,7 @@ def _format_rate(value: Any) -> str:
 
 
 def render_report(summary: dict[str, Any]) -> str:
+    """Render report."""
     window = "all observed data" if summary["window_days"] is None else f"trailing {summary['window_days']} days"
     lines = [
         "# Historical context engagement analytics",
@@ -2218,6 +2249,7 @@ def render_report(summary: dict[str, Any]) -> str:
 
 
 def generate_reports(paths: AnalyticsPaths, *, window_days: int | None = None) -> dict[str, str]:
+    """Generate bounded engagement reports from local analytics data."""
     windows = [window_days] if window_days is not None else [7, 28, 90, None]
     written: dict[str, str] = {}
     with connect_database(paths, readonly=True) as connection:
@@ -2233,6 +2265,7 @@ def generate_reports(paths: AnalyticsPaths, *, window_days: int | None = None) -
 
 
 def export_data(paths: AnalyticsPaths, formats: Sequence[str]) -> dict[str, str]:
+    """Export engagement data deterministically without changing production state."""
     allowed = {"json", "csv", "markdown"}
     requested = {value.strip().lower() for value in formats if value.strip()}
     if not requested or not requested <= allowed:
@@ -2317,6 +2350,7 @@ def _parse_cli_datetime(value: str | None) -> datetime | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -2372,6 +2406,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     paths = AnalyticsPaths.for_project(args.project_dir)
     file_logging = (

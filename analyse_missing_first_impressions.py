@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse missing first impressions artefacts."""
+
 from __future__ import annotations
 
 import argparse,json,os
@@ -16,6 +18,7 @@ ALLOWED={
  'tg_d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c.png'}
 
 def main():
+ """Run the command-line entry point."""
  p=argparse.ArgumentParser();p.add_argument('--execute-vision',action='store_true');p.add_argument('--confirm-cost-limit-usd',type=float);p.add_argument('--resume',action='store_true');a=p.parse_args()
  inventory={x['image_basename']:x for x in generated_image_inventory(ROOT)}
  if set(ALLOWED)-set(inventory):raise SystemExit('one or more whitelisted images are not active')

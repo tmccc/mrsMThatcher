@@ -108,6 +108,7 @@ STRICT_TRANSITIONS = {"enemy_to_friend", "opponent_to_partner", "conflict_to_pea
 
 
 class RemediationError(RuntimeError):
+    """Raised when metadata remediation violates a safety invariant."""
     pass
 
 
@@ -117,6 +118,7 @@ class MultimodalPrompt(str):
     def __new__(
         cls, text: str, image_path: Path, image_hash: str, *, extra_input_tokens: int = 4096,
     ) -> "MultimodalPrompt":
+        """Create a multimodal prompt instance."""
         value = str.__new__(cls, text)
         suffix = image_path.suffix.casefold()
         mime = "image/png" if suffix == ".png" else "image/webp" if suffix == ".webp" else "image/jpeg"
@@ -130,27 +132,33 @@ class MultimodalPrompt(str):
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_bytes(value: Any) -> bytes:
+    """Return the canonical bytes."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
 
 
 def digest(value: Any) -> str:
+    """Return the digest."""
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
 def text_digest(value: str) -> str:
+    """Return the text digest."""
     return hashlib.sha256(value.encode()).hexdigest()
 
 
 def clean(value: Any, maximum: int = 1200) -> str:
+    """Return the clean."""
     result = " ".join(html.unescape(str(value or "")).split())
     return result if len(result) <= maximum else result[: maximum - 1].rstrip() + "…"
 
 
 def atomic_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
+    """Perform the atomic jsonl operation."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with temp.open("w", encoding="utf-8") as handle:
@@ -162,6 +170,7 @@ def atomic_jsonl(path: Path, records: Iterable[dict[str, Any]]) -> None:
 
 
 def jsonl(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield jsonl values."""
     if not path.is_file():
         return
     with path.open(encoding="utf-8") as handle:
@@ -171,6 +180,7 @@ def jsonl(path: Path) -> Iterator[dict[str, Any]]:
 
 
 def stable_identity(path: Path, attempts: int = 8) -> dict[str, Any]:
+    """Return the stable identity."""
     for _ in range(attempts):
         before = path.stat()
         sha = sha256_file(path)
@@ -185,6 +195,7 @@ def stable_identity(path: Path, attempts: int = 8) -> dict[str, Any]:
 
 
 def source_snapshot(run_dir: Path) -> dict[str, Any]:
+    """Return the source snapshot."""
     rows = {}
     for key, path in SOURCE_FILES.items():
         if not path.is_file():
@@ -208,6 +219,7 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
 
 @contextmanager
 def offline_network_guard() -> Iterator[None]:
+    """Yield offline network guard values."""
     original_socket = socket.socket
     original_getaddrinfo = socket.getaddrinfo
 
@@ -234,6 +246,7 @@ def offline_network_guard() -> Iterator[None]:
 
 
 def load_packets() -> dict[str, dict[str, Any]]:
+    """Load packets."""
     raw = read_json(RESEARCH_DIR / "research_packets.json")
     items = raw.get("items") or {}
     if len(items) != EXPECTED_QUOTES or len(set(items)) != EXPECTED_QUOTES:
@@ -249,6 +262,7 @@ def load_packets() -> dict[str, dict[str, Any]]:
 
 
 def load_images_with_corrected_relationships() -> list[dict[str, Any]]:
+    """Load images with corrected relationships."""
     rows = copy.deepcopy(read_json(V2_DIR / "attested_image_corpus_manifest.json")["records"])
     if len(rows) != EXPECTED_IMAGES or len({row["image_sha256"] for row in rows}) != EXPECTED_IMAGES:
         raise RemediationError("authorised historical image corpus differs from 91 unique images")
@@ -270,6 +284,7 @@ def _global_safe_quotes() -> tuple[set[str], set[str]]:
 
 
 def aggregate_simulator(harness_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Return the aggregate simulator."""
     db_path = harness_dir / "simulation.sqlite3"
     if not db_path.is_file():
         raise RemediationError(f"harness database missing: {db_path}")
@@ -349,6 +364,7 @@ def _meminfo() -> dict[str, int]:
 
 
 def local_model_preflight(run_dir: Path) -> dict[str, Any]:
+    """Return the local model preflight."""
     mem = _meminfo()
     disk_probe = LOCAL_CACHE.parent
     while not disk_probe.exists() and disk_probe != disk_probe.parent:
@@ -411,6 +427,7 @@ def field_value(
     value: Any, generated_by: str, evidence_paths: Sequence[str], confidence: str,
     *, source_grounding: bool = False, validated: bool = True,
 ) -> dict[str, Any]:
+    """Return the field value."""
     return {
         "value": value, "generated_by": generated_by, "model_version": "",
         "prompt_version": "deterministic-v3-contract-normalisation-001",
@@ -421,6 +438,7 @@ def field_value(
 
 
 def explicit_entity(entity: str, quote_text: str, verified_text: str) -> bool:
+    """Return the explicit entity."""
     text = f"{quote_text} {verified_text}".casefold()
     key = clean(entity, 200).casefold()
     if not key:
@@ -441,6 +459,7 @@ def explicit_entity(entity: str, quote_text: str, verified_text: str) -> bool:
 
 @lru_cache(maxsize=1)
 def source_grounded_secondary_people() -> frozenset[str]:
+    """Return the source grounded secondary people."""
     return frozenset(
         person
         for image in load_images_with_corrected_relationships()
@@ -450,6 +469,7 @@ def source_grounded_secondary_people() -> frozenset[str]:
 
 
 def explicit_visual_event(quote_text: str) -> str | None:
+    """Return the explicit visual event."""
     for pattern, label in (
         (r"\bFalklands\b", "Falklands military operation"),
         (r"\bBerlin Wall\b", "fall of the Berlin Wall"),
@@ -462,6 +482,7 @@ def explicit_visual_event(quote_text: str) -> str | None:
 
 
 def speaker_attribution_status(packet: dict[str, Any]) -> tuple[str, str]:
+    """Return the speaker attribution status."""
     speaker = clean(packet.get("speaker"), 300)
     if packet_is_attributed_to_margaret_thatcher(packet):
         return speaker, "confirmed_thatcher"
@@ -472,6 +493,7 @@ def speaker_attribution_status(packet: dict[str, Any]) -> tuple[str, str]:
 
 
 def quote_contract_v3(packet: dict[str, Any], old: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return the quote contract v3."""
     quote_id = packet["quote_id"]
     defects = []
     canonical_speaker, attribution_status = speaker_attribution_status(packet)
@@ -570,6 +592,7 @@ def quote_contract_v3(packet: dict[str, Any], old: dict[str, Any]) -> tuple[dict
 
 
 def people_minimum(visual: dict[str, Any]) -> int:
+    """Return the people minimum."""
     value = visual.get("people_count_minimum")
     if isinstance(value, int):
         return value
@@ -582,6 +605,7 @@ def people_minimum(visual: dict[str, Any]) -> int:
 
 
 def image_contract_v3(image: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Return the image contract v3."""
     defects = []
     if "Margaret Thatcher" not in image.get("named_people", []):
         defects.append({"image_id": image["image_id"], "code": "image_primary_identity_missing"})
@@ -638,6 +662,7 @@ def image_contract_v3(image: dict[str, Any]) -> tuple[dict[str, Any], list[dict[
 
 
 def lint_contracts(quotes: dict[str, dict[str, Any]], images: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Return the lint contracts."""
     errors = []
     for quote_id, row in quotes.items():
         if row["quote_id"] != quote_id or row["contract_version"] != QUOTE_CONTRACT_VERSION:
@@ -674,6 +699,7 @@ def lint_contracts(quotes: dict[str, dict[str, Any]], images: dict[str, dict[str
 
 
 def build_contracts(run_dir: Path) -> dict[str, Any]:
+    """Build contracts."""
     packets = load_packets()
     old_quotes = read_json(V2_DIR / "semantic_contracts_v2.json")["records"]
     if set(old_quotes) != set(packets):
@@ -713,6 +739,7 @@ def build_contracts(run_dir: Path) -> dict[str, Any]:
 
 
 def load_contracts(run_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Load contracts."""
     quotes = {row["quote_id"]: row for row in jsonl(run_dir / "quote_contracts_v3.jsonl")}
     images = {row["image_hash"]: row for row in jsonl(run_dir / "image_contracts_v3.jsonl")}
     if len(quotes) != EXPECTED_QUOTES or len(images) != EXPECTED_IMAGES:
@@ -721,10 +748,12 @@ def load_contracts(run_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str, 
 
 
 def pair_id(quote_id: str, image_hash: str) -> str:
+    """Return the pair ID."""
     return digest({"quote_id": quote_id, "image_hash": image_hash, "pair_schema": PAIR_SCHEMA_VERSION})
 
 
 def affirmative_contradictions(quote: dict[str, Any], image: dict[str, Any]) -> list[dict[str, str]]:
+    """Return the affirmative contradictions."""
     reasons = []
     required = quote["visually_required_relationships"]
     relationships = [row.get("relationship") for row in image["documented_relationships"]]
@@ -751,6 +780,7 @@ def affirmative_contradictions(quote: dict[str, Any], image: dict[str, Any]) -> 
 
 
 def missing_required_evidence(quote: dict[str, Any], image: dict[str, Any]) -> list[str]:
+    """Return the missing required evidence."""
     missing = []
     if quote["relationship_evidence_required"]:
         relevant = [row for row in image["documented_relationships"] if row.get("relationship") != "unknown"]
@@ -766,6 +796,7 @@ def missing_required_evidence(quote: dict[str, Any], image: dict[str, Any]) -> l
 
 
 def deterministic_pair_decision(quote: dict[str, Any], image: dict[str, Any]) -> dict[str, Any]:
+    """Return the deterministic pair decision."""
     if quote.get("thatcher_attribution_status") == "contradicted_non_thatcher":
         return {
             "decision": "veto", "basis": "deterministic_affirmative_contradiction",
@@ -789,6 +820,7 @@ def deterministic_pair_decision(quote: dict[str, Any], image: dict[str, Any]) ->
 
 
 def corrected_old_pair_rows() -> tuple[dict[str, dict[str, Any]], dict[tuple[str, str], str]]:
+    """Return the corrected old pair rows."""
     decisions = read_json(V2_DIR / "pair_judgements_v2_postrun_corrected.json")["records"]
     candidates = read_json(V2_DIR / "production_top8_pair_candidates_v2_postrun_corrected.json")["records"]
     by_id = {row["image_id"]: row["image_sha256"] for row in load_images_with_corrected_relationships()}
@@ -802,6 +834,7 @@ def corrected_old_pair_rows() -> tuple[dict[str, dict[str, Any]], dict[tuple[str
 
 
 def rejudge_offline(run_dir: Path) -> dict[str, Any]:
+    """Return the rejudge offline."""
     quotes, images = load_contracts(run_dir)
     aggregation = read_json(run_dir / "simulator_pair_aggregation.json")
     old_decisions, old_pair_ids = corrected_old_pair_rows()
@@ -904,6 +937,7 @@ def rejudge_offline(run_dir: Path) -> dict[str, Any]:
 
 
 def model_qualification_skipped(run_dir: Path) -> dict[str, Any]:
+    """Return the model qualification skipped."""
     preflight = read_json(run_dir / "local_model_manifest.json")
     if preflight.get("safe_to_download_and_run"):
         raise RemediationError("local model is eligible; qualification implementation requires a prepared pinned model")
@@ -1074,6 +1108,7 @@ def _validator_inputs(
 def adjudication_prompt(
     image: dict[str, Any], pairs: Sequence[dict[str, Any]], *, second_pass: bool,
 ) -> str:
+    """Return the adjudication prompt."""
     version = SECOND_PROMPT_VERSION if second_pass else FIRST_PROMPT_VERSION
     if second_pass:
         task = """Independently attempt to falsify each proposed quotation/image pairing. You have not been
@@ -1128,6 +1163,7 @@ def group_residual_requests(
     run_dir: Path, rows: Sequence[dict[str, Any]], *, second_pass: bool,
     batch_size: int = PAIR_BATCH_SIZE,
 ) -> list[dict[str, Any]]:
+    """Return the group residual requests."""
     quotes, images = load_contracts(run_dir)
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -1186,6 +1222,7 @@ def _response_text(raw: dict[str, Any]) -> str:
 
 
 def extract_complete_record_objects(text: str) -> list[dict[str, Any]]:
+    """Extract complete record objects."""
     marker = text.find('"records"')
     start = text.find("[", marker) if marker >= 0 else -1
     if start < 0:
@@ -1313,6 +1350,7 @@ def _ai_eligible_residuals(run_dir: Path) -> tuple[list[dict[str, Any]], list[di
 
 
 def pilot_rows(run_dir: Path, eligible: Sequence[dict[str, Any]]) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Return the pilot rows."""
     quotes, images = load_contracts(run_dir)
     relation_quote = next(
         quote_id for quote_id, row in quotes.items()
@@ -1348,6 +1386,7 @@ def verify_pilot(
     run_dir: Path, items: Sequence[dict[str, Any]], results: dict[str, dict[str, Any]],
     expectations: dict[str, str],
 ) -> dict[str, Any]:
+    """Verify pilot."""
     rows = _flatten_judgements(items, results)
     failures = []
     for pair_id_value, expectation in expectations.items():
@@ -1374,6 +1413,7 @@ def verify_pilot(
 
 
 def ai_preflight(run_dir: Path, hard_limit: float) -> dict[str, Any]:
+    """Return the ai preflight."""
     if hard_limit != HARD_SPEND_LIMIT_USD:
         raise RemediationError("exact US$100 hard spend limit confirmation is required")
     eligible, source_gaps = _ai_eligible_residuals(run_dir)
@@ -1447,6 +1487,7 @@ def ai_preflight(run_dir: Path, hard_limit: float) -> dict[str, Any]:
 
 
 def initialise_remediation_ledger(run_dir: Path) -> CostLedger:
+    """Initialise remediation ledger."""
     path = run_dir / "cost_ledger.json"
     if not path.exists():
         atomic_write_json(path, {
@@ -1570,6 +1611,7 @@ def normalise_judgement_rows(
     rows: dict[str, dict[str, Any]],
     eligible: Sequence[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
+    """Normalise judgement rows."""
     quotes, images = load_contracts(run_dir)
     source = read_json(run_dir / "offline_pair_decisions.json")["records"]
     eligible_by_id = {row["pair_id"]: row for row in eligible}
@@ -1624,6 +1666,7 @@ def compile_candidate_manifest(
     first: dict[str, dict[str, Any]] | None = None,
     second: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """Compile candidate manifest."""
     source = read_json(run_dir / "offline_pair_decisions.json")
     records = copy.deepcopy(source["records"])
     old_decisions, _old_pair_ids = corrected_old_pair_rows()
@@ -1737,6 +1780,7 @@ def enhance_and_judge(
     run_dir: Path, *, execute_ai: bool, hard_limit: float, vertex_fallback: bool,
     batch: bool, resume: bool,
 ) -> dict[str, Any]:
+    """Return the enhance and judge."""
     if not execute_ai or hard_limit != HARD_SPEND_LIMIT_USD or not batch or not resume:
         raise RemediationError("exact --execute-ai, US$100, --batch and --resume flags are required")
     preflight = read_json(run_dir / "api_cost_preflight.json")
@@ -1834,6 +1878,7 @@ def enhance_and_judge(
 
 
 def audit(project_dir: Path, harness_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Audit the configured artefacts."""
     if project_dir.resolve() != ROOT:
         raise RemediationError("project directory must be the current repository")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1857,6 +1902,7 @@ def audit(project_dir: Path, harness_dir: Path, run_dir: Path) -> dict[str, Any]
 
 
 def prepare_local_model(run_dir: Path, execute: bool, confirmation: str) -> dict[str, Any]:
+    """Prepare local model."""
     preflight = read_json(run_dir / "local_model_manifest.json")
     if not execute or confirmation != OFFICIAL_MODEL_REPOSITORY:
         raise RemediationError("exact model confirmation and --execute-download are required")
@@ -1866,6 +1912,7 @@ def prepare_local_model(run_dir: Path, execute: bool, confirmation: str) -> dict
 
 
 def status(run_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     def available(name: str) -> bool:
         return (run_dir / name).is_file()
     return {
@@ -1880,6 +1927,7 @@ def status(run_dir: Path) -> dict[str, Any]:
 
 
 def percentile(values: Sequence[float], fraction: float) -> float | None:
+    """Return the percentile."""
     if not values:
         return None
     ordered = sorted(float(value) for value in values)
@@ -2150,6 +2198,7 @@ def _generated_profiles(run_dir: Path) -> dict[str, Any]:
 
 
 def validate_run(run_dir: Path, *, rerun_harness: bool, resume: bool) -> dict[str, Any]:
+    """Validate run."""
     if not rerun_harness or not resume:
         raise RemediationError("validate requires --rerun-harness and --resume")
     manifest = read_json(run_dir / "candidate_manifest_v3.json")
@@ -2327,6 +2376,7 @@ def validate_run(run_dir: Path, *, rerun_harness: bool, resume: bool) -> dict[st
 
 
 def render_report(run_dir: Path) -> dict[str, Any]:
+    """Render report."""
     aggregation = read_json(run_dir / "simulator_pair_aggregation.json", {})
     lint = read_json(run_dir / "contract_lint_report.json", {})
     offline = read_json(run_dir / "offline_rejudgement_summary.json", {})
@@ -2483,6 +2533,7 @@ def render_report(run_dir: Path) -> dict[str, Any]:
 
 
 class DiagnosticHandler(BaseHTTPRequestHandler):
+    """Handle diagnostic requests."""
     run_dir: Path
     rows: list[dict[str, Any]]
     quotes: dict[str, dict[str, Any]]
@@ -2498,9 +2549,11 @@ class DiagnosticHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self) -> None:
+        """Handle an HTTP POST request."""
         self._send("Read-only diagnostic server", 405, "text/plain; charset=utf-8")
 
     def do_GET(self) -> None:
+        """Handle an HTTP GET request."""
         parsed = urlparse(self.path)
         if parsed.path.startswith("/image/"):
             image_hash = parsed.path.rsplit("/", 1)[-1]
@@ -2539,10 +2592,12 @@ class DiagnosticHandler(BaseHTTPRequestHandler):
         self._send(body)
 
     def log_message(self, format: str, *args: Any) -> None:
+        """Log message."""
         return
 
 
 def serve(run_dir: Path, host: str, port: int) -> None:
+    """Serve the configured local interface."""
     quotes, images = load_contracts(run_dir)
     decisions = read_json(run_dir / "candidate_manifest_v3.json", read_json(run_dir / "offline_pair_decisions.json"))
     rows = list((decisions or {}).get("records", {}).values())
@@ -2555,6 +2610,7 @@ def serve(run_dir: Path, host: str, port: int) -> None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     audit_p = sub.add_parser("audit")
@@ -2586,6 +2642,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     run_dir = args.output if args.command == "audit" else args.run_dir
     run_dir = run_dir.resolve()

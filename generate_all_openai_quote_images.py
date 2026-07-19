@@ -163,10 +163,12 @@ IMAGE_SUFFIXES = {
 # ---------------------------------------------------------------------------
 
 def log(message: str = "") -> None:
+    """Write a timestamped generation progress message."""
     print(message, flush=True)
 
 
 def utc_now_iso() -> str:
+    """Return the UTC now iso."""
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -174,6 +176,7 @@ def write_json_atomic(
     path: Path,
     value: Any,
 ) -> None:
+    """Write JSON atomic."""
     temporary = path.with_name(
         path.name + ".tmp"
     )
@@ -288,6 +291,7 @@ def normalise_quote(text: str) -> str:
 def load_source_lines(
     path: Path,
 ) -> dict[int, str]:
+    """Load source lines."""
     if not path.exists():
         raise FileNotFoundError(
             f"Quote file does not exist: {path}"
@@ -320,6 +324,7 @@ def load_quote_analysis_store(
     dict[str, dict[str, Any]],
     dict[str, str],
 ]:
+    """Load quote analysis store."""
     if not path.exists():
         raise FileNotFoundError(
             f"Quote-analysis file does not exist: {path}"
@@ -470,6 +475,7 @@ def validate_store_against_source(
 def valid_line_numbers(
     record: dict[str, Any],
 ) -> list[int]:
+    """Return whether valid line numbers."""
     raw = record.get(
         "line_numbers",
         [],
@@ -597,6 +603,7 @@ def build_unique_corpus(
 # ---------------------------------------------------------------------------
 
 def clean_scalar(value: Any) -> str:
+    """Return the clean scalar."""
     if value is None:
         return ""
 
@@ -617,6 +624,7 @@ def clean_scalar(value: Any) -> str:
 
 
 def string_list(value: Any) -> list[str]:
+    """Return the string list."""
     if not isinstance(value, list):
         return []
 
@@ -635,6 +643,7 @@ def labelled_list(
     label: str,
     values: list[str],
 ) -> str:
+    """Return the labelled list."""
     if not values:
         return ""
 
@@ -650,6 +659,7 @@ def labelled_list(
 def historical_context_text(
     historical: Any,
 ) -> str:
+    """Return the historical context text."""
     if not isinstance(
         historical,
         dict,
@@ -1062,6 +1072,7 @@ def retry_delay(
     response: requests.Response | None,
     attempt: int,
 ) -> float:
+    """Retry delay."""
     if response is not None:
         retry_after = response.headers.get(
             "Retry-After"
@@ -1099,6 +1110,7 @@ def request_image(
     size: str,
     max_retries: int,
 ) -> dict[str, Any]:
+    """Return the request image."""
     payload = {
         "model": model,
         "prompt": prompt,
@@ -1223,6 +1235,7 @@ def decode_image_response(
     bytes,
     dict[str, Any],
 ]:
+    """Decode image response."""
     data = response_data.get("data")
 
     if not isinstance(data, list):
@@ -1281,6 +1294,7 @@ def decode_image_response(
 def response_metadata_only(
     response_data: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return the response metadata only."""
     stored = json.loads(
         json.dumps(response_data)
     )
@@ -1304,6 +1318,7 @@ def response_metadata_only(
 def find_existing_image(
     item_dir: Path,
 ) -> Path | None:
+    """Find existing image."""
     for suffix in sorted(
         IMAGE_SUFFIXES
     ):
@@ -1330,6 +1345,7 @@ def build_corpus_index(
         ]
     ],
 ) -> dict[str, Any]:
+    """Build corpus index."""
     entries: list[
         dict[str, Any]
     ] = []
@@ -1383,6 +1399,7 @@ def build_corpus_index(
 # ---------------------------------------------------------------------------
 
 def main() -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(
         description=(
             "Generate one OpenAI image per unique "

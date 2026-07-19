@@ -1,3 +1,5 @@
+"""Run a cost-bounded multi-provider semantic-alignment bake-off."""
+
 from __future__ import annotations
 
 import hashlib
@@ -70,16 +72,19 @@ def _without_schema_keywords(schema:dict[str,Any], unsupported:set[str]) -> dict
 def openai_output_schema(schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA) -> dict[str,Any]:
     # OpenAI's strict structured-output subset rejects uniqueItems. Duplicate
     # list members remain prohibited by provider-neutral local validation.
+    """Return the openai output schema."""
     return _without_schema_keywords(schema,{"uniqueItems"})
 
 
 def anthropic_output_schema(schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA) -> dict[str,Any]:
     # Anthropic structured outputs reject numeric ranges and array minimums
     # above one; local strict validation retains those provider-neutral rules.
+    """Return the anthropic output schema."""
     return _without_schema_keywords(schema,{"minimum","maximum","minItems","maxItems","maxLength","uniqueItems"})
 
 
 def validate_bakeoff_result(value: Any) -> dict[str, Any]:
+    """Validate bakeoff result."""
     if not isinstance(value, dict) or set(value) != set(BAKEOFF_OUTPUT_SCHEMA["required"]):
         raise ValueError("bake-off result fields do not match schema")
     if value["primary_relationship"] not in RELATIONSHIPS: raise ValueError("invalid primary relationship")
@@ -96,6 +101,7 @@ def validate_bakeoff_result(value: Any) -> dict[str, Any]:
 
 def common_prompt(quote: dict[str, Any], image: dict[str, Any]) -> str:
     # Deliberately no local decomposition, prior critic, human label or selection metadata.
+    """Return the common prompt."""
     clean_quote={key:quote[key] for key in sorted(CRITIC_ALLOWED_QUOTE) if key in quote}
     clean_image={key:image[key] for key in sorted(CRITIC_ALLOWED_IMAGE) if key in image}
     payload={"quote_fingerprint":clean_quote,"image_fingerprint":clean_image}
@@ -126,6 +132,7 @@ def _tokens(text: str) -> set[str]:
 
 
 def select_cases(old_results: list[dict[str, Any]], quotes: dict[str, Any], images: dict[str, Any], *, limit: int = 25) -> dict[str, Any]:
+    """Select cases."""
     by_key={(row["quote_hash"],row["image_basename"]):row for row in old_results}
     selected=[]; used=set()
     def take(candidates,count,reason):
@@ -161,10 +168,12 @@ def select_cases(old_results: list[dict[str, Any]], quotes: dict[str, Any], imag
 
 
 def estimate_tokens(prompt: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(prompt.encode("utf-8"))/3)  # Conservative without provider tokenizer.
 
 
 def preflight(cases: list[dict[str,Any]], quotes: dict[str,Any], images: dict[str,Any]) -> dict[str,Any]:
+    """Build the deterministic execution preflight."""
     prompts=[common_prompt(quotes[x["quote_hash"]],images[x["image_basename"]]) for x in cases]
     input_tokens=sum(estimate_tokens(prompt) for prompt in prompts)
     rows={}
@@ -177,31 +186,43 @@ def preflight(cases: list[dict[str,Any]], quotes: dict[str,Any], images: dict[st
 
 
 class ProviderLedger:
+    """Persist and manage provider records."""
     def __init__(self,path:Path,provider:str):
+        """Initialise the provider ledger."""
         self.path=path; self.provider=provider; self.data=read_json(path,None) or {"schema_version":1,"provider":provider,"model":PROVIDER_MODELS[provider],"status":"resumable","blocked":False,"calls":[],"attempts":[],"ambiguous_requests":[],"total_cost_usd":0}
         if self.data.get("blocked"): raise RuntimeError(f"{provider} ledger blocked: {self.data.get('blocked_reason')}")
         if not path.exists(): atomic_write_json(path,self.data)
-    def cost(self): return sum(float(row["cost_usd"]) for row in self.data["calls"])
+    def cost(self):
+        """Return the cost."""
+        return sum(float(row["cost_usd"]) for row in self.data["calls"])
     def guard(self,prompt:str,limit:float):
+        """Reject a call that could exceed configured spend limits."""
         maximum=estimate_tokens(prompt)*PRICES[self.provider]["input"]/1e6+MAX_OUTPUT_TOKENS*PRICES[self.provider]["output"]/1e6
         if self.cost()+maximum>min(limit,PROVIDER_CEILINGS[self.provider]): raise RuntimeError(f"next {self.provider} call could exceed provider ceiling")
     def begin(self,case:dict[str,Any],prompt:str):
+        """Return the begin."""
         attempts=self.data.setdefault("attempts",[]); row={"run_id":"provider_bakeoff_25_20260712","provider":self.provider,"case_id":case["case_id"],"quote_hash":case["quote_hash"],"image_basename":case["image_basename"],"request_sequence":len(attempts)+1,"attempt_number":1,"model":PROVIDER_MODELS[self.provider],"prompt_version":BAKEOFF_PROMPT_VERSION,"schema_version":BAKEOFF_SCHEMA_VERSION,"request_timestamp":time.time(),"input_hash":hashlib.sha256(prompt.encode()).hexdigest(),"lifecycle_state":"prepared"}; attempts.append(row); atomic_write_json(self.path,self.data); return row
     def block(self,item_key:str,error:BaseException,request_id:str|None=None,response_received:bool=False):
+        """Record a blocked provider attempt in the durable ledger."""
         self.data["ambiguous_requests"].append({"item_key":item_key,"timestamp":time.time(),"error":f"{type(error).__name__}: {error}","request_id":request_id,"response_received":response_received}); self.data.update({"blocked":True,"status":"blocked_ambiguous_cost","blocked_reason":"ambiguous request outcome"}); atomic_write_json(self.path,self.data)
     def confirmed_failure(self,item_key:str,error:BaseException):
+        """Perform the confirmed failure operation."""
         response=getattr(error,"response",None); self.data.setdefault("confirmed_failures",[]).append({"item_key":item_key,"timestamp":time.time(),"error":f"{type(error).__name__}: {error}","request_id":response.headers.get("request-id") if response is not None else None,"http_status":response.status_code if response is not None else None}); atomic_write_json(self.path,self.data)
     def record(self,row:dict[str,Any]):
+        """Record one completed provider call in the durable ledger."""
         if any(x["case_id"]==row["case_id"] for x in self.data["calls"]): return
         self.data["calls"].append(row); self.data["total_cost_usd"]=self.cost(); self.data["updated_at"]=time.time(); atomic_write_json(self.path,self.data)
 
 
 class ProviderClient:
+    """Provide the provider client."""
     def __init__(self,provider:str,api_key:str,transport:Callable[...,Any]|None=None,*,timeout_seconds:float=180):
+        """Initialise the provider client."""
         if provider not in {"grok","openai","anthropic","gemini"}: raise ValueError("unknown provider")
         if not api_key: raise RuntimeError(f"{provider} API key required only for explicit execution")
         self.provider=provider; self.model=PROVIDER_MODELS[provider]; self.transport=transport or requests.post; self.api_key=api_key; self.timeout_seconds=float(timeout_seconds)
     def payload(self,prompt:str,*,schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA,schema_name:str="provider_neutral_picture_editor",max_output_tokens:int=MAX_OUTPUT_TOKENS):
+        """Return the payload."""
         if self.provider=="grok":
             return {"model":self.model,"messages":[{"role":"user","content":prompt}],"response_format":{"type":"json_schema","json_schema":{"name":schema_name,"strict":True,"schema":schema}},"reasoning_effort":"low","max_tokens":max_output_tokens}
         if self.provider=="anthropic":
@@ -210,6 +231,7 @@ class ProviderClient:
             return {"contents":[{"role":"user","parts":[{"text":prompt}]}],"generationConfig":{"responseMimeType":"application/json","responseJsonSchema":schema,"maxOutputTokens":max_output_tokens,"thinkingConfig":{"thinkingBudget":512}}}
         return {"model":self.model,"input":prompt,"reasoning":{"effort":"low"},"text":{"format":{"type":"json_schema","name":schema_name,"strict":True,"schema":openai_output_schema(schema)}},"max_output_tokens":max_output_tokens,"store":False}
     def call(self,prompt:str,*,schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA,schema_name:str="provider_neutral_picture_editor",max_output_tokens:int=MAX_OUTPUT_TOKENS):
+        """Submit one structured prompt to the configured provider."""
         urls={"grok":"https://api.x.ai/v1/chat/completions","openai":"https://api.openai.com/v1/responses","anthropic":"https://api.anthropic.com/v1/messages","gemini":f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"}
         headers={"Content-Type":"application/json"}
         if self.provider=="anthropic": headers.update({"x-api-key":self.api_key,"anthropic-version":"2023-06-01"})
@@ -242,6 +264,7 @@ class ProviderClient:
 
 
 def run_provider(provider:str,cases:list[dict[str,Any]],quotes:dict[str,Any],images:dict[str,Any],output_dir:Path,client:ProviderClient,confirmed_limit:float):
+    """Run provider."""
     output=output_dir/f"{provider}_results.json"; db=read_json(output,None) or {"schema_version":1,"provider":provider,"model":client.model,"prompt_version":BAKEOFF_PROMPT_VERSION,"items":{},"failures":{}}
     ledger=ProviderLedger(output_dir/f"{provider}_cost_ledger.json",provider)
     for case in cases:
@@ -262,12 +285,14 @@ def run_provider(provider:str,cases:list[dict[str,Any]],quotes:dict[str,Any],ima
 
 
 def create_blinding(output_dir:Path):
+    """Create blinding."""
     path=output_dir/"sealed_provider_mapping.json"
     if path.exists(): return read_json(path)
     providers=["grok","openai"]; secrets.SystemRandom().shuffle(providers); mapping={"Critic A":providers[0],"Critic B":providers[1]}; atomic_write_json(path,mapping); os.chmod(path,0o600); return mapping
 
 
 def create_three_way_blinding(output_dir:Path):
+    """Create three way blinding."""
     path=output_dir/"sealed_provider_mapping_three_way.json"
     if path.exists(): return read_json(path)
     providers=["grok","openai","anthropic"]; secrets.SystemRandom().shuffle(providers)
@@ -276,6 +301,7 @@ def create_three_way_blinding(output_dir:Path):
 
 
 def create_four_way_blinding(output_dir:Path):
+    """Create four way blinding."""
     path=output_dir/"sealed_provider_mapping_four_way.json"
     if path.exists(): return read_json(path)
     providers=["grok","openai","anthropic","gemini"]; secrets.SystemRandom().shuffle(providers)
@@ -284,18 +310,21 @@ def create_four_way_blinding(output_dir:Path):
 
 
 def confusion(left:list[str],right:list[str]):
+    """Return the confusion."""
     labels=sorted(set(left)|set(right)); matrix={a:{b:0 for b in labels} for a in labels}
     for a,b in zip(left,right): matrix[a][b]+=1
     return matrix
 
 
 def cohens_kappa(left:list[str],right:list[str]):
+    """Return the cohens kappa."""
     if not left or len(left)!=len(right): return None
     observed=sum(a==b for a,b in zip(left,right))/len(left); lc,rc=Counter(left),Counter(right); expected=sum(lc[x]*rc[x] for x in set(lc)|set(rc))/(len(left)**2)
     return (observed-expected)/(1-expected) if expected<1 else 1.0
 
 
 def compare_results(cases:list[dict[str,Any]],grok:dict[str,Any],openai:dict[str,Any]):
+    """Compare results."""
     pairs=[(case,grok["items"][case["case_id"]],openai["items"][case["case_id"]]) for case in cases if case["case_id"] in grok["items"] and case["case_id"] in openai["items"]]
     gp=[g["primary_relationship"] for _,g,_ in pairs]; op=[o["primary_relationship"] for _,_,o in pairs]
     scores={}
@@ -315,6 +344,7 @@ def compare_results(cases:list[dict[str,Any]],grok:dict[str,Any],openai:dict[str
 
 
 def compare_n_results(cases:list[dict[str,Any]], results:dict[str,dict[str,Any]]) -> dict[str,Any]:
+    """Compare n results."""
     providers=sorted(results); ids=[case["case_id"] for case in cases if all(case["case_id"] in results[p]["items"] for p in providers)]
     summaries={}
     for provider in providers:

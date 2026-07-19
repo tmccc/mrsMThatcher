@@ -1,3 +1,5 @@
+"""Resume incomplete Gemini research through authenticated Vertex AI."""
+
 from __future__ import annotations
 
 import json,os,time
@@ -17,8 +19,11 @@ THINKING_BUDGET=512
 VERTEX_LIMIT=2.0
 COMBINED_RECOVERY_LIMIT=2.5
 
-def adc_path()->Path:return Path.home()/'.config/gcloud/application_default_credentials.json'
+def adc_path()->Path:
+    """Return the configured Application Default Credentials path."""
+    return Path.home()/'.config/gcloud/application_default_credentials.json'
 def validate_vertex_environment(env=os.environ)->dict[str,str]:
+    """Validate vertex environment."""
     project=env.get('GOOGLE_CLOUD_PROJECT');location=env.get('GOOGLE_CLOUD_LOCATION','global');enabled=env.get('GOOGLE_GENAI_USE_VERTEXAI')
     if not project:raise RuntimeError('GOOGLE_CLOUD_PROJECT is required')
     if enabled!='true':raise RuntimeError('GOOGLE_GENAI_USE_VERTEXAI must be true')
@@ -26,13 +31,16 @@ def validate_vertex_environment(env=os.environ)->dict[str,str]:
     return {'project':project,'location':location,'vertexai':enabled}
 
 class GeminiVertexClient:
+    """Provide the gemini vertex client."""
     def __init__(self,*,project:str,location:str='global',model:str=VERTEX_MODEL,client=None,
                  response_schema:dict[str,Any]=BAKEOFF_OUTPUT_SCHEMA,max_output_tokens:int=MAX_OUTPUT_TOKENS):
+        """Initialise the gemini vertex client."""
         if model!=VERTEX_MODEL:raise RuntimeError(f'Vertex model must match original: {VERTEX_MODEL}')
         self.model=model;self.project=project;self.location=location
         self.response_schema=response_schema;self.max_output_tokens=max_output_tokens
         self.client=client or genai.Client(vertexai=True,project=project,location=location)
     def config(self):
+        """Return the config."""
         return types.GenerateContentConfig(
             max_output_tokens=self.max_output_tokens,
             response_mime_type='application/json',response_json_schema=self.response_schema,
@@ -40,6 +48,7 @@ class GeminiVertexClient:
             http_options=types.HttpOptions(timeout=180_000),
         )
     def call(self,prompt:str)->dict[str,Any]:
+        """Submit one structured recovery prompt through Vertex AI."""
         started=time.monotonic();response=self.client.models.generate_content(model=self.model,contents=prompt,config=self.config());latency=time.monotonic()-started
         usage=response.usage_metadata
         if usage is None:raise RuntimeError('missing authoritative Vertex usage metadata')
@@ -50,14 +59,18 @@ class GeminiVertexClient:
         return {'content':content,'usage':{'input_tokens':input_tokens,'cached_tokens':cached,'reasoning_tokens':thinking,'output_tokens':output},'cost_usd':cost,'latency_seconds':latency,'request_id':response.response_id,'model_version':response.model_version,'traffic_type':str(getattr(usage,'traffic_type',None))}
 
 def error_details(exc:BaseException)->dict[str,Any]:
+    """Return the error details."""
     code=getattr(exc,'code',None);message=str(getattr(exc,'message',None) or exc)
     return {'code':code,'message':message,'type':type(exc).__name__}
 
 class VertexRecoveryWorker:
+    """Run vertex recovery operations."""
     def __init__(self,*,run_dir:Path,cases:list[dict[str,Any]],quotes,images,client:GeminiVertexClient,sleep:Callable[[float],None]=time.sleep):
+        """Initialise the vertex recovery worker."""
         self.run_dir=run_dir;self.cases=cases;self.quotes=quotes;self.images=images;self.client=client;self.sleep=sleep
         self.ledger_path=run_dir/'vertex_ledger.json';self.results_path=run_dir/'vertex_results.json'
     def load(self):
+        """Load and reconcile the persisted recovery ledger and results."""
         ledger=read_json(self.ledger_path,None) or {'schema_version':1,'provider':'gemini_vertex','model':self.client.model,'attempts':[],'calls':[],'failures':[],'ambiguous':[],'final_failures':{},'known_cost_usd':0.0}
         results=read_json(self.results_path,None) or {'schema_version':1,'provider':'gemini_vertex','model':self.client.model,'prompt_version':BAKEOFF_PROMPT_VERSION,'items':{}}
         completed={(x['case_id'],x['attempt_number']) for x in ledger['calls']}
@@ -66,6 +79,7 @@ class VertexRecoveryWorker:
                 attempt['lifecycle_state']='ambiguous_outcome';ledger['ambiguous'].append({'case_id':attempt['case_id'],'attempt_number':attempt['attempt_number'],'reason':'sending state found on resume'})
         atomic_write_json(self.ledger_path,ledger);atomic_write_json(self.results_path,results);return ledger,results
     def run(self):
+        """Run all incomplete Vertex recovery cases within the cost ceiling."""
         ledger,results=self.load();started=time.time()
         for case in self.cases:
             cid=case['case_id']

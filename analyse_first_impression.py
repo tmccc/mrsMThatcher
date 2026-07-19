@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse first impression artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -32,6 +34,7 @@ CEILINGS = {"grok": 3.0, "openai": 5.0, "anthropic": 3.0, "gemini": 3.0}
 
 
 def parser():
+    """Build the command-line argument parser."""
     p=argparse.ArgumentParser(description="Offline first-impression and tone-alignment research")
     p.add_argument("--project-dir",type=Path,default=PROJECT);p.add_argument("--run-dir",type=Path,default=DEFAULT_RUN)
     p.add_argument("--max-items",type=int);p.add_argument("--only-image");p.add_argument("--only-quote-hash")
@@ -47,6 +50,7 @@ def parser():
 
 
 def inputs(project):
+    """Return the inputs."""
     quotes=read_json(SOURCE/'quote_semantic_fingerprints.json')['items'];image_semantics=read_json(SOURCE/'image_implied_messages_generated.json')['items'];legacy=read_json(project/'quote_analysis.json',{}).get('items',{})
     cases=read_json(LARGE/'cases.json')['items'];human=read_json(RECOVERED/'human_validation.json',{}).get('items',{});dis=read_json(RECOVERED/'disagreement_results.json',{}).get('items',[])
     active_rows=generated_image_inventory(project);active={row['image_basename']:row for row in active_rows}
@@ -54,6 +58,7 @@ def inputs(project):
 
 
 def prepare(run,project,no_write=False):
+    """Prepare and preflight a first-impression analysis run."""
     quotes,image_semantics,legacy,cases,human,dis,active=inputs(project)
     existing=read_json(run/'validation_cases.json')
     validation=existing or build_validation_cases(cases,human,dis,set(active),limit=50)
@@ -63,10 +68,13 @@ def prepare(run,project,no_write=False):
     return quotes,image_semantics,human,active,validation,intents
 
 
-def image_db(run):return read_json(run/'image_first_impressions.json') or {"schema_version":1,"analysis_kind":"image_first_impression_database","prompt_version":IMAGE_PROMPT_VERSION,"items":{},"failures":{}}
+def image_db(run):
+    """Load the image metadata database."""
+    return read_json(run/'image_first_impressions.json') or {"schema_version":1,"analysis_kind":"image_first_impression_database","prompt_version":IMAGE_PROMPT_VERSION,"items":{},"failures":{}}
 
 
 def dry(run,project,no_write=False):
+    """Return the dry."""
     _,_,_,active,validation,intents=prepare(run,project,no_write)
     db=image_db(run);pending=pending_images(validation['items'],active,db);pf=preflight(validation['items'],intents,db['items'],vision_calls=len(pending));pf.update({"active_pool":len(active),"quarantined_included":0,"everest_present":any(x['quote_hash']==EVEREST_QUOTE_HASH and x['image_basename']==EVEREST_IMAGE for x in validation['items']),"free_trade_present":any(x['inclusion_reason']=='forced_free_trade_indirect_case' for x in validation['items']),"pending_images":len(pending),"pairwise_cases":len(pairwise_cases(validation['items']))})
     if not no_write:atomic_write_json(run/'preflight.json',pf)
@@ -74,6 +82,7 @@ def dry(run,project,no_write=False):
 
 
 def run_vision(args,run,project):
+    """Run vision."""
     if not args.execute_vision:raise RuntimeError('vision execution requires --execute-vision')
     if args.confirm_cost_limit_usd is None or not 0<args.confirm_cost_limit_usd<=3:raise RuntimeError('vision cost limit must be within $3')
     _,_,_,active,validation,_=prepare(run,project);db=image_db(run);rows=pending_images(validation['items'],active,db)
@@ -93,6 +102,7 @@ def run_vision(args,run,project):
 
 
 def run_critics(args,run,project):
+    """Run critics."""
     if not args.execute_critics:raise RuntimeError('critic execution requires --execute-critics')
     limits={"grok":args.confirm_grok_cost_limit_usd,"openai":args.confirm_openai_cost_limit_usd,"anthropic":args.confirm_claude_cost_limit_usd,"gemini":args.confirm_gemini_cost_limit_usd}
     selected=tuple(dict.fromkeys(x.strip() for x in args.providers.split(',') if x.strip()))
@@ -112,6 +122,7 @@ def run_critics(args,run,project):
 
 
 def run_pairwise(args,run,project):
+    """Run pairwise."""
     if not args.pairwise_only or not args.execute_critics:raise RuntimeError('pairwise execution requires --pairwise-only --execute-critics')
     if args.confirm_cost_limit_usd is None or not 0<args.confirm_cost_limit_usd<=3:raise RuntimeError('pairwise limit must be within $3')
     _,_,_,_,validation,intents=prepare(run,project);images=image_db(run)['items'];pairs=pairwise_cases(validation['items'])[:args.max_items];out=read_json(run/'pairwise_rankings.json') or {"schema_version":1,"analysis_kind":"first_impression_pairwise_rankings","provider":args.provider,"items":{},"failures":{}}
@@ -126,6 +137,7 @@ def run_pairwise(args,run,project):
 
 
 def report(run,project):
+    """Write the first-impression analysis report."""
     _,_,human,_,validation,intents=prepare(run,project);images=image_db(run)['items'];providers={p:(read_json(run/f'{p}_first_impression_results.json') or read_json(run/f'{p}_results.json') or {}).get('items',{}) for p in ('grok','openai','anthropic','gemini')};all_results={cid:[rows[cid] for rows in providers.values() if cid in rows] for cid in {x['case_id'] for x in validation['items']}}
     consensus={cid:{"provider_count":len(rows),"alignment_median":statistics.median([r['dominant_visual_message_alignment_score'] for r in rows]) if rows else None,"tone_median":statistics.median([r['tone_alignment_score'] for r in rows]) if rows else None,"risk":dict(Counter(r['editorial_risk'] for r in rows))} for cid,rows in all_results.items()}
     alignments={cid:rows[0] for cid,rows in all_results.items() if rows};strategies=strategy_comparison(validation['items'],alignments,human);atomic_write_json(run/'strategy_comparison.json',strategies);atomic_write_json(run/'first_impression_alignment_results.json',{"schema_version":1,"providers":providers,"consensus":consensus})
@@ -145,6 +157,7 @@ def report(run,project):
 
 
 def main(argv=None):
+    """Run the command-line entry point."""
     args=parser().parse_args(argv);project=args.project_dir.resolve();run=args.run_dir.resolve()
     if args.command=='prepare':prepare(run,project,args.no_write);print('validation_cases=50');return 0
     if args.command=='dry-run':print(json.dumps(dry(run,project,args.no_write),indent=2));return 0

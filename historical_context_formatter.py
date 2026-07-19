@@ -67,10 +67,12 @@ class AmbiguousContextReplyOutcome(RuntimeError):
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def quote_text_hash(text: str) -> str:
+    """Return whether quote text hash."""
     return hashlib.sha256(re.sub(r"\s+", " ", str(text or "").strip()).encode()).hexdigest()
 
 
@@ -87,6 +89,7 @@ def packet_is_attributed_to_margaret_thatcher(packet: dict[str, Any]) -> bool:
 
 
 def atomic_write_json(path: Path, value: Any, *, durable: bool = True) -> None:
+    """Write JSON atomically and optionally durably."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -106,6 +109,7 @@ def atomic_write_json(path: Path, value: Any, *, durable: bool = True) -> None:
 
 
 def durable_unlink(path: Path) -> None:
+    """Perform the durable unlink operation."""
     path.unlink()
     directory = os.open(path.parent, os.O_RDONLY)
     try: os.fsync(directory)
@@ -113,6 +117,7 @@ def durable_unlink(path: Path) -> None:
 
 
 def load_and_validate_corpus(research_dir: Path = DEFAULT_RESEARCH_DIR) -> tuple[dict[str, Any], set[str]]:
+    """Load the immutable 632-record research corpus partition safely."""
     from semantic_alignment.quote_research_gemini import TOP_LEVEL_FIELDS, validate_packet
 
     packets_document = json.loads((research_dir / "research_packets.json").read_text())
@@ -205,6 +210,7 @@ def _is_grounding_redirect(url: str) -> bool:
 
 
 def select_primary_source(packet: dict[str, Any]) -> dict[str, str] | None:
+    """Select the strongest source record from a research packet."""
     locator = " ".join(str(packet.get("stable_locator") or "").split())
     valid_locator = locator if locator.lower() not in UNKNOWN_VALUES else ""
     all_sources = [source for source in packet.get("sources", []) if isinstance(source, dict)
@@ -304,6 +310,7 @@ def _has_forbidden_style(text: str) -> bool:
 
 
 def x_weighted_length(text: str) -> int:
+    """Calculate X weighted text length."""
     urls = re.findall(r"https?://\S+", text)
     return len(text) - sum(len(url) for url in urls) + URL_WEIGHT * len(urls)
 
@@ -311,6 +318,7 @@ def x_weighted_length(text: str) -> int:
 def format_context_reply(packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
                          include_meaning: bool = True, include_source: bool = True,
                          include_verification: bool = True) -> dict[str, Any] | None:
+    """Format a source-grounded historical context reply."""
     if type(maximum_length) is not int or not 120 <= maximum_length <= MAXIMUM_SUPPORTED_LENGTH:
         raise ValueError(f"maximum_length must be from 120 to {MAXIMUM_SUPPORTED_LENGTH}")
     source = select_primary_source(packet) if include_source else None
@@ -614,9 +622,11 @@ def format_context_reply_v2(
 class HistoricalContextReplyStore:
     """Independent transactional state for confirmed context replies."""
     def __init__(self, history_path: Path, receipt_path: Path):
+        """Initialise the historical context reply store."""
         self.history_path = history_path; self.receipt_path = receipt_path
 
     def history(self) -> dict[str, Any]:
+        """Return the history."""
         if not self.history_path.exists(): return {"schema_version": 1, "items": {}}
         value = json.loads(self.history_path.read_text())
         if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
@@ -731,6 +741,7 @@ class HistoricalContextReplyStore:
         )
 
     def reconcile_receipt(self) -> bool:
+        """Reconcile receipt."""
         if not self.receipt_path.exists(): return False
         receipt = json.loads(self.receipt_path.read_text())
         if self._valid_sending_receipt(receipt):
@@ -762,6 +773,7 @@ class HistoricalContextReplyStore:
 
     def record_failure(self, parent_post_id: str, quote_id: str, text: str, error: BaseException,
                        formatter_metadata: dict[str, Any] | None = None) -> None:
+        """Record failure."""
         history = self.history(); previous = history["items"].get(str(parent_post_id), {})
         history["items"][str(parent_post_id)] = {"parent_post_id": str(parent_post_id), "quote_id": quote_id,
             "reply_text": text, "status": "failed", "failure": f"{type(error).__name__}: {error}",
@@ -772,6 +784,7 @@ class HistoricalContextReplyStore:
     def post(self, *, parent_post_id: str, quote_id: str, reply_text: str,
              create_post: Callable[..., dict[str, Any]], now_epoch: Callable[[], int], dry_run: bool = False,
              formatter_metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Post and persist one historical-context reply transactionally."""
         if (
             not re.fullmatch(r"\d{1,30}", str(parent_post_id or ""))
             or not re.fullmatch(r"[0-9a-f]{64}", str(quote_id or ""))
@@ -852,6 +865,7 @@ class HistoricalContextReplyStore:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description="Offline historical context reply formatter")
     parser.add_argument("--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR)
     parser.add_argument("--quote-id"); parser.add_argument("--quote-text"); parser.add_argument("--maximum-length", type=int, default=DEFAULT_MAXIMUM_LENGTH)

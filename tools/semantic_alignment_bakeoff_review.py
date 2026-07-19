@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local semantic alignment bakeoff review interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +23,7 @@ DECISIONS={"A","B","C","D","all","none","unsure"}
 
 
 def validate_preference(value):
+    """Validate preference."""
     if not isinstance(value,dict) or value.get("critique_preference") not in PREFERENCES: raise ValueError("invalid critique preference")
     if value.get("second_best","") not in SECOND: raise ValueError("invalid second-best preference")
     if value.get("image_decision_agreement") not in DECISIONS: raise ValueError("invalid image decision agreement")
@@ -29,6 +32,7 @@ def validate_preference(value):
 
 
 def create_server(*,project_dir:Path,source_run:Path,bakeoff_dir:Path,host:str,port:int):
+    """Create server."""
     csrf=secrets.token_urlsafe(24); mapping=json.loads((bakeoff_dir/'sealed_provider_mapping_four_way.json').read_text()); all_cases=json.loads((bakeoff_dir/'cases.json').read_text())['items']; queue=bakeoff_dir/'prioritised_four_provider_review_queue.json'; prioritised=json.loads(queue.read_text())['items'] if queue.exists() else []; queued={x['case_id'] for x in prioritised}; cases=prioritised+[x for x in all_cases if x['case_id'] not in queued]; quotes=json.loads((source_run/'quote_semantic_fingerprints.json').read_text())['items']; images=json.loads((source_run/'image_implied_messages_generated.json').read_text())['items']; results={p:json.loads((bakeoff_dir/f'{p}_results.json').read_text())['items'] for p in ('grok','openai','anthropic','gemini')}; preference_path=bakeoff_dir/'blinded_preferences_four_way.json'
     def load_preferences(): return json.loads(preference_path.read_text()) if preference_path.exists() else {"schema_version":3,"analysis_kind":"blinded_four_provider_preferences","items":{}}
     class Handler(BaseHTTPRequestHandler):
@@ -67,6 +71,7 @@ def create_server(*,project_dir:Path,source_run:Path,bakeoff_dir:Path,host:str,p
 
 
 def main():
+    """Run the command-line entry point."""
     ap=argparse.ArgumentParser(); ap.add_argument('--project-dir',type=Path,required=True); ap.add_argument('--source-run',type=Path,required=True); ap.add_argument('--bakeoff-dir',type=Path,required=True); ap.add_argument('--host',default='127.0.0.1'); ap.add_argument('--port',type=int,default=8768); args=ap.parse_args()
     if args.host not in {'127.0.0.1','localhost','::1'}: raise SystemExit('Review app is loopback-only')
     server=create_server(project_dir=args.project_dir.resolve(),source_run=args.source_run.resolve(),bakeoff_dir=args.bakeoff_dir.resolve(),host=args.host,port=args.port); print(f'http://{args.host}:{server.server_port}'); server.serve_forever()

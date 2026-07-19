@@ -1,3 +1,5 @@
+"""Evaluate first-impression judgements against blind validation evidence."""
+
 from __future__ import annotations
 import csv,io,json,math,statistics
 from collections import Counter
@@ -15,11 +17,13 @@ CURVES={
 }
 
 def wilson(success:int,total:int,z:float=1.96)->tuple[float|None,float|None]:
+    """Return the wilson."""
     if not total:return None,None
     p=success/total;den=1+z*z/total;centre=(p+z*z/(2*total))/den;half=z*math.sqrt(p*(1-p)/total+z*z/(4*total*total))/den
     return max(0,centre-half),min(1,centre+half)
 
 def binary_metrics(predictions:dict[str,str],human:dict[str,str])->dict[str,Any]:
+    """Return the binary metrics."""
     ids=[cid for cid in predictions if human.get(cid) in {'keep','replace'} and predictions[cid] in {'keep','replace'}]
     tp=sum(predictions[c]=='replace' and human[c]=='replace' for c in ids);tn=sum(predictions[c]=='keep' and human[c]=='keep' for c in ids);fp=sum(predictions[c]=='replace' and human[c]=='keep' for c in ids);fn=sum(predictions[c]=='keep' and human[c]=='replace' for c in ids)
     agreement=tp+tn;lo,hi=wilson(agreement,len(ids))
@@ -29,9 +33,11 @@ def binary_metrics(predictions:dict[str,str],human:dict[str,str])->dict[str,Any]
         'balanced_accuracy':statistics.mean(x for x in (div(tp,tp+fn),div(tn,tn+fp)) if x is not None) if ids else None,'deferred':len(set(human)-set(ids))}
 
 def penalty(score:float,curve)->int:
+    """Return the penalty."""
     return next(value for floor,value in curve if score>=floor)
 
 def integrity(run:Path,project:Path)->dict[str,Any]:
+    """Return the integrity."""
     cases=read_json(run/'validation_cases.json')['items'];reviews=read_json(run/'human_reviews.json')['items'];quotes=read_json(run/'quote_visual_intents.json')['items'];images=read_json(run/'image_first_impressions.json')['items'];errors=[]
     ids=[x['case_id'] for x in cases]
     if len(cases)!=50 or len(set(ids))!=50:errors.append('case cardinality/duplicate IDs')
@@ -51,6 +57,7 @@ def integrity(run:Path,project:Path)->dict[str,Any]:
     return {'valid':True,'intended_cases':50,'completed_reviews':50,'unique_case_ids':50,'image_hashes_valid':True,'schema_version':1,'human_labels_absent_from_provider_payload_by_whitelist':True}
 
 def consistency_issues(provider:str,rows:dict[str,Any])->list[dict[str,Any]]:
+    """Return the consistency issues."""
     issues=[]
     for cid,row in rows.items():
         explanation=str(row.get('explanation','')).lower();alignment=float(row['dominant_visual_message_alignment_score']);tone=float(row['tone_alignment_score']);interference=float(row['salience_interference_score']);fit=row['first_second_fit']
@@ -73,6 +80,7 @@ def _semantic_scores(cases:list[dict[str,Any]],semantic_dir:Path)->tuple[dict[st
     return suit,power,raw
 
 def classify_false_replace(case,score,tone,semantic,power,images,provider_issue=False):
+    """Classify false replace."""
     if provider_issue:return 'provider score defect'
     if semantic is not None and semantic>=60:return 'acceptable indirectness'
     if power is not None and power>=75:return 'aesthetic strength outweighed mismatch'
@@ -82,6 +90,7 @@ def classify_false_replace(case,score,tone,semantic,power,images,provider_issue=
     return 'broader principle'
 
 def classify_bad(case,tone,semantic,images):
+    """Classify bad."""
     image=images[case['image_basename']];message=(image.get('first_impression_message') or '').lower()
     if image.get('visual_competition_score',0)>=70:return 'secondary symbol overwhelmed quote'
     if tone<40:return 'tone mismatch'
@@ -92,10 +101,12 @@ def classify_bad(case,tone,semantic,images):
     return 'wrong dominant message'
 
 def csv_text(rows:list[dict[str,Any]],fields:list[str]|None=None)->str:
+    """Return the CSV text."""
     if not rows:return ''
     fields=fields or list(rows[0]);buf=io.StringIO();writer=csv.DictWriter(buf,fieldnames=fields,extrasaction='ignore');writer.writeheader();writer.writerows(rows);return buf.getvalue()
 
 def analyse(run:Path,project:Path,semantic_dir:Path)->dict[str,Any]:
+    """Aggregate parsed production records into digest metrics."""
     valid=integrity(run,project);cases=read_json(run/'validation_cases.json')['items'];case_map={x['case_id']:x for x in cases};reviews=read_json(run/'human_reviews.json')['items'];human={cid:x['image_decision'] for cid,x in reviews.items()};match_labels={cid:x['matches_quote'] for cid,x in reviews.items()};images=read_json(run/'image_first_impressions.json')['items'];intents=read_json(run/'quote_visual_intents.json')['items'];provider_rows={p:read_json(run/f'{p}_first_impression_results.json',{}).get('items',{}) for p in ('grok','openai','anthropic')};provider_rows['gemini']=read_json(run/'gemini_results.json',{}).get('items',{})
     recovered_gemini=(read_json(semantic_dir/'gemini_results.json',{}) or {}).get('items',{});valid['semantic_recovered_gemini_results']=len(recovered_gemini);valid['semantic_recovery_complete_for_250']=len(recovered_gemini)==250
     median_alignment=_median_results(provider_rows,'dominant_visual_message_alignment_score');median_tone=_median_results(provider_rows,'tone_alignment_score');semantic,power,_=_semantic_scores(cases,semantic_dir)

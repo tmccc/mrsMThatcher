@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Compare image providers."""
+
 from __future__ import annotations
 
 import argparse
@@ -37,6 +39,7 @@ def load_env_file(path: Path) -> None:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description="Offline-prepared, blinded Grok/OpenAI image comparison pilot")
     sub = parser.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare"); prepare.add_argument("--research-run", type=Path, required=True); prepare.add_argument("--output", type=Path, required=True); prepare.add_argument("--count", type=int, default=10)

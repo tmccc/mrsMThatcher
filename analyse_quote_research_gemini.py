@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse quote research gemini artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -38,6 +40,7 @@ DEFAULT_CORPUS_RUN = ROOT / "semantic_alignment_research/quote_research_full_001
 
 
 def add_execution_flags(command: argparse.ArgumentParser) -> None:
+    """Add execution flags."""
     command.add_argument("--dry-run", action="store_true")
     command.add_argument("--execute", action="store_true")
     command.add_argument("--enable-vertex-fallback", action="store_true")
@@ -56,6 +59,7 @@ def add_execution_flags(command: argparse.ArgumentParser) -> None:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     root = argparse.ArgumentParser()
     sub = root.add_subparsers(dest="command", required=True)
     build = sub.add_parser("build-pilot")
@@ -131,6 +135,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def build_command(args) -> dict:
+    """Build command."""
     run = args.run_dir.resolve()
     manifest = read_json(PROJECT / "quote_manifest.json")
     excluded = read_json(args.exclude_batch.resolve())
@@ -149,6 +154,7 @@ def build_command(args) -> dict:
 
 
 def run_command(args) -> int:
+    """Run command."""
     run = args.run_dir.resolve()
     if (run / "corpus_manifest.json").exists():
         return corpus_run_command(args)
@@ -180,6 +186,7 @@ def run_command(args) -> int:
 
 
 def build_corpus_command(args) -> dict:
+    """Build corpus command."""
     run = args.run_dir.resolve()
     payload = build_corpus_manifest(read_json(args.manifest.resolve()))
     run.mkdir(parents=True, exist_ok=True)
@@ -197,6 +204,7 @@ def build_corpus_command(args) -> dict:
 
 
 def prepare_pilot_recovery(args) -> dict:
+    """Prepare pilot recovery."""
     run = args.run_dir.resolve()
     parent = read_json(run / "pilot_manifest.json")
     records = []
@@ -227,6 +235,7 @@ def prepare_pilot_recovery(args) -> dict:
 
 
 def read_status(run: Path) -> dict:
+    """Read status."""
     status_path = run / "status.json"
     if status_path.exists():
         payload = read_json(status_path)
@@ -265,6 +274,7 @@ def read_status(run: Path) -> dict:
 
 
 def status_command(args) -> int:
+    """Return the status command."""
     payload = read_status(args.run_dir.resolve())
     if args.json_status:
         print(json.dumps(payload, indent=2))
@@ -282,6 +292,7 @@ def status_command(args) -> int:
 
 
 def offline_audit_command(args, recover: bool = False) -> int:
+    """Return the offline audit command."""
     run = args.run_dir.resolve()
     audit = audit_failures(run)
     output = write_audit_outputs(run, audit, applied=False)
@@ -305,6 +316,7 @@ def offline_audit_command(args, recover: bool = False) -> int:
 
 
 def write_full_report(run: Path, status: dict) -> None:
+    """Write full report."""
     packets = read_json(run / "research_packets.json", {"items": {}})
     costs = read_json(run / "cost_ledger.json", {"calls": []})
     sources = [source for packet in packets["items"].values() for source in packet.get("sources", [])]
@@ -334,6 +346,7 @@ def write_full_report(run: Path, status: dict) -> None:
 
 
 def corpus_run_command(args) -> int:
+    """Return the corpus run command."""
     run = args.run_dir.resolve()
     manifest = read_json(run / "corpus_manifest.json")
     verify_corpus_manifest(manifest)
@@ -403,6 +416,7 @@ def corpus_run_command(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args(argv)
     if args.command == "build-pilot":
         build_command(args)

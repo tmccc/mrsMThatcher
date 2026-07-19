@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Run the production MrsMThatcher posting and conversational-reply bot."""
+
 
 from __future__ import annotations
 
@@ -175,6 +177,7 @@ BASE_DIR = Path(os.getenv("MRS_BASE_DIR", str(PRODUCTION_BASE_DIR))).expanduser(
 
 
 def path_is_same_or_child(path: Path, parent: Path) -> bool:
+    """Return whether a path equals or is contained by a parent path."""
     try:
         path_resolved = path.resolve()
         parent_resolved = parent.resolve()
@@ -329,6 +332,7 @@ def remove_managed_log_handlers(logger: logging.Logger) -> None:
 
 
 def mark_managed_log_handler(handler: logging.Handler, kind: str) -> logging.Handler:
+    """Mark a logging handler as owned by this module."""
     setattr(handler, _MANAGED_LOG_HANDLER_ATTR, True)
     setattr(handler, "_mrs_mthatcher_handler_kind", kind)
     return handler
@@ -339,6 +343,7 @@ def setup_logging(
     log_path: Path | None = None,
     configure_file_logging: bool = True,
 ) -> logging.Logger:
+    """Configure console and optional rotating-file logging."""
     target_log = Path(log_path).expanduser() if log_path is not None else LOG_FILE
     if configure_file_logging and os.getenv("PYTEST_CURRENT_TEST") and path_is_same_or_child(target_log, PRODUCTION_BASE_DIR):
         raise RuntimeError(f"Refusing to attach pytest process to production log: {target_log}")
@@ -424,6 +429,7 @@ def acquire_instance_lock() -> None:
 
 
 def redact_secret(value: str, visible: int = 4) -> str:
+    """Redact a secret value before it is logged."""
     if not value:
         return "<missing>"
     if len(value) <= visible * 2:
@@ -432,6 +438,7 @@ def redact_secret(value: str, visible: int = 4) -> str:
 
 
 def log_json_debug(label: str, obj: object, max_chars: int = 4000) -> None:
+    """Log a JSON payload at debug level with sensitive fields redacted."""
     try:
         text = json.dumps(obj, indent=2, sort_keys=True, default=str)
     except Exception:
@@ -1117,6 +1124,7 @@ _CONTROL_CACHE: dict[str, object] = {
 
 
 def parse_control_time(value: object) -> int:
+    """Parse a runtime-control timestamp into an epoch value."""
     if isinstance(value, bool) or value is None:
         raise ValueError("control timestamp must not be a boolean or null")
     if type(value) is int:
@@ -1148,6 +1156,7 @@ def parse_control_time(value: object) -> int:
 
 
 def validate_control_document(data: object) -> dict:
+    """Validate control document."""
     if not isinstance(data, dict):
         raise ValueError("control document must be a JSON object")
     validated = dict(data)
@@ -1165,6 +1174,7 @@ def validate_control_document(data: object) -> dict:
 
 
 def control_failure_result(reason: str, *, signature: object) -> dict:
+    """Build the fail-closed result for an invalid runtime-control document."""
     if _CONTROL_CACHE.get("failure_signature") != signature:
         log.error("Runtime control file %s is unavailable or invalid; failing safe: %s", CONTROL_FILE, reason)
         _CONTROL_CACHE["failure_signature"] = signature
@@ -1176,6 +1186,7 @@ def control_failure_result(reason: str, *, signature: object) -> dict:
 
 
 def load_control() -> dict:
+    """Load and validate the optional fail-safe runtime-control document."""
     try:
         stat = CONTROL_FILE.stat()
     except FileNotFoundError:
@@ -1212,6 +1223,7 @@ def load_control() -> dict:
 
 
 def control_bool(data: dict, key: str) -> bool:
+    """Return a validated boolean runtime-control value."""
     value = data.get(key)
     if value in (None, ""):
         return False
@@ -1230,6 +1242,7 @@ def control_bool(data: dict, key: str) -> bool:
 
 
 def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
+    """Return whether the runtime-control document currently pauses a lane."""
     current = now_epoch()
 
     for key in keys:
@@ -1250,6 +1263,7 @@ def control_pause_active(data: dict, *keys: str) -> tuple[bool, str, int]:
 
 
 def lane_paused(*lane_keys: str) -> bool:
+    """Return whether a named posting lane is paused."""
     data = load_control()
     if not data:
         return False
@@ -1309,6 +1323,7 @@ log.debug("  XAI_API_KEY=%s", redact_secret(XAI_API_KEY))
 log.debug("  X_BEARER_TOKEN=%s", redact_secret(X_BEARER_TOKEN))
 
 def validate_production_credentials() -> None:
+    """Validate required credentials without logging their values."""
     if not all([CONSUMER_KEY, CONSUMER_SECRET, ACCESS_TOKEN, ACCESS_SECRET, MY_USER_ID]):
         raise RuntimeError(
             "Missing X credentials. Set X_CONSUMER_KEY, X_CONSUMER_SECRET, "
@@ -1348,6 +1363,7 @@ def normalise_base_url(raw: str, *, strip_trailing_segments: tuple[str, ...] = (
 
 
 def endpoint_host(url: str) -> str:
+    """Return the normalised host from an API endpoint URL."""
     try:
         return (urlsplit(url).hostname or "").lower()
     except Exception:
@@ -1364,6 +1380,7 @@ LIVE_ENDPOINT_TEST_OVERRIDE_PHRASE = "I_UNDERSTAND_THIS_CAN_POST_TO_LIVE_X"
 
 
 def parse_request_timeout_seconds() -> float:
+    """Parse and validate the configured HTTP timeout."""
     raw = os.getenv("MRS_REQUEST_TIMEOUT_SECONDS", "60")
     try:
         value = float(raw)
@@ -1407,6 +1424,7 @@ if (
 # ---------------------------------------------------------------------
 
 class ApiError(Exception):
+    """Raised when an X or xAI API operation fails."""
     def __init__(
         self,
         message: str,
@@ -1415,6 +1433,7 @@ class ApiError(Exception):
         status_code: int | None = None,
         reset_epoch: int | None = None,
     ) -> None:
+        """Initialise the API error."""
         super().__init__(message)
         self.service = service
         self.status_code = status_code
@@ -1455,6 +1474,7 @@ def api_error_is_permanent_target_failure(error: Exception) -> bool:
 # ---------------------------------------------------------------------
 
 def coerce_used_set(value: object, *, path: Path) -> set:
+    """Normalise persisted used-history data to a set."""
     if isinstance(value, set):
         return value
     if isinstance(value, list):
@@ -1464,6 +1484,7 @@ def coerce_used_set(value: object, *, path: Path) -> set:
 
 
 def used_set_to_sorted_list(value: set) -> list:
+    """Return deterministic JSON-safe used-history values."""
     def sort_key(item: object) -> tuple[int, int | str]:
         try:
             return (0, int(item))
@@ -1474,6 +1495,7 @@ def used_set_to_sorted_list(value: set) -> list:
 
 
 def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
+    """Load a fail-closed durable used-history set."""
     log.debug("Loading used-history set from %s", path)
 
     try:
@@ -1506,6 +1528,7 @@ def load_used_set(path: Path, *, legacy_pickle_path: Path | None = None) -> set:
 
 
 def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
+    """Persist a used-history set atomically."""
     log.debug("Saving %d entries to used-history JSON %s", len(value), path)
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1524,6 +1547,7 @@ def save_used_set(path: Path, value: set, *, durable: bool = False) -> None:
 
 
 def default_state() -> dict:
+    """Build a new runtime-state document with safe defaults."""
     return {
         "last_seen_mention_id": None,
         "mention_pagination": {},
@@ -1587,6 +1611,7 @@ def default_state() -> dict:
 
 
 def append_unique_capped(values: object, item: object, max_items: int) -> list[str]:
+    """Append unique capped."""
     item_text = str(item)
     existing = [str(value) for value in values] if isinstance(values, list) else []
     existing = [value for value in existing if value != item_text]
@@ -1605,6 +1630,7 @@ def append_unique_durable(values: object, item: object) -> list[str]:
 
 
 def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
+    """Normalise state int."""
     if isinstance(value, bool):
         log.error("State candidate %s has invalid %s boolean value %r; ignoring", path, key, value)
         return None
@@ -1623,6 +1649,7 @@ def normalise_state_int(value: object, *, key: str, path: Path) -> int | None:
 
 
 def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
+    """Normalise state epoch."""
     number = normalise_state_int(value, key=key, path=path)
     if number is None:
         return None
@@ -1633,6 +1660,7 @@ def normalise_state_epoch(value: object, *, key: str, path: Path) -> int | None:
 
 
 def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] | None:
+    """Normalise string list."""
     if not isinstance(value, list):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
@@ -1640,6 +1668,7 @@ def normalise_string_list(value: object, *, key: str, path: Path) -> list[str] |
 
 
 def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | None:
+    """Normalise int list."""
     if not isinstance(value, list):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
@@ -1653,6 +1682,7 @@ def normalise_int_list(value: object, *, key: str, path: Path) -> list[int] | No
 
 
 def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | None:
+    """Normalise epoch list."""
     out = normalise_int_list(value, key=key, path=path)
     if out is None:
         return None
@@ -1664,6 +1694,7 @@ def normalise_epoch_list(value: object, *, key: str, path: Path) -> list[int] | 
 
 
 def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, str] | None:
+    """Normalise string map."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
@@ -1671,6 +1702,7 @@ def normalise_string_map(value: object, *, key: str, path: Path) -> dict[str, st
 
 
 def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] | None:
+    """Normalise int map."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
@@ -1684,6 +1716,7 @@ def normalise_int_map(value: object, *, key: str, path: Path) -> dict[str, int] 
 
 
 def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, dict] | None:
+    """Normalise record map."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid %s type %s; ignoring", path, key, type(value).__name__)
         return None
@@ -1703,6 +1736,7 @@ def normalise_record_map(value: object, *, key: str, path: Path) -> dict[str, di
 
 
 def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) -> dict[str, object] | None:
+    """Normalise tweet cache entry."""
     cached_epoch = normalise_state_epoch(entry.get("cached_epoch", 0), key=f"tweet_cache.{tweet_id}.cached_epoch", path=path)
     if cached_epoch is None:
         return None
@@ -1758,6 +1792,7 @@ def normalise_tweet_cache_entry(tweet_id: object, entry: dict, *, path: Path) ->
 
 
 def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | None:
+    """Normalise tweet cache."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid tweet_cache type %s; ignoring", path, type(value).__name__)
         return None
@@ -1779,6 +1814,7 @@ def normalise_tweet_cache(value: object, *, path: Path) -> dict[str, dict] | Non
 
 
 def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str] | None:
+    """Normalise mention pagination."""
     if not isinstance(value, dict):
         log.error("State candidate %s has invalid mention_pagination type %s; ignoring", path, type(value).__name__)
         return None
@@ -1790,6 +1826,7 @@ def normalise_mention_pagination(value: object, *, path: Path) -> dict[str, str]
 
 
 def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | None:
+    """Normalise optional scalar."""
     if value is None:
         return ""
     if isinstance(value, (str, int)):
@@ -1799,6 +1836,7 @@ def normalise_optional_scalar(value: object, *, key: str, path: Path) -> str | N
 
 
 def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str | None:
+    """Normalise optional numeric ID."""
     if value in (None, ""):
         return ""
     text = str(value)
@@ -1809,6 +1847,7 @@ def normalise_optional_numeric_id(value: object, *, key: str, path: Path) -> str
 
 
 def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
+    """Validate meme schedule state."""
     next_epoch = int(state.get("next_meme_post_epoch", 0) or 0)
     if not next_epoch:
         return True
@@ -1862,6 +1901,7 @@ def validate_meme_schedule_state(state: dict, *, path: Path) -> bool:
 
 
 def validate_meme_schedule_version_for_candidate(state: dict, *, path: Path) -> bool:
+    """Validate meme schedule version for candidate."""
     version = int(state.get("meme_schedule_version", 0) or 0)
     if version > MEME_SCHEDULE_VERSION:
         log.error(
@@ -1882,6 +1922,7 @@ def validate_meme_schedule_version_for_candidate(state: dict, *, path: Path) -> 
 
 
 def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
+    """Normalise state candidate."""
     list_keys = {
         "replied_to_ids",
         "dry_run_seen_mention_ids",
@@ -2025,6 +2066,7 @@ def normalise_state_candidate(state: dict, *, path: Path) -> dict | None:
 
 
 def load_state() -> dict:
+    """Load, validate, and recover runtime state from durable storage."""
     log.debug("Loading state from %s", STATE_FILE)
 
     candidates = [STATE_FILE]
@@ -2066,6 +2108,7 @@ def load_state() -> dict:
 
 
 def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = None) -> tuple[int, bool]:
+    """Return the scheduler epoch from state."""
     raw_value = state.get(key, 0)
     malformed = isinstance(raw_value, bool) or (
         isinstance(raw_value, float)
@@ -2095,11 +2138,13 @@ def scheduler_epoch_from_state(state: dict, key: str, *, current: int | None = N
 
 
 def fsync_file(path: Path) -> None:
+    """Synchronise file."""
     with open(path, "rb") as f:
         os.fsync(f.fileno())
 
 
 def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
+    """Copy state backup."""
     dst.parent.mkdir(parents=True, exist_ok=True)
     tmp = dst.with_name(f"{dst.name}.tmp")
     shutil.copyfile(src, tmp)
@@ -2112,6 +2157,7 @@ def copy_state_backup(src: Path, dst: Path, *, durable: bool = False) -> None:
 
 
 def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
+    """Rotate state backups before commit."""
     if STATE_BACKUP_COUNT <= 1 or not STATE_FILE.exists():
         return
 
@@ -2130,6 +2176,7 @@ def rotate_state_backups_before_commit(*, durable: bool = False) -> None:
 
 
 def write_latest_state_backup(*, durable: bool = False) -> None:
+    """Write latest state backup."""
     if STATE_BACKUP_COUNT <= 0 or not STATE_FILE.exists():
         return
     bak1 = STATE_FILE.with_name(f"{STATE_FILE.name}.bak1")
@@ -2138,6 +2185,7 @@ def write_latest_state_backup(*, durable: bool = False) -> None:
 
 
 def save_state(state: dict, *, durable: bool = False) -> None:
+    """Persist runtime state atomically with bounded backups."""
     if test_process_production_state_write_blocked(STATE_FILE):
         raise RuntimeError(f"Refusing test-process write to production state: {STATE_FILE}")
     log.debug("Saving state to %s", STATE_FILE)
@@ -2160,6 +2208,7 @@ def save_state(state: dict, *, durable: bool = False) -> None:
 
 
 def reset_daily_reply_count_if_needed(state: dict) -> None:
+    """Reset daily reply count if needed."""
     today = current_datetime().strftime("%Y-%m-%d")
 
     if state.get("daily_reply_date") != today:
@@ -2176,6 +2225,7 @@ def reset_daily_reply_count_if_needed(state: dict) -> None:
 
 
 def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
+    """Reset daily quote reply count if needed."""
     today = current_datetime().strftime("%Y-%m-%d")
 
     if state.get("daily_quote_reply_date") != today:
@@ -2190,6 +2240,7 @@ def reset_daily_quote_reply_count_if_needed(state: dict) -> None:
 
 
 def daily_author_reply_counts(state: dict) -> dict[str, int]:
+    """Return the daily author reply counts."""
     counts = state.get("daily_replied_author_counts", {})
     if isinstance(counts, dict):
         cleaned: dict[str, int] = {}
@@ -2211,10 +2262,12 @@ def daily_author_reply_counts(state: dict) -> dict[str, int]:
 
 
 def daily_author_reply_count(state: dict, author_id: str) -> int:
+    """Return the daily author reply count."""
     return daily_author_reply_counts(state).get(str(author_id), 0)
 
 
 def mark_daily_author_replied(state: dict, author_id: str) -> None:
+    """Mark daily author replied."""
     author_id = str(author_id)
     counts = daily_author_reply_counts(state)
     counts[author_id] = counts.get(author_id, 0) + 1
@@ -2244,15 +2297,18 @@ CLARIFICATION_TOKEN_STOPWORDS = {
 
 
 def clarification_thread_id(candidate: dict) -> str:
+    """Return the clarification thread ID."""
     return str(candidate.get("conversation_id") or candidate.get("id") or "")
 
 
 def clarification_thread_is_terminal(state: dict, candidate: dict) -> bool:
+    """Return whether clarification thread is terminal."""
     records = state.get("clarification_reply_records", {})
     return isinstance(records, dict) and clarification_thread_id(candidate) in records
 
 
 def author_used_clarification_recently(state: dict, author_id: str, *, current: int) -> bool:
+    """Return the author used clarification recently."""
     records = state.get("clarification_reply_records", {})
     if not isinstance(records, dict):
         return False
@@ -2346,16 +2402,19 @@ def clarification_reply_context(
 # ---------------------------------------------------------------------
 
 def now_epoch() -> int:
+    """Return the now epoch."""
     if TEST_MODE and os.getenv("MRS_FAKE_NOW_EPOCH"):
         return int(os.getenv("MRS_FAKE_NOW_EPOCH", "0"))
     return int(datetime.now().timestamp())
 
 
 def current_datetime() -> datetime:
+    """Return the current datetime."""
     return datetime.fromtimestamp(now_epoch())
 
 
 def parse_x_datetime_to_epoch(value: str | None) -> int | None:
+    """Parse x datetime to epoch."""
     if not value:
         return None
 
@@ -2368,6 +2427,7 @@ def parse_x_datetime_to_epoch(value: str | None) -> int | None:
 
 
 def parse_tweet_id(value: object, *, context: str) -> int | None:
+    """Parse tweet ID."""
     value_str = str(value or "")
     if not re.fullmatch(r"\d{1,30}", value_str):
         log.warning("Skipping %s with invalid tweet id=%r", context, value)
@@ -2376,6 +2436,7 @@ def parse_tweet_id(value: object, *, context: str) -> int | None:
 
 
 def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]:
+    """Return whether valid tweets sorted by ID."""
     valid: list[tuple[int, dict]] = []
     seen_ids: set[int] = set()
     for tweet in tweets:
@@ -2391,6 +2452,7 @@ def valid_tweets_sorted_by_id(tweets: list[dict], *, context: str) -> list[dict]
 
 
 def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
+    """Return the in API cooldown."""
     if scope == "quote":
         until = int(state.get("quote_api_cooldown_until_epoch", 0) or 0)
         reason = state.get("quote_api_cooldown_reason", "Quote API cooldown")
@@ -2417,6 +2479,7 @@ def in_api_cooldown(state: dict, *, scope: str = "api") -> bool:
 
 
 def clear_expired_api_cooldowns(state: dict) -> bool:
+    """Clear expired API cooldowns."""
     changed = False
     current = now_epoch()
 
@@ -2444,6 +2507,7 @@ def clear_expired_api_cooldowns(state: dict) -> bool:
 
 
 def sanitize_next_reply_lane_priority(state: dict) -> bool:
+    """Sanitise next reply lane priority."""
     priority = str(state.get("next_reply_lane_priority", "normal") or "normal")
     if priority in {"normal", "quote"}:
         if state.get("next_reply_lane_priority") != priority:
@@ -2457,6 +2521,7 @@ def sanitize_next_reply_lane_priority(state: dict) -> bool:
 
 
 def load_runtime_state() -> dict:
+    """Load runtime state and apply daily maintenance safely."""
     state = load_state()
     clear_expired_api_cooldowns(state)
     sanitize_next_reply_lane_priority(state)
@@ -2464,6 +2529,7 @@ def load_runtime_state() -> dict:
 
 
 def prune_error_epochs(epochs: list[int]) -> list[int]:
+    """Prune error epochs."""
     cutoff = now_epoch() - ERROR_WINDOW_SECONDS
     pruned = [int(e) for e in epochs if int(e) >= cutoff]
     log.debug("Pruned error epochs from %d to %d", len(epochs), len(pruned))
@@ -2471,12 +2537,14 @@ def prune_error_epochs(epochs: list[int]) -> list[int]:
 
 
 def cooldown_until_for_rate_limit(current: int, reset_epoch: int | None) -> int:
+    """Return the cooldown until for rate limit."""
     if reset_epoch and reset_epoch > current:
         return reset_epoch + 60
     return current + COOLDOWN_AFTER_429_SECONDS
 
 
 def record_api_error(state: dict, error: Exception, service: str, *, scope: str = "api") -> None:
+    """Record API error."""
     if service == "x" and scope == "write" and api_error_is_reply_not_allowed(error):
         log.warning(
             "Not recording terminal target-specific X reply restriction in the transient write-error window: %s",
@@ -2553,6 +2621,7 @@ def record_api_error(state: dict, error: Exception, service: str, *, scope: str 
 # ---------------------------------------------------------------------
 
 def print_rate_limit_headers(response: requests.Response) -> int | None:
+    """Log rate limit headers."""
     log.warning("Rate Limit: %s", response.headers.get("x-rate-limit-limit"))
     log.warning("Remaining: %s", response.headers.get("x-rate-limit-remaining"))
 
@@ -2576,6 +2645,7 @@ def print_rate_limit_headers(response: requests.Response) -> int | None:
 
 
 def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs) -> dict:
+    """Send an authenticated X API request with bounded retries."""
     url = f"{X_BASE}{path}"
 
     log.debug("X request: %s %s", method, url)
@@ -2653,6 +2723,7 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
 
 
 def x_bearer_request(method: str, path: str, **kwargs) -> dict:
+    """Send a bearer-authenticated X API request with bounded retries."""
     if not X_BEARER_TOKEN:
         raise ApiError("X_BEARER_TOKEN is not set", service="x")
 
@@ -2731,6 +2802,7 @@ def x_quote_lookup_request(path: str, params: dict) -> dict:
 
 
 def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, label: str) -> dict:
+    """Read bounded pages from an X API collection endpoint."""
     combined: dict[str, object] = {"data": []}
     users_by_id: dict[str, dict] = {}
     media_by_key: dict[str, dict] = {}
@@ -2812,6 +2884,7 @@ def x_paginated_get(request_func, path: str, params: dict, *, max_pages: int, la
 # ---------------------------------------------------------------------
 
 def prune_tweet_cache(state: dict) -> None:
+    """Prune tweet cache."""
     cache = state.setdefault("tweet_cache", {})
     cutoff = now_epoch() - TWEET_CACHE_MAX_AGE_SECONDS
 
@@ -2836,6 +2909,7 @@ def prune_tweet_cache(state: dict) -> None:
 
 
 def record_recent_own_post(state: dict, tweet_id: str) -> None:
+    """Record recent own post."""
     tweet_id = str(tweet_id)
 
     ids = [str(x) for x in state.get("recent_own_post_ids", []) if str(x) != tweet_id]
@@ -2846,6 +2920,7 @@ def record_recent_own_post(state: dict, tweet_id: str) -> None:
 
 
 def seed_recent_own_post_ids_from_cache(state: dict) -> None:
+    """Seed recent own post IDs from cache."""
     if state.get("recent_own_post_ids"):
         return
 
@@ -2884,6 +2959,7 @@ def cache_tweet(
     image_summary: str | None = None,
     post_type: str | None = None,
 ) -> dict:
+    """Return the cache tweet."""
     prune_tweet_cache(state)
 
     tweet_id = str(tweet_id)
@@ -2926,6 +3002,7 @@ def cache_tweet(
 
 
 def get_immediate_parent_id(tweet: dict) -> str | None:
+    """Return immediate parent ID."""
     referenced_tweets = tweet.get("referenced_tweets", [])
     if referenced_tweets is None:
         return None
@@ -2945,6 +3022,7 @@ def get_immediate_parent_id(tweet: dict) -> str | None:
 
 
 def get_tweet_by_id(tweet_id: str) -> dict | None:
+    """Fetch one post from X by ID."""
     log.info("Fetching tweet by id. tweet_id=%s", tweet_id)
 
     params = {
@@ -2966,6 +3044,7 @@ def get_tweet_by_id(tweet_id: str) -> dict | None:
 
 
 def get_tweet_by_id_cached(tweet_id: str, state: dict) -> dict | None:
+    """Return a cached post or fetch it from X by ID."""
     prune_tweet_cache(state)
 
     tweet_id = str(tweet_id)
@@ -2995,6 +3074,7 @@ def get_tweet_by_id_cached(tweet_id: str, state: dict) -> dict | None:
 
 
 def clean_text_for_grok_context(text: str) -> str:
+    """Return the clean text for grok context."""
     text = html.unescape(text or "")
     text = re.sub(r"https?://\S+", "", text)
     text = " ".join(text.split())
@@ -3002,6 +3082,7 @@ def clean_text_for_grok_context(text: str) -> str:
 
 
 def attach_media_to_tweets(tweets: list[dict], includes: dict | None) -> None:
+    """Attach media to tweets."""
     media_items = (includes or {}).get("media", [])
     if not isinstance(media_items, list):
         return
@@ -3031,6 +3112,7 @@ def attach_media_to_tweets(tweets: list[dict], includes: dict | None) -> None:
 
 
 def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
+    """Return the candidate native photo media."""
     media_items = candidate.get("_attached_media", [])
     if not isinstance(media_items, list):
         media_items = []
@@ -3058,6 +3140,7 @@ def candidate_native_photo_media(candidate: dict) -> tuple[list[dict], int]:
 
 
 def reply_media_context_for_candidate(candidate: dict, *, lane: str, target_id: str) -> dict:
+    """Return the reply media context for candidate."""
     photos, expected_photo_count = candidate_native_photo_media(candidate)
     if photos:
         log.info(
@@ -3102,6 +3185,7 @@ def reply_media_context_for_candidate(candidate: dict, *, lane: str, target_id: 
 
 
 def redact_xai_payload_for_log(payload: dict) -> dict:
+    """Redact xAI payload for log."""
     redacted = copy.deepcopy(payload)
     for message in redacted.get("messages", []) or []:
         content = message.get("content")
@@ -3117,6 +3201,7 @@ def redact_xai_payload_for_log(payload: dict) -> dict:
 
 
 def tweet_context_text(tweet: dict) -> str:
+    """Return the tweet context text."""
     cleaned = clean_text_for_grok_context(tweet.get("text", ""))
 
     if cleaned:
@@ -3130,6 +3215,7 @@ def tweet_context_text(tweet: dict) -> str:
 
 
 def trim_context_text(text: str, max_chars: int) -> str:
+    """Trim context text."""
     text = clean_text_for_grok_context(text)
 
     if max_chars <= 0:
@@ -3145,6 +3231,7 @@ def trim_context_text(text: str, max_chars: int) -> str:
 
 
 def build_parent_chain(mention: dict, state: dict) -> list[dict]:
+    """Build bounded earlier-thread context for a reply candidate."""
     chain: list[dict] = []
     seen_ids: set[str] = set()
 
@@ -3183,6 +3270,7 @@ def build_parent_chain(mention: dict, state: dict) -> list[dict]:
 
 
 def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
+    """Return whether is our auto reply."""
     if not tweet:
         return False
 
@@ -3194,6 +3282,7 @@ def is_our_auto_reply(tweet: dict | None, state: dict) -> bool:
 
 
 def build_context_for_grok(mention: dict, state: dict) -> tuple[str, bool]:
+    """Build separated incoming, parent, thread, and quoted-post context."""
     mention_id = str(mention.get("id"))
     mention_text = mention.get("text", "").strip()
 
@@ -3333,6 +3422,7 @@ def reply_target_is_directly_eligible(tweet: dict) -> bool:
 
 
 def get_mentions(state: dict) -> list[dict]:
+    """Fetch a bounded page set of direct mention candidates."""
     base_since_id = str(state.get("last_seen_mention_id") or "")
     log.info(
         "Fetching mentions. last_seen_mention_id=%s max_results=%s",
@@ -3692,6 +3782,7 @@ def mark_hot_post_reply_skipped(
     original_post_id: str | None = None,
     retryable: bool | None = None,
 ) -> None:
+    """Mark hot post reply skipped."""
     reply_id = str(reply_id)
     if not reply_id:
         return
@@ -3838,6 +3929,7 @@ def dedupe_reply_candidates(mentions: list[dict], hot_post_replies: list[dict]) 
 # ---------------------------------------------------------------------
 
 def upload_media_v2(image_path: str) -> str:
+    """Return the upload media v2."""
     log.info("Uploading media via X API v2: %s", image_path)
 
     mime_type, _ = mimetypes.guess_type(image_path)
@@ -3868,6 +3960,7 @@ def upload_media_v2(image_path: str) -> str:
 
 
 def upload_media_v1_1(image_path: str) -> str:
+    """Return the upload media v1 1."""
     log.info("Uploading media via legacy v1.1 fallback: %s", image_path)
 
     url = f"{X_UPLOAD_BASE}/1.1/media/upload.json"
@@ -3916,6 +4009,7 @@ def upload_media_v1_1(image_path: str) -> str:
 
 
 def upload_media(image_path: str) -> str:
+    """Upload media through the preferred endpoint with a safe fallback."""
     try:
         return upload_media_v2(image_path)
     except ApiError as exc:
@@ -3930,6 +4024,7 @@ def upload_media(image_path: str) -> str:
 
 
 def block_if_ambiguous_remote_post() -> None:
+    """Refuse posting while an ambiguous remote-write outcome is unresolved."""
     if _AMBIGUOUS_REMOTE_POST_SEEN and not AMBIGUOUS_POST_OUTCOME_FILE.exists():
         raise AmbiguousRemotePostOutcome(
             "Unreconciled in-process ambiguity latch blocks further posting after the durable marker could not be confirmed",
@@ -3980,6 +4075,7 @@ def create_post(
     reply_to_id: str | None = None,
     made_with_ai: bool = False,
 ) -> dict:
+    """Create an X post with transactional ambiguity handling."""
     block_if_ambiguous_remote_post()
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
@@ -4056,37 +4152,46 @@ def create_post(
 # ---------------------------------------------------------------------
 
 class NoEligibleImageForQuote(RuntimeError):
+    """Raised when no eligible image remains for a quotation."""
     pass
 
 
 class QuoteSpecificImageMismatch(NoEligibleImageForQuote):
+    """Raised when an image affirmatively conflicts with a quotation."""
     pass
 
 
 class NoViableQuoteImagePair(RuntimeError):
+    """Raised when no viable quotation-image pair can be selected."""
     def __init__(self, message: str, attempts: int, excluded_last_image: str | None = None) -> None:
+        """Initialise the no viable quote image pair."""
         super().__init__(message)
         self.attempts = attempts
         self.excluded_last_image = excluded_last_image
 
 
 class GlobalImageUnavailable(NoEligibleImageForQuote):
+    """Raised when an image is unavailable across all quotation attempts."""
     pass
 
 
 class InvalidRegularPostReceipt(RuntimeError):
+    """Raised when a regular-post receipt fails semantic validation."""
     pass
 
 
 class UnresolvedRegularPostReceipt(RuntimeError):
+    """Raised when a regular-post receipt requires operator reconciliation."""
     pass
 
 
 class InvalidMemePostReceipt(RuntimeError):
+    """Raised when a meme-post receipt fails semantic validation."""
     pass
 
 
 class UnresolvedMemePostReceipt(RuntimeError):
+    """Raised when a meme-post receipt requires operator reconciliation."""
     pass
 
 
@@ -4095,10 +4200,12 @@ class ConfirmedPostLocalPersistenceError(RuntimeError):
     # after receiving that id but before durable receipt fsync can still leave
     # no replay record. Separately, if X accepts a post but no response reaches
     # this process, there is no known post id to receipt.
+    """Raised when a confirmed remote post cannot be persisted locally."""
     pass
 
 
 class InvalidConfirmedReplyReceipt(RuntimeError):
+    """Raised when a confirmed-reply receipt fails semantic validation."""
     pass
 
 
@@ -4107,18 +4214,22 @@ class ConfirmedReplyLocalPersistenceError(RuntimeError):
     # after receiving that id but before durable receipt fsync can still leave
     # no replay record. Separately, if X accepts a reply but no response reaches
     # this process, there is no known reply id to receipt.
+    """Raised when a confirmed remote reply cannot be persisted locally."""
     pass
 
 
 class CorruptUsedHistoryError(RuntimeError):
+    """Raised when durable used-history data is corrupt or unsafe."""
     pass
 
 
 class UnsafeImageHistoryMigration(RuntimeError):
+    """Raised when legacy image history cannot be migrated unambiguously."""
     pass
 
 
 class StaleImageMetadata(RuntimeError):
+    """Raised when image metadata does not match the current file."""
     pass
 
 TOKEN_STOPWORDS = {
@@ -4128,6 +4239,7 @@ TOKEN_STOPWORDS = {
 
 
 def load_json_object(path: Path, *, label: str) -> dict | None:
+    """Load JSON object."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -4144,14 +4256,17 @@ def load_json_object(path: Path, *, label: str) -> dict | None:
 
 
 def collapse_quote_whitespace(text: str) -> str:
+    """Collapse quote whitespace."""
     return re.sub(r"\s+", " ", str(text or "").strip())
 
 
 def quote_text_hash(text: str) -> str:
+    """Return whether quote text hash."""
     return hashlib.sha256(collapse_quote_whitespace(text).encode("utf-8")).hexdigest()
 
 
 def file_sha256(path: Path) -> str:
+    """Return the file SHA-256."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -4160,6 +4275,7 @@ def file_sha256(path: Path) -> str:
 
 
 def deep_merge_dict(base: dict, patch: dict) -> dict:
+    """Return the deep merge dict."""
     merged = json.loads(json.dumps(base))
     for key, value in patch.items():
         if isinstance(value, dict) and isinstance(merged.get(key), dict):
@@ -4170,6 +4286,7 @@ def deep_merge_dict(base: dict, patch: dict) -> dict:
 
 
 def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -> dict:
+    """Apply quote analysis overrides."""
     if not overrides:
         return raw_analysis
 
@@ -4227,6 +4344,7 @@ def apply_quote_analysis_overrides(raw_analysis: dict, overrides: dict | None) -
 
 
 def load_quote_analysis() -> dict | None:
+    """Load validated quotation-analysis metadata and local overrides."""
     raw = load_json_object(QUOTE_ANALYSIS_FILE, label="quote analysis")
     if raw is None:
         return None
@@ -4244,6 +4362,7 @@ def load_quote_analysis() -> dict | None:
 
 
 def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
+    """Load image analysis file."""
     raw = load_json_object(path, label=label)
     if raw is None:
         return None
@@ -4260,6 +4379,7 @@ def load_image_analysis_file(path: Path, *, label: str) -> dict | None:
 
 
 def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
+    """Merge image analysis."""
     if not isinstance(generated, dict):
         return primary
 
@@ -4287,6 +4407,7 @@ def merge_image_analysis(primary: dict, generated: dict | None) -> dict:
 
 
 def load_image_analysis() -> dict | None:
+    """Load original and, when enabled, generated image metadata."""
     primary = load_image_analysis_file(IMAGE_ANALYSIS_FILE, label="image analysis")
     if primary is None or not ENABLE_GENERATED_IMAGE_POOL:
         return primary
@@ -4301,12 +4422,14 @@ def load_image_analysis() -> dict | None:
 
 
 def mm_dd_in_window(mm_dd: str, start_mm_dd: str, end_mm_dd: str) -> bool:
+    """Return the mm dd in window."""
     if start_mm_dd <= end_mm_dd:
         return start_mm_dd <= mm_dd <= end_mm_dd
     return mm_dd >= start_mm_dd or mm_dd <= end_mm_dd
 
 
 def any_window_matches_today(windows: object, today_mm_dd: str) -> bool:
+    """Return whether any window matches today."""
     if not isinstance(windows, list):
         return False
     for window in windows:
@@ -4321,6 +4444,7 @@ def any_window_matches_today(windows: object, today_mm_dd: str) -> bool:
 
 
 def quote_season_status(analysis: dict | None, *, today_mm_dd: str) -> dict:
+    """Return the quote season status."""
     seasonality = (analysis or {}).get("seasonality", {}) if isinstance(analysis, dict) else {}
     if not isinstance(seasonality, dict):
         seasonality = {}
@@ -4336,6 +4460,7 @@ def quote_season_status(analysis: dict | None, *, today_mm_dd: str) -> dict:
 
 
 def quote_candidate_weight(analysis: dict | None, *, today_mm_dd: str) -> tuple[float, dict]:
+    """Return the quote candidate weight."""
     status = quote_season_status(analysis, today_mm_dd=today_mm_dd)
     if status["hard_excluded"]:
         return 0.0, status
@@ -4366,6 +4491,7 @@ def quote_candidate_weight(analysis: dict | None, *, today_mm_dd: str) -> tuple[
 
 
 def weighted_random_choice(candidates: list[dict]) -> dict:
+    """Select one candidate using its configured weight."""
     total = sum(float(candidate.get("weight", 0.0)) for candidate in candidates)
     if total <= 0:
         return random.choice(candidates)
@@ -4379,6 +4505,7 @@ def weighted_random_choice(candidates: list[dict]) -> dict:
 
 
 def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: str = "") -> dict | None:
+    """Return whether quote metadata for hash."""
     if not isinstance(quote_analysis, dict):
         return None
     item = (quote_analysis.get("items") or {}).get(str(quote_hash), {})
@@ -4397,6 +4524,7 @@ def quote_metadata_for_hash(quote_analysis: dict | None, quote_hash: str, text: 
 
 
 def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
+    """Return whether current quote hashes by line."""
     result: dict[int, str] = {}
     for line_no, line in enumerate(lines):
         if line.rstrip():
@@ -4405,10 +4533,12 @@ def current_quote_hashes_by_line(lines: list[str]) -> dict[int, str]:
 
 
 def quote_used_history_has_legacy_indices(value: set) -> bool:
+    """Return whether quote used history has legacy indices."""
     return any(re.fullmatch(r"-?\d+", str(item)) for item in value)
 
 
 def quote_source_matches_analysis(quote_analysis: dict | None, lines: list[str]) -> bool:
+    """Return whether quote source matches analysis."""
     if not isinstance(quote_analysis, dict):
         return False
     source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
@@ -4420,6 +4550,7 @@ def quote_source_matches_analysis(quote_analysis: dict | None, lines: list[str])
 
 
 def normalise_quote_used_hashes(raw_used: set, lines: list[str], quote_analysis: dict | None = None) -> tuple[set, bool]:
+    """Return whether normalise quote used hashes."""
     hashes_by_line = current_quote_hashes_by_line(lines)
     normalised: set[str] = set()
     changed = False
@@ -4451,6 +4582,7 @@ def normalise_quote_used_hashes(raw_used: set, lines: list[str], quote_analysis:
 
 
 def load_quote_used_hashes(lines: list[str]) -> set[str]:
+    """Return whether load quote used hashes."""
     raw = load_used_set(LINES_USED_FILE, legacy_pickle_path=PICKLE_FILE)
     quote_analysis = load_quote_analysis()
     normalised, changed = normalise_quote_used_hashes(raw, lines, quote_analysis)
@@ -4466,10 +4598,12 @@ def load_quote_used_hashes(lines: list[str]) -> set[str]:
 
 
 def save_quote_used_hashes(path: Path, value: set[str], *, durable: bool = False) -> None:
+    """Return whether save quote used hashes."""
     save_used_set(path, {str(item) for item in value}, durable=durable)
 
 
 def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]) -> None:
+    """Validate quote analysis against lines."""
     source = quote_analysis.get("source", {}) if isinstance(quote_analysis.get("source"), dict) else {}
     expected_source_sha = source.get("source_sha256")
     if expected_source_sha:
@@ -4483,6 +4617,7 @@ def validate_quote_analysis_against_lines(quote_analysis: dict, lines: list[str]
 
 
 def current_image_paths() -> list[str]:
+    """Return the current image paths."""
     images = glob(IMAGE_GLOB)
     images.sort()
     result = [path for path in images if Path(path).is_file()]
@@ -4516,6 +4651,7 @@ def current_image_paths() -> list[str]:
 
 
 def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = False) -> None:
+    """Save image used basenames."""
     path.parent.mkdir(parents=True, exist_ok=True)
     serializable = sorted(str(item) for item in value)
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -4531,6 +4667,7 @@ def save_image_used_basenames(path: Path, value: set[str], *, durable: bool = Fa
 
 
 def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
+    """Synchronise parent dir."""
     try:
         fd = os.open(str(path.parent), os.O_RDONLY)
     except Exception:
@@ -4545,6 +4682,7 @@ def fsync_parent_dir(path: Path, *, strict: bool = False) -> None:
 
 
 def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> None:
+    """Write JSON atomically and optionally durably."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
@@ -4559,10 +4697,12 @@ def atomic_write_json(path: Path, value: object, *, durable: bool = False) -> No
 
 
 def valid_post_id(value: object) -> bool:
+    """Return whether valid post ID."""
     return bool(re.fullmatch(r"\d{1,30}", str(value or "")))
 
 
 def valid_receipt_epoch(value: object) -> bool:
+    """Return whether valid receipt epoch."""
     if type(value) is not int:
         return False
     epoch = value
@@ -4570,18 +4710,21 @@ def valid_receipt_epoch(value: object) -> bool:
 
 
 def receipt_int(value: object, default: int | None = None) -> int | None:
+    """Return the receipt int."""
     if value in (None, "") and default is not None:
         return default
     return value if type(value) is int else None
 
 
 def receipt_bool(value: object) -> bool | None:
+    """Return the receipt bool."""
     if isinstance(value, bool):
         return value
     return None
 
 
 def safe_epoch_date_str(epoch: int) -> str | None:
+    """Return the safe epoch date str."""
     try:
         return epoch_date_str(epoch)
     except (TypeError, ValueError, OverflowError, OSError):
@@ -4589,11 +4732,13 @@ def safe_epoch_date_str(epoch: int) -> str | None:
 
 
 def valid_receipt_basename(value: object) -> bool:
+    """Return whether valid receipt basename."""
     basename = str(value or "")
     return bool(basename) and Path(basename).name == basename and basename not in {".", ".."}
 
 
 def write_regular_post_receipt(receipt: dict) -> None:
+    """Write regular post receipt."""
     if REGULAR_POST_RECEIPT_FILE.exists():
         raise UnresolvedRegularPostReceipt(f"Refusing to overwrite unresolved regular-post receipt: {REGULAR_POST_RECEIPT_FILE}")
     if MEME_POST_RECEIPT_FILE.exists():
@@ -4605,6 +4750,7 @@ def write_regular_post_receipt(receipt: dict) -> None:
 
 
 def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
+    """Return whether a regular-post receipt is internally consistent."""
     if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
         return False
     post_id = str(data.get("post_id") or "")
@@ -4674,6 +4820,7 @@ def regular_post_receipt_is_semantically_valid(data: dict) -> bool:
 
 
 def load_regular_post_receipt() -> tuple[str, dict | None]:
+    """Load regular post receipt."""
     try:
         with open(REGULAR_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -4700,6 +4847,7 @@ def load_regular_post_receipt() -> tuple[str, dict | None]:
 
 
 def remove_regular_post_receipt() -> None:
+    """Remove regular post receipt."""
     try:
         REGULAR_POST_RECEIPT_FILE.unlink()
         log.info("Removed reconciled regular-post receipt: %s", REGULAR_POST_RECEIPT_FILE)
@@ -4709,6 +4857,7 @@ def remove_regular_post_receipt() -> None:
 
 
 def write_meme_post_receipt(receipt: dict) -> None:
+    """Write meme post receipt."""
     if MEME_POST_RECEIPT_FILE.exists():
         raise UnresolvedMemePostReceipt(f"Refusing to overwrite unresolved meme-post receipt: {MEME_POST_RECEIPT_FILE}")
     if REGULAR_POST_RECEIPT_FILE.exists():
@@ -4720,6 +4869,7 @@ def write_meme_post_receipt(receipt: dict) -> None:
 
 
 def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
+    """Return whether a meme-post receipt is internally consistent."""
     if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
         return False
     if not valid_post_id(data.get("post_id")):
@@ -4741,6 +4891,7 @@ def meme_post_receipt_is_semantically_valid(data: dict) -> bool:
 
 
 def load_meme_post_receipt() -> tuple[str, dict | None]:
+    """Load meme post receipt."""
     try:
         with open(MEME_POST_RECEIPT_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -4767,6 +4918,7 @@ def load_meme_post_receipt() -> tuple[str, dict | None]:
 
 
 def remove_meme_post_receipt() -> None:
+    """Remove meme post receipt."""
     try:
         MEME_POST_RECEIPT_FILE.unlink()
         log.info("Removed reconciled meme-post receipt: %s", MEME_POST_RECEIPT_FILE)
@@ -4776,6 +4928,7 @@ def remove_meme_post_receipt() -> None:
 
 
 def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
+    """Apply meme post receipt."""
     post_id = str(receipt["post_id"])
     meme_basename = str(receipt["meme_basename"])
     meme_post_epoch = int(receipt["meme_post_epoch"])
@@ -4807,6 +4960,7 @@ def apply_meme_post_receipt(receipt: dict, state: dict) -> None:
 
 
 def reconcile_meme_post_receipt(state: dict) -> bool:
+    """Reconcile a durable meme receipt without duplicating a remote post."""
     status, receipt = load_meme_post_receipt()
     if status == "absent":
         return False
@@ -4824,6 +4978,7 @@ def reconcile_meme_post_receipt(state: dict) -> bool:
 
 
 def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set, state: dict) -> None:
+    """Apply regular post receipt."""
     post_id = str(receipt["post_id"])
     quote_hash = str(receipt["quote_hash"])
     image_basename = str(receipt["image_basename"])
@@ -4880,12 +5035,14 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
 
 
 def save_regular_post_protected_state(lines_used: set, images_used: set, state: dict, *, durable: bool) -> None:
+    """Save regular post protected state."""
     save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=durable)
     save_image_used_basenames(IMAGES_USED_FILE, {str(item) for item in images_used}, durable=durable)
     save_state(state, durable=durable)
 
 
 def emergency_persist_confirmed_regular_post(lines_used: set, images_used: set, state: dict) -> list[str]:
+    """Return the emergency persist confirmed regular post."""
     failures: list[str] = []
     for name, func in (
         ("quote_history", lambda: save_quote_used_hashes(LINES_USED_FILE, lines_used, durable=True)),
@@ -5046,6 +5203,7 @@ def maybe_post_historical_context_reply(
 
 
 def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dict) -> bool:
+    """Reconcile a durable regular-post receipt without duplicating a remote post."""
     status, receipt = load_regular_post_receipt()
     if status == "absent":
         return False
@@ -5069,6 +5227,7 @@ def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dic
 
 
 def block_if_unresolved_regular_post_receipt() -> None:
+    """Refuse a new regular post while a prior receipt is unresolved."""
     status, _receipt = load_regular_post_receipt()
     if status == "absent":
         return
@@ -5078,10 +5237,12 @@ def block_if_unresolved_regular_post_receipt() -> None:
 
 
 def both_main_post_receipts_exist() -> bool:
+    """Return the both main post receipts exist."""
     return REGULAR_POST_RECEIPT_FILE.exists() and MEME_POST_RECEIPT_FILE.exists()
 
 
 def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict) -> dict[str, bool]:
+    """Reconcile regular and meme receipts before any new main post."""
     if both_main_post_receipts_exist():
         log.critical(
             "Both regular and meme confirmed-post receipts exist; refusing automatic reconciliation until manually inspected: %s %s",
@@ -5096,10 +5257,12 @@ def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict)
 
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
+    """Return whether image used history has legacy indices."""
     return any(re.fullmatch(r"-?\d+", str(item)) for item in images_used)
 
 
 def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis: dict | None) -> bool:
+    """Return the image corpus verified for legacy migration."""
     if ENABLE_GENERATED_IMAGE_POOL:
         return False
     if not isinstance(image_analysis, dict):
@@ -5110,6 +5273,7 @@ def image_corpus_verified_for_legacy_migration(images: list[str], image_analysis
 
 
 def normalise_image_used_basenames(images_used: set, images: list[str], image_analysis: dict | None = None) -> tuple[set, bool]:
+    """Normalise image used basenames."""
     basenames = [Path(path).name for path in images]
     migrated: set = set()
     changed = False
@@ -5140,6 +5304,7 @@ def normalise_image_used_basenames(images_used: set, images: list[str], image_an
 
 
 def load_image_used_basenames(images: list[str]) -> set:
+    """Load image used basenames."""
     raw = load_used_set(IMAGES_USED_FILE, legacy_pickle_path=IMAGE_PICKLE_FILE)
     image_analysis = load_image_analysis()
     normalised, changed = normalise_image_used_basenames(raw, images, image_analysis)
@@ -5157,10 +5322,12 @@ def load_image_used_basenames(images: list[str]) -> set:
 
 
 def normalise_tag(value: object) -> str:
+    """Normalise tag."""
     return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
 
 
 def as_string_list(value: object) -> list[str]:
+    """Return the as string list."""
     if isinstance(value, list):
         return [str(item) for item in value if item is not None]
     if value is None:
@@ -5169,11 +5336,13 @@ def as_string_list(value: object) -> list[str]:
 
 
 def meaningful_tokens(value: object) -> set[str]:
+    """Return the meaningful tokens."""
     words = re.findall(r"[a-z0-9]+", str(value or "").lower())
     return {word for word in words if len(word) >= 4 and word not in TOKEN_STOPWORDS}
 
 
 def phrase_matches_text(phrase: str, text: str) -> bool:
+    """Return whether phrase matches text."""
     phrase_tokens = meaningful_tokens(phrase)
     if not phrase_tokens:
         return False
@@ -5183,6 +5352,7 @@ def phrase_matches_text(phrase: str, text: str) -> bool:
 
 
 def hard_mismatch_tokens(value: object) -> set[str]:
+    """Return the hard mismatch tokens."""
     tokens = meaningful_tokens(value)
     normalised: set[str] = set()
     for token in tokens:
@@ -5194,6 +5364,7 @@ def hard_mismatch_tokens(value: object) -> set[str]:
 
 
 def hard_mismatch_phrase_matches_text(phrase: str, text: str) -> bool:
+    """Return whether hard mismatch phrase matches text."""
     phrase_tokens = hard_mismatch_tokens(phrase)
     if not phrase_tokens:
         return False
@@ -5206,6 +5377,7 @@ def hard_mismatch_phrase_matches_text(phrase: str, text: str) -> bool:
 
 
 def image_text_corpus(image_analysis: dict) -> str:
+    """Return the image text corpus."""
     parts: list[str] = []
     for key in ("description", "scene_summary"):
         if image_analysis.get(key):
@@ -5221,6 +5393,7 @@ def image_text_corpus(image_analysis: dict) -> str:
 
 
 def build_image_topic_idf(image_analysis: dict | None) -> dict[str, float]:
+    """Build image topic idf."""
     if not isinstance(image_analysis, dict):
         return {}
     docs: list[set[str]] = []
@@ -5244,6 +5417,7 @@ def build_image_topic_idf(image_analysis: dict | None) -> dict[str, float]:
 
 
 def visual_energy_score(quote_energy: str, image_energy: str) -> float:
+    """Return the visual energy score."""
     order = {"low": 0, "medium": 1, "high": 2}
     if quote_energy not in order or image_energy not in order:
         return 0.0
@@ -5256,6 +5430,7 @@ def visual_energy_score(quote_energy: str, image_energy: str) -> float:
 
 
 def image_is_out_of_season(image_analysis: dict, today_mm_dd: str) -> bool:
+    """Return whether image is out of season."""
     seasonality = image_analysis.get("seasonality", {})
     if not isinstance(seasonality, dict) or not seasonality.get("avoid_outside_season_or_occasion"):
         return False
@@ -5275,6 +5450,7 @@ def image_is_out_of_season(image_analysis: dict, today_mm_dd: str) -> bool:
 
 
 def score_image_for_quote(quote_analysis: dict | None, image_analysis: dict | None, idf: dict[str, float] | None = None) -> tuple[float, dict[str, float], bool]:
+    """Calculate the production image score and component breakdown for a quotation."""
     if not isinstance(quote_analysis, dict) or not isinstance(image_analysis, dict):
         return 0.0, {"fallback": 0.0}, True
 
@@ -5454,6 +5630,7 @@ _GENERATED_IDENTITY_AUDIT_CACHE: dict[str, dict] = {}
 
 
 def original_editorial_numeric(value: object, *, key: str) -> float:
+    """Return the original editorial numeric."""
     if isinstance(value, bool):
         raise ValueError(f"{key} must be numeric in 0..10, got boolean")
     try:
@@ -5468,6 +5645,7 @@ def original_editorial_numeric(value: object, *, key: str) -> float:
 
 
 def original_editorial_concepts(value: object) -> set[str]:
+    """Return the original editorial concepts."""
     tag = normalise_tag(value)
     if not tag:
         return set()
@@ -5483,6 +5661,7 @@ def original_editorial_concepts(value: object) -> set[str]:
 
 
 def original_editorial_quote_concepts(quote_analysis: dict | None) -> set[str]:
+    """Return the original editorial quote concepts."""
     if not isinstance(quote_analysis, dict):
         return set()
     concepts: set[str] = set()
@@ -5502,6 +5681,7 @@ def original_editorial_quote_concepts(quote_analysis: dict | None) -> set[str]:
 
 
 def original_editorial_image_concepts(editorial: dict | None) -> set[str]:
+    """Return the original editorial image concepts."""
     if not isinstance(editorial, dict):
         return set()
     concepts: set[str] = set()
@@ -5512,6 +5692,7 @@ def original_editorial_image_concepts(editorial: dict | None) -> set[str]:
 
 
 def original_editorial_avoid_concepts(editorial: dict | None) -> set[str]:
+    """Return the original editorial avoid concepts."""
     if not isinstance(editorial, dict):
         return set()
     concepts: set[str] = set()
@@ -5521,6 +5702,7 @@ def original_editorial_avoid_concepts(editorial: dict | None) -> set[str]:
 
 
 def original_editorial_quote_dimension_profile(quote_analysis: dict | None) -> dict[str, float]:
+    """Return the original editorial quote dimension profile."""
     if not isinstance(quote_analysis, dict):
         return {dim: 0.0 for dim in ORIGINAL_EDITORIAL_DIMENSIONS}
     concepts = {normalise_tag(value) for value in as_string_list(quote_analysis.get("primary_topics")) + as_string_list(quote_analysis.get("secondary_topics"))}
@@ -5571,6 +5753,7 @@ def original_editorial_quote_dimension_profile(quote_analysis: dict | None) -> d
 
 
 def validate_original_editorial_item(basename: str, entry: dict, image_by_name: dict[str, str]) -> dict:
+    """Validate original editorial item."""
     if generated_image_origin_quote_hash(basename):
         raise ValueError(f"generated-style basename is not allowed in original editorial analysis: {basename}")
     if basename not in image_by_name:
@@ -5605,6 +5788,7 @@ def validate_original_editorial_item(basename: str, entry: dict, image_by_name: 
 
 
 def load_original_editorial_analysis() -> dict[str, dict]:
+    """Load original editorial analysis."""
     path = Path(str(ORIGINAL_EDITORIAL_ANALYSIS_FILE)).expanduser()
     cache_key = str(path)
     if cache_key in _ORIGINAL_EDITORIAL_ANALYSIS_CACHE:
@@ -5643,6 +5827,7 @@ def load_original_editorial_analysis() -> dict[str, dict]:
 
 
 def validate_original_editorial_shadow_startup() -> None:
+    """Validate original editorial shadow startup."""
     if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
         return
     count = len(load_original_editorial_analysis())
@@ -5656,6 +5841,7 @@ def validate_original_editorial_shadow_startup() -> None:
 
 
 def generated_identity_numeric(value: object, *, key: str, maximum: float = 10.0) -> float:
+    """Return the generated identity numeric."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"{key} must be a number")
     number = float(value)
@@ -5665,6 +5851,7 @@ def generated_identity_numeric(value: object, *, key: str, maximum: float = 10.0
 
 
 def configured_generated_image_paths() -> dict[str, Path]:
+    """Return the configured generated image paths."""
     generated_dir = Path(str(GENERATED_IMAGE_DIR)).expanduser()
     generated_glob = str(generated_dir / str(GENERATED_IMAGE_GLOB))
     result: dict[str, Path] = {}
@@ -5682,6 +5869,7 @@ def configured_generated_image_paths() -> dict[str, Path]:
 
 
 def validate_generated_identity_audit_item(basename: str, item: object, image_by_name: dict[str, Path]) -> dict:
+    """Validate generated identity audit item."""
     if not generated_image_origin_quote_hash(basename):
         raise ValueError(f"non-generated basename in identity audit: {basename}")
     if basename not in image_by_name:
@@ -5720,6 +5908,7 @@ def validate_generated_identity_audit_item(basename: str, item: object, image_by
 
 
 def load_generated_identity_audit() -> dict[str, dict]:
+    """Load generated identity audit."""
     path = Path(str(GENERATED_IDENTITY_AUDIT_FILE)).expanduser()
     cache_key = str(path)
     if cache_key in _GENERATED_IDENTITY_AUDIT_CACHE:
@@ -5755,6 +5944,7 @@ def load_generated_identity_audit() -> dict[str, dict]:
 
 
 def validate_generated_identity_shadow_startup() -> None:
+    """Validate generated identity shadow startup."""
     if not (ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING or ENABLE_GENERATED_IDENTITY_POLICY_SCORING):
         return
     items = load_generated_identity_audit()
@@ -5780,6 +5970,7 @@ def validate_generated_identity_shadow_startup() -> None:
 
 
 def generated_identity_candidate_shadow_row(candidate: dict, audit_by_basename: dict[str, dict]) -> dict:
+    """Return the generated identity candidate shadow row."""
     basename = str(candidate.get("basename") or "")
     source = str(candidate.get("image_source") or "original")
     baseline = float(candidate.get("score") or 0.0)
@@ -5832,6 +6023,7 @@ def generated_identity_policy_shadow_result(
     audit_by_basename: dict[str, dict] | None = None,
     selection_rng_state: object | None = None,
 ) -> dict:
+    """Evaluate generated-image identity policy without changing selection."""
     audit_by_basename = load_generated_identity_audit() if audit_by_basename is None else audit_by_basename
     rows = [generated_identity_candidate_shadow_row(candidate, audit_by_basename) for candidate in scored_candidates]
     baseline_maximum = max((float(row["baseline_score"]) for row in rows), default=None)
@@ -5962,6 +6154,7 @@ def generated_identity_policy_applied_result(
     selection_phase: str,
     selection_rng_state: object,
 ) -> dict:
+    """Apply the enabled generated-image identity policy to scored candidates."""
     rows_by_name = {row["basename"]: row for row in policy_rows}
     production_row = rows_by_name[str(production_winner["basename"])]
     baseline_best = max(float(row["baseline_score"]) for row in policy_rows)
@@ -6038,6 +6231,7 @@ def generated_identity_policy_applied_result(
 
 
 def log_generated_identity_policy_applied_result(payload: dict) -> None:
+    """Log generated identity policy applied result."""
     log.info("GENERATED_IDENTITY_POLICY_APPLIED %s", json.dumps(payload, sort_keys=True, separators=(",", ":")))
 
 
@@ -6049,6 +6243,7 @@ def log_generated_identity_policy_shadow_result(
     selection_phase: str,
     selection_rng_state: object | None = None,
 ) -> None:
+    """Log generated identity policy shadow result."""
     if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
         return
     try:
@@ -6076,6 +6271,7 @@ def original_editorial_shadow_score(
     weight: float | None = None,
     max_abs_adjustment: float | None = None,
 ) -> tuple[float, dict]:
+    """Calculate the observational editorial adjustment for one image."""
     if not isinstance(editorial, dict):
         return 0.0, {"dimension_score": 0.0, "affinity_score": 0.0, "utility_adjustment": 0.0, "penalty": 0.0, "cap_hit": False}
     weight = ORIGINAL_EDITORIAL_SHADOW_WEIGHT if weight is None else float(weight)
@@ -6140,6 +6336,7 @@ def log_original_editorial_shadow_result(
     *,
     selection_phase: str,
 ) -> None:
+    """Log original editorial shadow result."""
     if not ENABLE_ORIGINAL_EDITORIAL_SHADOW_SCORING:
         return
     editorial_by_basename = load_original_editorial_analysis()
@@ -6198,6 +6395,7 @@ def log_original_editorial_shadow_result(
 
 
 def concise_components(components: dict[str, float]) -> str:
+    """Return the concise components."""
     return ", ".join(f"{key}={value:.1f}" for key, value in sorted(components.items()))
 
 
@@ -6209,6 +6407,7 @@ def build_quote_candidates(
     *,
     excluded_quote_hashes: set[str] | None = None,
 ) -> tuple[list[dict], int, int]:
+    """Build analysed, research-eligible quotation candidates for a date."""
     hard_excluded = 0
     non_empty = 0
     candidates: list[dict] = []
@@ -6251,6 +6450,7 @@ def build_quote_candidates(
 
 
 def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
+    """Load the active quotation source and validated analysis metadata."""
     with open(LINES_FILE) as f:
         lines = f.readlines()
 
@@ -6303,6 +6503,7 @@ def completed_research_quote_hashes() -> set[str]:
 
 
 def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> list[dict]:
+    """Build the unused runtime-eligible quotation pool for the current cycle."""
     log.debug("Choosing unused line. Already used=%d", len(lines_used))
 
     lines, quote_analysis, today_mm_dd = load_quote_lines_and_analysis()
@@ -6394,6 +6595,7 @@ def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes
 
 
 def select_quote_candidate(candidates: list[dict]) -> dict:
+    """Select quote candidate."""
     chosen = weighted_random_choice(candidates)
     log.info(
         "Selected quote line_no=%d quote_hash=%s weight=%.2f seasonal_boost=%s",
@@ -6407,6 +6609,7 @@ def select_quote_candidate(candidates: list[dict]) -> dict:
 
 
 def choose_unused_line_candidate(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> dict:
+    """Select unused line candidate."""
     return select_quote_candidate(quote_candidates_for_current_cycle(lines_used, excluded_quote_hashes=excluded_quote_hashes))
 
 
@@ -6415,6 +6618,7 @@ def available_currently_eligible_image_basenames(
     images_used: set[str],
     state: dict | None = None,
 ) -> tuple[list[str], bool]:
+    """Return whether available currently eligible image basenames."""
     if not eligible_basenames:
         raise NoEligibleImageForQuote("No currently eligible regular-post images are available")
 
@@ -6437,10 +6641,12 @@ def available_currently_eligible_image_basenames(
 
 
 def current_image_sha256(path: str) -> str:
+    """Return the current image SHA-256."""
     return file_sha256(Path(path))
 
 
 def image_metadata_for_basename(image_analysis: dict | None, basename: str, path: str | None = None) -> tuple[str | None, dict | None]:
+    """Return the image metadata for basename."""
     if not isinstance(image_analysis, dict):
         return None, None
     image_hash = (image_analysis.get("path_index") or {}).get(basename)
@@ -6471,6 +6677,7 @@ def image_metadata_for_basename(image_analysis: dict | None, basename: str, path
 
 
 def generated_image_origin_quote_hash(basename: str) -> str | None:
+    """Return whether generated image origin quote hash."""
     match = re.fullmatch(r"tg_([0-9a-fA-F]{64})\.[A-Za-z0-9]+", str(basename))
     if not match:
         return None
@@ -6478,6 +6685,7 @@ def generated_image_origin_quote_hash(basename: str) -> str | None:
 
 
 def image_selection_observability(basename: str, quote_hash: object = None, origin_quote_boost: float = 0.0) -> dict:
+    """Return the image selection observability."""
     origin_quote_hash = generated_image_origin_quote_hash(basename)
     origin_quote_match = bool(origin_quote_hash and origin_quote_hash == str(quote_hash or "").lower())
     return {
@@ -6489,6 +6697,7 @@ def image_selection_observability(basename: str, quote_hash: object = None, orig
 
 
 def generated_image_spacing_required() -> int:
+    """Return the generated image spacing required."""
     if type(GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN) is not int:
         raise ValueError("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN must be an integer")
     if GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN < 0:
@@ -6497,6 +6706,7 @@ def generated_image_spacing_required() -> int:
 
 
 def original_posts_since_generated_image(state: dict | None) -> int:
+    """Return the original posts since generated image."""
     if not state:
         return generated_image_spacing_required()
     try:
@@ -6507,6 +6717,7 @@ def original_posts_since_generated_image(state: dict | None) -> int:
 
 
 def generated_images_allowed_by_spacing(state: dict | None) -> bool:
+    """Return whether generated images allowed by spacing."""
     required = generated_image_spacing_required()
     if required <= 0:
         return True
@@ -6514,6 +6725,7 @@ def generated_images_allowed_by_spacing(state: dict | None) -> bool:
 
 
 def log_generated_image_spacing_status(state: dict | None) -> bool:
+    """Log generated image spacing status."""
     required = generated_image_spacing_required()
     count = original_posts_since_generated_image(state)
     allowed = generated_images_allowed_by_spacing(state)
@@ -6534,6 +6746,7 @@ def log_generated_image_spacing_status(state: dict | None) -> bool:
 
 
 def log_generated_image_spacing_state_updated(state: dict | None, image_basename: str) -> None:
+    """Log generated image spacing state updated."""
     required = generated_image_spacing_required()
     count = original_posts_since_generated_image(state)
     allowed = generated_images_allowed_by_spacing(state)
@@ -6550,12 +6763,14 @@ def log_generated_image_spacing_state_updated(state: dict | None, image_basename
 
 
 def filter_generated_images_by_spacing(eligible_basenames: set[str], state: dict | None) -> set[str]:
+    """Filter generated images by spacing."""
     if not ENABLE_GENERATED_IMAGE_POOL or generated_images_allowed_by_spacing(state):
         return eligible_basenames
     return {basename for basename in eligible_basenames if not generated_image_origin_quote_hash(basename)}
 
 
 def update_regular_generated_image_spacing_state(state: dict, image_basename: str) -> None:
+    """Update regular generated image spacing state."""
     required = generated_image_spacing_required()
     if generated_image_origin_quote_hash(image_basename):
         state["original_regular_posts_since_generated_image"] = 0
@@ -6567,6 +6782,7 @@ def update_regular_generated_image_spacing_state(state: dict, image_basename: st
 
 
 def regular_generated_image_spacing_already_reflected(state: dict, image_basename: str) -> bool:
+    """Return the regular generated image spacing already reflected."""
     if "original_regular_posts_since_generated_image" not in state:
         return False
     if generated_image_origin_quote_hash(image_basename):
@@ -6575,6 +6791,7 @@ def regular_generated_image_spacing_already_reflected(state: dict, image_basenam
 
 
 def log_regular_image_selection(choice: dict) -> None:
+    """Log regular image selection."""
     log.info(
         "REGULAR_IMAGE_SELECTED source=%s basename=%s score=%s origin_quote_hash=%s origin_quote_match=%s origin_quote_boost=%s",
         choice.get("image_source", "original"),
@@ -6660,6 +6877,7 @@ def choose_matched_unused_image(
     generated_images_allowed: bool | None = None,
     selection_phase: str = "normal",
 ) -> dict:
+    """Select the highest-scoring eligible unused image for a quotation."""
     images = current_image_paths()
     log.debug("Found %d images matching %s", len(images), IMAGE_GLOB)
     if not images:
@@ -6861,6 +7079,7 @@ def choose_regular_quote_image_pair(
     force_image_cycle_reset: bool = False,
     avoid_last_image_at_cycle_boundary: bool = True,
 ) -> tuple[dict, dict, int]:
+    """Select a production quotation-image pair under current cycle rules."""
     attempted_quote_hashes: set[str] = set()
     attempts = 0
     reset_available_images_once = force_image_cycle_reset
@@ -6916,6 +7135,7 @@ def choose_regular_quote_image_pair(
 
 
 def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
+    """Select and post one quotation-image pair transactionally."""
     log.info("Starting quote/image post cycle")
     block_if_ambiguous_remote_post()
 
@@ -7125,6 +7345,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
 # ---------------------------------------------------------------------
 
 def load_meme_analysis_index() -> dict[str, dict]:
+    """Load meme analysis index."""
     log.debug("Loading meme analysis from %s", MEME_ANALYSIS_FILE)
 
     try:
@@ -7155,6 +7376,7 @@ def load_meme_analysis_index() -> dict[str, dict]:
 
 
 def original_meme_filename(shortlist_path: Path) -> str:
+    """Return the original meme filename."""
     name = shortlist_path.name
 
     prefix_patterns = [
@@ -7171,6 +7393,7 @@ def original_meme_filename(shortlist_path: Path) -> str:
 
 
 def build_meme_cache_summary(shortlist_path: Path, analysis_index: dict[str, dict]) -> str:
+    """Build meme cache summary."""
     original_name = original_meme_filename(shortlist_path)
     item = analysis_index.get(original_name)
 
@@ -7210,6 +7433,7 @@ def build_meme_cache_summary(shortlist_path: Path, analysis_index: dict[str, dic
 
 
 def list_meme_candidates() -> list[Path]:
+    """List meme candidates."""
     if not MEME_DIR.exists():
         log.warning("Meme directory does not exist: %s", MEME_DIR)
         return []
@@ -7225,6 +7449,7 @@ def list_meme_candidates() -> list[Path]:
 
 
 def choose_next_meme(state: dict) -> Path | None:
+    """Select next meme."""
     candidates = list_meme_candidates()
 
     if not candidates:
@@ -7248,12 +7473,14 @@ def choose_next_meme(state: dict) -> Path | None:
 
 
 def epoch_date_str(epoch: int | None = None) -> str:
+    """Return the epoch date str."""
     if epoch is None:
         epoch = now_epoch()
     return datetime.fromtimestamp(int(epoch)).strftime("%Y-%m-%d")
 
 
 def meme_posted_on_date(state: dict, date_text: str) -> bool:
+    """Return the meme posted on date."""
     last_epoch = int(state.get("last_meme_post_epoch", 0) or 0)
     if not last_epoch:
         return False
@@ -7261,6 +7488,7 @@ def meme_posted_on_date(state: dict, date_text: str) -> bool:
 
 
 def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
+    """Return the next meme fallback epoch."""
     if from_epoch is None:
         from_epoch = now_epoch()
 
@@ -7281,6 +7509,7 @@ def next_meme_fallback_epoch(state: dict, from_epoch: int | None = None) -> int:
 
 
 def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: str = "fallback") -> dict:
+    """Return the next meme schedule fields."""
     next_epoch = next_meme_fallback_epoch(state, from_epoch)
     return {
         "next_meme_post_epoch": next_epoch,
@@ -7292,6 +7521,7 @@ def next_meme_schedule_fields(state: dict, from_epoch: int | None = None, mode: 
 
 
 def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
+    """Return the meme delay schedule fields."""
     if mode not in MEME_SCHEDULE_MODES or mode in {"", "after_first_quote_after_midday"}:
         raise ValueError(f"Unsupported non-quote meme delay schedule mode: {mode}")
     return {
@@ -7304,12 +7534,14 @@ def meme_delay_schedule_fields(epoch: int, mode: str) -> dict:
 
 
 def set_meme_delay_schedule(state: dict, *, epoch: int, mode: str, save: bool = True) -> None:
+    """Set meme delay schedule."""
     apply_state_fields(state, meme_delay_schedule_fields(epoch, mode))
     if save:
         save_state(state)
 
 
 def apply_state_fields(state: dict, fields: dict) -> None:
+    """Apply state fields."""
     for key, value in fields.items():
         state[key] = value
 
@@ -7335,6 +7567,7 @@ def schedule_next_meme_post(state: dict, from_epoch: int | None = None, mode: st
 
 
 def ensure_meme_schedule_initialized(state: dict) -> None:
+    """Ensure meme schedule initialized."""
     if not ENABLE_DAILY_MEME_POSTS:
         return
 
@@ -7367,6 +7600,7 @@ def ensure_meme_schedule_initialized(state: dict) -> None:
 
 
 def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, delay: int | None = None) -> dict:
+    """Return the meme schedule fields after quote post."""
     if not ENABLE_DAILY_MEME_POSTS:
         return {}
 
@@ -7412,6 +7646,7 @@ def meme_schedule_fields_after_quote_post(state: dict, quote_post_epoch: int | N
 
 
 def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | None = None, *, save: bool = True) -> None:
+    """Attempt to schedule meme after quote post."""
     fields = meme_schedule_fields_after_quote_post(state, quote_post_epoch)
     if not fields:
         return
@@ -7433,6 +7668,7 @@ def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | No
 
 
 def post_next_meme(state: dict) -> None:
+    """Select and post the next daily meme transactionally."""
     log.info("Starting daily meme post cycle")
     block_if_ambiguous_remote_post()
     if both_main_post_receipts_exist():
@@ -7612,6 +7848,7 @@ BLOCKED_REPLY_PATTERNS = [
 
 
 def is_probably_spam_or_not_worth_replying(text: str) -> bool:
+    """Return whether is probably spam or not worth replying."""
     low = text.lower().strip()
     log.debug("Spam check for text=%r", text)
 
@@ -7642,6 +7879,7 @@ def is_probably_spam_or_not_worth_replying(text: str) -> bool:
 
 
 def clean_generated_reply(text: str) -> str:
+    """Return the clean generated reply."""
     log.debug("Raw Grok reply before cleaning: %r", text)
 
     text = text.strip()
@@ -7664,6 +7902,7 @@ def clean_generated_reply(text: str) -> str:
 
 
 def generated_reply_is_safe_enough(text: str) -> bool:
+    """Return whether generated reply is safe enough."""
     low = text.lower()
     log.debug("Safety check for generated reply=%r", text)
 
@@ -7700,6 +7939,7 @@ def generated_reply_is_safe_enough(text: str) -> bool:
 
 
 def xai_user_content(user_prompt: str, media_context: dict | None = None) -> str | list[dict]:
+    """Return the xAI user content."""
     if not media_context or media_context.get("status") == "none":
         return user_prompt
 
@@ -7729,6 +7969,7 @@ def xai_user_content(user_prompt: str, media_context: dict | None = None) -> str
 
 
 def response_text_for_classification(response: requests.Response) -> str:
+    """Return the response text for classification."""
     try:
         data = response.json()
     except Exception:
@@ -7740,6 +7981,7 @@ def response_text_for_classification(response: requests.Response) -> str:
 
 
 def extract_error_text_for_classification(data: object) -> str:
+    """Extract error text for classification."""
     parts: list[str] = []
 
     def add(value: object) -> None:
@@ -7784,16 +8026,19 @@ def extract_error_text_for_classification(data: object) -> str:
 
 
 def term_or_phrase_in_text(term: str, text: str) -> bool:
+    """Return the term or phrase in text."""
     escaped = re.escape(term)
     escaped = escaped.replace(r"\ ", r"\s+")
     return re.search(rf"(?<![A-Za-z0-9_]){escaped}(?![A-Za-z0-9_])", text) is not None
 
 
 def any_term_or_phrase_in_text(terms: list[str], text: str) -> bool:
+    """Return the any term or phrase in text."""
     return any(term_or_phrase_in_text(term, text) for term in terms)
 
 
 def xai_error_is_multimodal_input_rejection(response: requests.Response) -> bool:
+    """Return whether xAI error is multimodal input rejection."""
     if response.status_code not in {400, 415, 422}:
         return False
 
@@ -7830,6 +8075,7 @@ def xai_error_is_multimodal_input_rejection(response: requests.Response) -> bool
 
 
 def recent_auto_reply_texts(state: dict, limit: int = 20) -> list[str]:
+    """Return the recent auto reply texts."""
     cache = state.get("tweet_cache", {})
     if not isinstance(cache, dict):
         return []
@@ -7845,6 +8091,7 @@ def recent_auto_reply_texts(state: dict, limit: int = 20) -> list[str]:
 
 
 def pending_reply_draft_key(target_id: object, candidate_source: object) -> str:
+    """Return the pending reply draft key."""
     return f"{str(candidate_source or 'mention')}:{str(target_id)}"
 
 
@@ -7862,6 +8109,7 @@ def store_pending_strategy_reply(
     *,
     incoming_text: str | None = None,
 ) -> bool:
+    """Store pending strategy reply."""
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
         return False
@@ -7903,6 +8151,7 @@ def store_pending_strategy_reply(
 
 
 def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> str | None:
+    """Return the pending strategy reply."""
     record = state.get("pending_reply_drafts", {}).get(
         pending_reply_draft_key(target_id, candidate_source)
     )
@@ -7970,6 +8219,7 @@ def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -
 
 
 def pending_reply_is_valid_direct_answer(reply: str, question: str) -> bool:
+    """Return whether pending reply is valid direct answer."""
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
         return False
@@ -7989,6 +8239,7 @@ def pending_reply_is_valid_direct_answer(reply: str, question: str) -> bool:
 
 
 def clear_pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> None:
+    """Clear pending strategy reply."""
     drafts = state.get("pending_reply_drafts")
     if not isinstance(drafts, dict):
         return
@@ -7998,6 +8249,7 @@ def clear_pending_strategy_reply(state: dict, target_id: str, candidate_source: 
 
 
 def log_reply_strategy_dry_run(*, incoming: str, reply: str, lane: str, target_id: str) -> None:
+    """Log reply strategy dry run."""
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
         return
@@ -8025,6 +8277,7 @@ def log_reply_strategy_posting_outcome(
     target_id: str,
     failure_reason: str,
 ) -> None:
+    """Log reply strategy posting outcome."""
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
         return
@@ -8058,6 +8311,7 @@ def ask_grok_for_reply(
     clarification_reply: bool = False,
     _shadow_submitted: bool = False,
 ) -> str | None:
+    """Request and locally validate one structured conversational-reply decision."""
     log.info("Asking Grok for reply. context_text=%r", context_text)
 
     media_metadata = media_context if isinstance(media_context, dict) else {}
@@ -8425,6 +8679,7 @@ def ask_grok_for_reply(
 # ---------------------------------------------------------------------
 
 def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
+    """Update last seen mention ID."""
     previous = state.get("last_seen_mention_id")
 
     log.debug("Updating last_seen_mention_id. previous=%s new_candidate=%s", previous, mention_id)
@@ -8442,6 +8697,7 @@ def update_last_seen_mention_id(state: dict, mention_id: str) -> None:
 
 
 def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
+    """Mark mention seen if applicable."""
     if candidate.get("_pagination_truncated"):
         log.warning("Not advancing mention watermark for %s because mention pagination was truncated", candidate.get("id"))
         return
@@ -8450,6 +8706,7 @@ def mark_mention_seen_if_applicable(state: dict, candidate: dict) -> None:
 
 
 def terminal_reply_evaluation(state: dict, target_id: str) -> dict | None:
+    """Return the terminal reply evaluation."""
     records = state.get("reply_evaluation_records", {})
     if not isinstance(records, dict):
         return None
@@ -8467,6 +8724,7 @@ def record_terminal_reply_evaluation(
     reason: str,
     outcome: str = "no_reply",
 ) -> None:
+    """Record terminal reply evaluation."""
     if outcome not in {"no_reply", "reply_not_permitted"}:
         raise ValueError(f"Unsupported terminal reply outcome: {outcome}")
     records = state.get("reply_evaluation_records", {})
@@ -8489,6 +8747,7 @@ def strategy_metadata_is_semantically_valid(
     *,
     incoming_text: object = None,
 ) -> bool:
+    """Return whether strategy metadata is semantically valid."""
     from reply_strategy import (
         CONFIDENCE_LEVELS,
         HUMOUR_TONES,
@@ -8564,6 +8823,7 @@ def strategy_metadata_is_semantically_valid(
 
 
 def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
+    """Return whether a confirmed-reply receipt is internally consistent."""
     if not isinstance(data, dict):
         return False
     if type(data.get("schema_version")) is not int or data.get("schema_version") != 1:
@@ -8633,6 +8893,7 @@ def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
 
 
 def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
+    """Load confirmed reply receipt."""
     try:
         with open(CONFIRMED_REPLY_RECEIPT_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -8660,6 +8921,7 @@ def load_confirmed_reply_receipt() -> tuple[str, dict | None]:
 
 
 def write_confirmed_reply_receipt(receipt: dict) -> None:
+    """Write confirmed reply receipt."""
     if CONFIRMED_REPLY_RECEIPT_FILE.exists():
         raise InvalidConfirmedReplyReceipt(
             f"Refusing to overwrite unresolved confirmed-reply receipt: {CONFIRMED_REPLY_RECEIPT_FILE}"
@@ -8677,6 +8939,7 @@ def write_confirmed_reply_receipt(receipt: dict) -> None:
 
 
 def remove_confirmed_reply_receipt(receipt: dict | None = None) -> None:
+    """Remove confirmed reply receipt."""
     try:
         CONFIRMED_REPLY_RECEIPT_FILE.unlink()
         if receipt:
@@ -8695,6 +8958,7 @@ def remove_confirmed_reply_receipt(receipt: dict | None = None) -> None:
 
 
 def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
+    """Apply confirmed reply receipt."""
     target_id = str(receipt["target_id"])
     reply_post_id = str(receipt["reply_post_id"])
     author_id = str(receipt.get("author_id") or "")
@@ -8834,6 +9098,7 @@ def apply_confirmed_reply_receipt(state: dict, receipt: dict) -> None:
 
 
 def reconcile_confirmed_reply_receipt(state: dict) -> bool:
+    """Reconcile a confirmed reply without duplicating the remote post."""
     status, receipt = load_confirmed_reply_receipt()
     if status == "absent":
         return False
@@ -8866,6 +9131,7 @@ def reconcile_confirmed_reply_receipt(state: dict) -> bool:
 
 
 def maybe_reply_to_mentions(state: dict) -> str:
+    """Process eligible mention and hot-post candidates under all reply limits."""
     log.info("Starting mention reply check")
     block_if_ambiguous_remote_post()
 
@@ -9529,6 +9795,7 @@ def build_quote_lookup_post_ids(state: dict) -> list[str]:
 
 
 def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
+    """Return recent own post IDs for quote lookup."""
     seed_recent_own_post_ids_from_cache(state)
 
     ids = [str(x) for x in state.get("recent_own_post_ids", [])]
@@ -9551,6 +9818,7 @@ def get_recent_own_post_ids_for_quote_lookup(state: dict) -> list[str]:
 
 
 def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[dict]:
+    """Return quote tweets for post."""
     log.info("Fetching quote tweets for post_id=%s", post_id)
 
     params = {
@@ -9609,6 +9877,7 @@ def get_quote_tweets_for_post(post_id: str, state: dict | None = None) -> list[d
 
 
 def quote_tweet_is_old_enough(quote_tweet: dict) -> bool:
+    """Return whether quote tweet is old enough."""
     created_epoch = parse_x_datetime_to_epoch(quote_tweet.get("created_at"))
 
     if created_epoch is None:
@@ -9660,6 +9929,7 @@ def quote_tweet_directly_quotes_original(quote_tweet: dict, original_post_id: st
 
 
 def quote_author_profile_text(quote_tweet: dict) -> str:
+    """Return the quote author profile text."""
     user = quote_tweet.get("_author_user", {}) or {}
 
     parts = [
@@ -9683,6 +9953,7 @@ def quote_author_profile_text(quote_tweet: dict) -> str:
 
 
 def build_quote_tweet_context(original_tweet: dict, quote_tweet: dict) -> str:
+    """Build quote tweet context."""
     original_text = trim_context_text(tweet_context_text(original_tweet), THREAD_CONTEXT_MAX_CHARS_PER_POST)
     quote_text = trim_context_text(quote_tweet.get("text", ""), THREAD_CONTEXT_MAX_CHARS_PER_POST)
 
@@ -9739,6 +10010,7 @@ def build_quote_tweet_context(original_tweet: dict, quote_tweet: dict) -> str:
 
 
 def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
+    """Mark quote tweet skipped."""
     quote_id = str(quote_id)
 
     state["seen_quote_post_ids"] = append_unique_capped(
@@ -9754,6 +10026,7 @@ def mark_quote_tweet_skipped(state: dict, quote_id: str) -> None:
 
 
 def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
+    """Mark quote tweet replied."""
     quote_id = str(quote_id)
 
     state["seen_quote_post_ids"] = append_unique_capped(
@@ -9768,6 +10041,7 @@ def mark_quote_tweet_replied(state: dict, quote_id: str) -> None:
 
 
 def mark_quote_spam_author(state: dict, author_id: str) -> None:
+    """Mark quote spam author."""
     author_id = str(author_id)
 
     state["quote_spam_author_ids"] = append_unique_capped(
@@ -9779,6 +10053,7 @@ def mark_quote_spam_author(state: dict, author_id: str) -> None:
 
 
 def maybe_reply_to_quote_tweets(state: dict) -> str:
+    """Process eligible quote-tweet candidates under all reply limits."""
     log.info("Starting quote-tweet reply check")
     block_if_ambiguous_remote_post()
 
@@ -10262,6 +10537,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
 # ---------------------------------------------------------------------
 
 def next_quote_schedule_fields(from_epoch: int | None = None, *, delay: int | None = None) -> tuple[dict, int]:
+    """Return the next quote schedule fields."""
     if from_epoch is None:
         from_epoch = now_epoch()
 
@@ -10271,6 +10547,7 @@ def next_quote_schedule_fields(from_epoch: int | None = None, *, delay: int | No
 
 
 def schedule_next_quote_post(state: dict, from_epoch: int | None = None, *, save: bool = True) -> None:
+    """Perform the schedule next quote post operation."""
     fields, delay = next_quote_schedule_fields(from_epoch)
     apply_state_fields(state, fields)
     if save:
@@ -10289,6 +10566,7 @@ def run_reply_lane_checks_for_tick(
     last_reply_check_epoch: int,
     last_quote_tweet_check_epoch: int,
 ) -> tuple[int, int]:
+    """Run one scheduled reply-lane arbitration tick."""
     ambiguity_blocked = False
     last_reply_check_epoch, reply_epoch_changed = scheduler_epoch_from_state(
         state,
@@ -10432,6 +10710,7 @@ def run_reply_lane_checks_for_tick(
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     require_production_bootstrap()
     require_established_installation()
     block_if_ambiguous_remote_post()
@@ -10900,6 +11179,7 @@ def run_test_main_tick() -> int:
 
 
 def require_test_mode(command_name: str) -> bool:
+    """Require test mode."""
     if os.getenv("MRS_TEST_MODE") != "1":
         log.error("%s requires MRS_TEST_MODE=1", command_name)
         return False
@@ -10907,6 +11187,7 @@ def require_test_mode(command_name: str) -> bool:
 
 
 def prepare_test_main_post_state(state: dict) -> None:
+    """Prepare test main post state."""
     if ENABLE_DAILY_MEME_POSTS:
         ensure_meme_schedule_initialized(state)
 

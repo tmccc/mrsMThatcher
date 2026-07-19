@@ -46,6 +46,7 @@ _IMPORT_ENV = {
 
 
 def import_bot_for_offline_scoring() -> Any:
+    """Return the import bot for offline scoring."""
     _IMPORT_BASE.mkdir(parents=True, exist_ok=True)
     old_env = {key: os.environ.get(key) for key in _IMPORT_ENV}
     os.environ.update(_IMPORT_ENV)
@@ -152,11 +153,13 @@ DIMENSIONS = [
 
 
 class BacktestError(RuntimeError):
+    """Raised when the editorial matching backtest cannot proceed safely."""
     pass
 
 
 @dataclass(frozen=True)
 class ImageRecord:
+    """Represent image record data."""
     basename: str
     path: Path
     sha256: str
@@ -166,6 +169,7 @@ class ImageRecord:
 
 @dataclass(frozen=True)
 class QuoteRecord:
+    """Represent quote record data."""
     quote_hash: str
     text: str
     line_no: int
@@ -175,6 +179,7 @@ class QuoteRecord:
 
 
 def load_json(path: Path) -> dict[str, Any]:
+    """Load JSON."""
     with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -183,6 +188,7 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def file_sha256(path: Path) -> str:
+    """Return the file SHA-256."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
@@ -191,6 +197,7 @@ def file_sha256(path: Path) -> str:
 
 
 def canonical_concept(value: object) -> str:
+    """Return the canonical concept."""
     tag = bot.normalise_tag(value)
     if not tag:
         return ""
@@ -202,6 +209,7 @@ def canonical_concept(value: object) -> str:
 
 
 def canonical_concepts(value: object) -> set[str]:
+    """Return the canonical concepts."""
     tag = bot.normalise_tag(value)
     if not tag:
         return set()
@@ -214,6 +222,7 @@ def canonical_concepts(value: object) -> set[str]:
 
 
 def concepts_from_values(values: Any) -> set[str]:
+    """Return the concepts from values."""
     out: set[str] = set()
     for value in bot.as_string_list(values):
         out.update(concept for concept in canonical_concepts(value) if concept)
@@ -221,6 +230,7 @@ def concepts_from_values(values: Any) -> set[str]:
 
 
 def editorial_image_concepts(editorial: dict[str, Any]) -> set[str]:
+    """Return the editorial image concepts."""
     concepts: set[str] = set()
     for key in ("abstract_quote_affinities", "editorial_functions", "best_quote_types"):
         concepts.update(concepts_from_values(editorial.get(key)))
@@ -228,10 +238,12 @@ def editorial_image_concepts(editorial: dict[str, Any]) -> set[str]:
 
 
 def avoid_concepts(editorial: dict[str, Any]) -> set[str]:
+    """Return the avoid concepts."""
     return concepts_from_values(editorial.get("avoid_quote_types"))
 
 
 def quote_concepts(analysis: dict[str, Any]) -> set[str]:
+    """Return the quote concepts."""
     concepts: set[str] = set()
     concepts.update(concepts_from_values(analysis.get("primary_topics")))
     concepts.update(concepts_from_values(analysis.get("secondary_topics")))
@@ -256,6 +268,7 @@ def quote_concepts(analysis: dict[str, Any]) -> set[str]:
 
 
 def build_editorial_idf(images: dict[str, ImageRecord]) -> tuple[dict[str, float], Counter[str]]:
+    """Build editorial idf."""
     df: Counter[str] = Counter()
     for rec in images.values():
         df.update(editorial_image_concepts(rec.editorial_analysis))
@@ -268,6 +281,7 @@ def build_editorial_idf(images: dict[str, ImageRecord]) -> tuple[dict[str, float
 
 
 def editorial_affinity_score(quote_analysis: dict[str, Any], editorial: dict[str, Any], idf: dict[str, float]) -> tuple[float, dict[str, Any]]:
+    """Return the editorial affinity score."""
     q = quote_concepts(quote_analysis)
     img = editorial_image_concepts(editorial)
     avoid = avoid_concepts(editorial)
@@ -282,6 +296,7 @@ def editorial_affinity_score(quote_analysis: dict[str, Any], editorial: dict[str
 
 
 def quote_dimension_profile(analysis: dict[str, Any]) -> dict[str, float]:
+    """Return the quote dimension profile."""
     concepts = quote_concepts(analysis)
     tone = {canonical_concept(v) for v in bot.as_string_list(analysis.get("tone"))}
     prefs = analysis.get("archive_image_preferences", {}) if isinstance(analysis.get("archive_image_preferences"), dict) else {}
@@ -330,6 +345,7 @@ def quote_dimension_profile(analysis: dict[str, Any]) -> dict[str, float]:
 
 
 def editorial_dimension_score(quote_analysis: dict[str, Any], editorial: dict[str, Any]) -> tuple[float, dict[str, Any]]:
+    """Return the editorial dimension score."""
     q = quote_dimension_profile(quote_analysis)
     raw = editorial.get("dimension_scores") or {}
     img = {}
@@ -360,6 +376,7 @@ def editorial_dimension_score(quote_analysis: dict[str, Any], editorial: dict[st
 
 
 def normalise_dimension_score(value: Any, field: str = "dimension_score") -> float:
+    """Normalise dimension score."""
     if isinstance(value, bool):
         raise BacktestError(f"{field} must be a number in 0..10, got bool")
     try:
@@ -372,6 +389,7 @@ def normalise_dimension_score(value: Any, field: str = "dimension_score") -> flo
 
 
 def normalise_editorial_utility(value: Any) -> float:
+    """Normalise editorial utility."""
     if isinstance(value, bool):
         raise BacktestError("overall_editorial_utility must be a number in 0..10, got bool")
     try:
@@ -384,11 +402,13 @@ def normalise_editorial_utility(value: Any) -> float:
 
 
 def combined_score(a_score: float, b_score: float, weight: float) -> float:
+    """Return the combined score."""
     layer = max(-10.0, min(14.0, a_score + b_score))
     return layer * weight
 
 
 def validate_inputs(args: argparse.Namespace) -> tuple[list[str], dict[str, Any], dict[str, Any], dict[str, ImageRecord]]:
+    """Validate inputs."""
     lines = Path(args.quotes_file).read_text(encoding="utf-8").splitlines()
     quote_analysis = load_json(Path(args.quote_analysis))
     image_analysis = load_json(Path(args.image_analysis))
@@ -440,6 +460,7 @@ def validate_inputs(args: argparse.Namespace) -> tuple[list[str], dict[str, Any]
 
 
 def quote_records(lines: list[str], quote_analysis: dict[str, Any]) -> list[QuoteRecord]:
+    """Return the quote records."""
     records = []
     items = quote_analysis.get("items") or {}
     for idx, text in enumerate(lines):
@@ -454,6 +475,7 @@ def quote_records(lines: list[str], quote_analysis: dict[str, Any]) -> list[Quot
 
 
 def parse_recent_posts(log_dir: Path, quote_by_hash: dict[str, QuoteRecord], limit: int) -> list[QuoteRecord]:
+    """Parse recent posts."""
     candidates: dict[str, dict[str, Any]] = {}
     posts = []
     for path in sorted(log_dir.glob("*.log*")):
@@ -497,6 +519,7 @@ def parse_recent_posts(log_dir: Path, quote_by_hash: dict[str, QuoteRecord], lim
 
 
 def deterministic_broad_sample(records: list[QuoteRecord], size: int, seed: int) -> list[QuoteRecord]:
+    """Return the deterministic broad sample."""
     rng = random.Random(seed)
     by_bucket: dict[tuple[str, str], list[QuoteRecord]] = defaultdict(list)
     for rec in records:
@@ -516,6 +539,7 @@ def deterministic_broad_sample(records: list[QuoteRecord], size: int, seed: int)
 
 
 def diagnostic_quote_record(records: list[QuoteRecord]) -> QuoteRecord | None:
+    """Return the diagnostic quote record."""
     for rec in records:
         if rec.text == DIAGNOSTIC_T70_QUOTE:
             return QuoteRecord(rec.quote_hash, rec.text, rec.line_no, rec.analysis, "diagnostic")
@@ -526,6 +550,7 @@ def diagnostic_quote_record(records: list[QuoteRecord]) -> QuoteRecord | None:
 
 
 def rank_images_for_quote(q: QuoteRecord, images: dict[str, ImageRecord], image_analysis: dict[str, Any], editorial_idf: dict[str, float]) -> list[dict[str, Any]]:
+    """Return the rank images for quote."""
     idf = bot.build_image_topic_idf(image_analysis)
     rows = []
     for basename, rec in sorted(images.items()):
@@ -559,10 +584,12 @@ def rank_images_for_quote(q: QuoteRecord, images: dict[str, ImageRecord], image_
 
 
 def top_by(rows: list[dict[str, Any]], key: str, n: int = 10) -> list[dict[str, Any]]:
+    """Return the top by."""
     return sorted(rows, key=lambda item: (-float(item[key]), item["basename"]))[:n]
 
 
 def concentration(records: list[dict[str, Any]], key: str) -> dict[str, Any]:
+    """Return the concentration."""
     counts = Counter(item[key] for item in records)
     total = sum(counts.values()) or 1
     entropy = -sum((c / total) * math.log(c / total, 2) for c in counts.values())
@@ -570,6 +597,7 @@ def concentration(records: list[dict[str, Any]], key: str) -> dict[str, Any]:
 
 
 def make_contact_sheet(path: Path, title: str, tiles: list[tuple[str, Path, str]]) -> None:
+    """Create contact sheet."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except Exception:
@@ -602,6 +630,7 @@ def make_contact_sheet(path: Path, title: str, tiles: list[tuple[str, Path, str]
 
 
 def make_contact_sheet_html(path: Path, title: str, tiles: list[tuple[str, Path, str]]) -> None:
+    """Create contact sheet HTML."""
     import html
 
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -634,6 +663,7 @@ def make_contact_sheet_html(path: Path, title: str, tiles: list[tuple[str, Path,
 
 
 def build_outputs(args: argparse.Namespace) -> dict[str, Any]:
+    """Build outputs."""
     lines, quote_analysis, image_analysis, images = validate_inputs(args)
     all_quotes = quote_records(lines, quote_analysis)
     by_hash = {q.quote_hash: q for q in all_quotes}
@@ -733,6 +763,7 @@ def build_outputs(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def row_summary(result: dict[str, Any]) -> str:
+    """Return the row summary."""
     baseline = result["baseline_top10"][0]["basename"] if result["baseline_top10"] else ""
     combined = result["combined_top10_medium"][0]["basename"] if result["combined_top10_medium"] else ""
     actual = (result.get("recent_post") or {}).get("actual_image", "")
@@ -740,6 +771,7 @@ def row_summary(result: dict[str, Any]) -> str:
 
 
 def write_report(output: dict[str, Any], path: Path) -> None:
+    """Write report."""
     results = output["results"]
     recent = [r for r in results if r["sample"] == "recent"]
     broad = [r for r in results if r["sample"] == "broad"]
@@ -921,6 +953,7 @@ def write_report(output: dict[str, Any], path: Path) -> None:
 
 
 def write_contact_sheets(output: dict[str, Any], images_dir: Path, out_dir: Path, limit: int = 10) -> None:
+    """Write contact sheets."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for old in out_dir.glob("comparison_*"):
         if old.is_file():
@@ -954,6 +987,7 @@ def write_contact_sheets(output: dict[str, Any], images_dir: Path, out_dir: Path
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--quotes-file", default=str(ROOT / "mrsMThatcher.txt"))
     ap.add_argument("--quote-analysis", default=str(ROOT / "quote_analysis.json"))

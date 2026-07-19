@@ -1,3 +1,5 @@
+"""Build and validate first-impression and pairwise image assessments."""
+
 from __future__ import annotations
 
 import hashlib
@@ -97,6 +99,7 @@ def _strict_fields(value: Any, schema: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_image_first(value: Any) -> dict[str, Any]:
+    """Validate image first."""
     row = _strict_fields(value, IMAGE_FIRST_OUTPUT_SCHEMA)
     if row["primary_tone"] not in TONES or any(tone not in TONES for tone in row["secondary_tones"]):
         raise ValueError("invalid tone")
@@ -108,11 +111,16 @@ def validate_image_first(value: Any) -> dict[str, Any]:
     return row
 
 
-def validate_alignment(value: Any) -> dict[str, Any]: return _strict_fields(value, ALIGNMENT_OUTPUT_SCHEMA)
-def validate_pairwise(value: Any) -> dict[str, Any]: return _strict_fields(value, PAIRWISE_OUTPUT_SCHEMA)
+def validate_alignment(value: Any) -> dict[str, Any]:
+    """Validate alignment."""
+    return _strict_fields(value, ALIGNMENT_OUTPUT_SCHEMA)
+def validate_pairwise(value: Any) -> dict[str, Any]:
+    """Validate pairwise."""
+    return _strict_fields(value, PAIRWISE_OUTPUT_SCHEMA)
 
 
 def image_first_prompt() -> str:
+    """Return the image first prompt."""
     return f"""Prompt version: {IMAGE_PROMPT_VERSION}
 View the supplied image as a social-media user scrolling quickly, before seeing any
 quotation or caption. From pixels alone, state the single strongest message perceived
@@ -127,6 +135,7 @@ available. Return only the requested JSON."""
 
 
 def derive_quote_intent(quote: dict[str, Any], legacy: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Derive quote intent."""
     legacy_analysis = (legacy or {}).get("analysis") or {}
     tones = [tone for tone in legacy_analysis.get("tone", []) if tone in TONES]
     undesired = list(dict.fromkeys([*quote.get("not_about", []), *legacy_analysis.get("archive_image_preferences", {}).get("strong_visual_mismatches", [])]))
@@ -142,6 +151,7 @@ def derive_quote_intent(quote: dict[str, Any], legacy: dict[str, Any] | None = N
 
 
 def critic_prompt(intent: dict[str, Any], image: dict[str, Any]) -> str:
+    """Return the critic prompt."""
     allowed_intent = {key: intent[key] for key in ("schema_version", "analysis_kind", "quote_hash",
         "desired_first_impression", "desired_primary_visual_subjects", "desired_tone", "undesired_dominant_messages")}
     allowed_image = {key: image[key] for key in ("schema_version", "analysis_kind", "image_basename", "sha256",
@@ -164,6 +174,7 @@ IMAGE_FIRST_IMPRESSION:{json.dumps(allowed_image, sort_keys=True, separators=(',
 
 
 def pairwise_prompt(intent: dict[str, Any], a: dict[str, Any], b: dict[str, Any], semantic_a: dict[str, Any] | None = None, semantic_b: dict[str, Any] | None = None) -> str:
+    """Return the pairwise prompt."""
     def clean_image(row): return {key: row[key] for key in ("image_basename", "first_impression_message", "dominant_visual_subject", "first_object_noticed", "dominant_symbols", "primary_tone", "secondary_tones", "focal_clarity_score", "distracting_symbol_score", "visual_competition_score")}
     payload = {"quote_visual_intent": {key: intent[key] for key in ("quote_hash", "desired_first_impression", "desired_primary_visual_subjects", "desired_tone", "undesired_dominant_messages")},
         "candidate_A": clean_image(a), "candidate_B": clean_image(b),
@@ -177,10 +188,12 @@ INPUT:{json.dumps(payload, sort_keys=True, separators=(',', ':'))}"""
 
 
 def case_id(quote_hash: str, image: str) -> str:
+    """Return a stable case identifier."""
     return hashlib.sha256(f"{quote_hash}:{image}".encode()).hexdigest()[:20]
 
 
 def build_validation_cases(cases: list[dict[str, Any]], human: dict[str, Any], disagreements: dict[str, Any], active_images: set[str], *, limit: int = 50) -> dict[str, Any]:
+    """Return whether build validation cases."""
     by_id = {row["case_id"]: row for row in cases if row["image_basename"] in active_images}
     dis = {row["case_id"]: row for row in disagreements}
     selected: list[dict[str, Any]] = []; used = set()
@@ -207,6 +220,7 @@ def build_validation_cases(cases: list[dict[str, Any]], human: dict[str, Any], d
 
 
 def pending_images(cases: list[dict[str, Any]], inventory: dict[str, dict[str, Any]], db: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the pending images."""
     result=[]
     for basename in sorted({row["image_basename"] for row in cases}):
         source=inventory[basename];cached=db.get("items",{}).get(basename)
@@ -216,6 +230,7 @@ def pending_images(cases: list[dict[str, Any]], inventory: dict[str, dict[str, A
 
 
 def preflight(cases: list[dict[str, Any]], intents: dict[str, Any], images: dict[str, Any], *, vision_calls: int) -> dict[str, Any]:
+    """Build the deterministic execution preflight."""
     prompts=[critic_prompt(intents[row["quote_hash"]],images[row["image_basename"]]) for row in cases if row["image_basename"] in images]
     tokens=sum(estimate_tokens(p) for p in prompts) if len(prompts)==len(cases) else 2500*len(cases)
     calls=len(cases);ceilings={"grok":3.0,"openai":5.0,"anthropic":3.0,"gemini":3.0};providers={}
@@ -233,6 +248,7 @@ def preflight(cases: list[dict[str, Any]], intents: dict[str, Any], images: dict
 
 
 def strategy_comparison(cases: list[dict[str, Any]], alignments: dict[str, Any], human: dict[str, Any]) -> dict[str, Any]:
+    """Return the strategy comparison."""
     rows={name:{"winner_changes":0,"resolved":0,"human_agreement":0,"false_keeps":0,"false_replaces":0} for name in "ABCDE"}
     for case in cases:
         cid=case["case_id"];result=alignments.get(cid);label=human.get(cid,{}).get("human_action")
@@ -248,17 +264,26 @@ def strategy_comparison(cases: list[dict[str, Any]], alignments: dict[str, Any],
 
 
 class StructuredProviderAdapter:
+    """Represent structured provider adapter data."""
     def __init__(self, client: ProviderClient, schema: dict[str, Any], schema_name: str, max_output_tokens: int = 1200):
+        """Initialise the structured provider adapter."""
         self.client=client;self.model=client.model;self.schema=schema;self.schema_name=schema_name;self.max_output_tokens=max_output_tokens
-    def payload(self,prompt):return self.client.payload(prompt,schema=self.schema,schema_name=self.schema_name,max_output_tokens=self.max_output_tokens)
-    def call(self,prompt):return self.client.call(prompt,schema=self.schema,schema_name=self.schema_name,max_output_tokens=self.max_output_tokens)
+    def payload(self,prompt):
+        """Return the payload."""
+        return self.client.payload(prompt,schema=self.schema,schema_name=self.schema_name,max_output_tokens=self.max_output_tokens)
+    def call(self,prompt):
+        """Submit one prompt through the structured provider adapter."""
+        return self.client.call(prompt,schema=self.schema,schema_name=self.schema_name,max_output_tokens=self.max_output_tokens)
 
 
 class AlignmentWorker:
+    """Run alignment operations."""
     def __init__(self,provider:str,cases:list[dict[str,Any]],intents:dict[str,Any],images:dict[str,Any],run_dir:Path,client:StructuredProviderAdapter,limit:float,sleep=time.sleep):
+        """Initialise the alignment worker."""
         self.provider=provider;self.cases=cases;self.intents=intents;self.images=images;self.run_dir=run_dir;self.client=client;self.limit=limit;self.sleep=sleep
         self.results_path=run_dir/f'{provider}_first_impression_results.json';self.ledger_path=run_dir/f'{provider}_first_impression_ledger.json'
     def run(self):
+        """Run the assigned first-impression analysis jobs."""
         results=json.loads(self.results_path.read_text()) if self.results_path.exists() else {"schema_version":1,"provider":self.provider,"model":self.client.model,"prompt_version":CRITIC_PROMPT_VERSION,"items":{},"failures":{}}
         ledger=json.loads(self.ledger_path.read_text()) if self.ledger_path.exists() else {"schema_version":1,"provider":self.provider,"attempts":[],"calls":[],"ambiguous":[],"known_cost_usd":0.0}
         for case in self.cases:
@@ -286,6 +311,7 @@ class AlignmentWorker:
 
 
 def run_alignment_workers(workers:list[AlignmentWorker])->dict[str,Any]:
+    """Run alignment workers."""
     from concurrent.futures import ThreadPoolExecutor,as_completed
     summaries={}
     with ThreadPoolExecutor(max_workers=len(workers),thread_name_prefix='first_impression') as pool:
@@ -298,6 +324,7 @@ def run_alignment_workers(workers:list[AlignmentWorker])->dict[str,Any]:
 
 
 def pairwise_cases(cases:list[dict[str,Any]],*,limit:int=12)->list[dict[str,Any]]:
+    """Return the pairwise cases."""
     grouped=defaultdict(list)
     for case in cases:grouped[case['quote_hash']].append(case)
     rows=[]

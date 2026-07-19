@@ -1,3 +1,5 @@
+"""Replay cached candidates under experimental alignment score formulae."""
+
 from __future__ import annotations
 
 import math
@@ -15,12 +17,14 @@ FORMULAS: dict[str, Callable[[float, dict[str, Any]], float | None]] = {
 
 
 def shannon_entropy(values: Iterable[str]) -> float:
+    """Return the shannon entropy."""
     counts = Counter(values)
     total = sum(counts.values())
     return -sum((count / total) * math.log2(count / total) for count in counts.values()) if total else 0.0
 
 
 def select_formula(candidates: list[dict[str, Any]], critic: dict[tuple[str, str], dict[str, Any]], formula: str) -> dict[str, Any] | None:
+    """Select formula."""
     scorer = FORMULAS[formula]
     scored = []
     for candidate in candidates:
@@ -34,6 +38,7 @@ def select_formula(candidates: list[dict[str, Any]], critic: dict[tuple[str, str
 
 
 def replay_candidate_cache(events: list[dict[str, Any]], critic: dict[tuple[str, str], dict[str, Any]]) -> dict[str, Any]:
+    """Replay candidate cache."""
     output: dict[str, Any] = {"schema_version": 1, "analysis_kind": "semantic_alignment_replay", "formulas": {}}
     for formula in FORMULAS:
         winners, exhausted, changed, improvements = [], 0, 0, []

@@ -1,3 +1,5 @@
+"""Recover and validate quotation packets from saved provider responses."""
+
 from __future__ import annotations
 
 import hashlib
@@ -101,6 +103,7 @@ def _salvage_packet_before_sources(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def inspect_raw_response(path: Path, record: dict[str, Any]) -> dict[str, Any]:
+    """Return the inspect raw response."""
     result: dict[str, Any] = {
         "path": str(path), "transport": _transport(path), "attempt_number": _attempt_number(path),
         "raw_sha256": sha256_file(path), "packet_parsed": False, "valid_packet": False,
@@ -185,6 +188,7 @@ def _transport_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def audit_failures(run_dir: Path) -> dict[str, Any]:
+    """Audit failures."""
     manifest = read_json(run_dir / "corpus_manifest.json")
     records = {row["quote_id"]: row for row in manifest["records"]}
     completed = (read_json(run_dir / "research_packets.json") or {}).get("items", {})
@@ -329,6 +333,7 @@ def _report_markdown(audit: dict[str, Any], applied: bool) -> str:
 
 
 def write_audit_outputs(run_dir: Path, audit: dict[str, Any], applied: bool = False) -> Path:
+    """Write audit outputs."""
     output = run_dir / "offline_recovery"
     output.mkdir(parents=True, exist_ok=True)
     taxonomy_payload = {"schema_version": RECOVERY_SCHEMA_VERSION,
@@ -358,6 +363,7 @@ def _append_recovery_attempt(path: Path, row: dict[str, Any]) -> None:
 
 
 def apply_recovery(run_dir: Path, audit: dict[str, Any]) -> dict[str, Any]:
+    """Apply recovery."""
     output = write_audit_outputs(run_dir, audit, applied=False)
     recovered = audit["recovered"]
     if not recovered:

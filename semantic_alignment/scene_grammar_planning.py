@@ -1,3 +1,5 @@
+"""Derive validated camera and composition plans for image generation."""
+
 from __future__ import annotations
 
 import hashlib
@@ -52,6 +54,7 @@ def _lens_style(camera_position: str) -> str:
 
 
 def build_scene_plan(case: dict[str, Any], brief: dict[str, Any], failure: dict[str, Any] | None) -> dict[str, Any]:
+    """Build scene plan."""
     source = pilot_scene_spec(case, brief, failure)
     eye_path = list(source["attention_hierarchy"][:3])
     while len(eye_path) < 3:
@@ -119,6 +122,7 @@ def build_scene_plan(case: dict[str, Any], brief: dict[str, Any], failure: dict[
 
 
 def validate_scene(scene: Any) -> dict[str, Any]:
+    """Validate scene."""
     if not isinstance(scene, dict) or set(scene) != set(SCENE_FIELDS):
         actual = set(scene) if isinstance(scene, dict) else set()
         raise ValueError(f"scene schema mismatch missing={sorted(set(SCENE_FIELDS)-actual)} extra={sorted(actual-set(SCENE_FIELDS))}")
@@ -141,6 +145,7 @@ def validate_scene(scene: Any) -> dict[str, Any]:
 
 
 def schema_document() -> dict[str, Any]:
+    """Return the schema document."""
     properties = {}
     list_fields = {"secondary_subjects", "viewer_eye_path", "scale_relationships", "must_include", "must_not_include", "forbidden_messages", "desired_tone"}
     for field in SCENE_FIELDS:

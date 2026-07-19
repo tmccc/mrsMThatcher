@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+"""Compare openai quality."""
+
 from __future__ import annotations
 import argparse,json,os
 from pathlib import Path
 from semantic_alignment.openai_quality_trial import generate_trial,prepare_trial,report_results,serve_review,status
 
 def load_env(path:Path):
+    """Load env."""
     if not path.exists():return
     for raw in path.read_text().splitlines():
         line=raw.strip()
@@ -16,6 +19,7 @@ def load_env(path:Path):
         os.environ.setdefault(key.strip(),value)
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser();sub=p.add_subparsers(dest='command',required=True)
     a=sub.add_parser('prepare');a.add_argument('--research-run',type=Path,required=True);a.add_argument('--count',type=int,default=10);a.add_argument('--output',type=Path,required=True)
     a=sub.add_parser('status');a.add_argument('--trial-dir',type=Path,required=True);a.add_argument('--json',action='store_true')

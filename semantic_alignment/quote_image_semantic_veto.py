@@ -1,3 +1,5 @@
+"""Compile and evaluate the read-only quotation-image veto shadow manifest."""
+
 from __future__ import annotations
 
 import hashlib
@@ -65,18 +67,22 @@ POST_RE = re.compile(r"EVENT (\{.*\})$")
 
 
 class ShadowManifestError(ValueError):
+    """Raised when a semantic-veto shadow manifest is invalid."""
     pass
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_json(value: Any) -> bytes:
+    """Return the canonical JSON."""
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 def sha256_value(value: Any) -> str:
+    """Return the SHA-256 value."""
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
@@ -86,6 +92,7 @@ def classify_veto_category(
     alternative_available: bool,
     quote_has_no_allowed_candidate_globally: bool,
 ) -> str | None:
+    """Classify veto category."""
     if shadow_status != "veto":
         return None
     if alternative_available:
@@ -113,6 +120,7 @@ def _expect(condition: bool, message: str) -> None:
 
 
 def locate_corrected_sources(run_dir: Path) -> tuple[Path, Path]:
+    """Return the locate corrected sources."""
     run_dir = run_dir.resolve()
     candidates = [run_dir, run_dir.parent / SOURCE_DIR_NAME]
     source = next(
@@ -131,6 +139,7 @@ def locate_corrected_sources(run_dir: Path) -> tuple[Path, Path]:
 
 
 def source_paths(run_dir: Path) -> dict[str, Path]:
+    """Return the source paths."""
     source, base = locate_corrected_sources(run_dir)
     return {
         "corrected_final_status": source / "v2_final_status_postrun_corrected.json",
@@ -226,6 +235,7 @@ def _reason_codes(judgement: dict[str, Any]) -> list[str]:
 
 
 def compile_shadow_manifest(run_dir: Path, *, strict: bool = True) -> tuple[dict[str, Any], dict[str, Any], Path]:
+    """Compile corrected pair decisions into a deterministic shadow lookup."""
     paths = source_paths(run_dir)
     values = _validate_authoritative_sources(paths)
     decisions = values["pair_decisions"]["records"]
@@ -364,6 +374,7 @@ def compile_shadow_manifest(run_dir: Path, *, strict: bool = True) -> tuple[dict
 
 
 def validate_compiled_manifest(value: dict[str, Any], *, strict: bool = True) -> dict[str, Any]:
+    """Validate shadow-manifest identity, counts, uniqueness, and provenance."""
     _expect(value.get("schema_version") == SCHEMA_VERSION, "unsupported shadow manifest schema")
     policy_version = str(value.get("policy_version") or "")
     _expect(
@@ -531,6 +542,7 @@ def _validate_attribution_cleaned_v3_manifest(
 
 
 def write_compiled_manifest(run_dir: Path, *, strict: bool = True) -> dict[str, Any]:
+    """Write a validated shadow manifest atomically."""
     manifest, audit, output = compile_shadow_manifest(run_dir, strict=strict)
     atomic_write_json(output, manifest)
     manifest_hash = sha256_file(output)
@@ -569,6 +581,7 @@ def _deep_size(value: Any, seen: set[int] | None = None) -> int:
 
 
 def validate_shadow_config(config: Any) -> list[str]:
+    """Validate that semantic veto configuration is disabled or shadow-only."""
     if not isinstance(config, dict):
         return ["quote_image_semantic_veto must be an object"]
     expected = {
@@ -597,7 +610,9 @@ def validate_shadow_config(config: Any) -> list[str]:
 
 
 class ShadowHistoryWriter:
+    """Persist and manage shadow history records."""
     def __init__(self, runtime_dir: Path, maximum_records: int):
+        """Initialise the shadow history writer."""
         self.runtime_dir = runtime_dir
         self.path = runtime_dir / "shadow_history.jsonl"
         self.status_path = runtime_dir / "shadow_status.json"
@@ -607,6 +622,7 @@ class ShadowHistoryWriter:
         self.count = sum(1 for _ in self.path.open(encoding="utf-8")) if self.path.is_file() else 0
 
     def append(self, event: dict[str, Any]) -> None:
+        """Append one bounded semantic-veto shadow event."""
         line = json.dumps(event, sort_keys=True, ensure_ascii=False, separators=(",", ":")) + "\n"
         with self.lock:
             if self.count >= self.maximum_records and self.path.exists():
@@ -629,6 +645,7 @@ class ShadowHistoryWriter:
 
 
 def read_shadow_history(runtime_dir: Path, maximum: int = 10_000) -> list[dict[str, Any]]:
+    """Read shadow history."""
     path = runtime_dir / "shadow_history.jsonl"
     if maximum <= 0:
         return []
@@ -661,6 +678,7 @@ def read_shadow_history(runtime_dir: Path, maximum: int = 10_000) -> list[dict[s
 
 @dataclass
 class ShadowRuntime:
+    """Represent shadow runtime data."""
     available: bool
     manifest_path: Path
     manifest_sha256: str = ""
@@ -686,6 +704,7 @@ class ShadowRuntime:
         enable_history: bool = True,
         expected_runtime_quote_ids: set[str] | None = None,
     ) -> "ShadowRuntime":
+        """Load and validate a fail-open shadow runtime once at startup."""
         errors = validate_shadow_config(config)
         if errors:
             return cls(False, Path(str(config.get("manifest_path") or "")), reason="; ".join(errors))
@@ -763,12 +782,14 @@ class ShadowRuntime:
             )
 
     def canonical_quote_id(self, quote_hash: str) -> str:
+        """Return the canonical quote ID."""
         quote_hash = str(quote_hash or "").lower()
         if self.quote_flags and quote_hash in self.quote_flags:
             return quote_hash
         return str((self.quote_aliases or {}).get(quote_hash) or quote_hash)
 
     def pair(self, quote_id: str, image_hash: str) -> dict[str, Any] | None:
+        """Return the pair."""
         return (self.pairs or {}).get(f"{quote_id}:{str(image_hash or '').lower()}")
 
     def evaluate(
@@ -780,6 +801,7 @@ class ShadowRuntime:
         quote_preview: str = "",
         tie_break_state: object | None = None,
     ) -> dict[str, Any]:
+        """Evaluate a completed production selection without changing it."""
         started = time.perf_counter_ns()
         quote_id = self.canonical_quote_id(quote_hash)
         source = str(selected.get("image_source") or "original")
@@ -866,6 +888,7 @@ class ShadowRuntime:
 
 
 def percentile(values: Sequence[float], fraction: float) -> float | None:
+    """Return the percentile."""
     if not values:
         return None
     ordered = sorted(values)
@@ -939,6 +962,7 @@ def summarise_events(
     current_manifest_sha256: str | None = None,
     current_policy_version: str | None = None,
 ) -> dict[str, Any]:
+    """Summarise events."""
     all_events = list(events)
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for row in all_events:
@@ -998,6 +1022,7 @@ def _iter_log_records(project_dir: Path, since_days: int) -> list[tuple[datetime
 
 
 def historical_replay(project_dir: Path, manifest_path: Path, *, since_days: int) -> dict[str, Any]:
+    """Replay historical selections locally against the shadow manifest."""
     config = {
         "enabled": True,
         "mode": "shadow",
@@ -1122,6 +1147,7 @@ def historical_replay(project_dir: Path, manifest_path: Path, *, since_days: int
 
 
 def replay_markdown(value: dict[str, Any]) -> str:
+    """Replay markdown."""
     lines = [
         "# Quote/image material-veto shadow replay",
         "",
@@ -1154,6 +1180,7 @@ def replay_markdown(value: dict[str, Any]) -> str:
 
 
 def shadow_preflight(project_dir: Path, manifest_path: Path) -> dict[str, Any]:
+    """Validate a shadow manifest and its source hashes without network access."""
     config = {
         "enabled": True, "mode": "shadow", "manifest_path": str(manifest_path),
         "fail_open": True, "record_best_allowed_alternative": True, "maximum_shadow_history": 10_000,
@@ -1178,6 +1205,7 @@ def shadow_preflight(project_dir: Path, manifest_path: Path) -> dict[str, Any]:
 
 
 def shadow_status(project_dir: Path) -> dict[str, Any]:
+    """Summarise local semantic-veto shadow configuration and observations."""
     local_path = project_dir / "mrsMThatcher.local.json"
     try:
         local = _read_object(local_path)

@@ -1,3 +1,5 @@
+"""Execute and merge resumable quotation-research retry batches."""
+
 from __future__ import annotations
 
 import hashlib
@@ -25,6 +27,7 @@ RETRY_PACKET_SCHEMA = {
 
 
 def build_retry_batch(parent_run: Path, source_manifest: Path, count: int, output: Path) -> dict[str, Any]:
+    """Build retry batch."""
     if count != 30:
         raise RuntimeError("this staged batch builder is limited to exactly 30 items")
     if output.exists():
@@ -87,6 +90,7 @@ def build_retry_batch(parent_run: Path, source_manifest: Path, count: int, outpu
 
 def build_failed_batch_recovery(parent_run: Path, source_manifest: Path, source_run: Path,
                                 output: Path) -> dict[str, Any]:
+    """Build failed batch recovery."""
     source = read_json(source_manifest)
     failed = set((read_json(source_run / "permanent_failures.json") or {}).get("items", {}))
     completed = set((read_json(source_run / "research_packets.json") or {}).get("items", {}))
@@ -162,10 +166,12 @@ def build_remaining_failed_recovery(parent_run: Path, source_manifest: Path,
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def retry_prompt(record: dict[str, Any]) -> str:
+    """Retry prompt."""
     return f"""Prompt version: {RETRY_PROMPT_VERSION}
 Research exactly the single quotation in the immutable request envelope using Google Search grounding. Perform at least one focused grounded search before synthesising the JSON response. A response without provider-linked grounding chunks and grounding supports will be rejected.
 
@@ -179,6 +185,7 @@ Return the compact quote-research JSON object, excluding quote_id and quote_text
 
 
 def retry_repair_prompt(record: dict[str, Any], raw_text: str, validation_error: str) -> str:
+    """Retry repair prompt."""
     return f"""Prompt version: {RETRY_PROMPT_VERSION}-grounded-repair
 Perform a fresh Google Search for the exact quotation in the immutable request envelope, then return a corrected compact quote-research JSON object. This is a new grounded research attempt, not an ungrounded rewrite. At least one provider-linked grounding chunk and support is mandatory. Do not emit quote_id or quote_text.
 
@@ -194,6 +201,7 @@ Prior malformed response is supplied only to avoid losing supported work; indepe
 
 
 def bind_immutable_identity(content: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    """Bind immutable identity."""
     if not isinstance(content, dict):
         raise ValueError("response packet must be an object")
     controlled = IDENTITY_FIELDS & set(content)
@@ -219,6 +227,7 @@ def _retry_run_dir(manifest_path: Path, retry: dict[str, Any]) -> Path:
 
 
 def validate_retry_manifest(run_dir: Path, manifest_path: Path, combined_ceiling: float | None = None) -> dict[str, Any]:
+    """Validate retry manifest."""
     retry = read_json(manifest_path)
     records = retry.get("records") or []
     ids = [row["quote_id"] for row in records]
@@ -272,6 +281,7 @@ def validate_retry_manifest(run_dir: Path, manifest_path: Path, combined_ceiling
 
 
 def prepare_retry_run(parent_run: Path, retry_manifest: Path) -> tuple[Path, dict[str, Any]]:
+    """Prepare retry run."""
     preflight = validate_retry_manifest(parent_run, retry_manifest)
     source = read_json(retry_manifest)
     run_dir = _retry_run_dir(retry_manifest, source)
@@ -293,12 +303,15 @@ def prepare_retry_run(parent_run: Path, retry_manifest: Path) -> tuple[Path, dic
 
 
 class RetryValidationRunner(CorpusRunner):
+    """Run retry validation operations."""
     def __init__(self, *args, **kwargs):
+        """Initialise the retry validation runner."""
         super().__init__(*args, prompt_builder=retry_prompt, repair_builder=retry_repair_prompt,
                          identity_binder=bind_immutable_identity, **kwargs)
 
 
 def apply_retry_results(parent_run: Path, retry_run: Path) -> dict[str, Any]:
+    """Apply retry results."""
     retry_packets = (read_json(retry_run / "research_packets.json") or {}).get("items", {})
     main_path = parent_run / "research_packets.json"
     main = read_json(main_path)
@@ -345,6 +358,7 @@ def apply_retry_results(parent_run: Path, retry_run: Path) -> dict[str, Any]:
 
 
 def write_recovery_stage_meta_report(parent_run: Path) -> dict[str, Any]:
+    """Write recovery stage meta report."""
     manifest_runs: list[tuple[Path, Path]] = []
     initial = parent_run / "retry_analysis/retry_manifest_20.json"
     initial_run = parent_run / "retry_analysis/retry_validation_20"

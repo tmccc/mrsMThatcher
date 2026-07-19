@@ -1,3 +1,5 @@
+"""Classify provider outliers and compare them with human labels."""
+
 from __future__ import annotations
 
 import csv
@@ -18,6 +20,7 @@ SCORES = (
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     h = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -26,6 +29,7 @@ def sha256_file(path: Path) -> str:
 
 
 def classify_votes(votes: dict[str, str | None]) -> dict[str, Any]:
+    """Classify votes."""
     available = {p: v for p, v in votes.items() if v in {"keep", "replace", "unsure"}}
     counts = Counter(available.values())
     result: dict[str, Any] = {
@@ -61,6 +65,7 @@ def classify_votes(votes: dict[str, str | None]) -> dict[str, Any]:
 
 
 def wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float, float] | None:
+    """Return the wilson interval."""
     if total == 0:
         return None
     p = successes / total
@@ -71,6 +76,7 @@ def wilson_interval(successes: int, total: int, z: float = 1.96) -> tuple[float,
 
 
 def score_profile(outlier: dict[str, Any], majority: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """Score profile."""
     majority = list(majority)
     profile = {}
     for field in SCORES:
@@ -86,6 +92,7 @@ def score_profile(outlier: dict[str, Any], majority: Iterable[dict[str, Any]]) -
 
 
 def summarise_differences(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarise differences."""
     result = {}
     for field in SCORES:
         values = [case["score_profile"][field]["difference"] for case in cases]
@@ -103,6 +110,7 @@ def summarise_differences(cases: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def human_metrics(results: dict[str, dict[str, Any]], labels: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Return the human metrics."""
     rows = []
     for case_id, label in labels.items():
         human = label.get("human_action")
@@ -128,6 +136,7 @@ def human_metrics(results: dict[str, dict[str, Any]], labels: dict[str, dict[str
 
 
 def compare_regression(old: dict[str, dict[str, Any]], new: dict[str, dict[str, Any]], case_ids: set[str]) -> list[dict[str, Any]]:
+    """Compare regression."""
     rows = []
     for case_id in sorted(case_ids):
         if case_id not in old or case_id not in new:
@@ -149,6 +158,7 @@ def compare_regression(old: dict[str, dict[str, Any]], new: dict[str, dict[str, 
 
 
 def sensitivity(completed_keep: int, completed: int, missing: int) -> list[dict[str, Any]]:
+    """Return the sensitivity."""
     observed = completed_keep / completed if completed else 0
     expected_missing = round(missing * observed)
     scenarios = (("all_missing_keep", missing), ("all_missing_replace", 0),
@@ -161,6 +171,7 @@ def sensitivity(completed_keep: int, completed: int, missing: int) -> list[dict[
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Write CSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = sorted({key for row in rows for key in row})
     with path.open("w", newline="", encoding="utf-8") as stream:
@@ -171,6 +182,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def atomic_json(path: Path, value: Any) -> None:
+    """Perform the atomic JSON operation."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")

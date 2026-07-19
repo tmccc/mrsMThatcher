@@ -1,3 +1,5 @@
+"""Provide transactional generated-image quarantine and metadata services."""
+
 from __future__ import annotations
 
 import copy
@@ -24,10 +26,12 @@ PROTECTED_NAMES = {
 
 
 class ReviewError(RuntimeError):
+    """Raised when a quarantine review operation is invalid or unsafe."""
     pass
 
 
 def sha256(path: Path) -> str:
+    """Return the SHA-256."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -36,11 +40,13 @@ def sha256(path: Path) -> str:
 
 
 def read_json(path: Path) -> Any:
+    """Read JSON."""
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
 
 
 def atomic_json(path: Path, value: Any) -> None:
+    """Perform the atomic JSON operation."""
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
     with temporary.open("w", encoding="utf-8") as handle:
@@ -51,6 +57,7 @@ def atomic_json(path: Path, value: Any) -> None:
 
 @dataclass(frozen=True)
 class Paths:
+    """Represent paths data."""
     project: Path
     generated: Path
     quarantine: Path
@@ -61,6 +68,7 @@ class Paths:
 
     @classmethod
     def build(cls, project: Path, generated: Path | None = None, quarantine: Path | None = None, data: Path | None = None) -> "Paths":
+        """Build and validate all application filesystem paths."""
         project = project.resolve()
         return cls(project, (generated or project / "generated_review_approved_images").resolve(),
                    (quarantine or project / "generated_image_quarantine").resolve(),
@@ -71,7 +79,9 @@ class Paths:
 
 
 class ReviewService:
+    """Represent review service data."""
     def __init__(self, paths: Paths, allow_changes: bool = False):
+        """Initialise the review service."""
         self.paths = paths
         self.allow_changes = allow_changes
         self._lock = threading.Lock()
@@ -101,6 +111,7 @@ class ReviewService:
         return analysis, audit
 
     def pool_token(self) -> str:
+        """Return the pool token."""
         digest = hashlib.sha256()
         for path in (self.paths.analysis, self.paths.audit):
             digest.update(path.name.encode()); digest.update(sha256(path).encode())
@@ -109,6 +120,7 @@ class ReviewService:
         return digest.hexdigest()
 
     def index(self) -> list[dict]:
+        """Return the index."""
         analysis, audit = self._active_documents()
         used = set(read_json(self.paths.used)) if self.paths.used.is_file() else set()
         rows = []
@@ -153,6 +165,7 @@ class ReviewService:
         return rows
 
     def filter_sort(self, rows: list[dict], query: str = "", policy: str = "", posted: str = "", sort: str = "basename", status: str = "active") -> list[dict]:
+        """Filter sort."""
         query = query.casefold().strip()
         result = [row for row in rows if (not query or query in (row["basename"] + " " + row["origin_quote"] + " " + row["summary"]).casefold())]
         if policy:
@@ -190,6 +203,7 @@ class ReviewService:
         return names, analysis, audit
 
     def preview(self, basenames: list[str], token: str) -> dict:
+        """Return the preview."""
         names, analysis, audit = self._selection(basenames, token)
         return {"basenames": names, "token": token, "metadata_files": [self.paths.analysis.name, self.paths.audit.name],
                 "used_history_matches": [name for name in names if name in set(read_json(self.paths.used))],
@@ -197,6 +211,7 @@ class ReviewService:
                 "records": [{"basename": name, "analysis_hash": analysis["path_index"][name], "policy": audit["items"][name]["analysis"]["recommended_cross_quote_policy"]} for name in names]}
 
     def quarantine(self, basenames: list[str], token: str, confirmation: str, reason: str, note: str = "", fail_after_moves: int | None = None) -> dict:
+        """Return the quarantine."""
         if not self.allow_changes:
             raise ReviewError("application is read-only; restart with --allow-changes")
         with self._lock:
@@ -247,6 +262,7 @@ class ReviewService:
                 raise ReviewError(f"quarantine failed and was rolled back: {exc}") from exc
 
     def transactions(self) -> list[dict]:
+        """Return the transactions."""
         result = []
         for path in sorted((self.paths.quarantine / "transactions").glob("*/manifest.json"), reverse=True):
             try: result.append(read_json(path))
@@ -254,6 +270,7 @@ class ReviewService:
         return result
 
     def restore(self, transaction_id: str, basenames: list[str], confirmation: str) -> dict:
+        """Restore selected images from one quarantine transaction."""
         if not self.allow_changes: raise ReviewError("application is read-only; restart with --allow-changes")
         with self._lock:
             if not re.fullmatch(r"[A-Za-z0-9_-]+", transaction_id): raise ReviewError("invalid transaction id")
@@ -291,6 +308,7 @@ class ReviewService:
                 raise ReviewError(f"restore failed and was rolled back: {exc}") from exc
 
     def image_path(self, status: str, basename: str, transaction_id: str | None = None) -> Path:
+        """Return the image path."""
         if not GENERATED_RE.fullmatch(basename): raise ReviewError("invalid image basename")
         if status == "active": path = self.paths.generated / basename
         elif status == "quarantine" and transaction_id and re.fullmatch(r"[A-Za-z0-9_-]+", transaction_id): path = self.paths.quarantine / "transactions" / transaction_id / "images" / basename
@@ -299,6 +317,7 @@ class ReviewService:
         return path
 
     def thumbnail(self, status: str, basename: str, transaction_id: str | None = None) -> Path:
+        """Return the thumbnail."""
         source = self.image_path(status, basename, transaction_id)
         digest = sha256(source); directory = self.paths.data / "thumbnails"; target = directory / f"{digest}.jpg"
         self._assert_mutable(target)

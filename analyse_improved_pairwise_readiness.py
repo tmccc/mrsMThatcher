@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse improved pairwise readiness artefacts."""
+
 from __future__ import annotations
 
 import argparse,csv,hashlib,json,os
@@ -13,8 +15,11 @@ FIRST=ROOT/'semantic_alignment_research/first_impression/v1_20260712'
 TRACE_ROOT=ROOT/'simulation_runs/audit_evidence_20x250_20260710'
 EVEREST='230b8d71f541acfc6a18d0a29f508eddf33b90d0f25beb736ba83ac1fb1cfc1a';FREE='1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b'
 REGRESSION_CONTEXT={EVEREST:'tg_fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521.png',FREE:'tg_8032ac6c90f358c9f5146680280edda94a7475b752b3c8e64c1670ba64986822.png'}
-def load(p):return json.loads(Path(p).read_text())
+def load(p):
+    """Load a JSON document."""
+    return json.loads(Path(p).read_text())
 def main():
+    """Run the command-line entry point."""
     parser=argparse.ArgumentParser();parser.add_argument('--output-dir',type=Path,default=DEFAULT_OUT);parser.add_argument('--fingerprint-supplement',type=Path);args=parser.parse_args();OUT=args.output_dir.resolve()
     OUT.mkdir(parents=True,exist_ok=True);intents=load(FIRST/'quote_visual_intents.json')['items'];first=load(FIRST/'image_first_impressions.json')['items']
     if args.fingerprint_supplement:

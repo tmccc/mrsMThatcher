@@ -1,3 +1,5 @@
+"""Provide inventories, ledgers, budgets, and resumable pipeline execution."""
+
 from __future__ import annotations
 
 import base64
@@ -37,14 +39,17 @@ TOKEN_ASSUMPTIONS = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
 def database(kind: str, prompt_version: str) -> dict[str, Any]:
+    """Return the database."""
     return {"schema_version": 2, "analysis_kind": kind, "prompt_version": prompt_version, "created_at": utc_now(), "updated_at": utc_now(), "items": {}, "failures": {}}
 
 
 def load_database(path: Path, kind: str, prompt_version: str) -> dict[str, Any]:
+    """Load database."""
     data = read_json(path, None)
     if data is None:
         return database(kind, prompt_version)
@@ -54,6 +59,7 @@ def load_database(path: Path, kind: str, prompt_version: str) -> dict[str, Any]:
 
 
 def quote_inventory(project_dir: Path) -> list[dict[str, Any]]:
+    """Return the quote inventory."""
     data = read_json(project_dir / "quote_analysis.json", {})
     rows = []
     for quote_hash, item in sorted((data.get("items") or {}).items()):
@@ -64,6 +70,7 @@ def quote_inventory(project_dir: Path) -> list[dict[str, Any]]:
 
 
 def generated_image_inventory(project_dir: Path, *, quarantined: bool = False) -> list[dict[str, Any]]:
+    """Return the generated image inventory."""
     if not quarantined:
         paths = sorted((project_dir / "generated_review_approved_images").glob("tg_*.png"))
     else:
@@ -78,6 +85,7 @@ def generated_image_inventory(project_dir: Path, *, quarantined: bool = False) -
 
 
 def pending_quotes(inventory: list[dict[str, Any]], db: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the pending quotes."""
     result = []
     for row in inventory:
         item = (db.get("items") or {}).get(row["quote_hash"])
@@ -91,6 +99,7 @@ def pending_quotes(inventory: list[dict[str, Any]], db: dict[str, Any]) -> list[
 
 
 def pending_images(inventory: list[dict[str, Any]], db: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the pending images."""
     result = []
     for row in inventory:
         item = (db.get("items") or {}).get(row["image_basename"])
@@ -104,6 +113,7 @@ def pending_images(inventory: list[dict[str, Any]], db: dict[str, Any]) -> list[
 
 
 def estimate_stage(stage: str, calls: int, *, retry_allowance: int = 0) -> dict[str, Any]:
+    """Estimate stage."""
     assumptions = TOKEN_ASSUMPTIONS[stage]
     billed_calls = calls + retry_allowance
     input_tokens = billed_calls * assumptions["input"]
@@ -124,6 +134,7 @@ def estimate_stage(stage: str, calls: int, *, retry_allowance: int = 0) -> dict[
 
 def estimate_cost(*, quotes: int = 0, images: int = 0, critic: int = 0,
                   include_retry_allowance: bool = True) -> dict[str, Any]:
+    """Estimate cost."""
     def retries(calls: int) -> int:
         return math.ceil(calls * 0.02) if include_retry_allowance and calls else 0
     stages = [estimate_stage("quote", quotes, retry_allowance=retries(quotes)),
@@ -138,6 +149,7 @@ def estimate_cost(*, quotes: int = 0, images: int = 0, critic: int = 0,
 
 
 def usage_record(usage: dict[str, Any]) -> dict[str, Any]:
+    """Return the usage record."""
     if not isinstance(usage, dict) or type(usage.get("cost_in_usd_ticks")) is not int:
         raise MissingAuthoritativeCost("usage.cost_in_usd_ticks is absent")
     prompt_details = usage.get("prompt_tokens_details") or {}
@@ -154,15 +166,19 @@ def usage_record(usage: dict[str, Any]) -> dict[str, Any]:
 
 
 class MissingAuthoritativeCost(RuntimeError):
+    """Raised when a model call lacks authoritative cost information."""
     pass
 
 
 class CostLimitReached(RuntimeError):
+    """Raised before a model call would exceed its cost ceiling."""
     pass
 
 
 class CostLedger:
+    """Persist and manage cost records."""
     def __init__(self, path: Path, *, create: bool = True, run_id: str | None = None) -> None:
+        """Initialise the cost ledger."""
         self.path = path
         existing = read_json(path, None)
         if existing is None and not create:
@@ -174,9 +190,11 @@ class CostLedger:
             raise MissingAuthoritativeCost(f"Cost ledger is blocked: {self.data.get('blocked_reason')}")
 
     def ticks(self, stage: str | None = None) -> int:
+        """Return the ticks."""
         return sum(int(row["cost_in_usd_ticks"]) for row in self.data["calls"] if stage is None or row["stage"] == stage)
 
     def guard_next(self, stage: str, *, confirmed_stage_limit: float) -> None:
+        """Perform the guard next operation."""
         maximum = TOKEN_ASSUMPTIONS[stage]
         max_ticks = (maximum["input"] + maximum["image_input"]) * MODEL_PRICES_TICKS["input"] + maximum["max_output"] * MODEL_PRICES_TICKS["output"]
         stage_limit = min(STAGE_CEILINGS[stage], confirmed_stage_limit)
@@ -186,6 +204,7 @@ class CostLedger:
             raise CostLimitReached(f"Next {stage} call could exceed total ceiling ${TOTAL_CEILING:.2f}")
 
     def record(self, *, call_id: str, stage: str, item_key: str, usage: dict[str, Any], model: str, attempt: int = 1) -> dict[str, Any]:
+        """Record one completed model call and its usage in the cost ledger."""
         prior = next((row for row in self.data["calls"] if row["call_id"] == call_id), None)
         if prior:
             return prior
@@ -204,6 +223,7 @@ class CostLedger:
     def block_ambiguous(self, *, stage: str, item_key: str, model: str,
                         error: BaseException, request_id: str | None = None,
                         response_received: bool = False) -> None:
+        """Block ambiguous."""
         event = {"stage": stage, "item_key": item_key, "model": model,
                  "timestamp": utc_now(), "request_id": request_id,
                  "known_token_information": None,
@@ -218,6 +238,7 @@ class CostLedger:
 
 @dataclass
 class XAIResult:
+    """Represent x a i result data."""
     content: dict[str, Any]
     usage: dict[str, Any]
     model: str
@@ -225,13 +246,16 @@ class XAIResult:
 
 
 class XAIClient:
+    """Provide the x a i client."""
     def __init__(self, *, api_key: str, model: str = DEFAULT_MODEL, transport: Callable[..., Any] | None = None) -> None:
+        """Initialise the x a i client."""
         if not api_key:
             raise RuntimeError("XAI_API_KEY is required only with --execute-xai")
         self.api_key, self.model = api_key, model
         self.transport = transport or requests.post
 
     def structured(self, prompt: str, *, stage: str, schema: dict[str, Any], image_path: Path | None = None, expected_sha256: str | None = None) -> XAIResult:
+        """Return the structured."""
         content: list[dict[str, Any]] = [{"type": "text", "text": prompt}]
         if image_path is not None:
             image_bytes = image_path.read_bytes()
@@ -256,6 +280,7 @@ class XAIClient:
 
 
 def require_execution_approval(estimate: dict[str, Any], *, execute_xai: bool, cost_limit: float | None) -> None:
+    """Require execution approval."""
     if not execute_xai:
         raise RuntimeError("External analysis requires explicit --execute-xai")
     if cost_limit is None:
@@ -266,6 +291,7 @@ def require_execution_approval(estimate: dict[str, Any], *, execute_xai: bool, c
 
 
 def cached_call(*, stage: str, key: str, prompt: str, schema: dict[str, Any], client: XAIClient, ledger: CostLedger, response_dir: Path, confirmed_stage_limit: float, image_path: Path | None = None, expected_sha256: str | None = None) -> XAIResult:
+    """Return the cached call."""
     cache = response_dir / stage / f"{hashlib.sha256(key.encode()).hexdigest()}.json"
     if cache.exists():
         raw = read_json(cache)
@@ -283,6 +309,7 @@ def cached_call(*, stage: str, key: str, prompt: str, schema: dict[str, Any], cl
 
 
 def run_quote_analysis(rows: list[dict[str, Any]], db: dict[str, Any], output: Path, client: XAIClient, *, ledger: CostLedger | None = None, confirmed_stage_limit: float = 6.0, max_items: int | None = None, checkpoint_every: int = 5) -> int:
+    """Run quote analysis."""
     ledger = ledger or CostLedger(output.parent / "cost_ledger.json")
     completed = 0; consecutive_schema_failures = 0
     for row in rows[:max_items]:
@@ -307,6 +334,7 @@ def run_quote_analysis(rows: list[dict[str, Any]], db: dict[str, Any], output: P
 
 
 def run_image_analysis(rows: list[dict[str, Any]], db: dict[str, Any], output: Path, client: XAIClient, *, ledger: CostLedger | None = None, confirmed_stage_limit: float = 3.0, max_items: int | None = None, checkpoint_every: int = 5) -> int:
+    """Run image analysis."""
     ledger = ledger or CostLedger(output.parent / "cost_ledger.json")
     completed = 0; consecutive_schema_failures = 0
     for row in rows[:max_items]:
@@ -333,6 +361,7 @@ def run_image_analysis(rows: list[dict[str, Any]], db: dict[str, Any], output: P
 
 
 def canonical_winner_cases(session_dir: Path) -> list[dict[str, Any]]:
+    """Return the canonical winner cases."""
     rows = []
     for path in sorted((session_dir / "counterfactual" / "runs").glob("run_*/branch_comparison.jsonl")):
         for item in read_jsonl(path):
@@ -344,6 +373,7 @@ def canonical_winner_cases(session_dir: Path) -> list[dict[str, Any]]:
 
 
 def build_validation_cases(project_dir: Path, session_dir: Path, *, limit: int = 150) -> dict[str, Any]:
+    """Return whether build validation cases."""
     cases = canonical_winner_cases(session_dir)
     quote_data = quote_inventory(project_dir)
     free_trade = [row for row in quote_data if "every consumer has benefited" in row["quote_text"].lower()]
@@ -354,12 +384,14 @@ def build_validation_cases(project_dir: Path, session_dir: Path, *, limit: int =
 
 
 def canonical_inventory(session_dir: Path) -> dict[str, Any]:
+    """Return the canonical inventory."""
     comparisons = list((session_dir / "counterfactual" / "runs").glob("run_*/branch_comparison.jsonl"))
     indices = sum(len(read_jsonl(path)) for path in comparisons)
     return {"runs": len(comparisons), "post_indices": indices, "branch_winner_records": indices * 3, "candidate_sets_available": False, "limitation": "canonical selection records have empty candidate_detail arrays; a fourth evolving branch cannot be reconstructed from winners alone"}
 
 
 def make_shortlists(quote_db: dict[str, Any], image_db: dict[str, Any], validation: dict[str, Any], *, limit: int = 15) -> list[dict[str, Any]]:
+    """Create shortlists."""
     forced_by_quote: dict[str, dict[str, str]] = {}
     for case in validation.get("items", []):
         if case.get("image_basename"):
@@ -372,12 +404,14 @@ def make_shortlists(quote_db: dict[str, Any], image_db: dict[str, Any], validati
 
 
 def critic_pairs(shortlists: list[dict[str, Any]], validation: dict[str, Any]) -> list[tuple[str, str]]:
+    """Return the critic pairs."""
     pairs = [(row["quote_hash"], row["image_basename"]) for row in shortlists]
     pairs.extend((row.get("quote_hash", ""), row.get("image_basename", "")) for row in validation.get("items", []))
     return sorted({pair for pair in pairs if pair[0] and pair[1]})
 
 
 def run_critic(pairs: list[tuple[str, str]], quote_db: dict[str, Any], image_db: dict[str, Any], critic_db: dict[str, Any], output: Path, client: XAIClient, *, ledger: CostLedger | None = None, confirmed_stage_limit: float = 3.0, max_items: int | None = None) -> int:
+    """Run critic."""
     ledger = ledger or CostLedger(output.parent / "cost_ledger.json")
     completed = 0; consecutive_schema_failures = 0
     for quote_hash, basename in pairs[:max_items]:
@@ -404,6 +438,7 @@ def run_critic(pairs: list[tuple[str, str]], quote_db: dict[str, Any], image_db:
 
 
 def run_replay(candidate_cache: Path, critic_db: dict[str, Any], output: Path) -> dict[str, Any]:
+    """Run replay."""
     events = read_json(candidate_cache, [])
     if not isinstance(events, list):
         raise ValueError("candidate cache must contain a JSON list")

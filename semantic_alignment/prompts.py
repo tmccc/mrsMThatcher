@@ -1,3 +1,5 @@
+"""Construct quotation, image, and alignment-critic prompts."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ from . import CRITIC_PROMPT_VERSION, IMAGE_PROMPT_VERSION, QUOTE_PROMPT_VERSION
 
 
 def quote_prompt(quote_text: str) -> str:
+    """Return the quote prompt."""
     return f"""Prompt version: {QUOTE_PROMPT_VERSION}
 Analyse this quotation independently. Do not discuss or imagine a particular image.
 Identify its single dominant message, primary issue, primary and secondary themes,
@@ -22,6 +25,7 @@ QUOTATION:\n{quote_text}"""
 
 
 def image_prompt() -> str:
+    """Return the image prompt."""
     return f"""Prompt version: {IMAGE_PROMPT_VERSION}
 Treat the supplied image as an editorial image with no caption. Do not infer or ask
 for a quotation, origin quotation, generation prompt, filename meaning, or existing
@@ -49,6 +53,7 @@ CRITIC_ALLOWED_IMAGE = {
 
 
 def critic_prompt(quote: dict[str, Any], image: dict[str, Any]) -> str:
+    """Return the critic prompt."""
     clean_quote = {key: quote[key] for key in sorted(CRITIC_ALLOWED_QUOTE) if key in quote}
     clean_image = {key: image[key] for key in sorted(CRITIC_ALLOWED_IMAGE) if key in image}
     return f"""Prompt version: {CRITIC_PROMPT_VERSION}

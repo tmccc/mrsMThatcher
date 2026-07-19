@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse pairwise correction artefacts."""
+
 from __future__ import annotations
 
 import csv,hashlib,json,statistics
@@ -11,13 +13,21 @@ from semantic_alignment.pairwise_validation import PAIRWISE_SCHEMA,_candidate_sc
 from run_pairwise_calibration import prompts
 
 ROOT=Path(__file__).resolve().parent;OLD=ROOT/'semantic_alignment_research/pairwise_validation_001';OUT=ROOT/'semantic_alignment_research/pairwise_validation_001_corrected';FIRST=ROOT/'semantic_alignment_research/first_impression/v1_20260712';TRACE_ROOT=ROOT/'simulation_runs/audit_evidence_20x250_20260710'
-def load(p):return json.loads(Path(p).read_text())
+def load(p):
+    """Load a JSON document."""
+    return json.loads(Path(p).read_text())
 def csv_write(path,rows,fields):
+    """Perform the CSV write operation."""
     with path.open('w',newline='',encoding='utf-8') as f:w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows(rows)
-def quality(row):return ((row.get('analysis') or {}).get('quality') or {}).get('overall')
-def tone_match(intent,image):return bool(set(intent.get('desired_tone',[])) & {image.get('primary_tone'),*image.get('secondary_tones',[])})
+def quality(row):
+    """Return the quality score."""
+    return ((row.get('analysis') or {}).get('quality') or {}).get('overall')
+def tone_match(intent,image):
+    """Return the tone-match score."""
+    return bool(set(intent.get('desired_tone',[])) & {image.get('primary_tone'),*image.get('secondary_tones',[])})
 
 def main():
+    """Run the command-line entry point."""
     OUT.mkdir(parents=True,exist_ok=True);manifest=load(OLD/'pairwise_manifest.json')['items'];blind=load(OLD/'candidate_blind_map.json')['items'];human=load(OLD/'human_pairwise_reviews.json')['items'];summary=load(OLD/'pairwise_validation_summary.json');intents=load(FIRST/'quote_visual_intents.json')['items'];first=load(FIRST/'image_first_impressions.json')['items']
     editorial_doc=load(ROOT/'generated_image_analysis.json');editorial={n:editorial_doc['items'][editorial_doc['path_index'][n]] for n in editorial_doc['path_index']};hashes=editorial_doc['path_index'];active=set(editorial_doc['file_metadata'])
     traces=load_trace_records(TRACE_ROOT);indexed=trace_index(traces);reconstructed=reconstruct_pairs(manifest,blind,indexed,active=active,first_impressions=set(first),editorial=editorial,hashes=hashes);atomic_write_json(OUT/'reconstructed_pairs.json',{'schema_version':1,'items':reconstructed})

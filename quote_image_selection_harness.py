@@ -100,26 +100,32 @@ IMMUTABLE_SOURCES = (
 
 
 class HarnessError(RuntimeError):
+    """Raised when the offline selection harness violates an invariant."""
     pass
 
 
 class IsolationError(HarnessError):
+    """Raised when the harness attempts an unsafe external operation."""
     pass
 
 
 def canonical_json(value: Any) -> bytes:
+    """Return the canonical JSON."""
     return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
 def hash_value(value: Any) -> str:
+    """Hash value."""
     return hashlib.sha256(canonical_json(value)).hexdigest()
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def percentile(values: Sequence[float], fraction: float) -> float | None:
+    """Return the percentile."""
     if not values:
         return None
     ordered = sorted(float(value) for value in values)
@@ -130,12 +136,14 @@ def percentile(values: Sequence[float], fraction: float) -> float | None:
 
 
 def inside(path: Path, parent: Path) -> bool:
+    """Return the inside."""
     path = path.resolve(strict=False)
     parent = parent.resolve(strict=False)
     return path == parent or parent in path.parents
 
 
 def validate_run_dir(path: Path) -> Path:
+    """Validate run dir."""
     resolved = path.expanduser().resolve(strict=False)
     required_parent = (ROOT / "semantic_alignment_research").resolve()
     if not inside(resolved, required_parent) or resolved == required_parent:
@@ -150,6 +158,7 @@ class OpenAudit:
     """Reject writes outside the run directory and account for source reads."""
 
     def __init__(self, run_dir: Path):
+        """Initialise the open audit."""
         self.run_dir = run_dir.resolve()
         self.production_reads: Counter[str] = Counter()
         self.forbidden_write_attempts: list[dict[str, str]] = []
@@ -179,6 +188,7 @@ class OpenAudit:
             self.production_reads[str(resolved)] += 1
 
     def __enter__(self) -> "OpenAudit":
+        """Enter the context manager."""
         self._originals = {
             "builtins.open": builtins.open,
             "io.open": io.open,
@@ -223,12 +233,14 @@ class OpenAudit:
         return self
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
+        """Exit the context manager."""
         builtins.open = self._originals["builtins.open"]
         io.open = self._originals["io.open"]
         os.open = self._originals["os.open"]
         Path.open = self._originals["Path.open"]
 
     def summary(self) -> dict[str, Any]:
+        """Return the summary."""
         return {
             "schema_version": 1,
             "production_read_open_count": sum(self.production_reads.values()),
@@ -293,6 +305,7 @@ def block_outbound_network() -> Iterator[None]:
 
 
 def stable_file_record(source: Path, destination: Path, retries: int = 8) -> dict[str, Any]:
+    """Return the stable file record."""
     for attempt in range(retries):
         before = production_sim.stat_identity(source)
         payload = source.read_bytes()
@@ -315,6 +328,7 @@ def stable_file_record(source: Path, destination: Path, retries: int = 8) -> dic
 
 
 def stable_json_object(source: Path, retries: int = 8) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the stable JSON object."""
     for attempt in range(retries):
         before = production_sim.stat_identity(source)
         payload = source.read_bytes()
@@ -337,11 +351,13 @@ def stable_json_object(source: Path, retries: int = 8) -> tuple[dict[str, Any], 
 
 
 def effective_selection_config() -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the effective selection config."""
     raw, record = stable_json_object(ROOT / "mrsMThatcher.local.json")
     return {key: raw[key] for key in SELECTION_CONFIG_KEYS if key in raw}, record
 
 
 def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
+    """Return whether write eligible quotes."""
     packets = json.loads((snapshot / "research_packets.json").read_text(encoding="utf-8"))
     status = json.loads((snapshot / "final_research_status.json").read_text(encoding="utf-8"))
     items = packets.get("items") if isinstance(packets, dict) else None
@@ -385,6 +401,7 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
 
 
 def source_snapshot(run_dir: Path) -> dict[str, Any]:
+    """Return the source snapshot."""
     run_dir.mkdir(parents=True, exist_ok=True)
     snapshot = run_dir / SNAPSHOT_DIRNAME
     if (snapshot / "manifest.json").is_file():
@@ -504,6 +521,7 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
 
 
 def verify_snapshot(snapshot: Path, manifest: dict[str, Any]) -> None:
+    """Verify snapshot."""
     for key, record in manifest.get("files", {}).items():
         destination = Path(str(record.get("snapshot_path") or ""))
         if not destination.is_absolute():
@@ -519,6 +537,7 @@ def verify_snapshot(snapshot: Path, manifest: dict[str, Any]) -> None:
 
 
 def initialise_database(path: Path) -> sqlite3.Connection:
+    """Initialise database."""
     connection = sqlite3.connect(path, timeout=60)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys=ON")
@@ -585,6 +604,7 @@ def initialise_database(path: Path) -> sqlite3.Connection:
 
 
 def record_snapshot_rows(connection: sqlite3.Connection, manifest: dict[str, Any]) -> None:
+    """Record snapshot rows."""
     for key, record in manifest.get("files", {}).items():
         connection.execute(
             "INSERT OR REPLACE INTO source_snapshots VALUES (?,?,?,?,?,?,?)",
@@ -599,6 +619,7 @@ def record_snapshot_rows(connection: sqlite3.Connection, manifest: dict[str, Any
 
 @dataclass
 class HarnessContext:
+    """Represent harness context data."""
     run_dir: Path
     snapshot: Path
     bot: Any
@@ -612,6 +633,7 @@ class HarnessContext:
 
 
 def import_bot(run_dir: Path) -> Any:
+    """Return the import bot."""
     import_sentinel = Path("/tmp") / f"mrsMThatcher-harness-import-{os.getpid()}"
     if import_sentinel.exists():
         raise IsolationError(f"import sentinel unexpectedly exists: {import_sentinel}")
@@ -652,6 +674,7 @@ def import_bot(run_dir: Path) -> Any:
 
 
 def install_immutable_score_caches(bot: Any) -> None:
+    """Install immutable score caches."""
     original_sha = bot.current_image_sha256
     original_idf = bot.build_image_topic_idf
     original_score = bot.score_image_for_quote
@@ -837,6 +860,7 @@ def install_immutable_score_caches(bot: Any) -> None:
 
 
 def load_context(run_dir: Path) -> HarnessContext:
+    """Load context."""
     snapshot = run_dir / SNAPSHOT_DIRNAME
     manifest = json.loads((snapshot / "manifest.json").read_text(encoding="utf-8"))
     verify_snapshot(snapshot, manifest)
@@ -901,14 +925,17 @@ def load_context(run_dir: Path) -> HarnessContext:
 
 
 def local_datetime(epoch: int) -> datetime:
+    """Return the local datetime."""
     return datetime.fromtimestamp(epoch, TZ)
 
 
 def epoch_for(year: int, month: int, day: int, hour: int, minute: int) -> int:
+    """Return the epoch for."""
     return int(datetime(year, month, day, hour, minute, tzinfo=TZ).timestamp())
 
 
 def date_range(year: int) -> Iterator[date]:
+    """Yield date range values."""
     current = date(year, 1, 1)
     end = date(year + 1, 1, 1)
     while current < end:
@@ -934,6 +961,7 @@ def dst_transition_observations(year: int) -> list[datetime]:
 
 
 def seasonal_state(ctx: HarnessContext, when: datetime) -> dict[str, Any]:
+    """Return the seasonal state."""
     bot = ctx.bot
     mm_dd = when.strftime("%m-%d")
     cached = ctx.seasonal_cache.get(mm_dd)
@@ -982,6 +1010,7 @@ def seasonal_state(ctx: HarnessContext, when: datetime) -> dict[str, Any]:
 
 
 def configured_boundaries(ctx: HarnessContext, years: Sequence[int]) -> list[dict[str, Any]]:
+    """Return the configured boundaries."""
     windows: set[tuple[str, str, str]] = set()
     for quote_id in sorted(ctx.quote_text):
         analysis, _analysis_source, _analysis_id = quote_analysis_for_completed_id(ctx, quote_id)
@@ -1023,6 +1052,7 @@ def configured_boundaries(ctx: HarnessContext, years: Sequence[int]) -> list[dic
 
 
 def map_seasons(ctx: HarnessContext, years: Sequence[int]) -> dict[str, Any]:
+    """Return the map seasons."""
     rows: list[dict[str, Any]] = []
     unique: dict[str, dict[str, Any]] = {}
     representative_times = ((0, 1), (11, 59), (12, 1), (23, 59))
@@ -1076,6 +1106,7 @@ def map_seasons(ctx: HarnessContext, years: Sequence[int]) -> dict[str, Any]:
 
 
 def load_seasonal_states(run_dir: Path) -> list[dict[str, Any]]:
+    """Load seasonal states."""
     path = run_dir / "unique_seasonal_states.json"
     if not path.is_file():
         raise HarnessError("seasonal map is missing; run map-seasons first")
@@ -1086,6 +1117,7 @@ def load_seasonal_states(run_dir: Path) -> list[dict[str, Any]]:
 
 
 def filtered_snapshot_state(ctx: HarnessContext) -> tuple[dict[str, Any], set[str], set[str]]:
+    """Return the filtered snapshot state."""
     state, images_used, lines_used = production_sim.load_private_state(ctx.snapshot)
     lines_used &= production_quote_ids(ctx)
     image_names = {Path(path).name for path in ctx.bot.current_image_paths()}
@@ -1099,6 +1131,7 @@ def production_quote_ids(ctx: HarnessContext) -> set[str]:
 
 
 def state_profiles(ctx: HarnessContext) -> dict[str, dict[str, Any]]:
+    """Return the state profiles."""
     bot = ctx.bot
     current_state, current_images, current_lines = filtered_snapshot_state(ctx)
     image_names = sorted(Path(path).name for path in bot.current_image_paths())
@@ -1151,6 +1184,7 @@ def quote_analysis_for_completed_id(
     ctx: HarnessContext,
     quote_id: str,
 ) -> tuple[dict[str, Any] | None, str, str]:
+    """Return the quote analysis for completed ID."""
     analysis_id = ctx.analysis_aliases.get(quote_id, quote_id)
     analysis_source = "whitespace_alias" if analysis_id != quote_id else "exact"
     quote_analysis = ctx.bot.load_quote_analysis()
@@ -1161,6 +1195,7 @@ def quote_analysis_for_completed_id(
 
 
 def quote_choice(ctx: HarnessContext, quote_id: str, epoch: int) -> dict[str, Any]:
+    """Return the quote choice."""
     bot = ctx.bot
     text = ctx.quote_text[quote_id]
     analysis, analysis_source, analysis_id = quote_analysis_for_completed_id(ctx, quote_id)
@@ -1184,6 +1219,7 @@ def quote_choice(ctx: HarnessContext, quote_id: str, epoch: int) -> dict[str, An
 
 
 def canonicalise_production_quote(ctx: HarnessContext, quote: dict[str, Any]) -> dict[str, Any]:
+    """Return the canonicalise production quote."""
     production_hash = str(quote.get("quote_hash") or "")
     if production_hash in ctx.packets:
         canonical_id = production_hash
@@ -1202,6 +1238,7 @@ def canonicalise_production_quote(ctx: HarnessContext, quote: dict[str, Any]) ->
 
 
 def editorial_rows(ctx: HarnessContext, quote: dict[str, Any], candidates: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the editorial rows."""
     editorial = ctx.bot.load_original_editorial_analysis()
     rows: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -1226,6 +1263,7 @@ def editorial_rows(ctx: HarnessContext, quote: dict[str, Any], candidates: Seque
 
 
 def candidate_veto_status(ctx: HarnessContext, quote_id: str, candidate: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+    """Return the candidate veto status."""
     if str(candidate.get("image_source") or "original") == "generated":
         return "out_of_scope_generated", None
     pair = ctx.veto.pair(ctx.veto.canonical_quote_id(quote_id), str(candidate.get("image_hash") or ""))
@@ -1233,6 +1271,7 @@ def candidate_veto_status(ctx: HarnessContext, quote_id: str, candidate: dict[st
 
 
 def highest_row(rows: Sequence[dict[str, Any]], key: str, preferred: str | None = None) -> dict[str, Any] | None:
+    """Return the highest row."""
     if not rows:
         return None
     maximum = max(float(row.get(key) or 0.0) for row in rows)
@@ -1252,6 +1291,7 @@ def evaluate_policies(
     *,
     tie_state: object | None = None,
 ) -> dict[str, Any]:
+    """Evaluate policies."""
     quote_id = str(quote["quote_hash"])
     editorial = editorial_rows(ctx, quote, candidates)
     editorial_winner = editorial[0] if editorial else None
@@ -1321,6 +1361,7 @@ def select_forced_quote(
     *,
     seed: int,
 ) -> tuple[dict[str, Any], object]:
+    """Select forced quote."""
     ctx.bot.random.setstate(random.Random(seed).getstate())
     tie_state = ctx.bot.random.getstate()
     selection = production_sim.select_policy_image_with_recovery(
@@ -1330,6 +1371,7 @@ def select_forced_quote(
 
 
 def validate_production_observer_parity(ctx: HarnessContext) -> dict[str, Any]:
+    """Validate production observer parity."""
     quote_id = sorted(ctx.quote_text)[0]
     epoch = epoch_for(2026, 7, 1, 12, 1)
     profile = state_profiles(ctx)["current_production_snapshot"]
@@ -1391,6 +1433,7 @@ def validate_production_observer_parity(ctx: HarnessContext) -> dict[str, Any]:
 
 
 def compressed_candidates(rows: Sequence[dict[str, Any]], *, full: bool) -> tuple[bytes, int]:
+    """Return the compressed candidates."""
     ordered = sorted(rows, key=lambda row: (-float(row.get("score") or 0.0), str(row.get("basename") or "")))
     if not full:
         names = {
@@ -1435,6 +1478,7 @@ def insert_event(
     full_candidates: bool = False,
     error: str | None = None,
 ) -> None:
+    """Perform the insert event operation."""
     production = selection.get("image") if selection else None
     candidates = policies.get("classified_candidates", []) if policies else []
     editorial = policies.get("editorial_winner") if policies else None
@@ -1493,6 +1537,7 @@ def insert_event(
 
 
 def run_timed(connection: sqlite3.Connection, run_id: str, mode: str, parameters: dict[str, Any]):
+    """Run timed."""
     class Timer:
         started = time.perf_counter()
         usage = resource.getrusage(resource.RUSAGE_SELF)
@@ -1529,6 +1574,7 @@ def run_sweep(
     limit_quotes: int | None = None,
     pilot: bool = False,
 ) -> dict[str, Any]:
+    """Run sweep."""
     validate_production_observer_parity(ctx)
     seasons = load_seasonal_states(ctx.run_dir)
     if limit_signatures:
@@ -1604,11 +1650,13 @@ def run_sweep(
 
 
 def checkpoint_get(connection: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """Return the checkpoint get."""
     row = connection.execute("SELECT payload_json FROM checkpoints WHERE checkpoint_key=?", (key,)).fetchone()
     return json.loads(row[0]) if row else None
 
 
 def checkpoint_put(connection: sqlite3.Connection, key: str, payload: dict[str, Any]) -> None:
+    """Perform the checkpoint put operation."""
     connection.execute(
         "INSERT OR REPLACE INTO checkpoints VALUES (?,?,?)",
         (key, json.dumps(payload, sort_keys=True), utc_now()),
@@ -1624,6 +1672,7 @@ def simulation_checkpoint(
     lines_used: set[str],
     rng_state: object,
 ) -> dict[str, Any]:
+    """Return the simulation checkpoint."""
     return {
         "event_index": event_index,
         "virtual_epoch": virtual_epoch,
@@ -1635,6 +1684,7 @@ def simulation_checkpoint(
 
 
 def restore_simulation_checkpoint(payload: dict[str, Any]) -> tuple[int, int, dict[str, Any], set[str], set[str], object]:
+    """Restore simulation checkpoint."""
     try:
         rng_state = production_sim.rng_state_decode(payload["rng_state"])
     except (KeyError, TypeError, production_sim.SimulationSafetyError) as exc:
@@ -1656,6 +1706,7 @@ def run_simulation(
     pilot: bool = False,
     max_events: int | None = None,
 ) -> dict[str, Any]:
+    """Run simulation."""
     if seeds < 1:
         raise HarnessError("seed count must be positive")
     mode = "pilot_monte_carlo" if pilot else "monte_carlo"
@@ -1761,11 +1812,13 @@ def run_simulation(
 
 
 def boundary_instants(boundary_date: date) -> list[datetime]:
+    """Return the boundary instants."""
     midnight = datetime.combine(boundary_date, datetime_time(0, 0), TZ)
     return [midnight - timedelta(minutes=1), midnight, midnight + timedelta(minutes=1)]
 
 
 def stress_boundaries(ctx: HarnessContext) -> dict[str, Any]:
+    """Return the stress boundaries."""
     map_payload = json.loads((ctx.run_dir / "seasonal_calendar_map.json").read_text(encoding="utf-8"))
     boundaries = map_payload.get("boundaries") or []
     profiles_all = state_profiles(ctx)
@@ -1879,6 +1932,7 @@ def snapshot_replay_manifest_sources(ctx: HarnessContext, replay_root: Path) -> 
 
 
 def historical_replay(ctx: HarnessContext, since_days: int) -> dict[str, Any]:
+    """Return the historical replay."""
     from semantic_alignment.quote_image_semantic_veto import historical_replay as veto_replay
 
     replay_root = ctx.run_dir / "runtime" / "replay_project"
@@ -1963,6 +2017,7 @@ def reproduced_event_identity(
     selection: dict[str, Any],
     policies: dict[str, Any],
 ) -> dict[str, Any]:
+    """Return the reproduced event identity."""
     return {
         "state_hash": state_hash,
         "quote_id": str(quote.get("quote_hash") or ""),
@@ -1978,6 +2033,7 @@ def reproduced_event_identity(
 
 
 def stored_event_identity(row: sqlite3.Row, candidates: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Return the stored event identity."""
     return {
         "state_hash": str(row["state_hash"] or ""),
         "quote_id": str(row["quote_id"] or ""),
@@ -1993,6 +2049,7 @@ def stored_event_identity(row: sqlite3.Row, candidates: Sequence[dict[str, Any]]
 
 
 def reproduce_event(ctx: HarnessContext, event_key: str) -> dict[str, Any]:
+    """Return the reproduce event."""
     row = ctx.connection.execute(
         "SELECT * FROM simulation_events WHERE event_key=?", (event_key,)
     ).fetchone()
@@ -2094,6 +2151,7 @@ def replay_records(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def summarise_mode(connection: sqlite3.Connection, mode: str) -> dict[str, Any]:
+    """Summarise mode."""
     total = 0
     veto_count = 0
     deltas: list[float] = []
@@ -2186,6 +2244,7 @@ def summarise_mode(connection: sqlite3.Connection, mode: str) -> dict[str, Any]:
 
 
 def seasonal_breakdown(connection: sqlite3.Connection, mode: str) -> dict[str, Any]:
+    """Return the seasonal breakdown."""
     state_lookup = {
         str(row["signature"]): json.loads(row["state_json"])
         for row in connection.execute("SELECT * FROM seasonal_states")
@@ -2310,6 +2369,7 @@ def seasonal_breakdown(connection: sqlite3.Connection, mode: str) -> dict[str, A
 
 
 def summary_markdown(title: str, summary: dict[str, Any]) -> str:
+    """Return the summary markdown."""
     lines = [f"# {title}", ""]
     for key, value in summary.items():
         if isinstance(value, (dict, list)):
@@ -2323,6 +2383,7 @@ def summary_markdown(title: str, summary: dict[str, Any]) -> str:
 
 
 def verify_immutable_sources(run_dir: Path) -> dict[str, Any]:
+    """Verify immutable sources."""
     manifest = json.loads((run_dir / "source_snapshot_manifest.json").read_text(encoding="utf-8"))
     changed: list[dict[str, str]] = []
     checked = 0
@@ -2341,6 +2402,7 @@ def verify_immutable_sources(run_dir: Path) -> dict[str, Any]:
 
 
 def exceptional_cases(connection: sqlite3.Connection, limit: int = 100) -> dict[str, Any]:
+    """Return the exceptional cases."""
     veto_rows = connection.execute(
         """
         SELECT mode, simulated_timestamp, quote_id, quote_text, production_image,
@@ -2370,6 +2432,7 @@ def exceptional_cases(connection: sqlite3.Connection, limit: int = 100) -> dict[
 
 
 def seasonal_calendar_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return the seasonal calendar summary."""
     return {
         "years": list(payload.get("years") or []),
         "observation_count": int(payload.get("calendar_state_count") or payload.get("observation_count") or 0),
@@ -2381,6 +2444,7 @@ def seasonal_calendar_summary(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def runtime_resource_summary(run_rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Return the runtime resource summary."""
     completed = [row for row in run_rows if row.get("status") == "completed"]
     return {
         "measurement_scope": "completed command invocations; interrupted invocations are excluded",
@@ -2392,6 +2456,7 @@ def runtime_resource_summary(run_rows: Sequence[dict[str, Any]]) -> dict[str, An
 
 
 def generate_reports(run_dir: Path) -> dict[str, Any]:
+    """Generate reports."""
     connection = initialise_database(run_dir / DB_NAME)
     connection.execute(
         "UPDATE runs SET status='interrupted', completed_at=COALESCE(completed_at,?) WHERE status='running'",
@@ -2615,6 +2680,7 @@ def generate_reports(run_dir: Path) -> dict[str, Any]:
 
 
 def decode_candidate_set(connection: sqlite3.Connection, event_key: str) -> list[dict[str, Any]]:
+    """Decode candidate set."""
     row = connection.execute(
         "SELECT encoding,payload FROM candidate_score_sets WHERE event_key=?", (event_key,)
     ).fetchone()
@@ -2626,6 +2692,7 @@ def decode_candidate_set(connection: sqlite3.Connection, event_key: str) -> list
 
 
 def review_html() -> str:
+    """Return the review HTML."""
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Quote/Image Selection Harness</title><style>
@@ -2656,6 +2723,7 @@ function panel(title,img,score){return `<section class=panel><h3>${esc(title)}</
 
 
 def serve(run_dir: Path, host: str, port: int) -> None:
+    """Serve the configured local interface."""
     connection_path = run_dir / DB_NAME
     snapshot = run_dir / SNAPSHOT_DIRNAME
     packets = json.loads((snapshot / "research_packets.json").read_text(encoding="utf-8"))["items"]
@@ -2769,6 +2837,7 @@ def serve(run_dir: Path, host: str, port: int) -> None:
 
 
 def preflight(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Build the deterministic execution preflight."""
     if project_dir.resolve() != ROOT.resolve():
         raise HarnessError(f"project directory must be {ROOT}")
     manifest = source_snapshot(run_dir)
@@ -2795,6 +2864,7 @@ def preflight(project_dir: Path, run_dir: Path) -> dict[str, Any]:
 
 
 def parse_int_list(value: str) -> list[int]:
+    """Parse int list."""
     result = [int(item.strip()) for item in value.split(",") if item.strip()]
     if not result:
         raise argparse.ArgumentTypeError("at least one integer is required")
@@ -2802,12 +2872,14 @@ def parse_int_list(value: str) -> list[int]:
 
 
 def common_run_argument(parser: argparse.ArgumentParser) -> None:
+    """Perform the common run argument operation."""
     parser.add_argument("--run-dir", type=Path, default=DEFAULT_RUN_DIR)
     parser.add_argument("--workers", type=int, choices=(1, 2), default=1)
     parser.add_argument("--nice", type=int, choices=range(0, 20), default=5)
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     pre = sub.add_parser("preflight")
@@ -2853,6 +2925,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def dispatch(args: argparse.Namespace, run_dir: Path) -> Any:
+    """Return the dispatch."""
     if args.command == "preflight":
         return preflight(args.project_dir, run_dir)
     if args.command == "report":
@@ -2888,6 +2961,7 @@ def dispatch(args: argparse.Namespace, run_dir: Path) -> Any:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     run_dir = validate_run_dir(args.run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)

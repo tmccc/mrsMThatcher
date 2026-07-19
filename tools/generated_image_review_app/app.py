@@ -1,3 +1,5 @@
+"""Serve the generated-image quarantine review application."""
+
 from __future__ import annotations
 
 import argparse
@@ -21,15 +23,18 @@ HERE = Path(__file__).resolve().parent
 
 
 def is_loopback(host: str) -> bool:
+    """Return whether is loopback."""
     return host in {"127.0.0.1", "::1", "localhost"}
 
 
 def validate_binding(host: str, username: str | None, password: str | None) -> None:
+    """Validate binding."""
     if not is_loopback(host) and not (username and password):
         raise ValueError("LAN binding requires MRS_REVIEW_USERNAME and MRS_REVIEW_PASSWORD")
 
 
 def create_app(service: ReviewService, *, username: str | None = None, password: str | None = None, secret_key: str | None = None) -> FastAPI:
+    """Create app."""
     app = FastAPI(title="Generated image review", docs_url=None, redoc_url=None)
     app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
     templates = Jinja2Templates(directory=str(HERE / "templates"))
@@ -130,6 +135,7 @@ def create_app(service: ReviewService, *, username: str | None = None, password:
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     value = argparse.ArgumentParser(description="Local generated-image review app. Read-only unless --allow-changes is supplied.")
     value.add_argument("--host", default="127.0.0.1"); value.add_argument("--port", type=int, default=8765)
     value.add_argument("--allow-changes", action="store_true"); value.add_argument("--project-dir", type=Path, default=Path.cwd())
@@ -139,6 +145,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args(); username, password = os.getenv("MRS_REVIEW_USERNAME"), os.getenv("MRS_REVIEW_PASSWORD")
     validate_binding(args.host, username, password)
     service = ReviewService(Paths.build(args.project_dir, args.generated_dir, args.quarantine_dir, args.data_dir), args.allow_changes)

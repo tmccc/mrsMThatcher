@@ -1,3 +1,5 @@
+"""Derive source-grounded quotation eligibility for historical images."""
+
 from __future__ import annotations
 
 import argparse
@@ -121,22 +123,27 @@ BATCH_RESPONSE_SCHEMA = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_bytes(value: Any) -> bytes:
+    """Return the canonical bytes."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
 
 def value_hash(value: Any) -> str:
+    """Return the value hash."""
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
 def text_hash(value: str) -> str:
+    """Return the text hash."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def estimate_tokens(value: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(value.encode("utf-8")) / 3)
 
 
@@ -154,6 +161,7 @@ def _clean_list(value: Any, *, maximum_items: int = 10, maximum_text: int = 240)
 
 
 def load_completed_corpus(research_run: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Load completed corpus."""
     packets_path = research_run / "research_packets.json"
     manifest_path = research_run / "corpus_manifest.json"
     closure_path = research_run / "final_unresolved/final_research_status.json"
@@ -214,6 +222,7 @@ def load_completed_corpus(research_run: Path) -> tuple[list[dict[str, Any]], dic
 
 
 def compact_quote_record(packet: dict[str, Any]) -> dict[str, Any]:
+    """Return the compact quote record."""
     editorial = packet["editorial_guidance"]
     return {
         "id": packet["quote_id"],
@@ -242,6 +251,7 @@ def compact_quote_record(packet: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_image_records(work_dir: Path) -> list[dict[str, Any]]:
+    """Load image records."""
     effective = read_json(work_dir / "effective_production_ready_manifest.json")
     identities = read_json(work_dir / "source_grounded_identity_metadata.json")
     analysis_db = read_json(work_dir / "source_grounded_image_analysis.json")
@@ -297,6 +307,7 @@ def load_image_records(work_dir: Path) -> list[dict[str, Any]]:
 
 
 def build_prompt(quote_corpus: list[dict[str, Any]], images: list[dict[str, Any]]) -> str:
+    """Build prompt."""
     schema_text = json.dumps(BATCH_RESPONSE_SCHEMA, sort_keys=True, separators=(",", ":"))
     corpus_text = "\n".join(json.dumps(row, sort_keys=True, separators=(",", ":"), ensure_ascii=False) for row in quote_corpus)
     image_text = json.dumps(images, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
@@ -331,6 +342,7 @@ ELIGIBLE QUOTATION CORPUS ({len(quote_corpus)} records; compact field labels are
 def validate_batch_response(
     value: Any, expected_images: list[dict[str, Any]], eligible_quote_ids: set[str],
 ) -> dict[str, Any]:
+    """Validate batch response."""
     if not isinstance(value, dict) or set(value) != {"records"} or not isinstance(value["records"], list):
         raise ValueError("batch response must contain only a records array")
     if len(value["records"]) != len(expected_images):
@@ -405,6 +417,7 @@ def _batches(rows: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
 
 
 def prepare_trial(research_run: Path, image_work_dir: Path, output_dir: Path) -> dict[str, Any]:
+    """Prepare trial."""
     packets, corpus_meta = load_completed_corpus(research_run)
     compact_corpus = [compact_quote_record(packet) for packet in packets]
     image_records = load_image_records(image_work_dir)
@@ -479,6 +492,7 @@ def prepare_trial(research_run: Path, image_work_dir: Path, output_dir: Path) ->
 
 
 def build_preflight(output_dir: Path) -> dict[str, Any]:
+    """Build preflight."""
     manifest = read_json(output_dir / "trial_manifest.json")
     total_input_tokens = sum(int(row["estimated_input_tokens"]) for row in manifest["batches"])
     calls = len(manifest["batches"])
@@ -547,6 +561,7 @@ def _save_provider_state(output_dir: Path, provider: str, state: dict[str, Any])
 
 
 def total_known_spend(output_dir: Path) -> float:
+    """Return the total known spend."""
     grok = float(_provider_state(output_dir, "grok").get("known_cost_usd") or 0.0)
     gemini_state = read_json(output_dir / "providers/gemini/provider_route_state.json", {})
     gemini = sum(float(value or 0.0) for value in (gemini_state.get("known_spend_usd") or {}).values())
@@ -559,6 +574,7 @@ def _assert_cost_room(output_dir: Path) -> None:
 
 
 def run_grok(output_dir: Path, manifest: dict[str, Any], api_key: str) -> None:
+    """Run grok."""
     provider_dir = output_dir / "providers/grok"
     raw_dir = provider_dir / "raw"
     normal_dir = provider_dir / "normalised"
@@ -641,6 +657,7 @@ def run_grok(output_dir: Path, manifest: dict[str, Any], api_key: str) -> None:
 
 
 def run_gemini(output_dir: Path, manifest: dict[str, Any]) -> None:
+    """Run gemini."""
     provider_dir = output_dir / "providers/gemini"
     provider_dir.mkdir(parents=True, exist_ok=True)
     api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
@@ -693,6 +710,7 @@ def run_gemini(output_dir: Path, manifest: dict[str, Any]) -> None:
 
 
 def run_trial(project_dir: Path, output_dir: Path, *, execute: bool, confirmed_cost: float) -> dict[str, Any]:
+    """Run trial."""
     if not execute:
         raise RuntimeError("live provider calls require --execute")
     if confirmed_cost != HARD_COST_CEILING_USD:
@@ -867,6 +885,7 @@ def _classification_metrics(rows: list[dict[str, Any]], predictions: set[tuple[s
 
 
 def compile_results(output_dir: Path) -> dict[str, Any]:
+    """Compile results."""
     partial_recovery = recover_partial_gemini_batches(output_dir)
     manifest = read_json(output_dir / "trial_manifest.json")
     providers: dict[str, Any] = {}
@@ -1017,6 +1036,7 @@ def _pct(value: float | None) -> str:
 
 
 def write_report(output_dir: Path, manifest: dict[str, Any], evaluation: dict[str, Any]) -> None:
+    """Write report."""
     gemini_route = read_json(output_dir / "providers/gemini/provider_route_state.json", {})
     grok_state = _provider_state(output_dir, "grok")
     gemini_spend = sum(float(value or 0.0) for value in (gemini_route.get("known_spend_usd") or {}).values())
@@ -1096,6 +1116,7 @@ def write_report(output_dir: Path, manifest: dict[str, Any], evaluation: dict[st
 
 
 def status(output_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     manifest = read_json(output_dir / "trial_manifest.json")
     preflight = read_json(output_dir / "preflight.json")
     result = {
@@ -1118,6 +1139,7 @@ def status(output_dir: Path) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser(description="Source-grounded image-to-quote eligibility trial")
     sub = parser.add_subparsers(dest="command", required=True)
     prepare = sub.add_parser("prepare")
@@ -1138,6 +1160,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     if args.command == "prepare":
         value = prepare_trial(args.research_run, args.image_work_dir, args.output)

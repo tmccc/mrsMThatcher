@@ -1,3 +1,5 @@
+"""Validate blind pairwise judgements and provider calibration results."""
+
 from __future__ import annotations
 
 import hashlib
@@ -44,10 +46,12 @@ def _canonical(value: Any) -> str:
 
 
 def pair_id(quote_hash: str, current: str, challenger: str) -> str:
+    """Return the pair ID."""
     return hashlib.sha256(f"pairwise-v1:{quote_hash}:{current}:{challenger}".encode()).hexdigest()[:20]
 
 
 def validate_review(value: Any, *, complete: bool = True) -> dict[str, Any]:
+    """Validate review."""
     if not isinstance(value, dict):
         raise ValueError("review must be an object")
     allowed = {"case_id", "preferred_candidate", "preference_strength", "reasons", "notes", "updated_at"}
@@ -72,6 +76,7 @@ def validate_review(value: Any, *, complete: bool = True) -> dict[str, Any]:
 
 
 def validate_pairwise_judgement(value: Any) -> dict[str, Any]:
+    """Validate pairwise judgement."""
     required = set(PAIRWISE_SCHEMA["required"])
     if not isinstance(value, dict) or set(value) != required:
         raise ValueError("pairwise judgement fields do not match schema")
@@ -89,17 +94,20 @@ def validate_pairwise_judgement(value: Any) -> dict[str, Any]:
 
 
 def unresolved_template_tokens(text: str) -> list[str]:
+    """Return the unresolved template tokens."""
     import re
     patterns=(r"\$\{[^}\n]+\}",r"(?<!\$)\{(?:metrics|costs|exact|model_|len\()[^}\n]+\}",r"(?<!\$)\{[A-Za-z_][A-Za-z0-9_]*(?:\[[^}\n]+\])?\}")
     return sorted(set(match.group(0) for pattern in patterns for match in re.finditer(pattern,text)))
 
 
 def assert_report_rendered(text: str) -> None:
+    """Assert report rendered."""
     tokens=unresolved_template_tokens(text)
     if tokens: raise ValueError(f"unresolved report template tokens: {tokens}")
 
 
 def pairwise_model_prompt(intent: dict[str, Any], quote: dict[str, Any], a: dict[str, Any], b: dict[str, Any]) -> str:
+    """Return the pairwise model prompt."""
     allowed_intent={k:intent.get(k) for k in ("desired_first_impression","desired_primary_visual_subjects","desired_tone","undesired_dominant_messages")}
     allowed_quote={k:quote.get(k) for k in ("dominant_message","core_claim","claims","primary_themes","secondary_themes","specific_concepts","not_about")}
     def clean(row):
@@ -123,6 +131,7 @@ INPUT:{_canonical(payload)}"""
 
 
 def calibration_metrics(results: dict[str, dict[str, Any]], reviews: dict[str, Any], blind: dict[str, Any], case_ids: list[str]) -> dict[str, Any]:
+    """Return the calibration metrics."""
     summaries={}
     for provider,doc in sorted(results.items()):
         rows=[]
@@ -143,6 +152,7 @@ def calibration_metrics(results: dict[str, dict[str, Any]], reviews: dict[str, A
 
 
 def provider_selection(metrics: dict[str, Any], *, minimum_agreement: float = 0.55) -> dict[str, Any]:
+    """Return the provider selection."""
     rows=metrics["providers"]
     eligible=[(v.get("exact_agreement") or 0,-v.get("harmful_displacements",0),k) for k,v in rows.items()
               if v.get("evaluated")==15 and not v.get("schema_failures") and (v.get("exact_agreement") or 0)>=minimum_agreement]
@@ -155,6 +165,7 @@ def provider_selection(metrics: dict[str, Any], *, minimum_agreement: float = 0.
 
 
 def review_progress(case_ids: list[str], reviews: dict[str, Any]) -> dict[str, int]:
+    """Return the review progress."""
     complete = 0
     for cid in case_ids:
         try:
@@ -166,6 +177,7 @@ def review_progress(case_ids: list[str], reviews: dict[str, Any]) -> dict[str, i
 
 
 def save_review(path: Path, case_ids: set[str], review: dict[str, Any]) -> None:
+    """Save review."""
     row = validate_review(review)
     if row["case_id"] not in case_ids:
         raise ValueError("unknown case_id")
@@ -185,6 +197,7 @@ def _tokens(value: Any) -> set[str]:
 
 
 def _candidate_score(intent: dict[str, Any], image: dict[str, Any], editorial: dict[str, Any]) -> float:
+    """Return the candidate score."""
     desired = _tokens({
         "message": intent.get("desired_first_impression"),
         "subjects": intent.get("desired_primary_visual_subjects", []),
@@ -213,6 +226,7 @@ def build_manifest(
     previous_pairs: list[dict[str, Any]],
     *, seed: int = DEFAULT_SEED,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build manifest."""
     if len(validation_cases) != 50:
         raise ValueError("pairwise validation requires exactly 50 source cases")
     previous_by_quote = {row["quote_hash"]: row for row in previous_pairs}
@@ -298,6 +312,7 @@ def build_manifest(
 
 
 def select_calibration(manifest: dict[str, Any], blind_map: dict[str, Any]) -> dict[str, Any]:
+    """Select calibration."""
     rows = manifest["items"]
     forced = [row for row in rows if row["quote_hash"] in {EVEREST_QUOTE_HASH, FREE_TRADE_QUOTE_HASH}]
     used = {row["case_id"] for row in forced}
@@ -319,6 +334,7 @@ def select_calibration(manifest: dict[str, Any], blind_map: dict[str, Any]) -> d
 
 
 def write_run(run_dir: Path, manifest: dict[str, Any], blind_map: dict[str, Any], calibration: dict[str, Any]) -> None:
+    """Write run."""
     run_dir.mkdir(parents=True, exist_ok=True)
     atomic_write_json(run_dir / "pairwise_manifest.json", manifest)
     atomic_write_json(run_dir / "candidate_blind_map.json", blind_map)

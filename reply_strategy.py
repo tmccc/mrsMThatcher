@@ -176,6 +176,7 @@ TOPICAL_CONCEPTS = {
 
 @dataclass(frozen=True)
 class RetrievedEvidence:
+    """Represent retrieved evidence data."""
     quote_id: str
     score: float
     verification_status: str
@@ -183,6 +184,7 @@ class RetrievedEvidence:
     packet: dict[str, Any]
 
     def prompt_record(self) -> dict[str, Any]:
+        """Return the prompt record."""
         packet = self.packet
         return {
             "quote_id": self.quote_id,
@@ -205,12 +207,14 @@ class ReplyDecision(str):
     strategy_metadata: dict[str, Any]
 
     def __new__(cls, value: str, strategy_metadata: dict[str, Any]):
+        """Create a reply decision instance."""
         instance = str.__new__(cls, value)
         instance.strategy_metadata = strategy_metadata
         return instance
 
 
 def allowed_modes_from_config(config: dict[str, Any]) -> set[str]:
+    """Return the reply modes enabled by validated strategy configuration."""
     modes = {"principle_reply", "no_reply"}
     if config.get("allow_historical_correction"):
         modes.add("historical_correction")
@@ -386,6 +390,7 @@ def retrieve_research_packets(
     *,
     maximum: int = 5,
 ) -> list[RetrievedEvidence]:
+    """Retrieve bounded attribution-eligible research evidence for an incoming post."""
     packets, unresolved = load_and_validate_corpus(research_dir)
     if len(packets) != 626 or len(unresolved) != 6:
         raise RuntimeError("reply retrieval requires 626 completed packets and six unresolved records")
@@ -416,6 +421,7 @@ def retrieve_research_packets(
 
 
 def build_strategy_prompt_context(evidence: Iterable[RetrievedEvidence]) -> str:
+    """Build clearly separated prompt context for a reply strategy decision."""
     records = [item.prompt_record() for item in evidence]
     return json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -548,6 +554,7 @@ def normalise_reply_decision(value: dict[str, Any]) -> dict[str, Any]:
 
 
 def decision_schema_instruction() -> str:
+    """Return the strict structured-reply schema instruction."""
     no_reply_example = {
         "mode": "no_reply",
         "humour_tone": "none",
@@ -595,6 +602,7 @@ def decision_schema_instruction() -> str:
 
 
 def strategy_mode_guidance() -> str:
+    """Return prompt guidance for the enabled reply modes."""
     return (
         "Classification hierarchy: first identify any factual claim in the incoming post. "
         "If it is materially false or misleading and supplied evidence resolves it with high confidence, use historical_correction. "
@@ -1048,6 +1056,7 @@ def direct_question_prompt_guidance(question: str, *, clarification: bool = Fals
 
 
 def parse_decision_json(raw: str) -> dict[str, Any]:
+    """Parse and normalise a structured reply decision."""
     text = str(raw or "").strip()
     if text.upper() == "SKIP":
         raise ValueError("bare SKIP is not a valid structured reply decision")
@@ -1086,6 +1095,7 @@ def _quotes_are_verified(text: str, evidence: Iterable[RetrievedEvidence]) -> bo
 
 
 def reply_repetition_reason(text: str, recent_replies: Iterable[str]) -> str | None:
+    """Return the reply repetition reason."""
     normalised = " ".join(text.lower().split())
     previous_values = [" ".join(str(previous).lower().split()) for previous in recent_replies]
     if normalised in previous_values:
@@ -1115,6 +1125,7 @@ def validate_reply_decision(
     direct_question_text: str | None = None,
     clarification_reply: bool = False,
 ) -> dict[str, Any]:
+    """Validate grounding, safety, relevance, and mode-specific reply invariants."""
     value = normalise_reply_decision(value)
     if set(value) != REPLY_DECISION_FIELDS:
         raise ValueError("reply decision fields mismatch")
@@ -1245,6 +1256,7 @@ def validate_reply_decision(
 
 
 def audit_digest(path: Path) -> dict[str, Any]:
+    """Audit digest."""
     text = path.read_text(encoding="utf-8")
     section_pattern = re.compile(
         r"^## (Mention replies|Hot-post replies|Quote-tweet replies)\n(.*?)(?=^## |\Z)",
@@ -1269,6 +1281,7 @@ def audit_digest(path: Path) -> dict[str, Any]:
 
 
 def audit_cli(argv: list[str] | None = None) -> int:
+    """Audit CLI."""
     parser = argparse.ArgumentParser(description="Offline reply digest audit")
     parser.add_argument("--digest", required=True, type=Path)
     parser.add_argument("--research-run", required=True, type=Path)

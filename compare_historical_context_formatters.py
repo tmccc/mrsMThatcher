@@ -16,6 +16,7 @@ from semantic_alignment.historical_context_formatter_trial import (
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     root = argparse.ArgumentParser(description=__doc__)
     commands = root.add_subparsers(dest="command", required=True)
     prepare = commands.add_parser("prepare")
@@ -30,6 +31,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args()
     if args.command == "prepare": result = prepare_trial(args.research_run, args.output, args.sample_count); summary = {"manifest": result["manifest"], "parity": {key: result["parity"][key] for key in ("passed", "records", "blocking_regression_count")}, "lengths": result["lengths"]}
     elif args.command == "audit":

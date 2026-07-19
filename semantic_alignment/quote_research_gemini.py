@@ -1,3 +1,5 @@
+"""Validate and run grounded Gemini quotation-research requests."""
+
 from __future__ import annotations
 
 import hashlib
@@ -84,18 +86,22 @@ PACKET_SCHEMA = {
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def quote_hash(text: str) -> str:
+    """Return the quote hash."""
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def estimate_tokens(text: str) -> int:
+    """Estimate tokens."""
     return math.ceil(len(text.encode("utf-8")) / 3)
 
 
 def research_prompt(record: dict[str, Any]) -> str:
+    """Return the research prompt."""
     return f"""Prompt version: {PROMPT_VERSION}
 Act as a meticulous historical researcher. Research exactly one quotation attributed to Margaret Thatcher using Google Search grounding. Return only the requested compact JSON packet. Do not write an essay.
 
@@ -121,6 +127,7 @@ RESEARCH RULES:
 
 
 def validate_packet(value: Any, record: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Validate packet."""
     if not isinstance(value, dict) or set(value) != set(TOP_LEVEL_FIELDS):
         actual = set(value) if isinstance(value, dict) else set()
         raise ValueError(f"packet fields mismatch missing={sorted(set(TOP_LEVEL_FIELDS)-actual)} extra={sorted(actual-set(TOP_LEVEL_FIELDS))}")
@@ -315,6 +322,7 @@ def _usage(raw: dict[str, Any]) -> dict[str, int]:
 
 
 def calculate_cost(usage: dict[str, int], query_count: int) -> dict[str, float]:
+    """Calculate cost."""
     token_cost = ((usage["input_tokens"]-usage["cached_tokens"])*PRICES["gemini"]["input"] +
                   usage["cached_tokens"]*PRICES["gemini"]["cached_input"] +
                   usage["output_tokens"]*PRICES["gemini"]["output"]) / 1_000_000
@@ -332,23 +340,27 @@ def _response_text(raw: dict[str, Any]) -> str:
 
 
 def generation_config(response_schema: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Return the generation config."""
     return {"responseMimeType": "application/json", "responseJsonSchema": response_schema or PACKET_SCHEMA,
             "maxOutputTokens": MAX_OUTPUT_TOKENS, "thinkingConfig": {"thinkingBudget": THINKING_BUDGET},
             "temperature": TEMPERATURE}
 
 
 def settings_signature() -> dict[str, Any]:
+    """Return the settings signature."""
     return {"model": MODEL, "generation_config": generation_config(), "tools": [{"googleSearch": {}}],
             "prompt_version": PROMPT_VERSION}
 
 
 class DeveloperResearchClient:
+    """Provide the developer research client."""
     transport = "developer_api"
     model = MODEL
 
     def __init__(self, api_key: str, request: Callable[..., Any] = requests.post,
                  connect_timeout: float = 20, read_timeout: float = 300,
                  response_schema: dict[str, Any] | None = None):
+        """Initialise the developer research client."""
         if not api_key:
             raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required only for explicit execution")
         self.api_key = api_key
@@ -357,10 +369,12 @@ class DeveloperResearchClient:
         self.response_schema = response_schema or PACKET_SCHEMA
 
     def payload(self, prompt: str) -> dict[str, Any]:
+        """Return the payload."""
         return {"contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "tools": [{"googleSearch": {}}], "generationConfig": generation_config(self.response_schema)}
 
     def call(self, prompt: str) -> dict[str, Any]:
+        """Submit one grounded research prompt through the Developer API."""
         started = time.monotonic()
         response = self.request(
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
@@ -384,11 +398,13 @@ class DeveloperResearchClient:
 
 
 class VertexResearchClient:
+    """Provide the vertex research client."""
     transport = "vertex_ai"
     model = MODEL
 
     def __init__(self, project: str, location: str = "global", client: Any | None = None,
                  read_timeout: float = 300, response_schema: dict[str, Any] | None = None):
+        """Initialise the vertex research client."""
         self.project = project
         self.location = location
         self.client = client or genai.Client(vertexai=True, project=project, location=location)
@@ -396,6 +412,7 @@ class VertexResearchClient:
         self.response_schema = response_schema or PACKET_SCHEMA
 
     def config(self):
+        """Return the config."""
         return types.GenerateContentConfig(
             response_mime_type="application/json", response_json_schema=self.response_schema,
             max_output_tokens=MAX_OUTPUT_TOKENS,
@@ -405,6 +422,7 @@ class VertexResearchClient:
         )
 
     def call(self, prompt: str) -> dict[str, Any]:
+        """Submit one grounded research prompt through Vertex AI."""
         started = time.monotonic()
         response = self.client.models.generate_content(model=self.model, contents=prompt, config=self.config())
         latency = time.monotonic() - started
@@ -423,6 +441,7 @@ class VertexResearchClient:
 
 
 def require_transport_parity(developer: Any, vertex: Any) -> None:
+    """Require transport parity."""
     if developer.model != vertex.model:
         raise RuntimeError("Gemini research model parity failed")
     developer_payload = developer.payload("__PROMPT__")
@@ -442,6 +461,7 @@ def require_transport_parity(developer: Any, vertex: Any) -> None:
 
 
 def classify_http_failure(exc: BaseException) -> dict[str, Any]:
+    """Classify HTTP failure."""
     if isinstance(exc, requests.HTTPError) and exc.response is not None:
         response = exc.response
         try:
@@ -469,10 +489,12 @@ def _append_jsonl(path: Path, row: dict[str, Any]) -> None:
 
 
 def maximum_next_cost(prompt: str) -> float:
+    """Return the maximum next cost."""
     return (estimate_tokens(prompt)*PRICES["gemini"]["input"] + MAX_OUTPUT_TOKENS*PRICES["gemini"]["output"]) / 1_000_000 + GUARDED_SEARCH_QUERIES*SEARCH_QUERY_PRICE
 
 
 def preflight(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the deterministic execution preflight."""
     prompts = [research_prompt(record) for record in records]
     input_tokens = sum(estimate_tokens(prompt) for prompt in prompts)
     expected = (input_tokens*PRICES["gemini"]["input"] + len(records)*EXPECTED_OUTPUT_TOKENS*PRICES["gemini"]["output"]) / 1_000_000 + len(records)*EXPECTED_SEARCH_QUERIES*SEARCH_QUERY_PRICE
@@ -509,6 +531,7 @@ def _classification(text: str) -> str:
 
 
 def build_pilot(manifest: dict[str, Any], excluded_batch: dict[str, Any], count: int = MAX_QUOTES) -> dict[str, Any]:
+    """Build pilot."""
     if count != MAX_QUOTES:
         raise ValueError("this pilot must contain exactly 20 records")
     excluded = {row["quote_id"] for row in excluded_batch.get("records") or []}
@@ -548,9 +571,11 @@ def build_pilot(manifest: dict[str, Any], excluded_batch: dict[str, Any], count:
 
 
 class ResearchWorker:
+    """Run research operations."""
     def __init__(self, run_dir: Path, records: list[dict[str, Any]], developer: Any, vertex: Any,
                  developer_limit: float, vertex_limit: float, combined_limit: float,
                  sleep: Callable[[float], None] = time.sleep):
+        """Initialise the research worker."""
         self.run_dir, self.records, self.developer, self.vertex = run_dir, records, developer, vertex
         self.developer_limit, self.vertex_limit, self.combined_limit = developer_limit, vertex_limit, combined_limit
         self.sleep = sleep
@@ -743,6 +768,7 @@ class ResearchWorker:
         return "exhausted"
 
     def run(self) -> dict[str, Any]:
+        """Run pending research packets with persisted provider routing."""
         require_transport_parity(self.developer, self.vertex)
         packets, grounding, costs, status = self._load()
         self._reclassify_legacy_parse_failures()
@@ -769,6 +795,7 @@ class ResearchWorker:
 
 
 def report(run_dir: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build the quotation-research status and spend report."""
     packets = read_json(run_dir / "research_packets.json", {}) or {"items": {}, "validation_failures": {}}
     costs = read_json(run_dir / "cost_ledger.json", {}) or {"calls": [], "combined_known_spend_usd": 0}
     status = read_json(run_dir / "transport_status.json", {}) or {}

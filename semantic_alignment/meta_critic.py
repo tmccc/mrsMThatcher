@@ -1,3 +1,5 @@
+"""Aggregate provider critics into weighted disagreement and policy signals."""
+
 from __future__ import annotations
 
 import statistics
@@ -9,6 +11,7 @@ DEFAULT_THRESHOLDS={"wide_iqr":25,"score_outlier_distance":30,"high_suitability"
 
 
 def validate_weights(data:dict[str,Any]|None, *, minimum_cases:int=20, cap:float=1.5):
+    """Validate weights."""
     if not data: return {p:1.0 for p in PROVIDERS},"equal_default",0
     sample=data.get("sample_size",0)
     if type(sample) is not int or sample<minimum_cases: raise ValueError("insufficient human-reviewed cases for provider weights")
@@ -29,6 +32,7 @@ def _consensus(counter:Counter, provider_count:int):
 
 
 def analyse_case(case:dict[str,Any], rows:dict[str,dict[str,Any]], *, weights:dict[str,float]|None=None, thresholds:dict[str,float]|None=None):
+    """Analyse case."""
     thresholds={**DEFAULT_THRESHOLDS,**(thresholds or {})}; weights=weights or {p:1.0 for p in rows}; n=len(rows)
     relationships=Counter(row["primary_relationship"] for row in rows.values()); operations=Counter(row["keep_or_replace"] for row in rows.values())
     med={f:statistics.median(float(row[f]) for row in rows.values()) for f in ("relevance_score","directness_score","overall_suitability_score")}
@@ -57,6 +61,7 @@ def analyse_case(case:dict[str,Any], rows:dict[str,dict[str,Any]], *, weights:di
 
 
 def priority(meta:dict[str,Any], *, free_trade:bool=False):
+    """Return the priority."""
     reasons=meta["review_reasons"][:]
     if len(meta["primary_relationship_votes"])>=3: reasons.append("sharp_rationale_conflict")
     if free_trade: reasons.append("free_trade_case")
@@ -72,12 +77,14 @@ def priority(meta:dict[str,Any], *, free_trade:bool=False):
 
 
 def policy_actions(meta:dict[str,Any]):
+    """Return the policy actions."""
     votes=Counter(meta["operational_votes"]); top=votes.most_common(1)[0]
     unanimous=top[1]==4 and top[0] in {"keep","replace"}; majority=top[1]>=3 and top[0] in {"keep","replace"}
     return {"A":top[0] if unanimous else "defer","B":top[0] if majority else "defer","C":meta["recommended_action"] if not meta["requires_human_review"] else "defer","D":meta["weighted_recommended_action"] if meta["weighted_recommended_action"] in {"keep","replace"} else "defer","E":top[0] if majority and not any("consequence" in x for x in meta["review_reasons"]) else "defer"}
 
 
 def policy_summary(items:list[dict[str,Any]], human:dict[str,str]|None=None):
+    """Return the policy summary."""
     human=human or {}; out={}
     for policy in "ABCDE":
         actions={x["case_id"]:policy_actions(x)[policy] for x in items}; resolved={k:v for k,v in actions.items() if v!="defer"}; labelled={k:v for k,v in resolved.items() if k in human}

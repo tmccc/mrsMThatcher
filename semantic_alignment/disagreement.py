@@ -1,3 +1,5 @@
+"""Measure provider disagreement and evaluate safeguarded selection policies."""
+
 from __future__ import annotations
 import re,statistics
 from collections import Counter
@@ -19,6 +21,7 @@ ADJACENT={
 RATIONALE_FIELDS=('quote_mechanism','quote_claimed_consequences','quote_broader_principles','image_depicted_consequences','image_ideological_framing','matched_elements','unillustrated_primary_elements','extraneous_image_arguments')
 
 def relationship_distance(a:str,b:str)->float:
+    """Return the relationship distance."""
     if a==b:return 0
     key=tuple(sorted((a,b))); lookup={tuple(sorted(k)):v for k,v in ADJACENT.items()}
     if key in lookup:return lookup[key]
@@ -35,6 +38,7 @@ def _iqr(values):
     q=statistics.quantiles(values,n=4,method='inclusive'); return q[2]-q[0]
 
 def disagreement(case_id:str,rows:dict[str,dict[str,Any]]):
+    """Return the disagreement."""
     pairs=list(combinations(rows.items(),2)); operations=Counter(x['keep_or_replace'] for x in rows.values()); counts=sorted(operations.values(),reverse=True)
     operational=0 if counts==[4] else 25 if counts==[3,1] else 55 if counts==[2,1,1] else 80 if counts==[2,2] else 100
     taxonomy_values=[]; ordering_overlap=0
@@ -79,10 +83,12 @@ def disagreement(case_id:str,rows:dict[str,dict[str,Any]]):
     return {'case_id':case_id,'disagreement_score':total,'disagreement_band':band,'components':{'operational':round(operational,2),'taxonomy':round(taxonomy,2),'primary_secondary_overlap_pairs':ordering_overlap,'score_dispersion':round(score,2),'rationale':round(rationale,2),'internal_inconsistency':round(internal,2)},'score_fields':field_dispersion,'score_outliers':outliers,'internal_inconsistencies':inconsistencies,'explanation':explanations}
 
 def safeguarded_policies(meta:dict[str,Any],d:dict[str,Any]):
+    """Return the safeguarded policies."""
     votes=Counter(meta['operational_votes']); top=votes.most_common(1)[0]; majority=top[0] if top[1]>=3 and top[0] in {'keep','replace'} else 'defer'; unanimous=top[0] if top[1]==4 and top[0] in {'keep','replace'} else 'defer'
     return {'F':majority if d['disagreement_band'] in {'low','moderate'} else 'defer','G':unanimous if d['components']['internal_inconsistency']<50 else 'defer','H':majority if d['disagreement_band'] not in {'high','extreme'} else 'defer'}
 
 def evaluation(predictions:dict[str,str],human:dict[str,str]):
+    """Return the evaluation."""
     resolved={k:v for k,v in predictions.items() if v in {'keep','replace'}}; labelled={k:v for k,v in resolved.items() if human.get(k) in {'keep','replace'}}; reviewed={k:v for k,v in human.items() if v in {'keep','replace'}}
     errors=sum(v!=human[k] for k,v in labelled.items())
     return {'coverage':len(resolved)/len(predictions) if predictions else 0,'resolved':len(resolved),'deferred':len(predictions)-len(resolved),'labelled_resolved':len(labelled),'accuracy':(len(labelled)-errors)/len(labelled) if labelled else None,'false_keep':sum(v=='keep' and human[k]=='replace' for k,v in labelled.items()),'false_replace':sum(v=='replace' and human[k]=='keep' for k,v in labelled.items()),'review_efficiency':errors/len(reviewed) if reviewed else None}

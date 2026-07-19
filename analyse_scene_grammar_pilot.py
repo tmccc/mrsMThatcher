@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse scene grammar pilot artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -60,6 +62,7 @@ FIRST_RUN = ROOT / "semantic_alignment_research/first_impression/v1_20260712"
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -78,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def prepare(run: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Prepare the scene-grammar pilot workspace and manifest."""
     manifest = read_json(OLD_RUN / "validation_manifest.json")
     briefs = read_json(OLD_RUN / "generation_briefs.json")["items"]
     failures = classify_failures(
@@ -154,6 +158,7 @@ def _identity_check(
 
 
 def analyse(run: Path, manifest: dict[str, Any], specs: dict[str, Any], limit: float | None) -> dict[str, Any]:
+    """Analyse the configured artefacts."""
     if limit is None or not 0 < limit <= 10:
         raise RuntimeError("analysis ceiling must be positive and no more than $10")
     generated = read_json(run / "generated_candidates.json")
@@ -245,6 +250,7 @@ def analyse(run: Path, manifest: dict[str, Any], specs: dict[str, Any], limit: f
 
 
 def report(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Write the scene-grammar pilot report."""
     generated = read_json(run / "generated_candidates.json")
     analyses = read_json(run / "analysis_results.json")
     reviews = read_json(run / "human_reviews.json")
@@ -396,6 +402,7 @@ def report(run: Path, manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = build_parser().parse_args(argv)
     run = args.run_dir.resolve()
     manifest, specs = prepare(run)

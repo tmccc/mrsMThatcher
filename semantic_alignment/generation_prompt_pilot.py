@@ -1,3 +1,5 @@
+"""Prepare and execute a bounded quotation-image generation prompt pilot."""
+
 from __future__ import annotations
 
 import base64
@@ -28,6 +30,7 @@ OBSERVED_COST_PER_IMAGE_USD = 0.013
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat()
 
 
@@ -40,6 +43,7 @@ def _text(value: Any) -> str:
 
 
 def build_brief(quote: dict[str, Any], intent: dict[str, Any]) -> dict[str, Any]:
+    """Build brief."""
     claims = quote.get("claims") or []
     mechanisms = [_text(row.get("mechanism")) for row in claims if isinstance(row, dict)]
     consequences = [_text(row.get("claimed_consequence")) for row in claims if isinstance(row, dict)]
@@ -74,6 +78,7 @@ def build_brief(quote: dict[str, Any], intent: dict[str, Any]) -> dict[str, Any]
 
 
 def prompt_for_style(brief: dict[str, Any], style: str) -> str:
+    """Return the prompt for style."""
     if style not in STYLES:
         raise ValueError(f"unknown prompt style: {style}")
     common = {
@@ -106,11 +111,13 @@ def prompt_for_style(brief: dict[str, Any], style: str) -> str:
 
 
 def candidate_id(quote_hash: str, style: str) -> str:
+    """Return the candidate ID."""
     return hashlib.sha256(f"{quote_hash}:{style}:{PROMPT_VERSION}".encode()).hexdigest()[:20]
 
 
 def build_manifest(quotes: dict[str, Any], intents: dict[str, Any], pair_manifest: dict[str, Any],
                    pair_reviews: dict[str, Any], first_cases: dict[str, Any], first_reviews: dict[str, Any]) -> dict[str, Any]:
+    """Build manifest."""
     pair_by_id = {row["case_id"]: row for row in pair_manifest.get("items", [])}
     selected: dict[str, str] = {
         EVEREST_QUOTE_HASH: "forced_everest_regression",
@@ -146,6 +153,7 @@ def build_manifest(quotes: dict[str, Any], intents: dict[str, Any], pair_manifes
 
 
 def preflight(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Build the deterministic execution preflight."""
     calls = len(manifest["items"]) * len(STYLES)
     if len(manifest["items"]) > MAX_CASES or calls > MAX_IMAGES:
         raise RuntimeError("pilot exceeds case or image maximum")
@@ -169,13 +177,16 @@ def preflight(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 class ImageClient:
+    """Provide the image client."""
     def __init__(self, api_key: str, transport=None):
+        """Initialise the image client."""
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY required only for explicit generation")
         self.api_key = api_key
         self.transport = transport or requests.post
 
     def generate(self, prompt: str) -> tuple[bytes, dict[str, Any]]:
+        """Generate one image through the configured image provider."""
         response = self.transport("https://api.openai.com/v1/images/generations",
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
             json={"model": MODEL, "prompt": prompt, "quality": QUALITY, "size": SIZE, "n": 1, "output_format": "png"},
@@ -188,6 +199,7 @@ class ImageClient:
 
 def execute_generation(run: Path, manifest: dict[str, Any], briefs: dict[str, Any], *, client: ImageClient,
                        confirmed_limit: float, sleep=time.sleep) -> dict[str, Any]:
+    """Return the execute generation."""
     pf = preflight(manifest)
     if confirmed_limit != HARD_CEILING_USD or not pf["paid_execution_allowed"]:
         raise RuntimeError("exact $20 generation ceiling confirmation required")

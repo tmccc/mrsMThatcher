@@ -1,3 +1,5 @@
+"""Run resumable blind retrieval reviews across multiple model providers."""
+
 from __future__ import annotations
 
 import csv
@@ -47,6 +49,7 @@ ANTHROPIC_TOKEN_ESTIMATE_MULTIPLIER = 1.30
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
@@ -66,6 +69,7 @@ def _provider_input_estimate(provider: str, prompt: str) -> int:
 
 
 def maximum_attempt_cost(provider: str, prompt: str) -> float:
+    """Estimate the maximum cost of one provider attempt."""
     price = PRICES[provider]
     return (
         _provider_input_estimate(provider, prompt) * price["input"]
@@ -74,6 +78,7 @@ def maximum_attempt_cost(provider: str, prompt: str) -> float:
 
 
 def prepare_multi_provider_review(retrieval_dir: Path) -> dict[str, Any]:
+    """Prepare multi provider review."""
     payload = browser_review_payload(retrieval_dir)
     cases = payload["items"]
     if len(cases) != 100 or payload["context_unavailable_count"]:
@@ -171,6 +176,7 @@ def prepare_multi_provider_review(retrieval_dir: Path) -> dict[str, Any]:
 
 
 class ReviewProviderClient:
+    """Provide the review provider client."""
     def __init__(
         self,
         provider: str,
@@ -179,6 +185,7 @@ class ReviewProviderClient:
         transport: Callable[..., Any] | None = None,
         timeout_seconds: float = 240,
     ):
+        """Initialise the review provider client."""
         if provider not in PROVIDERS:
             raise ValueError("unsupported blind-review provider")
         if not api_key:
@@ -190,6 +197,7 @@ class ReviewProviderClient:
         self.timeout_seconds = timeout_seconds
 
     def payload(self, prompt: str) -> dict[str, Any]:
+        """Return the payload."""
         if self.provider == "grok":
             return {
                 "model": self.model,
@@ -235,6 +243,7 @@ class ReviewProviderClient:
         }
 
     def call(self, prompt: str) -> dict[str, Any]:
+        """Submit one structured review prompt to this provider."""
         urls = {
             "grok": "https://api.x.ai/v1/chat/completions",
             "openai": "https://api.openai.com/v1/responses",
@@ -263,6 +272,7 @@ class ReviewProviderClient:
         return {"raw": raw, "latency_seconds": latency, "request_id": request_id}
 
     def usage_and_cost(self, raw: dict[str, Any]) -> tuple[dict[str, int], float]:
+        """Return the usage and cost."""
         usage = raw.get("usage") or {}
         if self.provider == "grok":
             input_tokens = int(usage.get("prompt_tokens") or 0)
@@ -305,6 +315,7 @@ class ReviewProviderClient:
         }, cost
 
     def parsed_content(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Return the parsed content."""
         if self.provider == "grok":
             text = str(raw["choices"][0]["message"]["content"])
         elif self.provider == "openai":
@@ -333,18 +344,22 @@ class ReviewProviderClient:
 
 
 class SharedCostGuard:
+    """Represent shared cost guard data."""
     def __init__(self, review_dir: Path, combined_limit: float):
+        """Initialise the shared cost guard."""
         self.review_dir = review_dir
         self.combined_limit = combined_limit
         self.lock = threading.Lock()
 
     def known_spend(self) -> float:
+        """Return the known spend."""
         return sum(
             float((read_json(self.review_dir / f"{provider}_review_cost_ledger.json", {}) or {}).get("known_spend_usd") or 0)
             for provider in PROVIDERS
         )
 
     def guard(self, provider: str, provider_spend: float, next_maximum: float, provider_limit: float) -> None:
+        """Reject a call that could exceed configured spend limits."""
         with self.lock:
             if provider_spend + next_maximum > provider_limit:
                 raise RuntimeError(f"{provider} blind-review cost ceiling reached")
@@ -353,6 +368,7 @@ class SharedCostGuard:
 
 
 class ProviderReviewRunner:
+    """Run provider review operations."""
     def __init__(
         self,
         retrieval_dir: Path,
@@ -362,6 +378,7 @@ class ProviderReviewRunner:
         provider_limit: float,
         sleep: Callable[[float], None] = time.sleep,
     ):
+        """Initialise the provider review runner."""
         self.retrieval_dir = retrieval_dir
         self.review_dir = retrieval_dir / "manual_review"
         self.client = client
@@ -431,6 +448,7 @@ class ProviderReviewRunner:
         return sum(row.get("event") == "attempt_started" and row.get("batch_id") == batch_id for row in attempts)
 
     def run(self) -> dict[str, Any]:
+        """Run one provider's incomplete review work within the shared budget."""
         payload = browser_review_payload(self.retrieval_dir)
         cases_by_id = {str(case["case_id"]): case for case in payload["items"]}
         manifest = read_json(self.review_dir / "multi_provider_review_manifest.json")
@@ -600,6 +618,7 @@ class ProviderReviewRunner:
 
 
 def provider_review_summary(retrieval_dir: Path, provider: str) -> dict[str, Any]:
+    """Return the provider review summary."""
     review_dir = retrieval_dir / "manual_review"
     results = read_json(review_dir / f"{provider}_blind_reviews.json", {"items": {}})
     costs = read_json(review_dir / f"{provider}_review_cost_ledger.json", {})
@@ -629,6 +648,7 @@ def run_multi_provider_reviews(
     combined_limit: float = COMBINED_LIMIT_USD,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, Any]:
+    """Run multi provider reviews."""
     if set(clients) != set(PROVIDERS):
         raise ValueError("exactly Grok, OpenAI and Anthropic clients are required")
     limits = provider_limits or PROVIDER_LIMITS_USD
@@ -692,6 +712,7 @@ def _parsed_provider_raw(provider: str, raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def recover_provider_reviews_offline(retrieval_dir: Path, provider: str) -> dict[str, Any]:
+    """Recover provider reviews offline."""
     if provider not in PROVIDERS:
         raise ValueError("unsupported provider")
     review_dir = retrieval_dir / "manual_review"
@@ -776,6 +797,7 @@ def recover_provider_reviews_offline(retrieval_dir: Path, provider: str) -> dict
 
 
 def compare_all_ai_reviews(retrieval_dir: Path) -> dict[str, Any]:
+    """Compare all ai reviews."""
     review_dir = retrieval_dir / "manual_review"
     multi_manifest = read_json(review_dir / "multi_provider_review_manifest.json")
     gemini_manifest = read_json(review_dir / "gemini_review_manifest.json")

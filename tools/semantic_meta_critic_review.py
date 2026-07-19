@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local semantic meta critic review interface."""
+
 from __future__ import annotations
 import argparse,html,json,secrets,sys
 from datetime import datetime,timezone
@@ -10,6 +12,7 @@ if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 from semantic_alignment.io import atomic_write_json
 
 def create_server(*,project_dir,source_run,bakeoff_dir,meta_dir,review_path,host,port):
+    """Create server."""
     csrf=secrets.token_urlsafe(24); mapping=json.load(open(bakeoff_dir/'sealed_provider_mapping_four_way.json')); cases={x['case_id']:x for x in json.load(open(bakeoff_dir/'cases.json'))['items']}; queue_path=meta_dir/'review_queue.json'; queue_path=queue_path if queue_path.exists() else meta_dir/'human_review_queue.json'; queue=json.load(open(queue_path))['items']; meta={x['case_id']:x for x in json.load(open(meta_dir/'meta_results.json'))['items']}; quotes=json.load(open(source_run/'quote_semantic_fingerprints.json'))['items']; images=json.load(open(source_run/'image_implied_messages_generated.json'))['items']; results={p:json.load(open(bakeoff_dir/f'{p}_results.json'))['items'] for p in mapping.values()}
     def load(): return json.load(open(review_path)) if review_path.exists() else {'schema_version':1,'analysis_kind':'meta_critic_human_reviews','items':{}}
     class H(BaseHTTPRequestHandler):
@@ -42,6 +45,7 @@ def create_server(*,project_dir,source_run,bakeoff_dir,meta_dir,review_path,host
     return ThreadingHTTPServer((host,port),H)
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser(); p.add_argument('--project-dir',type=Path,required=True); p.add_argument('--source-run',type=Path,required=True); p.add_argument('--bakeoff-dir',type=Path,required=True); p.add_argument('--meta-dir',type=Path,required=True); p.add_argument('--review-file',type=Path,required=True); p.add_argument('--host',default='127.0.0.1'); p.add_argument('--port',type=int,default=8769); a=p.parse_args()
     if a.host not in {'127.0.0.1','localhost','::1'}: raise SystemExit('loopback only')
     s=create_server(project_dir=a.project_dir.resolve(),source_run=a.source_run.resolve(),bakeoff_dir=a.bakeoff_dir.resolve(),meta_dir=a.meta_dir.resolve(),review_path=a.review_file.resolve(),host=a.host,port=a.port); print(f'http://{a.host}:{s.server_port}'); s.serve_forever()

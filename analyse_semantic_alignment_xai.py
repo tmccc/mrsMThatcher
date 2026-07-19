@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse semantic alignment xai artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -23,6 +25,7 @@ DEFAULT_SESSION = "simulation_runs/counterfactual_evidence_20x250_20260710"
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     ap = argparse.ArgumentParser(description="Offline semantic-alignment research; xAI is disabled unless explicitly authorised.")
     ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent)
     ap.add_argument("--research-dir", type=Path, default=Path("semantic_alignment_research"))
@@ -57,6 +60,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def paths(args: argparse.Namespace) -> tuple[Path, Path]:
+    """Return the paths."""
     project = args.project_dir.expanduser().resolve()
     research = args.research_dir.expanduser()
     if not research.is_absolute(): research = project / research
@@ -65,6 +69,7 @@ def paths(args: argparse.Namespace) -> tuple[Path, Path]:
 
 
 def load_all(research: Path):
+    """Load all."""
     quote = load_database(research / "quote_semantic_fingerprints.json", "quote_semantic_fingerprint_database", QUOTE_PROMPT_VERSION)
     image = load_database(research / "image_implied_messages_generated.json", "image_implied_message_database", IMAGE_PROMPT_VERSION)
     critic = load_database(research / "semantic_alignment_critic.json", "semantic_alignment_critic_database", CRITIC_PROMPT_VERSION)
@@ -73,6 +78,7 @@ def load_all(research: Path):
 
 
 def new_run(research: Path) -> tuple[str, Path]:
+    """Return the new run."""
     run_id = "v2_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run = research / "runs" / run_id
     run.mkdir(parents=True, exist_ok=False)
@@ -85,6 +91,7 @@ def new_run(research: Path) -> tuple[str, Path]:
 
 
 def selected_run(research: Path, args: argparse.Namespace) -> tuple[str, Path]:
+    """Return the selected run."""
     if getattr(args, "new_run", False):
         if getattr(args, "run_id", None): raise RuntimeError("--new-run and --run-id are mutually exclusive")
         run_id, run = new_run(research); print(f"new_run_id={run_id}")
@@ -97,6 +104,7 @@ def selected_run(research: Path, args: argparse.Namespace) -> tuple[str, Path]:
 
 
 def run_status(run: Path) -> dict:
+    """Run status."""
     manifest = json.loads((run / "run_manifest.json").read_text())
     ledger = json.loads((run / "cost_ledger.json").read_text()) if (run / "cost_ledger.json").exists() else {}
     state = "blocked_ambiguous_cost" if ledger.get("blocked") else manifest.get("status", "resumable")
@@ -105,6 +113,7 @@ def run_status(run: Path) -> dict:
 
 
 def fallback_run_path(research: Path, args: argparse.Namespace) -> Path:
+    """Return the fallback run path."""
     if args.run_dir is not None:
         return args.run_dir.expanduser().resolve()
     if not args.run_id:
@@ -117,6 +126,7 @@ def fallback_run_path(research: Path, args: argparse.Namespace) -> Path:
 
 
 def verify_pricing(research: Path, model: str) -> dict:
+    """Verify pricing."""
     path = research / "pricing" / "models_response.json"
     data = json.loads(path.read_text()) if path.exists() else {}
     selected = next((item for item in data.get("data", []) if item.get("id") == model), None)
@@ -137,6 +147,7 @@ def verify_pricing(research: Path, model: str) -> dict:
 
 
 def preflight(project: Path, research: Path) -> dict:
+    """Build the deterministic execution preflight."""
     quote_db, image_db, critic_db, validation = load_all(research)
     quotes = len(pending_quotes(quote_inventory(project), quote_db))
     images = len(pending_images(generated_image_inventory(project), image_db))
@@ -153,6 +164,7 @@ def preflight(project: Path, research: Path) -> dict:
 
 
 def dry_summary(project: Path, research: Path) -> dict:
+    """Return the dry summary."""
     quote_db, image_db, critic_db, validation = load_all(research)
     quotes, images = quote_inventory(project), generated_image_inventory(project)
     shortlists = make_shortlists(quote_db, image_db, validation) if quote_db["items"] and image_db["items"] else []
@@ -173,6 +185,7 @@ def dry_summary(project: Path, research: Path) -> dict:
 
 
 def main(argv=None) -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args(argv); project, research = paths(args)
     if args.command == "run-status":
         active = research / "runs" / args.run_id

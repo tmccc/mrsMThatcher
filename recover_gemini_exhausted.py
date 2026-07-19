@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Recover incomplete Gemini bake-off cases after quota exhaustion."""
+
 from __future__ import annotations
 
 import argparse
@@ -18,20 +20,31 @@ RECOVERY=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1/gemi
 CEILING=1.50
 
 class RecoveryBudget:
-    def __init__(self,run_dir:Path):self.run_dir=run_dir
+    """Enforce the bounded Gemini recovery budget."""
+
+    def __init__(self,run_dir:Path):
+        """Initialise the recovery budget."""
+        self.run_dir=run_dir
     def guard(self,provider,provider_spend,next_max):
+        """Reject a call that could exceed configured spend limits."""
         if provider!='gemini' or provider_spend+next_max>CEILING:
             raise RuntimeError('Gemini recovery cost ceiling reached')
 
 class PacedClient:
-    def __init__(self,client,seconds=12):self.client=client;self.model=client.model;self.seconds=seconds;self.last=None
+    """Rate-limit calls delegated to a provider client."""
+
+    def __init__(self,client,seconds=12):
+        """Initialise the paced client."""
+        self.client=client;self.model=client.model;self.seconds=seconds;self.last=None
     def call(self,prompt):
+        """Submit one prompt after enforcing the minimum call interval."""
         if self.last is not None:
             time.sleep(max(0,self.seconds-(time.monotonic()-self.last)))
         self.last=time.monotonic()
         return self.client.call(prompt)
 
 def inputs():
+    """Return the inputs."""
     q=json.load(open(FINGERPRINT_RUN/'quote_semantic_fingerprints.json'))['items']
     i=json.load(open(FINGERPRINT_RUN/'image_implied_messages_generated.json'))['items']
     old=json.load(open(OLD_RUN/'cases.json'))['items']
@@ -43,6 +56,7 @@ def inputs():
     return q,i,manifest,cases
 
 def preflight(cases,q,i):
+    """Build the deterministic execution preflight."""
     input_tokens=sum(estimate_tokens(common_prompt(q[x['quote_hash']],i[x['image_basename']])) for x in cases)
     expected_output=900*len(cases); maximum_output=1800*len(cases)
     expected=input_tokens*PRICES['gemini']['input']/1e6+expected_output*PRICES['gemini']['output']/1e6
@@ -53,6 +67,7 @@ def preflight(cases,q,i):
             'ceiling_usd':CEILING,'pacing_seconds':12,'max_attempts_per_case':2,'tools_enabled':False}
 
 def merge():
+    """Merge recovered Gemini results into the provider result set."""
     original=json.load(open(SOURCE_RUN/'gemini_results.json')); recovered=read_json(RECOVERY/'gemini_results.json',{}) or {'items':{}}
     merged=json.loads(json.dumps(original)); merged['items'].update(recovered.get('items',{}))
     merged['recovery_provenance']={'original_results':str(SOURCE_RUN/'gemini_results.json'),'recovery_results':str(RECOVERY/'gemini_results.json'),'recovered_case_ids':sorted(recovered.get('items',{}))}
@@ -60,6 +75,7 @@ def merge():
     return merged
 
 def report(cases,pf,summary,merged):
+    """Write the exhausted-case Gemini recovery report."""
     ledger=read_json(RECOVERY/'gemini_ledger.json',{}) or {}; recovered=read_json(RECOVERY/'gemini_results.json',{}) or {'items':{}}
     failures=ledger.get('confirmed_failures',[])
     lines=['# Gemini exhausted-case recovery','',f'- Frozen cases targeted: {len(cases)}',f'- Recovered: {len(recovered.get("items",{}))}',f'- Still exhausted: {len(ledger.get("exhausted",{}))}',f'- Attempts: {len(ledger.get("attempts",[]))}',f'- Model: `{pf["model"]}`',f'- Known recovery cost: ${summary.get("known_cost_usd",0):.6f}',f'- Ambiguous exposure: ${summary.get("uncertain_possible_exposure_usd",0):.6f}',f'- Derived merged Gemini coverage: {len(merged["items"])}/250','','## Failures','']
@@ -70,6 +86,7 @@ def report(cases,pf,summary,merged):
     atomic_write_text(RECOVERY/'recovery_report.md','\n'.join(lines)+'\n')
 
 def main():
+    """Run the command-line entry point."""
     parser=argparse.ArgumentParser();parser.add_argument('command',choices=('dry-run','execute','report'));parser.add_argument('--confirm-cost-limit-usd',type=float);args=parser.parse_args()
     q,i,_,cases=inputs();RECOVERY.mkdir(parents=True,exist_ok=True)
     atomic_write_json(RECOVERY/'cases.json',{'schema_version':1,'source_manifest':str(SOURCE_RUN/'cases.json'),'case_count':23,'items':cases})

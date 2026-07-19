@@ -1,3 +1,5 @@
+"""Classify failed quotation research and plan bounded retry batches."""
+
 from __future__ import annotations
 
 import hashlib
@@ -97,6 +99,7 @@ def _quote_type(text: str) -> str:
 
 
 def analyze_missing_grounding(run_dir: Path, taxonomy: dict[str, Any]) -> dict[str, Any]:
+    """Analyse missing grounding."""
     manifest = read_json(run_dir / "corpus_manifest.json")
     records = {row["quote_id"]: row for row in manifest["records"]}
     attempts = read_jsonl(run_dir / "attempts.jsonl")
@@ -235,6 +238,7 @@ def _retry_group(category: str) -> tuple[str, str]:
 
 
 def build_retry_plan(run_dir: Path, taxonomy: dict[str, Any], validation_count: int = 20) -> dict[str, Any]:
+    """Build retry plan."""
     manifest = read_json(run_dir / "corpus_manifest.json")
     records = {row["quote_id"]: row for row in manifest["records"]}
     completed = (read_json(run_dir / "research_packets.json") or {}).get("items", {})
@@ -294,6 +298,7 @@ def build_retry_plan(run_dir: Path, taxonomy: dict[str, Any], validation_count: 
 
 
 def cost_projection(plan: dict[str, Any], run_dir: Path) -> dict[str, Any]:
+    """Return the cost projection."""
     calls = (read_json(run_dir / "cost_ledger.json") or {}).get("calls", [])
     observed = [float(row["cost_usd"]) for row in calls if float(row.get("cost_usd") or 0) > 0]
     median = statistics.median(observed)
@@ -392,6 +397,7 @@ No remaining case is classified as a genuine historical failure. No full retry r
 
 
 def generate_retry_analysis(run_dir: Path, validation_count: int = 20) -> dict[str, Any]:
+    """Generate retry analysis."""
     taxonomy_payload = read_json(run_dir / "offline_recovery" / "failure_taxonomy.json")
     taxonomy = taxonomy_payload["items"]
     missing = analyze_missing_grounding(run_dir, taxonomy)

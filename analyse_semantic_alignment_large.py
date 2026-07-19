@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse semantic alignment large artefacts."""
+
 from __future__ import annotations
 import argparse,json,os,time
 from collections import Counter
@@ -14,19 +16,24 @@ from semantic_alignment.meta_critic import analyse_case,policy_actions,priority
 
 SOURCE=Path('semantic_alignment_research/runs/v2_20260711T111526Z'); OLD=Path('semantic_alignment_research/provider_bakeoff_25_20260712'); DEFAULT_RUN=Path('semantic_alignment_research/provider_bakeoff_250_20260712_v1')
 def load_inputs():
+    """Load inputs."""
     q=json.load(open(SOURCE/'quote_semantic_fingerprints.json'))['items']; i=json.load(open(SOURCE/'image_implied_messages_generated.json'))['items']; old=json.load(open(OLD/'cases.json'))['items']; val=json.load(open(SOURCE/'manual_validation_cases.json'))['items']; return q,i,old,val
 def args_parser():
+    """Return the args parser."""
     p=argparse.ArgumentParser();p.add_argument('--run-dir',type=Path,default=DEFAULT_RUN);sub=p.add_subparsers(dest='command',required=True);sub.add_parser('prepare');sub.add_parser('dry-run');sub.add_parser('compare');e=sub.add_parser('execute');e.add_argument('--providers',default=','.join(PROVIDERS));e.add_argument('--execute-grok',action='store_true');e.add_argument('--execute-openai',action='store_true');e.add_argument('--execute-claude',action='store_true');e.add_argument('--execute-gemini',action='store_true');e.add_argument('--confirm-grok-cost-limit-usd',type=float);e.add_argument('--confirm-openai-cost-limit-usd',type=float);e.add_argument('--confirm-claude-cost-limit-usd',type=float);e.add_argument('--confirm-gemini-cost-limit-usd',type=float);e.add_argument('--confirm-gemini-developer-cost-limit-usd',type=float);e.add_argument('--enable-gemini-vertex-fallback',action='store_true');e.add_argument('--show-gemini-fallback-status',action='store_true');e.add_argument('--confirm-gemini-vertex-fallback-cost-limit-usd',type=float);e.add_argument('--probe-gemini-developer-after-quota-pause',action='store_true');e.add_argument('--confirm-combined-cost-limit-usd',type=float);return p
 def prepare(run,q,i,old,val):
+    """Prepare and validate a large semantic-alignment bake-off run."""
     run.mkdir(parents=True,exist_ok=True);path=run/'cases.json'
     if not path.exists():atomic_write_json(path,build_manifest(q,i,old,val))
     manifest=json.load(open(path));verify_manifest(manifest,q,i,old);return manifest
 def write_preflight(run,pf):
+    """Write preflight."""
     lines=['# 250-case provider bake-off preflight','',f'- Cases: 250',f'- Combined expected cost: ${pf["combined_expected_cost_usd"]:.2f}',f'- Combined conservative known cost: ${pf["combined_conservative_known_cost_usd"]:.2f}',f'- Combined ceiling: ${pf["combined_ceiling_usd"]:.2f}','','| Provider | Model | Input tokens | Expected output | Expected cost | Base maximum | Single retry reserve | All-retry exposure | Ceiling |','|---|---|---:|---:|---:|---:|---:|---:|---:|']
     for p,x in pf['providers'].items():lines.append(f'| {p} | {x["model"]} | {x["estimated_input_tokens"]} | {x["estimated_output_tokens"]} | ${x["expected_cost_usd"]:.2f} | ${x["conservative_maximum_base_cost_usd"]:.2f} | ${x["conservative_single_retry_reserve_usd"]:.2f} | ${x["maximum_ambiguous_exposure_usd"]:.2f} | ${x["ceiling_usd"]:.2f} |')
     lines += ['','All tools, search, grounding, retrieval and code execution are disabled. Four workers run concurrently, one active request per provider. Every next attempt is independently ceiling-gated. The theoretical all-case retry exposure cannot be incurred beyond the hard ceilings.','', 'Projected sequential duration: approximately 100–170 minutes from 25-case observed latencies. Projected concurrent duration: approximately 30–50 minutes.']
     atomic_write_text(run/'preflight_report.md','\n'.join(lines)+'\n');atomic_write_json(run/'preflight.json',pf)
 def compare(run,manifest,q,i):
+    """Compare recovered provider judgements for one large bake-off run."""
     results={p:read_json(run/f'{p}_results.json',{}) or {'items':{},'failures':{}} for p in PROVIDERS}; complete=[c for c in manifest['items'] if all(c['case_id'] in results[p].get('items',{}) for p in PROVIDERS)]; missing={p:[c['case_id'] for c in manifest['items'] if c['case_id'] not in results[p].get('items',{})] for p in PROVIDERS}
     comp=compare_n_results(complete,results) if complete else {'cases':0};comp['manifest_cases']=250;comp['four_provider_complete_cases']=len(complete);comp['missing_by_provider']={p:len(x) for p,x in missing.items()};comp['pairwise_full_denominators']={}
     for index,left in enumerate(PROVIDERS):
@@ -75,6 +82,7 @@ def compare(run,manifest,q,i):
     lines += ['','## Safety','','Fingerprints were reused. The original 25 are preserved as regression cases. No tools/search were enabled. No production files or behaviour were changed.']
     atomic_write_text(run/'execution_report.md','\n'.join(lines)+'\n');return comp
 def main(argv=None):
+    """Run the command-line entry point."""
     a=args_parser().parse_args(argv);run=a.run_dir.resolve();q,i,old,val=load_inputs();manifest=prepare(run,q,i,old,val);pf=preflight(manifest,q);write_preflight(run,pf)
     if a.command=='prepare':print('cases=250');return 0
     if a.command=='dry-run':print(json.dumps(pf,indent=2));return 0

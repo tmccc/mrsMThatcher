@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Analyse pairwise validation artefacts."""
+
 from __future__ import annotations
 
 import argparse
@@ -13,10 +15,12 @@ OUTPUT = ROOT / "semantic_alignment_research/pairwise_validation_001"
 
 
 def load(path: Path):
+    """Load a JSON document."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main() -> None:
+    """Run the command-line entry point."""
     parser = argparse.ArgumentParser(description="Build the offline pairwise editorial validation run")
     parser.add_argument("--run-dir", type=Path, default=OUTPUT)
     parser.add_argument("--cases", type=int, default=50)

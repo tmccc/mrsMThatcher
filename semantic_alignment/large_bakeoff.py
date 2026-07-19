@@ -1,3 +1,5 @@
+"""Coordinate the budgeted, concurrent large semantic-alignment bake-off."""
+
 from __future__ import annotations
 import hashlib,json,random,threading,time
 from concurrent.futures import ThreadPoolExecutor,as_completed
@@ -28,9 +30,12 @@ def _http_error_details(exc):
     return details
 
 def _hash(value:Any)->str:return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-def case_id(q,b):return hashlib.sha256(f'{q}:{b}'.encode()).hexdigest()[:20]
+def case_id(q,b):
+    """Return a stable case identifier."""
+    return hashlib.sha256(f'{q}:{b}'.encode()).hexdigest()[:20]
 
 def build_manifest(quotes,images,original_cases,validation,*,seed=20260712,limit=250):
+    """Build manifest."""
     chosen=[]; seen=set()
     def add(q,b,reason,subset,extra=None):
         key=(q,b)
@@ -67,6 +72,7 @@ def build_manifest(quotes,images,original_cases,validation,*,seed=20260712,limit
     return {'schema_version':1,'analysis_kind':'provider_critic_bakeoff_250_cases','fixed_seed':seed,'case_count':limit,'prompt_version':BAKEOFF_PROMPT_VERSION,'critic_schema_version':BAKEOFF_SCHEMA_VERSION,'original_25_preserved':True,'items':chosen}
 
 def verify_manifest(manifest,quotes,images,original_cases):
+    """Verify manifest."""
     items=manifest['items']; errors=[]
     if len(items)!=250 or len({x['case_id'] for x in items})!=250 or len({(x['quote_hash'],x['image_basename']) for x in items})!=250:errors.append('manifest cardinality/uniqueness')
     for x in items:
@@ -78,20 +84,32 @@ def verify_manifest(manifest,quotes,images,original_cases):
     if errors:raise ValueError('; '.join(errors[:20]))
     return {'valid':True,'cases':250,'original_25':25}
 
-def maximum_attempt_cost(provider,prompt):return estimate_tokens(prompt)*PRICES[provider]['input']/1e6+MAX_OUTPUT_TOKENS*PRICES[provider]['output']/1e6
+def maximum_attempt_cost(provider,prompt):
+    """Estimate the maximum cost of one provider attempt."""
+    return estimate_tokens(prompt)*PRICES[provider]['input']/1e6+MAX_OUTPUT_TOKENS*PRICES[provider]['output']/1e6
 
 class SharedBudget:
-    def __init__(self,run_dir,combined_limit=COMBINED_CEILING):self.run_dir=run_dir;self.combined_limit=combined_limit;self.lock=threading.Lock()
-    def known(self):return sum(sum(float(x['cost_usd']) for x in (read_json(self.run_dir/f'{p}_ledger.json',{}) or {}).get('calls',[])) for p in PROVIDERS)
+    """Enforce provider and combined spend ceilings across workers."""
+
+    def __init__(self,run_dir,combined_limit=COMBINED_CEILING):
+        """Initialise the shared budget."""
+        self.run_dir=run_dir;self.combined_limit=combined_limit;self.lock=threading.Lock()
+    def known(self):
+        """Return known completed-call spend across all providers."""
+        return sum(sum(float(x['cost_usd']) for x in (read_json(self.run_dir/f'{p}_ledger.json',{}) or {}).get('calls',[])) for p in PROVIDERS)
     def guard(self,provider,provider_spend,next_max):
+        """Reject a call that could exceed configured spend limits."""
         with self.lock:
             if provider_spend+next_max>CEILINGS[provider]:raise RuntimeError(f'{provider} ceiling reached')
             if self.known()+next_max>self.combined_limit:raise RuntimeError('combined ceiling reached')
 
 class Worker:
+    """Run one provider's resumable large-bake-off workload."""
     def __init__(self,provider,cases,quotes,images,run_dir,client,budget,sleep:Callable[[float],None]=time.sleep):
+        """Initialise the worker."""
         self.provider=provider;self.cases=cases;self.quotes=quotes;self.images=images;self.run_dir=run_dir;self.client=client;self.budget=budget;self.sleep=sleep;self.ledger_path=run_dir/f'{provider}_ledger.json';self.results_path=run_dir/f'{provider}_results.json';self.active=0;self.max_active=0
     def load(self):
+        """Load and reconcile this worker's durable ledger and results."""
         ledger=read_json(self.ledger_path,None) or {'schema_version':1,'provider':self.provider,'model':self.client.model,'attempts':[],'calls':[],'exhausted':{},'confirmed_failures':[],'ambiguous_outcomes':[],'uncertain_possible_exposure_usd':0}; results=read_json(self.results_path,None) or {'schema_version':1,'provider':self.provider,'model':self.client.model,'prompt_version':BAKEOFF_PROMPT_VERSION,'items':{},'failures':{}}
         # A prior sending state without a completed call is ambiguous and consumes that attempt.
         completed_attempts={(x['case_id'],x['attempt_number']) for x in ledger['calls']}
@@ -100,6 +118,7 @@ class Worker:
                 x['lifecycle_state']='ambiguous_outcome'; ledger['ambiguous_outcomes'].append({'case_id':x['case_id'],'attempt_number':x['attempt_number'],'recovered_on_resume':True,'maximum_possible_charge_usd':x['maximum_attempt_cost_usd']}); ledger['uncertain_possible_exposure_usd']+=x['maximum_attempt_cost_usd']
         atomic_write_json(self.ledger_path,ledger);atomic_write_json(self.results_path,results);return ledger,results
     def run(self):
+        """Run incomplete cases while respecting retries and spend ceilings."""
         started=time.time();ledger,results=self.load(); paused=None
         try:
             for case in self.cases:
@@ -129,6 +148,7 @@ class Worker:
         return summary
 
 def run_concurrent(workers):
+    """Run concurrent."""
     started=time.time();summaries={};
     with ThreadPoolExecutor(max_workers=len(workers),thread_name_prefix='critic_provider') as pool:
         futures={pool.submit(w.run):w.provider for w in workers}
@@ -139,6 +159,7 @@ def run_concurrent(workers):
     elapsed=time.time()-started;return {'started_at':started,'ended_at':time.time(),'wall_clock_seconds':elapsed,'providers':summaries,'theoretical_sequential_seconds':sum(x.get('elapsed_seconds',0) for x in summaries.values()),'speedup':sum(x.get('elapsed_seconds',0) for x in summaries.values())/elapsed if elapsed else None}
 
 def preflight(manifest,quotes):
+    """Build the deterministic execution preflight."""
     input_tokens=sum(estimate_tokens_from_case(x) for x in manifest['items'])
     rows={}
     for p in PROVIDERS:
@@ -146,4 +167,6 @@ def preflight(manifest,quotes):
         rows[p]={'model':PROVIDER_MODELS[p],'calls':250,'estimated_input_tokens':input_tokens,'estimated_output_tokens':expected_output,'maximum_output_tokens':max_output,'expected_cost_usd':expected,'conservative_maximum_base_cost_usd':base_max,'conservative_single_retry_reserve_usd':retry_reserve,'theoretical_all_cases_retry_cost_usd':base_max,'maximum_ambiguous_exposure_usd':base_max,'ceiling_usd':CEILINGS[p],'tools_enabled':False}
     return {'schema_version':1,'providers':rows,'combined_expected_cost_usd':sum(x['expected_cost_usd'] for x in rows.values()),'combined_conservative_known_cost_usd':sum(x['conservative_maximum_base_cost_usd']+x['conservative_single_retry_reserve_usd'] for x in rows.values()),'combined_ceiling_usd':COMBINED_CEILING,'note':'Execution ceilings prevent all-case retry maxima from being realised; each next attempt is gated independently.'}
 
-def estimate_tokens_from_case(case):return max(1,int(case.get('estimated_input_tokens') or 2100))
+def estimate_tokens_from_case(case):
+    """Estimate prompt tokens for one comparison case."""
+    return max(1,int(case.get('estimated_input_tokens') or 2100))

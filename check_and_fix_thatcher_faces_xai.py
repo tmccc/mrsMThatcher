@@ -401,10 +401,12 @@ composition.
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse args."""
     p = argparse.ArgumentParser(description="Assess and selectively correct Margaret Thatcher likeness.")
     p.add_argument("--input-dir", type=Path, default=Path.cwd())
     p.add_argument("--output-dir", type=Path)
@@ -432,6 +434,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    """Validate args."""
     args.input_dir = args.input_dir.expanduser().resolve()
     if not args.input_dir.is_dir():
         raise SystemExit(f"Input directory does not exist: {args.input_dir}")
@@ -460,18 +463,22 @@ def validate_args(args: argparse.Namespace) -> None:
 
 
 def mime_type_for(path: Path) -> str:
+    """Return the mime type for."""
     return {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}.get(path.suffix.lower(), "application/octet-stream")
 
 
 def data_uri(path: Path) -> str:
+    """Return the data uri."""
     return f"data:{mime_type_for(path)};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
 
 def data_uri_from_bytes(data: bytes, mime_type: str) -> str:
+    """Return the data uri from bytes."""
     return f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write a JSON document atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     payload = json.dumps(value, indent=2, ensure_ascii=False, sort_keys=True, allow_nan=False) + "\n"
@@ -483,6 +490,7 @@ def atomic_write_json(path: Path, value: Any) -> None:
 
 
 def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f".{path.name}.tmp.{os.getpid()}")
     with tmp.open("wb") as handle:
@@ -493,6 +501,7 @@ def atomic_write_bytes(path: Path, data: bytes) -> None:
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
+    """Load manifest."""
     if not path.exists():
         return {"schema_version": 1, "created_at": utc_now(), "updated_at": utc_now(), "items": {}, "run_history": []}
     with path.open("r", encoding="utf-8") as handle:
@@ -504,11 +513,13 @@ def load_manifest(path: Path) -> dict[str, Any]:
 
 
 def save_manifest(path: Path, manifest: dict[str, Any]) -> None:
+    """Save manifest."""
     manifest["updated_at"] = utc_now()
     atomic_write_json(path, manifest)
 
 
 def response_text(payload: dict[str, Any]) -> str:
+    """Return the response text."""
     for item in payload.get("output", []):
         if isinstance(item, dict) and item.get("type") == "message":
             for content in item.get("content", []):
@@ -518,6 +529,7 @@ def response_text(payload: dict[str, Any]) -> str:
 
 
 def make_session() -> requests.Session:
+    """Create session."""
     s = requests.Session()
     s.headers.update({
         "Authorization": f"Bearer {os.environ['XAI_API_KEY']}",
@@ -528,6 +540,7 @@ def make_session() -> requests.Session:
 
 
 def post_json_with_retries(session: requests.Session, url: str, payload: dict[str, Any], *, timeout: float, max_retries: int, sleep_seconds: float) -> dict[str, Any]:
+    """Post JSON with retries."""
     last_error: Exception | None = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -555,6 +568,7 @@ def post_json_with_retries(session: requests.Session, url: str, payload: dict[st
 
 
 def structured_vision_call(session: requests.Session, *, model: str, images: list[tuple[str, str]], prompt: str, schema_name: str, schema: dict[str, Any], timeout: float, max_retries: int, sleep_seconds: float) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the structured vision call."""
     content: list[dict[str, Any]] = [
         {"type": "input_image", "image_url": image_url, "detail": detail}
         for image_url, detail in images
@@ -574,6 +588,7 @@ def structured_vision_call(session: requests.Session, *, model: str, images: lis
 
 
 def assess_image(session: requests.Session, path: Path, args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the assess image."""
     return structured_vision_call(
         session, model=args.analysis_model, images=[(data_uri(path), "high")], prompt=ASSESSMENT_PROMPT,
         schema_name="thatcher_likeness_assessment", schema=ASSESSMENT_SCHEMA,
@@ -587,6 +602,7 @@ def strict_likeness_assess(
     identity_assessment: dict[str, Any],
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the strict likeness assess."""
     prompt = STRICT_LIKENESS_PROMPT_TEMPLATE.format(
         target_person_description=identity_assessment.get("target_person_description") or "UNSPECIFIED TARGET",
         target_location=identity_assessment.get("target_location") or "UNSPECIFIED LOCATION",
@@ -608,6 +624,7 @@ def effective_assessment(
     identity_assessment: dict[str, Any],
     strict_result: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    """Return the effective assessment."""
     if strict_result is None:
         return dict(identity_assessment)
     merged = dict(identity_assessment)
@@ -623,6 +640,7 @@ def effective_assessment(
 
 
 def format_people_not_to_edit(assessment: dict[str, Any]) -> str:
+    """Format people not to edit."""
     people = assessment.get("people_not_to_edit") or []
     if not people:
         return "- No other specific women or people were identified, but all non-target people must remain unchanged."
@@ -630,6 +648,7 @@ def format_people_not_to_edit(assessment: dict[str, Any]) -> str:
 
 
 def make_edit_prompt(assessment: dict[str, Any], has_references: bool) -> str:
+    """Create edit prompt."""
     problems = assessment.get("problems") or []
     problems_text = "\n".join(f"- {item}" for item in problems) or "- General weak facial identity"
     if has_references:
@@ -655,6 +674,7 @@ def make_edit_prompt(assessment: dict[str, Any], has_references: bool) -> str:
 
 
 def edit_image(session: requests.Session, path: Path, assessment: dict[str, Any], args: argparse.Namespace) -> tuple[bytes, str, dict[str, Any]]:
+    """Return the edit image."""
     image_urls = [data_uri(path)] + [data_uri(ref) for ref in args.reference_image]
     prompt = make_edit_prompt(assessment, bool(args.reference_image))
     if len(image_urls) == 1:
@@ -677,6 +697,7 @@ def edit_image(session: requests.Session, path: Path, assessment: dict[str, Any]
 
 
 def convert_to_png_bytes(image_bytes: bytes) -> bytes:
+    """Convert to png bytes."""
     try:
         with Image.open(io.BytesIO(image_bytes)) as image:
             image.load()
@@ -696,6 +717,7 @@ def verify_edit(
     assessment: dict[str, Any],
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Verify edit."""
     prompt = VERIFICATION_PROMPT_TEMPLATE.format(
         target_person_description=assessment.get("target_person_description") or "UNSPECIFIED TARGET",
         target_location=assessment.get("target_location") or "UNSPECIFIED LOCATION",
@@ -715,6 +737,7 @@ def verify_edit(
 
 
 def strict_verification_accepts(result: dict[str, Any]) -> bool:
+    """Return the strict verification accepts."""
     return (
         result.get("accept_edit") is True
         and result.get("same_target_person_was_edited") is True
@@ -728,6 +751,7 @@ def strict_verification_accepts(result: dict[str, Any]) -> bool:
 
 
 def terminal_status(status: str) -> bool:
+    """Return the terminal status."""
     return status in {
         "original_accepted",
         "strict_original_accepted",
@@ -742,6 +766,7 @@ def terminal_status(status: str) -> bool:
 
 
 def should_process(existing: dict[str, Any] | None, args: argparse.Namespace) -> bool:
+    """Return whether should process."""
     if args.strict_likeness_reassess:
         if existing is None:
             return False
@@ -779,10 +804,12 @@ def should_process(existing: dict[str, Any] | None, args: argparse.Namespace) ->
 
 
 def concise_usage(raw: dict[str, Any]) -> Any:
+    """Return the concise usage."""
     return raw.get("usage") if isinstance(raw.get("usage"), dict) else None
 
 
 def process_one_initial(session: requests.Session, source_path: Path, manifest: dict[str, Any], args: argparse.Namespace) -> None:
+    """Process one initial."""
     item = manifest["items"].setdefault(source_path.name, {})
     item.update({"source_path": str(source_path), "started_at": utc_now(), "status": "processing", "error": None})
     save_manifest(args.manifest, manifest)
@@ -938,6 +965,7 @@ def process_one_strict(
     manifest: dict[str, Any],
     args: argparse.Namespace,
 ) -> None:
+    """Process one strict."""
     item = manifest["items"][source_path.name]
     identity = item.get("assessment")
     if not isinstance(identity, dict):
@@ -1095,6 +1123,7 @@ def process_one_strict(
 
 
 def summarise(manifest: dict[str, Any], source_names: set[str]) -> dict[str, int]:
+    """Summarise face-audit outcomes for the requested image sources."""
     counts: dict[str, int] = {}
     for name, item in manifest.get("items", {}).items():
         if name in source_names:
@@ -1104,6 +1133,7 @@ def summarise(manifest: dict[str, Any], source_names: set[str]) -> dict[str, int
 
 
 def main() -> int:
+    """Run the command-line entry point."""
     args = parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level), format="%(asctime)s %(levelname)s %(message)s")
     validate_args(args)

@@ -1,3 +1,5 @@
+"""Persist generated-image review decisions and audit history."""
+
 from __future__ import annotations
 
 import json
@@ -18,19 +20,23 @@ VALID_STAGES = {STAGE_INITIAL, STAGE_CONFIRM_ALLOWED, STAGE_RECONFIRM_ALLOWED}
 
 
 class ReviewStoreError(RuntimeError):
+    """Base exception for generated-image review-store failures."""
     pass
 
 
 class DuplicateDecisionError(ReviewStoreError):
+    """Raised when a review decision duplicates an existing revision."""
     pass
 
 
 class InvalidDecisionError(ReviewStoreError):
+    """Raised when a review decision fails validation."""
     pass
 
 
 @dataclass(frozen=True)
 class Progress:
+    """Represent progress data."""
     total: int
     reviewed: int
     remaining: int
@@ -39,7 +45,9 @@ class Progress:
 
 
 class ReviewStore:
+    """Persist and manage review records."""
     def __init__(self, database_path: Path) -> None:
+        """Initialise the review store."""
         self.database_path = Path(database_path)
         self.database_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -50,10 +58,12 @@ class ReviewStore:
         self._create_schema()
 
     def close(self) -> None:
+        """Close the review database connection."""
         with self._lock:
             self.conn.close()
 
     def active_decisions(self, stage: str | None = None) -> dict[str, dict[str, str]]:
+        """Return the active decisions."""
         if stage is not None and stage not in VALID_STAGES:
             raise InvalidDecisionError(f"Unsupported decision stage: {stage}")
         where = "WHERE undone_at IS NULL"
@@ -77,6 +87,7 @@ class ReviewStore:
         }
 
     def has_decision(self, quote_hash: str, stage: str = STAGE_INITIAL) -> bool:
+        """Return whether has decision."""
         if stage not in VALID_STAGES:
             raise InvalidDecisionError(f"Unsupported decision stage: {stage}")
         with self._lock:
@@ -93,6 +104,7 @@ class ReviewStore:
         item_order: int,
         stage: str = STAGE_INITIAL,
     ) -> dict[str, str]:
+        """Record decision."""
         if decision not in VALID_DECISIONS:
             raise InvalidDecisionError(f"Unsupported decision: {decision}")
         if stage not in VALID_STAGES:
@@ -116,6 +128,7 @@ class ReviewStore:
         return {"quote_hash": quote_hash, "decision": decision, "reviewed_at": now, "stage": stage}
 
     def undo_last(self, stage: str | None = None) -> dict[str, str] | None:
+        """Return the undo last."""
         if stage is not None and stage not in VALID_STAGES:
             raise InvalidDecisionError(f"Unsupported decision stage: {stage}")
         now = utc_now()
@@ -151,6 +164,7 @@ class ReviewStore:
         }
 
     def progress(self, eligible_hashes: Iterable[str], stage: str = STAGE_INITIAL) -> Progress:
+        """Return the progress."""
         eligible = set(eligible_hashes)
         decisions = self.active_decisions(stage)
         active = {key: value for key, value in decisions.items() if key in eligible}
@@ -167,6 +181,7 @@ class ReviewStore:
         )
 
     def export_overrides(self, export_path: Path, eligible_hashes: Iterable[str] | None = None) -> dict:
+        """Export overrides."""
         eligible = set(eligible_hashes) if eligible_hashes is not None else None
         initial_decisions = self.active_decisions(STAGE_INITIAL)
         confirmation_decisions = self.active_decisions(STAGE_CONFIRM_ALLOWED)
@@ -237,10 +252,12 @@ class ReviewStore:
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def atomic_write_json(path: Path, payload: dict) -> None:
+    """Write a JSON document atomically."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     encoded = json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+"""Serve the local generation prompt pilot review interface."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +18,7 @@ from semantic_alignment.io import atomic_write_json
 
 
 def serve(run: Path, host: str = "127.0.0.1", port: int = 8772) -> None:
+    """Serve the configured local interface."""
     if host not in {"127.0.0.1", "localhost"}:
         raise ValueError("reviewer must bind to loopback")
     manifest = json.loads((run / "validation_manifest.json").read_text())["items"]
@@ -58,6 +61,7 @@ def serve(run: Path, host: str = "127.0.0.1", port: int = 8772) -> None:
 
 
 def main():
+    """Run the command-line entry point."""
     p=argparse.ArgumentParser(); p.add_argument("--run-dir",type=Path,required=True); p.add_argument("--host",default="127.0.0.1"); p.add_argument("--port",type=int,default=8772); a=p.parse_args(); serve(a.run_dir.resolve(),a.host,a.port)
 
 

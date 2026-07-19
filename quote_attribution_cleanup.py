@@ -39,26 +39,32 @@ SCHEMA_VERSION = 1
 
 
 class CleanupError(RuntimeError):
+    """Raised when attribution cleanup cannot proceed safely."""
     pass
 
 
 def utc_now() -> str:
+    """Return the current UTC time as an ISO 8601 string."""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def canonical_text(text: str) -> str:
+    """Return the canonical text."""
     return re.sub(r"\s+", " ", str(text or "").strip())
 
 
 def quote_id(text: str) -> str:
+    """Return the quote ID."""
     return hashlib.sha256(canonical_text(text).encode("utf-8")).hexdigest()
 
 
 def sha256_bytes(data: bytes) -> str:
+    """Return the SHA-256 bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the SHA-256 file."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -67,14 +73,17 @@ def sha256_file(path: Path) -> str:
 
 
 def canonical_json_bytes(value: Any) -> bytes:
+    """Return the canonical JSON bytes."""
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def pretty_json_bytes(value: Any) -> bytes:
+    """Return the pretty JSON bytes."""
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
 def atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """Write bytes atomically."""
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -94,18 +103,22 @@ def atomic_write_bytes(path: Path, payload: bytes) -> None:
 
 
 def atomic_write_json(path: Path, value: Any) -> None:
+    """Write a JSON document atomically."""
     atomic_write_bytes(path, canonical_json_bytes(value))
 
 
 def atomic_write_text(path: Path, value: str) -> None:
+    """Write text atomically."""
     atomic_write_bytes(path, value.encode("utf-8"))
 
 
 def read_json(path: Path) -> Any:
+    """Read JSON."""
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def jsonl(path: Path) -> list[dict[str, Any]]:
+    """Return the jsonl."""
     rows = []
     for number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         if not raw.strip():
@@ -118,10 +131,12 @@ def jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def atomic_write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
+    """Perform the atomic write jsonl operation."""
     atomic_write_bytes(path, b"".join(canonical_json_bytes(row) for row in rows))
 
 
 def source_records(payload: bytes) -> list[dict[str, Any]]:
+    """Return the source records."""
     try:
         payload.decode("ascii")
     except UnicodeDecodeError as exc:
@@ -155,6 +170,7 @@ def build_migrated_quote_analysis(
     quote_analysis: dict[str, Any],
     tombstone_ids: set[str],
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build migrated quote analysis."""
     records = source_records(source_payload)
     current_ids = {row["quote_id"] for row in records}
     if len(records) != EXPECTED_AFTER_PHYSICAL or len(current_ids) != EXPECTED_AFTER_CANONICAL:
@@ -223,6 +239,7 @@ def build_migrated_quote_analysis(
 
 
 def load_attribution_targets(remediation_dir: Path) -> list[dict[str, Any]]:
+    """Load attribution targets."""
     remediation_dir = remediation_dir.resolve()
     contract_path = remediation_dir / "quote_contracts_v3.jsonl"
     if not contract_path.is_file():
@@ -278,6 +295,7 @@ def load_attribution_targets(remediation_dir: Path) -> list[dict[str, Any]]:
 
 
 def stable_file_record(path: Path) -> dict[str, Any]:
+    """Return the stable file record."""
     for attempt in range(8):
         before = path.stat()
         data = path.read_bytes()
@@ -291,6 +309,7 @@ def stable_file_record(path: Path) -> dict[str, Any]:
 
 
 def map_targets(payload: bytes, targets: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return the map targets."""
     records = source_records(payload)
     by_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for record in records:
@@ -329,6 +348,7 @@ def _classification_for_path(path: str) -> str:
 
 
 def reference_audit(targets: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the reference audit."""
     found: dict[tuple[str, str], set[str]] = defaultdict(set)
     for target in targets:
         needles = (target["quote_id"], target["exact_quote_text"])
@@ -359,6 +379,7 @@ def reference_audit(targets: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def generated_origin_audit(target_ids: set[str]) -> dict[str, Any]:
+    """Return the generated origin audit."""
     paths = [ROOT / "generated_image_analysis.json"]
     records = []
     for path in paths:
@@ -378,6 +399,7 @@ def generated_origin_audit(target_ids: set[str]) -> dict[str, Any]:
 
 
 def audit(project_dir: Path, remediation_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Audit the configured artefacts."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -437,6 +459,7 @@ def audit(project_dir: Path, remediation_dir: Path, run_dir: Path) -> dict[str, 
 
 
 def build_after_payload(before: bytes, mapped: list[dict[str, Any]]) -> bytes:
+    """Build after payload."""
     remove = {row["quote_id"] for row in mapped}
     records = source_records(before)
     output = b"".join(row["raw"] for row in records if row["quote_id"] not in remove)
@@ -452,6 +475,7 @@ def build_after_payload(before: bytes, mapped: list[dict[str, Any]]) -> bytes:
 
 
 def apply_cleanup(project_dir: Path, run_dir: Path, remove_non_thatcher: bool, remove_ungrounded: bool) -> dict[str, Any]:
+    """Apply cleanup."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     if not remove_non_thatcher or not remove_ungrounded:
@@ -493,6 +517,7 @@ def apply_cleanup(project_dir: Path, run_dir: Path, remove_non_thatcher: bool, r
 
 
 def unknown_category(record: dict[str, Any]) -> str:
+    """Return the unknown category."""
     reasons = set(record.get("deterministic_reasons") or [])
     basis = str(record.get("basis") or "")
     if "canonical_speaker_not_source_grounded" in reasons:
@@ -633,6 +658,7 @@ def augment_with_fresh_harness_pairs(
 
 
 def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Return the rebuild."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     removal = read_json(run_dir / "removal_manifest.json")
@@ -736,6 +762,7 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
 
 
 def validate(project_dir: Path, run_dir: Path, rerun_harness: bool) -> dict[str, Any]:
+    """Validate cleanup artefacts and optionally rerun the offline harness."""
     if project_dir.resolve() != ROOT or not rerun_harness:
         raise CleanupError("validation requires the exact project directory and --rerun-harness")
     active = read_json(run_dir / "deployment_candidate/active_quote_manifest.json")
@@ -900,6 +927,7 @@ def build_simulator_comparison(
     validation: dict[str, Any],
     candidate_shadow: dict[str, Any],
 ) -> dict[str, Any]:
+    """Build simulator comparison."""
     before = read_json(DEFAULT_REMEDIATION / "monte_carlo_summary_v3.json")
     before_gates = read_json(DEFAULT_REMEDIATION / "acceptance_gates.json")
     old_database = HARNESS_RUN / "simulation.sqlite3"
@@ -984,6 +1012,7 @@ def build_simulator_comparison(
 
 
 def build_final_report(run_dir: Path, validation: dict[str, Any]) -> dict[str, Any]:
+    """Build final report."""
     removal = read_json(run_dir / "removal_manifest.json")
     apply_result = read_json(run_dir / "apply_result.json")
     rebuild_result = read_json(run_dir / "derived_rebuild_report.json")
@@ -1064,6 +1093,7 @@ def build_final_report(run_dir: Path, validation: dict[str, Any]) -> dict[str, A
 
 
 def status(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Return the status."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     files = {name: (run_dir / name).is_file() for name in (
@@ -1078,6 +1108,7 @@ def status(project_dir: Path, run_dir: Path) -> dict[str, Any]:
 
 
 def migrate_active_quote_analysis(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Migrate active quote analysis."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     run_dir = run_dir.resolve()
@@ -1145,6 +1176,7 @@ def migrate_active_quote_analysis(project_dir: Path, run_dir: Path) -> dict[str,
 
 
 def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Prepare v3 shadow manifest."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     run_dir = run_dir.resolve()
@@ -1394,6 +1426,7 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
 
 
 def investigate_t56_selection(project_dir: Path, run_dir: Path) -> dict[str, Any]:
+    """Return the investigate t56 selection."""
     if project_dir.resolve() != ROOT:
         raise CleanupError(f"project directory must be {ROOT}")
     run_dir = run_dir.resolve()
@@ -1527,6 +1560,7 @@ def investigate_t56_selection(project_dir: Path, run_dir: Path) -> dict[str, Any
 
 
 def parser() -> argparse.ArgumentParser:
+    """Build the command-line argument parser."""
     result = argparse.ArgumentParser(description=__doc__)
     sub = result.add_subparsers(dest="command", required=True)
     audit_p = sub.add_parser("audit")
@@ -1561,6 +1595,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line entry point."""
     args = parser().parse_args(argv)
     if args.command == "audit":
         result = audit(args.project_dir, args.remediation_dir, args.output)
