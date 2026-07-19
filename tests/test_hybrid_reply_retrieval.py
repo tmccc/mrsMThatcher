@@ -331,6 +331,7 @@ def test_hybrid_top20_lexical_uses_assembled_production_context(monkeypatch: pyt
     retriever.thresholds = {**hybrid.DEFAULT_THRESHOLDS, "maximum_results": 5}
     retriever.documents = {"q": {"quote_id": "q", "quote_text": "q", "research_confidence": "high", "policy_topics": [], "entities": []}}
     retriever.quote_ids = ["q"]
+    retriever.eligible_quote_ids = {"q"}
     retriever.matrix = np.asarray([[1.0] + [0.0] * 383], dtype=np.float32)
     retriever._query_embedding = lambda query: np.asarray([1.0] + [0.0] * 383, dtype=np.float32)
     retriever.retrieve("incoming", parent_context="assembled context", production_lexical=[])
@@ -343,6 +344,7 @@ def test_hybrid_deduplicates_near_identical_quote_family_members(monkeypatch: py
     retriever.research_run = RESEARCH
     retriever.thresholds = {**hybrid.DEFAULT_THRESHOLDS, "maximum_results": 5, "minimum_semantic_similarity": 0.8}
     retriever.quote_ids = ["a", "b", "c"]
+    retriever.eligible_quote_ids = {"a", "b", "c"}
     retriever.documents = {
         "a": {"quote_id": "a", "quote_text": "Freedom requires responsibility under the law", "research_confidence": "high", "policy_topics": [], "entities": []},
         "b": {"quote_id": "b", "quote_text": "Freedom requires responsibility under the law.", "research_confidence": "high", "policy_topics": [], "entities": []},
@@ -353,6 +355,74 @@ def test_hybrid_deduplicates_near_identical_quote_family_members(monkeypatch: py
     result = retriever.retrieve("freedom and enterprise")
     assert result["shadow_hybrid_quote_ids"] == ["a", "c"]
     assert [row["rank"] for row in result["hybrid"]] == [1, 2]
+
+
+def test_hybrid_semantic_candidates_exclude_attribution_ineligible_packets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hybrid, "retrieve_research_packets", lambda *args, **kwargs: [])
+    retriever = object.__new__(hybrid.HybridRetriever)
+    retriever.research_run = RESEARCH
+    retriever.thresholds = {
+        **hybrid.DEFAULT_THRESHOLDS,
+        "maximum_results": 5,
+        "minimum_semantic_similarity": 0.8,
+    }
+    retriever.quote_ids = ["eligible", "excluded"]
+    retriever.eligible_quote_ids = {"eligible"}
+    retriever.documents = {
+        quote_id: {
+            "quote_id": quote_id,
+            "quote_text": quote_id,
+            "research_confidence": "high",
+            "policy_topics": [],
+            "entities": [],
+        }
+        for quote_id in retriever.quote_ids
+    }
+    retriever.matrix = np.asarray([[1.0] + [0.0] * 383] * 2, dtype=np.float32)
+    retriever._query_embedding = lambda query: np.asarray([1.0] + [0.0] * 383, dtype=np.float32)
+
+    result = retriever.retrieve("eligible excluded")
+
+    assert result["shadow_hybrid_quote_ids"] == ["eligible"]
+
+
+def test_hybrid_refills_semantic_candidates_after_attribution_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(hybrid, "retrieve_research_packets", lambda *args, **kwargs: [])
+    requested_limits: list[int] = []
+
+    def fake_search(_matrix, _query, _quote_ids, maximum):
+        requested_limits.append(maximum)
+        return [("excluded", 1.0), ("eligible", 0.9)][:maximum]
+
+    monkeypatch.setattr(hybrid, "exact_cosine_search", fake_search)
+    retriever = object.__new__(hybrid.HybridRetriever)
+    retriever.research_run = RESEARCH
+    retriever.thresholds = {
+        **hybrid.DEFAULT_THRESHOLDS,
+        "maximum_results": 1,
+        "semantic_candidate_count": 1,
+        "minimum_semantic_similarity": 0.8,
+    }
+    retriever.quote_ids = ["excluded", "eligible"]
+    retriever.eligible_quote_ids = {"eligible"}
+    retriever.documents = {
+        quote_id: {
+            "quote_id": quote_id, "quote_text": quote_id, "research_confidence": "high",
+            "policy_topics": [], "entities": [],
+        }
+        for quote_id in retriever.quote_ids
+    }
+    retriever.matrix = np.asarray([[1.0], [0.9]], dtype=np.float32)
+    retriever._query_embedding = lambda query: np.asarray([1.0], dtype=np.float32)
+
+    result = retriever.retrieve("eligible")
+
+    assert requested_limits == [2]
+    assert [row[0] for row in result["semantic"]] == ["eligible"]
 
 
 def test_review_save_is_idempotent_and_audited(tmp_path: Path):

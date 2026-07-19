@@ -58,6 +58,7 @@ _FORMATTER_METADATA_KEYS = {
     "raw_character_count", "weighted_character_count", "verification_label", "source_class",
     "historical_confidence", "shortening_applied",
 }
+_MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
 
 
 class AmbiguousContextReplyOutcome(RuntimeError):
@@ -70,6 +71,18 @@ def utc_now() -> str:
 
 def quote_text_hash(text: str) -> str:
     return hashlib.sha256(re.sub(r"\s+", " ", str(text or "").strip()).encode()).hexdigest()
+
+
+def packet_is_attributed_to_margaret_thatcher(packet: dict[str, Any]) -> bool:
+    """Accept only packets whose canonical principal speaker is Thatcher herself."""
+    if not isinstance(packet, dict):
+        return False
+    verification = str(packet.get("verification_status") or "").strip().casefold()
+    if verification == "misattributed":
+        return False
+    speaker = re.sub(r"\s+", " ", str(packet.get("speaker") or "").strip())
+    principal = re.split(r"\s*(?:\(|/)\s*", speaker, maxsplit=1)[0].strip().casefold()
+    return principal == _MARGARET_THATCHER_CANONICAL_SPEAKER
 
 
 def atomic_write_json(path: Path, value: Any, *, durable: bool = True) -> None:
@@ -145,9 +158,16 @@ def packet_for_posted_quote(packets: dict[str, Any], unresolved: set[str], quote
     if quote_hash in unresolved: return None
     direct = packets.get(quote_hash)
     if direct is not None:
-        return direct if re.sub(r"\s+", " ", direct["quote_text"].strip()) == re.sub(r"\s+", " ", quote_text.strip()) else None
+        return direct if (
+            packet_is_attributed_to_margaret_thatcher(direct)
+            and re.sub(r"\s+", " ", direct["quote_text"].strip()) == re.sub(r"\s+", " ", quote_text.strip())
+        ) else None
     normalised = re.sub(r"\s+", " ", quote_text.strip())
-    matches = [packet for packet in packets.values() if re.sub(r"\s+", " ", packet["quote_text"].strip()) == normalised]
+    matches = [
+        packet for packet in packets.values()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+        and re.sub(r"\s+", " ", packet["quote_text"].strip()) == normalised
+    ]
     return matches[0] if len(matches) == 1 else None
 
 

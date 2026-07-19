@@ -36,6 +36,7 @@ from typing import Any, Iterator, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
+from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
 from semantic_alignment.io import atomic_write_json, atomic_write_text, sha256_file
 from semantic_alignment.quote_image_semantic_veto import ShadowRuntime
 from tools import simulate_regular_post_futures as production_sim
@@ -51,8 +52,8 @@ TZ_NAME = "Europe/London"
 TZ = ZoneInfo(TZ_NAME)
 EXPECTED_COMPLETED = 626
 EXPECTED_UNRESOLVED = 6
-EXPECTED_ATTRIBUTION_EXCLUDED = 13
-EXPECTED_ACTIVE = 613
+EXPECTED_ATTRIBUTION_EXCLUDED = 16
+EXPECTED_ACTIVE = 610
 DEFAULT_YEARS = (2026, 2028, 2029)
 SELECTION_CONFIG_KEYS = (
     "POST_SLEEP_MIN",
@@ -347,6 +348,8 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
             packet = items[quote_id]
             if str(packet.get("quote_text") or "") != text or str(packet.get("quote_id") or quote_id) != quote_id:
                 raise HarnessError(f"immutable quote identity mismatch: {quote_id}")
+            if not packet_is_attributed_to_margaret_thatcher(packet):
+                continue
             selected.append(text)
             seen.add(quote_id)
     missing_completed = set(items).difference(seen)
@@ -357,8 +360,10 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
         raise HarnessError("attribution exclusion tombstones are unavailable")
     tombstones = json.loads(tombstone_path.read_text(encoding="utf-8"))
     excluded = {str(row.get("quote_id") or "") for row in tombstones.get("records", []) if isinstance(row, dict)}
-    if len(excluded) != EXPECTED_ATTRIBUTION_EXCLUDED or missing_completed != excluded:
-        raise HarnessError("active source/completed packet difference does not exactly match attribution tombstones")
+    if len(excluded) != 13 or not excluded <= missing_completed or len(missing_completed) != EXPECTED_ATTRIBUTION_EXCLUDED:
+        raise HarnessError(
+            "active source attribution exclusions do not reconcile to 13 historical tombstones plus three corrected records"
+        )
     if len(selected) != EXPECTED_ACTIVE:
         raise HarnessError(f"eligible active quote count must be {EXPECTED_ACTIVE}")
     (snapshot / "eligible_quotes.txt").write_text("".join(f"{text}\n" for text in selected), encoding="utf-8")
@@ -492,7 +497,7 @@ def verify_snapshot(snapshot: Path, manifest: dict[str, Any]) -> None:
         if not destination.is_file() or sha256_file(destination) != record.get("sha256"):
             raise HarnessError(f"snapshot hash mismatch: {key}")
     if int(manifest.get("completed_quote_count", 0)) != EXPECTED_ACTIVE:
-        raise HarnessError("snapshot active completed quote count is not 613")
+        raise HarnessError(f"snapshot active completed quote count is not {EXPECTED_ACTIVE}")
     if int(manifest.get("historical_completed_packet_count", EXPECTED_COMPLETED)) != EXPECTED_COMPLETED:
         raise HarnessError("snapshot historical completed packet count is not 626")
     if int(manifest.get("unresolved_quote_count", 0)) != EXPECTED_UNRESOLVED:
@@ -2537,7 +2542,7 @@ def generate_reports(run_dir: Path) -> dict[str, Any]:
         "The harness calls the real production quote and image selectors through the existing guarded production-parity simulator. "
         "It applies the original editorial scorer and corrected semantic-veto runtime observationally after each unchanged production selection.",
         "", "## Isolation", "",
-        f"- Network/provider calls: 0", f"- Forbidden production write attempts: {write_audit.get('forbidden_write_attempt_count', 0)}",
+        "- Network/provider calls: 0", f"- Forbidden production write attempts: {write_audit.get('forbidden_write_attempt_count', 0)}",
         f"- Immutable source hash verification: {'passed' if immutable['passed'] else 'FAILED'}", "",
         "## Results", "", f"Total simulations: {total}", "",
         f"Seasonal signatures: {calendar_summary['unique_state_count']} across years "

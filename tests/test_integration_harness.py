@@ -73,6 +73,7 @@ def write_minimal_asset_analysis(base_dir: Path) -> None:
                     "quote_text": quote_text,
                     "research_confidence": "high",
                     "verification_status": "exact",
+                    "speaker": "Margaret Thatcher",
                 }
             },
         },

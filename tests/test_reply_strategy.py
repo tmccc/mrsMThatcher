@@ -155,10 +155,13 @@ def test_strategy_request_uses_conditional_structured_output_schema(
     assert schema["if"]["properties"]["mode"] == {"const": "no_reply"}
     assert schema["then"]["properties"]["reply_text"] == {"maxLength": 0}
     assert schema["properties"]["retrieved_quote_ids"]["maxItems"] == 7
-    topical_rule = schema["allOf"][0]
+    posted_mode_rule = schema["allOf"][0]
+    assert "no_reply" not in posted_mode_rule["if"]["properties"]["mode"]["enum"]
+    assert posted_mode_rule["then"]["properties"]["no_reply_reason"] == {"maxLength": 0}
+    topical_rule = schema["allOf"][1]
     assert topical_rule["if"]["properties"]["mode"] == {"enum": ["principle_reply", "researched_principle"]}
     assert topical_rule["then"]["properties"]["topical_basis"] == {"minLength": 3}
-    principle_rule = schema["allOf"][1]
+    principle_rule = schema["allOf"][2]
     assert principle_rule["if"]["properties"]["mode"] == {"const": "principle_reply"}
     assert principle_rule["then"]["properties"]["factual_claim_made"] == {"const": False}
 
@@ -448,10 +451,12 @@ def test_researched_principle_requires_grounding_and_topical_relevance() -> None
         5.0,
         "exact",
         "Free enterprise and democratic accountability.",
-        {
-            "verified_text": "Free enterprise and democratic accountability.",
-            "research_confidence": "high",
-            "immediate_subject": "Free enterprise and democratic accountability.",
+            {
+                "verified_text": "Free enterprise and democratic accountability.",
+                "verification_status": "exact",
+                "research_confidence": "high",
+                "speaker": "Margaret Thatcher",
+                "immediate_subject": "Free enterprise and democratic accountability.",
             "intended_argument": "Markets require accountable democratic government.",
         },
     )
@@ -573,6 +578,209 @@ def test_misspelled_production_berlin_wall_question_requires_direct_answer() -> 
     assert direct_factual_answer_error(question, reply) is None
 
 
+def test_concrete_who_question_rejects_a_declarative_non_answer() -> None:
+    question = "Who was Prime Minister in 1979?"
+    reply = "That deserves serious consideration."
+
+    assert concrete_factual_question_word(question) == "who"
+    assert direct_factual_answer_error(question, reply) is not None
+
+
+def test_concrete_question_syntax_does_not_require_terminal_punctuation() -> None:
+    assert concrete_factual_question_word("Who was Prime Minister in 1979") == "who"
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("@MrsMThatcher, where was the treaty signed?", "where"),
+        ("Please, where was the treaty signed?", "where"),
+        ("Seriously, when did it happen?", "when"),
+        ("Could you tell me what happened?", "what"),
+        ("I wonder where the treaty was signed?", "where"),
+        ("Quick question: who signed the treaty?", "who"),
+        ("Can I ask when it happened?", "when"),
+        ("Could you explain what happened?", "what"),
+        ("Please explain what happened?", "what"),
+        ("What a mess?", None),
+        ("What an absolute mess?", None),
+        ("What a complete disaster?", None),
+    ],
+)
+def test_concrete_question_recognises_addressing_but_not_rhetorical_exclamations(
+    question: str,
+    expected: str | None,
+) -> None:
+    assert concrete_factual_question_word(question) == expected
+
+
+def test_grounded_metadata_cannot_rescue_a_non_answer_to_a_factual_question() -> None:
+    packet = {
+        "quote_text": "Enterprise and responsibility go together.",
+        "verified_text": "Enterprise and responsibility go together.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "Economic policy.", packet)]
+    with pytest.raises(ValueError, match="direct answer"):
+        validate_reply_decision(
+            decision(
+                mode="historical_context",
+                humour_tone="none",
+                evidence_confidence="high",
+                retrieved_quote_ids=["a" * 64],
+                evidence_summary="A grounded but unrelated economic principle.",
+                factual_claim_made=True,
+                grounded=True,
+                reply_text="That deserves serious consideration.",
+            ),
+            evidence,
+            allowed_quote_ids={"a" * 64},
+            direct_question_text="Who was Prime Minister in 1979?",
+        )
+
+
+def test_direct_who_answer_must_be_supported_by_selected_evidence() -> None:
+    packet = {
+        "quote_text": "Government requires responsibility.",
+        "verified_text": "Government requires responsibility.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["Margaret Thatcher", "1979 United Kingdom general election"],
+        "immediate_subject": "Margaret Thatcher becoming Prime Minister in 1979.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The 1979 election.", packet)]
+    assert direct_factual_answer_error(
+        "Who was Prime Minister in 1979?",
+        "Margaret Thatcher was Prime Minister.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "Who was Prime Minister in 1979?",
+        "Michael Jordan was Prime Minister.",
+        evidence,
+    ) is not None
+
+
+def test_direct_who_answer_cannot_echo_person_already_named_in_question() -> None:
+    packet = {
+        "quote_text": "I can do business with Mr Gorbachev.",
+        "verified_text": "I can do business with Mr Gorbachev.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["Margaret Thatcher", "Mikhail Gorbachev"],
+        "immediate_subject": "Margaret Thatcher meeting Mikhail Gorbachev.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The meeting.", packet)]
+
+    assert direct_factual_answer_error(
+        "Who did Margaret Thatcher meet?",
+        "Margaret Thatcher met the Soviet leader.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "Who did Margaret Thatcher meet?",
+        "Mikhail Gorbachev met Margaret Thatcher.",
+        evidence,
+    ) is None
+
+    evidence_without_counterpart = [RetrievedEvidence(
+        "b" * 64,
+        1.0,
+        "exact",
+        "A meeting without a source-grounded counterpart.",
+        {
+            "quote_text": "Meetings require preparation.",
+            "verified_text": "Meetings require preparation.",
+            "speaker": "Margaret Thatcher",
+            "entities": ["Margaret Thatcher"],
+        },
+    )]
+    assert direct_factual_answer_error(
+        "Who did Margaret Thatcher meet?",
+        "Margaret Thatcher met the political leader.",
+        evidence_without_counterpart,
+    ) is not None
+
+
+def test_concrete_when_where_and_what_answers_cannot_use_thematic_placeholders() -> None:
+    packet = {
+        "quote_text": "The treaty was signed in London on 14 June 1982.",
+        "verified_text": "The treaty was signed in London on 14 June 1982.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "date": "1982-06-14",
+        "entities": ["London", "United Kingdom"],
+        "immediate_subject": "The treaty, politics, freedom and government responsibility.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The treaty.", packet)]
+
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "In government, responsibility matters.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "During political arguments, responsibility matters.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "The year was significant.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "It was signed on 14 June 1982.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "It was signed in 1776.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "When was the treaty signed?",
+        "The event happened last year.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "Where was the treaty signed?",
+        "In politics, freedom matters.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "Where was the treaty signed?",
+        "It was signed in London.",
+        evidence,
+    ) is None
+    assert direct_factual_answer_error(
+        "What happened in 1982?",
+        "1982 was important for government.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "What happened in 1982?",
+        "Something happened in 1982.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "What happened in 1982?",
+        "There were developments in 1982.",
+        evidence,
+    ) is not None
+    assert direct_factual_answer_error(
+        "What happened in 1982?",
+        "The treaty was signed in London.",
+        evidence,
+    ) is None
+
+
 def test_berlin_wall_abstract_non_answer_is_rejected() -> None:
     question = "Where did people run towards when the Berlin Wall fell?"
     evidence = retrieve_research_packets(question, RESEARCH, maximum=5)
@@ -637,7 +845,10 @@ def test_clarification_without_grounded_packets_makes_no_model_call(
 def test_historical_correction_rejects_low_confidence_packet():
     low = RetrievedEvidence(
         "b" * 64, 1.0, "exact", "Low-confidence evidence.",
-        {"verified_text": "Exact words.", "research_confidence": "low"},
+        {
+            "verified_text": "Exact words.", "verification_status": "exact",
+            "research_confidence": "low", "speaker": "Margaret Thatcher",
+        },
     )
     with pytest.raises(ValueError, match="packet confidence"):
         validate_reply_decision(decision(
@@ -729,6 +940,110 @@ def test_principle_reply_rejects_named_actor_allegation() -> None:
         )
 
 
+def test_principle_reply_rejects_lowercase_incoming_named_actor_allegation() -> None:
+    incoming = "andy burnham only wants public popularity."
+    reply = "Burnham craves popularity rather than responsibility."
+    assert principle_reply_assertion_error(reply, incoming) is not None
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode="principle_reply",
+                humour_tone="none",
+                evidence_confidence="none",
+                reply_text=reply,
+                topical_basis="wants public popularity",
+            ),
+            [],
+            allowed_quote_ids=set(),
+            incoming_text=incoming,
+        )
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Rishi Sunak wants popularity rather than responsibility.",
+        "Donald Trump lies about the economy.",
+        "Donald Trust lies about the economy.",
+        "Rishi Sunak champions responsibility.",
+        "Burnham backs popularity over responsibility.",
+        "Churchill wrote the policy.",
+        "Macron made the decision.",
+        "Reagan cut taxes yesterday.",
+        "Starmer raises taxes.",
+        "Sunak wants popularity rather than responsibility.",
+        "Sunak undermines freedom.",
+        "The caseworker lies about the economy.",
+        "Plainly, Burnham lies about the economy.",
+        "The point is this: Burnham backs higher taxes.",
+        "In the end, Burnham's record speaks for itself.",
+        "I think Burnham lies about the economy.",
+        "It is obvious Burnham wants popularity.",
+        "The truth is that Macron supports the policy.",
+        "I think burnham lies about the economy.",
+        "I think BURNHAM LIES about the economy.",
+    ],
+)
+def test_principle_reply_cannot_introduce_an_unverified_named_actor(reply: str) -> None:
+    incoming = "Andy Burnham wants public popularity."
+    assert principle_reply_assertion_error(reply, incoming) is not None
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "Understanding is not always the same as having the courage to act.",
+        "Institutions endure only when people defend their purpose.",
+        "The case still has to be made—and acted upon.",
+        "Truth is indispensable.",
+    ],
+)
+def test_principle_reply_preserves_general_non_actor_subjects(reply: str) -> None:
+    assert principle_reply_assertion_error(reply, "A general political point.") is None
+
+
+def test_attribution_ineligible_packet_cannot_be_used_as_reply_evidence() -> None:
+    quote_id = "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8"
+    packets = json.loads((RESEARCH / "research_packets.json").read_text(encoding="utf-8"))["items"]
+    packet = packets[quote_id]
+    evidence = [RetrievedEvidence(
+        quote_id,
+        10.0,
+        str(packet["verification_status"]),
+        str(packet["intended_argument"]),
+        packet,
+    )]
+    with pytest.raises(ValueError, match="attribution-ineligible"):
+        validate_reply_decision(
+            decision(
+                mode="historical_context",
+                humour_tone="none",
+                evidence_confidence="high",
+                retrieved_quote_ids=[quote_id],
+                evidence_summary="A source-grounded claim by a different speaker.",
+                factual_claim_made=True,
+                grounded=True,
+                reply_text="Success at the highest level can require selfishness.",
+            ),
+            evidence,
+            allowed_quote_ids={quote_id},
+        )
+
+
+@pytest.mark.parametrize(
+    "quote_id",
+    [
+        "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
+        "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+        "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
+    ],
+)
+def test_reply_retrieval_excludes_false_positive_thatcher_attributions(quote_id: str) -> None:
+    packet = json.loads((RESEARCH / "research_packets.json").read_text(encoding="utf-8"))["items"][quote_id]
+    results = retrieve_research_packets(packet["quote_text"], RESEARCH, maximum=10)
+    assert quote_id not in {item.quote_id for item in results}
+
+
 @pytest.mark.parametrize(
     "reason",
     [
@@ -772,6 +1087,7 @@ def test_principle_reply_cannot_smuggle_factual_or_research_metadata() -> None:
 
 def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> None:
     text = "Responsibility matters most when excuses are easiest."
+    incoming = "Responsibility matters when excuses are tempting."
     metadata = decision(
         mode="principle_reply",
         humour_tone="none",
@@ -779,9 +1095,13 @@ def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> No
         reply_text=text,
     )
     metadata.pop("topical_basis")
-    assert bot.strategy_metadata_is_semantically_valid(metadata, text)
+    assert bot.strategy_metadata_is_semantically_valid(metadata, text, incoming_text=incoming)
     unsafe = {**metadata, "reply_text": "The government is concealing the truth."}
-    assert not bot.strategy_metadata_is_semantically_valid(unsafe, unsafe["reply_text"])
+    assert not bot.strategy_metadata_is_semantically_valid(
+        unsafe,
+        unsafe["reply_text"],
+        incoming_text=incoming,
+    )
 
 
 def test_weak_factual_evidence_requires_no_reply():
@@ -792,6 +1112,15 @@ def test_weak_factual_evidence_requires_no_reply():
     assert result["mode"] == "no_reply"
     with pytest.raises(ValueError, match="factual claims require grounding"):
         validate_reply_decision(decision(factual_claim_made=True), [], allowed_quote_ids=set())
+
+
+def test_posted_mode_rejects_contradictory_no_reply_reason() -> None:
+    value = decision(no_reply_reason="No useful response.")
+
+    with pytest.raises(JsonSchemaValidationError):
+        validate_json_schema(value, reply_decision_json_schema())
+    with pytest.raises(ValueError, match="empty no_reply_reason"):
+        validate_reply_decision(value, [], allowed_quote_ids=set())
 
 
 @pytest.mark.parametrize(
@@ -819,7 +1148,10 @@ def test_paraphrase_cannot_be_presented_as_exact_quotation(reply_text: str):
 def test_normalised_wording_cannot_be_presented_as_exact_quotation():
     normalised = RetrievedEvidence(
         "a" * 64, 1.0, "normalised", "Normalised wording.",
-        {"verified_text": "A normalised sentence.", "research_confidence": "high"},
+        {
+            "verified_text": "A normalised sentence.", "verification_status": "normalised",
+            "research_confidence": "high", "speaker": "Margaret Thatcher",
+        },
     )
     evidence = [normalised]
     with pytest.raises(ValueError, match="quotation marks require"):
@@ -848,10 +1180,12 @@ def test_verified_exact_wording_may_use_single_quotation_marks(
         1.0,
         "exact",
         "Exact evidence.",
-        {
-            "verified_text": verified_text,
-            "research_confidence": "high",
-            "immediate_subject": "Exact words and their historical record.",
+            {
+                "verified_text": verified_text,
+                "verification_status": "exact",
+                "research_confidence": "high",
+                "speaker": "Margaret Thatcher",
+                "immediate_subject": "Exact words and their historical record.",
         },
     )
 
@@ -979,10 +1313,12 @@ def test_existing_historical_reply_modes_remain_valid(mode: str, confidence: str
         1.0,
         "exact",
         "A supported historical point.",
-        {
-            "verified_text": "Exact words.",
-            "research_confidence": "high",
-            "immediate_subject": "The historical record supports a narrower conclusion.",
+            {
+                "verified_text": "Exact words.",
+                "verification_status": "exact",
+                "research_confidence": "high",
+                "speaker": "Margaret Thatcher",
+                "immediate_subject": "The historical record supports a narrower conclusion.",
         },
     )
     value = decision(
@@ -1179,7 +1515,10 @@ def test_factual_humour_rejects_low_confidence_packet():
         1.0,
         "exact",
         "Low-confidence evidence.",
-        {"verified_text": "Exact words.", "research_confidence": "low"},
+        {
+            "verified_text": "Exact words.", "verification_status": "exact",
+            "research_confidence": "low", "speaker": "Margaret Thatcher",
+        },
     )
 
     with pytest.raises(ValueError, match="packet confidence"):

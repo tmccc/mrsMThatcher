@@ -34,6 +34,7 @@ from urllib.parse import parse_qs, urlparse
 
 from google.genai import types
 
+from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
 from semantic_alignment.io import atomic_write_json, atomic_write_text, read_json, sha256_file
 from semantic_alignment.relation_aware_veto import (
     CostLedger,
@@ -462,9 +463,9 @@ def explicit_visual_event(quote_text: str) -> str | None:
 
 def speaker_attribution_status(packet: dict[str, Any]) -> tuple[str, str]:
     speaker = clean(packet.get("speaker"), 300)
-    lowered = speaker.casefold()
-    if "thatcher" in lowered and "misattributed" not in lowered:
+    if packet_is_attributed_to_margaret_thatcher(packet):
         return speaker, "confirmed_thatcher"
+    lowered = speaker.casefold()
     if lowered in {"", "unknown", "unavailable", "not known"}:
         return speaker or "Unknown", "unavailable"
     return speaker, "contradicted_non_thatcher"

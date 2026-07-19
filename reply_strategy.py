@@ -12,7 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-from historical_context_formatter import load_and_validate_corpus
+from historical_context_formatter import (
+    load_and_validate_corpus,
+    packet_is_attributed_to_margaret_thatcher,
+)
 
 MODES = {
     "historical_correction", "historical_context", "researched_principle",
@@ -56,10 +59,53 @@ PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE = re.compile(
     re.IGNORECASE,
 )
 PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE = re.compile(
-    r"\b(?P<actor>[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,}){0,2})"
+    r"(?:^|(?<=[.!?;:,])\s+)(?P<actor>[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}"
+    r"(?:\s+[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}){0,2})"
     r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\b|\s+(?:is|are|was|were|has|have|had|"
     r"does|do|did|will|would|wants?|seeks?|craves?|believes?|knows?|understands?|"
-    r"refuses?|intends?|lied|lies|betrayed|failed|fails)\b)"
+    r"refuses?|intends?|advocates?|attacks?|champions?|denies?|endorses?|promotes?|"
+    r"supports?|undermines?|lied|lies|betrayed|failed|fails)\b)",
+    re.IGNORECASE | re.MULTILINE | re.UNICODE,
+)
+PRINCIPLE_REPLY_PROPER_NAME_RE = re.compile(
+    r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+\b",
+    re.UNICODE,
+)
+PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE = re.compile(
+    r"(?:^|(?<=[.!?;:,])\s+)(?:The\s+|A\s+|An\s+)?"
+    r"(?P<actor>[A-Z][a-z'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})\s+"
+    r"(?P<predicate>[a-z][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})\b",
+    re.MULTILINE | re.UNICODE,
+)
+PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE = re.compile(
+    r"\b(?P<actor>[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})"
+    r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\s+[a-z][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})?\s+"
+    r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|seeks?|"
+    r"craves?|believes?|knows?|understands?|refuses?|intends?|advocates?|attacks?|"
+    r"backs?|backed|blocks?|blocked|champions?|cuts?|endorses?|fails?|failed|lies?|"
+    r"made|promotes?|raises?|raised|serves?|speaks?|supports?|undermines?|works?|wrote)\b",
+    re.IGNORECASE | re.UNICODE,
+)
+PRINCIPLE_REPLY_ABSTRACT_SUBJECTS = {
+    "accountability", "action", "character", "citizens", "courage", "conviction", "democracy", "enterprise",
+    "freedom", "institutions", "leadership", "liberty", "responsibility",
+    "individuals", "law", "leaders", "people", "politics", "power", "principles",
+    "society", "socialism", "trust", "truth", "understanding",
+}
+PRINCIPLE_REPLY_GENERIC_SUBJECT_PREFIXES = ("the case",)
+ABSOLUTE_TEMPORAL_ANSWER_RE = re.compile(
+    r"\b(?:\d{3,4}|\d{1,2}(?::\d{2})?\s*(?:am|pm)|january|february|march|april|"
+    r"may|june|july|august|september|october|november|december|monday|tuesday|"
+    r"wednesday|thursday|friday|saturday|sunday|midnight|noon|"
+    r"morning|afternoon|evening|spring|summer|autumn|winter|century|decade|year|"
+    r"month|week|day|hour)\b",
+    re.IGNORECASE,
+)
+RELATIVE_TEMPORAL_ANSWER_RE = re.compile(r"\b(?:after|before|during)\s+([^,.;!?]+)", re.IGNORECASE)
+VAGUE_FACTUAL_PREDICATE_RE = re.compile(
+    r"\b(?:is|are|was|were)\s+(?:complex|consequential|important|noteworthy|"
+    r"remarkable|serious|significant)\b",
+    re.IGNORECASE,
 )
 RETRIEVAL_FIELDS = (
     "quote_text", "verified_text", "source_event", "historical_context",
@@ -82,6 +128,15 @@ GENERIC_POLITICAL_TOPIC_TOKENS = {
     "country", "economic", "economy", "freedom", "government", "leader",
     "leadership", "liberty", "nation", "national", "politic", "political",
     "politician", "policy", "socialism", "socialist", "state",
+}
+NON_LOCATION_ANSWER_TOKENS = GENERIC_POLITICAL_TOPIC_TOKENS | {
+    "argument", "government", "matter", "matters", "principle", "question",
+    "responsibility", "politics", "century", "decade", "year", "month", "week",
+    "day", "hour",
+} | PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+NON_TEMPORAL_ANSWER_TOKENS = NON_LOCATION_ANSWER_TOKENS | {
+    "arguments", "circumstance", "circumstances", "difficulty", "difficulties",
+    "period", "periods", "times",
 }
 TOPICAL_SEGMENT_RE = re.compile(r"(?:\r?\n|\s+[|*•]\s+|(?<=[.!?;:])\s+)")
 TOPICAL_CONCEPTS = {
@@ -150,6 +205,7 @@ def _tokens(value: Any) -> set[str]:
 def _topical_stem(token: str) -> str:
     aliases = {
         "accountability": "accountable", "checks": "accountable",
+        "eastern": "east", "western": "west",
         "economy": "economic", "economies": "economic",
         "markets": "market", "popularity": "popular",
         "responsibility": "responsible", "responsibilities": "responsible",
@@ -308,6 +364,13 @@ def retrieve_research_packets(
     packets, unresolved = load_and_validate_corpus(research_dir)
     if len(packets) != 626 or len(unresolved) != 6:
         raise RuntimeError("reply retrieval requires 626 completed packets and six unresolved records")
+    eligible_packets = {
+        quote_id: packet
+        for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    if len(eligible_packets) != 610:
+        raise RuntimeError("reply retrieval requires exactly 610 attribution-eligible completed packets")
     # Handles and URL components are incidental metadata, not the user's issue.
     # Keeping them in the lexical query can steer retrieval towards an unrelated
     # entity or page-title token even though parent/thread text is already absent.
@@ -315,7 +378,7 @@ def retrieve_research_packets(
     if not query:
         return []
     ranked: list[RetrievedEvidence] = []
-    for quote_id, packet in packets.items():
+    for quote_id, packet in eligible_packets.items():
         overlap = query & _tokens(_packet_text(packet))
         if not overlap:
             continue
@@ -394,6 +457,13 @@ def reply_decision_json_schema(
             },
         },
         "allOf": [
+            {
+                "if": {
+                    "properties": {"mode": {"enum": sorted(MODES - {"no_reply"})}},
+                    "required": ["mode"],
+                },
+                "then": {"properties": {"no_reply_reason": {"maxLength": 0}}},
+            },
             {
                 "if": {
                     "properties": {"mode": {"enum": ["principle_reply", "researched_principle"]}},
@@ -521,48 +591,112 @@ def strategy_mode_guidance() -> str:
     )
 
 
-def _incoming_named_actor_terms(incoming_text: str) -> tuple[set[str], set[str]]:
-    handles = {
-        value.casefold()
-        for value in re.findall(r"(?<![A-Za-z0-9_])@([A-Za-z0-9_]+)", str(incoming_text or ""))
-    }
-    names: set[str] = set()
-    for value in re.findall(r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+\b", str(incoming_text or "")):
-        parts = value.casefold().split()
-        names.add(" ".join(parts))
-        names.update(parts)
-    return handles, names
-
-
 def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
     """Reject obvious concrete allegations disguised as an ungrounded principle."""
     value = str(text or "")
+    incoming_actor_tokens = {
+        handle.casefold()
+        for handle in re.findall(
+            r"(?<![A-Za-z0-9_])@([A-Za-z0-9_]+)",
+            str(incoming_text or ""),
+        )
+    }
+    for name in PRINCIPLE_REPLY_PROPER_NAME_RE.findall(str(incoming_text or "")):
+        incoming_actor_tokens.update(part.casefold() for part in name.split())
     if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(value):
         return "principle_reply cannot contain a specific unsupported factual assertion"
-    handles, names = _incoming_named_actor_terms(incoming_text)
-    for match in PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE.finditer(value):
+    if PRINCIPLE_REPLY_PROPER_NAME_RE.search(value):
+        return "principle_reply cannot contain a specific unsupported factual assertion"
+    for match in PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE.finditer(value):
+        raw_actor = match.group("actor")
+        actor = raw_actor.casefold()
+        if (
+            actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+            and (raw_actor[0].isupper() or actor in incoming_actor_tokens)
+        ):
+            return "principle_reply cannot contain a specific unsupported factual assertion"
+    for match in PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE.finditer(value):
         actor = match.group("actor").casefold()
+        following = match.group("predicate").casefold()
+        if (
+            actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+            and following not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+            and actor not in {"a", "an", "the"}
+        ):
+            return "principle_reply cannot contain a specific unsupported factual assertion"
+    for match in PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE.finditer(value):
+        raw_actor = match.group("actor")
+        actor = raw_actor.casefold()
         parts = actor.split()
-        if actor in names or any(part in names for part in parts):
-            return "principle_reply cannot contain a specific unsupported factual assertion"
-        if any(len(part) >= 4 and part in handle for part in parts for handle in handles):
-            return "principle_reply cannot contain a specific unsupported factual assertion"
+        raw_parts = raw_actor.split()
+        abstract_subject = parts[-1] in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS and (
+            len(raw_parts) == 1 or not raw_parts[-1][0].isupper()
+        )
+        generic_subject = any(
+            actor == prefix or actor.startswith(prefix + " ")
+            for prefix in PRINCIPLE_REPLY_GENERIC_SUBJECT_PREFIXES
+        )
+        if (
+            abstract_subject
+            or generic_subject
+        ):
+            continue
+        return "principle_reply cannot contain a specific unsupported factual assertion"
     return None
 
 
 def concrete_factual_question_word(text: str) -> str | None:
     """Return the leading who/what/where/when word for a concrete question."""
     value = " ".join(str(text or "").split())
-    if "?" not in value:
-        return None
-    match = CONCRETE_QUESTION_RE.match(value)
+    candidate = value
+    for _ in range(3):
+        previous = candidate
+        candidate = re.sub(r"^(?:@[A-Za-z0-9_]+\s*[,;:]?\s*)+", "", candidate)
+        candidate = re.sub(
+            r"^(?:(?:actually|please|seriously|so|well)\b\s*[,;:]?\s*)+",
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        candidate = re.sub(
+            r"^(?:(?:quick|simple)\s+question\s*[-,;:]?\s*|"
+            r"(?:can|could|may)\s+i\s+ask\s*[-,;:]?\s*|"
+            r"i\s+(?:just\s+)?wonder(?:ed)?\s*[-,;:]?\s*|"
+            r"(?:(?:can|could|would)\s+you\s+)?(?:explain|say)\s+)",
+            "",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        if candidate == previous:
+            break
+    match = CONCRETE_QUESTION_RE.match(candidate)
     if not match:
         return None
+    remainder = candidate[match.end():].lstrip()
     word = match.group("word").lower()
+    if word == "what" and re.match(
+        r"(?:a|an|the|this|that)\s+(?:[\w'-]+\s+){0,2}"
+        r"(?:day|disaster|joke|mess|shame|surprise)\s*[!?]*$",
+        remainder,
+        re.IGNORECASE,
+    ):
+        return None
+    if "?" not in candidate:
+        if not re.match(
+            r"(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
+            r"should|happened|became|began|ended|occurred|took)\b",
+            remainder,
+            re.IGNORECASE,
+        ):
+            return None
     return "where" if word == "were" else word
 
 
-def direct_factual_answer_error(question: str, reply: str) -> str | None:
+def direct_factual_answer_error(
+    question: str,
+    reply: str,
+    selected_evidence: Iterable[RetrievedEvidence] = (),
+) -> str | None:
     """Conservatively reject rhetoric in place of a concrete first-sentence answer."""
     question_word = concrete_factual_question_word(question)
     if question_word is None:
@@ -573,6 +707,42 @@ def direct_factual_answer_error(question: str, reply: str) -> str | None:
         return "concrete factual questions require a direct answer in the first sentence"
     if any(lowered.startswith(opening) for opening in ABSTRACT_ANSWER_OPENINGS):
         return "concrete factual questions cannot be answered with an abstract principle"
+    if re.match(
+        r"^(?:that|this|it)\s+(?:deserves?|raises?|requires?|merits?|calls?\s+for)\b",
+        lowered,
+    ) or re.match(r"^(?:that|this|it|the matter)\s+is\s+(?:important|serious|complex)\b", lowered):
+        return "concrete factual questions require a direct answer in the first sentence"
+    event_question = question_word in {"when", "where"} or (
+        question_word == "what"
+        and re.search(r"\b(?:did|happened|occurred|took\s+place)\b", str(question or ""), re.IGNORECASE)
+    )
+    if event_question and VAGUE_FACTUAL_PREDICATE_RE.search(lowered):
+        return "concrete factual questions require the requested fact, not a vague assessment"
+    if question_word == "what" and (
+        re.match(r"^(?:a\s+lot|something|things?|events?)\s+(?:changed|happened|occurred)\b", lowered)
+        or re.match(r"^\d{3,4}\s+changed\s+everything\b", lowered)
+    ):
+        return "what questions require the requested event or fact, not a generic occurrence"
+
+    if question_word == "who":
+        answer_words = re.findall(
+            r"[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*",
+            first_sentence,
+            re.UNICODE,
+        )
+        generic = {"a", "an", "he", "it", "she", "that", "the", "they", "this", "we"}
+        if not any(word[0].isupper() and word.casefold() not in generic for word in answer_words):
+            return "who questions require a person or office-holder in the first sentence"
+    elif question_word == "when" and not (
+        ABSOLUTE_TEMPORAL_ANSWER_RE.search(lowered)
+        or RELATIVE_TEMPORAL_ANSWER_RE.search(lowered)
+    ):
+        return "when questions require a time or period in the first sentence"
+    elif question_word == "where" and not re.search(
+        r"\b(?:at|from|in|inside|into|north|south|east|west|outside|to|towards?)\b",
+        lowered,
+    ):
+        return "where questions require a place or direction in the first sentence"
 
     question_lower = question.lower()
     if "berlin wall" in question_lower and question_word == "where":
@@ -582,6 +752,117 @@ def direct_factual_answer_error(question: str, reply: str) -> str | None:
             and ("berlin" in lowered or "germany" in lowered)
         ):
             return "the Berlin Wall direction question must directly distinguish East from West"
+    evidence = list(selected_evidence)
+    if evidence:
+        answer_tokens = {
+            _topical_stem(token.casefold())
+            for token in TOPICAL_TOKEN_RE.findall(first_sentence)
+            if token.casefold() not in STOPWORDS
+        }
+        evidence_text = " ".join(
+            " ".join(
+                [
+                    _packet_text(item.packet),
+                    str(item.packet.get("speaker") or ""),
+                    str(item.packet.get("date") or ""),
+                    " ".join(str(value) for value in item.packet.get("entities", [])),
+                ]
+            )
+            for item in evidence
+        )
+        evidence_tokens = {
+            _topical_stem(token.casefold())
+            for token in TOPICAL_TOKEN_RE.findall(evidence_text)
+            if token.casefold() not in STOPWORDS
+        }
+        question_tokens = {
+            _topical_stem(token.casefold())
+            for token in TOPICAL_TOKEN_RE.findall(str(question or ""))
+            if token.casefold() not in STOPWORDS
+        }
+        novel_supported_answer_tokens = (answer_tokens - question_tokens) & evidence_tokens
+        if question_word == "who":
+            person_candidates: set[str] = set()
+            requested_person_candidates: set[str] = set()
+            normalised_question = " ".join(str(question or "").casefold().split())
+            non_person_markers = {
+                "conference", "election", "government", "kingdom", "party",
+                "speech", "street", "union", "world",
+            }
+            for item in evidence:
+                values = [item.packet.get("speaker"), *(item.packet.get("entities") or [])]
+                for index, raw_value in enumerate(values):
+                    value = re.split(r"\s*\(", str(raw_value or ""), maxsplit=1)[0].strip()
+                    words = re.findall(r"[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*", value)
+                    if not 2 <= len(words) <= 5:
+                        continue
+                    if index != 0 and (
+                        any(word.casefold() in non_person_markers for word in words)
+                        or not all(word[0].isupper() for word in words)
+                    ):
+                        continue
+                    full_name = " ".join(words).casefold()
+                    surname = words[-1].casefold()
+                    person_candidates.add(full_name)
+                    if len(words[-1]) >= 4:
+                        person_candidates.add(surname)
+                    if not (
+                        re.search(rf"(?<!\w){re.escape(full_name)}(?!\w)", normalised_question)
+                        or re.search(rf"(?<!\w){re.escape(surname)}(?!\w)", normalised_question)
+                    ):
+                        requested_person_candidates.add(full_name)
+                        if len(words[-1]) >= 4:
+                            requested_person_candidates.add(surname)
+            if not requested_person_candidates:
+                if re.match(r"^\s*who\s+(?:is|was|were)\b", normalised_question):
+                    if not novel_supported_answer_tokens:
+                        return "who answers must be supported by the selected evidence"
+                    return None
+                return "who answers require evidence identifying the requested person"
+            candidates_to_match = requested_person_candidates
+            if not any(
+                re.search(rf"(?<!\w){re.escape(candidate)}(?!\w)", lowered)
+                for candidate in candidates_to_match
+            ):
+                return "who answers must identify a person supported by the selected evidence"
+        elif question_word == "when":
+            if ABSOLUTE_TEMPORAL_ANSWER_RE.search(lowered):
+                temporal_tokens = {
+                    _topical_stem(token.casefold())
+                    for match in ABSOLUTE_TEMPORAL_ANSWER_RE.finditer(first_sentence)
+                    for token in TOPICAL_TOKEN_RE.findall(match.group(0))
+                    if token.casefold() not in STOPWORDS
+                    and token.casefold() not in NON_TEMPORAL_ANSWER_TOKENS
+                }
+            else:
+                temporal_phrases = RELATIVE_TEMPORAL_ANSWER_RE.findall(lowered)
+                temporal_tokens = {
+                    _topical_stem(token.casefold())
+                    for phrase in temporal_phrases
+                    for token in TOPICAL_TOKEN_RE.findall(phrase)
+                    if token.casefold() not in STOPWORDS
+                    and token.casefold() not in NON_TEMPORAL_ANSWER_TOKENS
+                    and not token.isdigit()
+                }
+            if not (temporal_tokens - question_tokens) & evidence_tokens:
+                return "when answers require an evidence-supported time, period or event"
+        elif question_word == "where":
+            location_phrases = re.findall(
+                r"\b(?:at|from|in|inside|into|outside|to|towards?)\s+([^,.;!?]+)",
+                lowered,
+            )
+            location_tokens = {
+                _topical_stem(token.casefold())
+                for phrase in location_phrases
+                for token in TOPICAL_TOKEN_RE.findall(phrase)
+                if token.casefold() not in STOPWORDS
+                and token.casefold() not in NON_LOCATION_ANSWER_TOKENS
+                and not token.isdigit()
+            }
+            if not (location_tokens - question_tokens) & evidence_tokens:
+                return "where answers require an evidence-supported place or direction"
+        elif not novel_supported_answer_tokens:
+            return "concrete factual answers must be supported by the selected evidence"
     return None
 
 
@@ -705,6 +986,8 @@ def validate_reply_decision(
         raise ValueError(
             "no_reply requires tone/confidence none, empty evidence and reply text, and false flags"
         )
+    if mode != "no_reply" and value["no_reply_reason"] != "":
+        raise ValueError("posted reply modes require an empty no_reply_reason")
     if mode == "principle_reply" and (
         tone != "none" or confidence != "none" or ids != []
         or value["evidence_summary"] != "" or value["factual_claim_made"]
@@ -722,6 +1005,8 @@ def validate_reply_decision(
     ):
         raise ValueError("reply cites a non-retrieved or unresolved quote ID")
     selected_evidence = [item for item in evidence if item.quote_id in set(ids)]
+    if any(not packet_is_attributed_to_margaret_thatcher(item.packet) for item in selected_evidence):
+        raise ValueError("reply cites attribution-ineligible historical evidence")
     if mode in HISTORICAL_MODES and not value["factual_claim_made"]:
         raise ValueError("historical modes must identify a factual claim")
     if mode == "historical_correction" and confidence != "high":
@@ -787,7 +1072,7 @@ def validate_reply_decision(
                 raise ValueError("concrete factual questions require a direct grounded historical answer")
             if tone != "none" or not value["factual_claim_made"] or not value["grounded"]:
                 raise ValueError("direct factual answers require grounded factual metadata and no humour")
-            direct_error = direct_factual_answer_error(question, reply)
+            direct_error = direct_factual_answer_error(question, reply, selected_evidence)
             if direct_error:
                 raise ValueError(direct_error)
         if clarification_reply and concrete_factual_question_word(question) is None:

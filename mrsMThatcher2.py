@@ -6224,6 +6224,7 @@ def completed_research_quote_hashes() -> set[str]:
             f"Completed quotation research is invalid; refusing regular quote posting: {COMPLETED_QUOTE_RESEARCH_FILE}"
         )
     result: set[str] = set()
+    from historical_context_formatter import packet_is_attributed_to_margaret_thatcher
     for packet_id, packet in items.items():
         if not isinstance(packet, dict):
             raise RuntimeError(f"Completed quotation research packet is invalid: {packet_id}")
@@ -6233,7 +6234,16 @@ def completed_research_quote_hashes() -> set[str]:
         exact_id = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if exact_id != str(packet_id):
             raise RuntimeError(f"Completed quotation research packet text hash is invalid: {packet_id}")
+        if not packet_is_attributed_to_margaret_thatcher(packet):
+            continue
         result.add(quote_text_hash(text))
+    if TEST_MODE and not result:
+        raise RuntimeError("Completed quotation research has no attribution-eligible packets")
+    if not TEST_MODE and len(result) != 610:
+        raise RuntimeError(
+            "Completed quotation research has "
+            f"{len(result)} attribution-eligible packets; expected 610"
+        )
     return result
 
 
@@ -6247,7 +6257,7 @@ def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes
     excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)
     if research_ineligible_hashes:
         log.info(
-            "Excluded %d source quotation(s) without completed canonical research packets",
+            "Excluded %d source quotation(s) without attribution-eligible completed canonical research packets",
             len(research_ineligible_hashes),
         )
     available_lines = [line_no for line_no, quote_hash in hashes_by_line.items() if quote_hash not in lines_used]
@@ -7776,19 +7786,48 @@ def pending_reply_draft_key(target_id: object, candidate_source: object) -> str:
     return f"{str(candidate_source or 'mention')}:{str(target_id)}"
 
 
-def store_pending_strategy_reply(state: dict, target_id: str, candidate_source: str, reply: str) -> None:
+# X long-form posts can exceed 10,000 characters. Keep enough source text to
+# revalidate a persisted principle reply while still bounding corrupt state.
+PENDING_REPLY_CONTEXT_MAX_CHARS = 100_000
+PENDING_REPLY_VALIDATION_VERSION = 2
+
+
+def store_pending_strategy_reply(
+    state: dict,
+    target_id: str,
+    candidate_source: str,
+    reply: str,
+    *,
+    incoming_text: str | None = None,
+) -> bool:
     metadata = getattr(reply, "strategy_metadata", None)
     if not isinstance(metadata, dict):
-        return
+        return False
+    context_required = metadata.get("mode") == "principle_reply"
+    if incoming_text is not None and (
+        not isinstance(incoming_text, str) or len(incoming_text) > PENDING_REPLY_CONTEXT_MAX_CHARS
+    ):
+        return False
+    if context_required and (not isinstance(incoming_text, str) or not incoming_text.strip()):
+        return False
+    if not strategy_metadata_is_semantically_valid(
+        metadata,
+        str(reply),
+        incoming_text=incoming_text,
+    ):
+        return False
     drafts = state.setdefault("pending_reply_drafts", {})
     drafts[pending_reply_draft_key(target_id, candidate_source)] = {
         "target_id": str(target_id),
         "candidate_source": str(candidate_source),
         "reply_text": str(reply),
         "strategy_metadata": metadata,
+        "incoming_text": incoming_text if context_required else None,
+        "strategy_validation_version": PENDING_REPLY_VALIDATION_VERSION,
     }
     while len(drafts) > 100:
         drafts.pop(next(iter(drafts)))
+    return True
 
 
 def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -> str | None:
@@ -7799,11 +7838,16 @@ def pending_strategy_reply(state: dict, target_id: str, candidate_source: str) -
         not isinstance(record, dict)
         or str(record.get("target_id") or "") != str(target_id)
         or str(record.get("candidate_source") or "") != str(candidate_source)
+        or record.get("strategy_validation_version") != PENDING_REPLY_VALIDATION_VERSION
     ):
         return None
     text = record.get("reply_text")
     metadata = record.get("strategy_metadata")
-    if not strategy_metadata_is_semantically_valid(metadata, text):
+    if not strategy_metadata_is_semantically_valid(
+        metadata,
+        text,
+        incoming_text=record.get("incoming_text"),
+    ):
         return None
     from reply_strategy import ReplyDecision
     return ReplyDecision(text, metadata)
@@ -8324,7 +8368,12 @@ def record_terminal_reply_evaluation(
     state["reply_evaluation_records"] = records
 
 
-def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: object) -> bool:
+def strategy_metadata_is_semantically_valid(
+    strategy_metadata: object,
+    text: object,
+    *,
+    incoming_text: object = None,
+) -> bool:
     from reply_strategy import (
         CONFIDENCE_LEVELS,
         HUMOUR_TONES,
@@ -8365,6 +8414,8 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
     ids = strategy_metadata["retrieved_quote_ids"]
     factual = strategy_metadata["factual_claim_made"]
     grounded = strategy_metadata["grounded"]
+    if strategy_metadata["no_reply_reason"] != "":
+        return False
     if mode in {"historical_correction", "historical_context", "researched_principle"}:
         if not factual or not grounded or not ids or not strategy_metadata["evidence_summary"].strip():
             return False
@@ -8376,7 +8427,10 @@ def strategy_metadata_is_semantically_valid(strategy_metadata: object, text: obj
         or factual
         or grounded
         or strategy_metadata["no_reply_reason"] != ""
-        or principle_reply_assertion_error(str(text or "")) is not None
+        or not isinstance(incoming_text, str)
+        or not incoming_text.strip()
+        or len(incoming_text) > PENDING_REPLY_CONTEXT_MAX_CHARS
+        or principle_reply_assertion_error(str(text or ""), incoming_text) is not None
     ):
         return False
     if grounded and (not ids or not strategy_metadata["evidence_summary"].strip()):
@@ -8427,7 +8481,16 @@ def confirmed_reply_receipt_is_semantically_valid(data: dict) -> bool:
     if original_post_id is not None and isinstance(original_post_id, (dict, list)):
         return False
     strategy_metadata = data.get("strategy_metadata")
-    if strategy_metadata is not None and not strategy_metadata_is_semantically_valid(strategy_metadata, text):
+    incoming_text = data.get("incoming_text")
+    if incoming_text is not None and (
+        not isinstance(incoming_text, str) or len(incoming_text) > PENDING_REPLY_CONTEXT_MAX_CHARS
+    ):
+        return False
+    if strategy_metadata is not None and not strategy_metadata_is_semantically_valid(
+        strategy_metadata,
+        text,
+        incoming_text=incoming_text,
+    ):
         return False
     clarification = data.get("clarification_reply")
     if clarification is not None:
@@ -9022,7 +9085,40 @@ def maybe_reply_to_mentions(state: dict) -> str:
         log.info("Generated reply to mention %s: %r", mention_id, reply_text)
 
         if not DRY_RUN_REPLIES and getattr(reply_text, "strategy_metadata", None) is not None:
-            store_pending_strategy_reply(state, mention_id, str(candidate_source), reply_text)
+            draft_stored = store_pending_strategy_reply(
+                state,
+                mention_id,
+                str(candidate_source),
+                reply_text,
+                incoming_text=incoming_text,
+            )
+            if not draft_stored:
+                log.error(
+                    "Reply strategy draft failed persistence validation; "
+                    "skipping target_id=%s source=%s",
+                    mention_id,
+                    candidate_source,
+                )
+                record_terminal_reply_evaluation(
+                    state,
+                    target_id=mention_id,
+                    lane=str(candidate_source),
+                    reason="strategy_persistence_validation_failed",
+                )
+                maybe_mark_hot_post_reply_skipped(
+                    state,
+                    mention,
+                    reason="strategy_persistence_validation_failed",
+                )
+                log_event(
+                    "candidate_skipped",
+                    lane=candidate_log_source,
+                    id=mention_id,
+                    reason="strategy_persistence_validation_failed",
+                )
+                mark_mention_seen_if_applicable(state, mention)
+                save_state(state, durable=True)
+                continue
             save_state(state, durable=True)
 
         if DRY_RUN_REPLIES:
@@ -9150,6 +9246,8 @@ def maybe_reply_to_mentions(state: dict) -> str:
         strategy_metadata = getattr(reply_text, "strategy_metadata", None)
         if strategy_metadata is not None:
             receipt["strategy_metadata"] = strategy_metadata
+            if strategy_metadata.get("mode") == "principle_reply":
+                receipt["incoming_text"] = incoming_text
         if clarification is not None:
             receipt["clarification_reply"] = {
                 key: clarification[key]
@@ -9783,7 +9881,22 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             log.info("Generated reply to quote tweet %s: %r", quote_id, reply_text)
 
             if not DRY_RUN_REPLIES and getattr(reply_text, "strategy_metadata", None) is not None:
-                store_pending_strategy_reply(state, quote_id, "quote_tweet", reply_text)
+                draft_stored = store_pending_strategy_reply(
+                    state,
+                    quote_id,
+                    "quote_tweet",
+                    reply_text,
+                    incoming_text=quote_text,
+                )
+                if not draft_stored:
+                    log.error(
+                        "Reply strategy draft failed persistence validation; "
+                        "skipping target_id=%s source=quote_tweet",
+                        quote_id,
+                    )
+                    mark_quote_tweet_skipped(state, quote_id)
+                    save_state(state, durable=True)
+                    continue
                 save_state(state, durable=True)
 
             if DRY_RUN_REPLIES:
@@ -9893,6 +10006,8 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
             strategy_metadata = getattr(reply_text, "strategy_metadata", None)
             if strategy_metadata is not None:
                 receipt["strategy_metadata"] = strategy_metadata
+                if strategy_metadata.get("mode") == "principle_reply":
+                    receipt["incoming_text"] = quote_text
             try:
                 write_confirmed_reply_receipt(receipt)
             except Exception as exc:

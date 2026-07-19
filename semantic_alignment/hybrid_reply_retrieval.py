@@ -29,7 +29,10 @@ from typing import Any, Callable, Sequence
 
 import numpy as np
 
-from historical_context_formatter import load_and_validate_corpus
+from historical_context_formatter import (
+    load_and_validate_corpus,
+    packet_is_attributed_to_margaret_thatcher,
+)
 from reply_strategy import RetrievedEvidence, retrieve_research_packets
 
 MODEL_REPOSITORY = "intfloat/multilingual-e5-small"
@@ -640,13 +643,20 @@ class HybridRetriever:
     def __init__(self, retrieval_dir: Path, research_run: Path, model_dir: Path = DEFAULT_MODEL_DIR):
         started = time.perf_counter()
         self.manifest = validate_index(retrieval_dir, model_dir)
-        _, _, corpus = validate_corpus_invariants(research_run)
+        packets, _, corpus = validate_corpus_invariants(research_run)
         if corpus["research_packets_sha256"] != self.manifest.get("corpus_hash"):
             raise RuntimeError("shadow index corpus hash mismatch")
         self.retrieval_dir = retrieval_dir
         self.research_run = research_run
         self.documents_list = load_documents(retrieval_dir / "retrieval_documents.jsonl")
         self.documents = {item["quote_id"]: item for item in self.documents_list}
+        self.eligible_quote_ids = {
+            quote_id
+            for quote_id, packet in packets.items()
+            if packet_is_attributed_to_margaret_thatcher(packet)
+        }
+        if len(self.eligible_quote_ids) != 610:
+            raise RuntimeError("shadow retrieval requires exactly 610 attribution-eligible packets")
         self.quote_ids = json.loads((retrieval_dir / "index" / "quote_ids.json").read_text(encoding="utf-8"))
         self.matrix = np.load(retrieval_dir / "index" / "embeddings.npy", mmap_mode="r", allow_pickle=False)
         self.thresholds = json.loads((retrieval_dir / "thresholds.json").read_text(encoding="utf-8"))
@@ -693,7 +703,17 @@ class HybridRetriever:
         query_vector = self._query_embedding(query)
         embedding_ms = (time.perf_counter() - embedding_started) * 1000
         search_started = time.perf_counter()
-        semantic = exact_cosine_search(self.matrix, query_vector, self.quote_ids, int(self.thresholds["semantic_candidate_count"]))
+        semantic_candidate_count = int(self.thresholds["semantic_candidate_count"])
+        excluded_index_rows = max(0, len(self.quote_ids) - len(self.eligible_quote_ids))
+        semantic = [
+            row for row in exact_cosine_search(
+                self.matrix,
+                query_vector,
+                self.quote_ids,
+                min(len(self.quote_ids), semantic_candidate_count + excluded_index_rows),
+            )
+            if row[0] in self.eligible_quote_ids
+        ][:semantic_candidate_count]
         search_ms = (time.perf_counter() - search_started) * 1000
         fusion_started = time.perf_counter()
         fused = fuse_results(lexical, semantic, self.documents, query["incoming_text"], self.thresholds)

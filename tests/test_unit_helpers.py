@@ -4953,6 +4953,62 @@ def test_quote_tweet_native_photo_context_reaches_xai(
         server.stop()
 
 
+def test_strategy_persistence_failure_blocks_quote_tweet_x_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    scenario = load_scenario(SCENARIOS / "quote_tweet_reply.json")
+    server = FakeApiServer(scenario).start()
+    try:
+        fixed_epoch = 2_000_000_000
+        text = "Conviction matters more than applause."
+        metadata = {
+            "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
+            "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+            "grounded": False, "reply_text": text, "no_reply_reason": "",
+        }
+        monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
+        monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
+        monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+        monkeypatch.setattr(bot, "X_BASE", server.url)
+        monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+        monkeypatch.setattr(bot, "ENABLE_QUOTE_TWEET_CHECKS", True)
+        monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+        monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+        monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 24)
+        monkeypatch.setattr(bot, "MAX_QUOTE_REPLIES_PER_DAY", 10)
+        monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+        monkeypatch.setattr(bot, "QUOTE_REPLY_DELAY_SECONDS", 0)
+        monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+        monkeypatch.setattr(bot, "now_epoch", lambda: fixed_epoch)
+        monkeypatch.setattr(bot, "current_datetime", lambda: datetime.fromtimestamp(fixed_epoch))
+        monkeypatch.setattr(
+            bot,
+            "ask_grok_for_reply",
+            lambda *_args, **_kwargs: ReplyDecision(text, metadata),
+        )
+        monkeypatch.setattr(bot, "store_pending_strategy_reply", lambda *_args, **_kwargs: False)
+        monkeypatch.setattr(
+            bot,
+            "create_post",
+            lambda *_args, **_kwargs: pytest.fail("X write must not be called"),
+        )
+        monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+        state = bot.default_state()
+        state["recent_own_post_ids"] = ["900"]
+        state["daily_reply_date"] = bot.current_datetime().strftime("%Y-%m-%d")
+        state["daily_quote_reply_date"] = state["daily_reply_date"]
+
+        assert bot.maybe_reply_to_quote_tweets(state) == bot.QUOTE_CHECK_STATUS_CHECKED
+        assert state["daily_reply_count"] == 0
+        assert "910" in state["seen_quote_post_ids"]
+    finally:
+        server.stop()
+
+
 def test_hot_post_reply_native_photo_context_reaches_xai(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -5635,6 +5691,126 @@ def test_malformed_pending_strategy_draft_is_not_reused() -> None:
             }
         }
     }
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_principle_reply_retains_context_needed_for_safety_revalidation() -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    incoming = "andy burnham only wants public popularity."
+    text = "Burnham craves popularity rather than responsibility."
+    metadata = {
+        "mode": "principle_reply", "humour_tone": "none", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": text, "no_reply_reason": "",
+    }
+    bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        ReplyDecision(text, metadata),
+        incoming_text=incoming,
+    )
+
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_safe_pending_principle_reply_reuses_the_persisted_incoming_context() -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    incoming = "Institutions endure when people defend their purpose."
+    text = "Institutions endure only when people defend their purpose."
+    metadata = {
+        "mode": "principle_reply", "humour_tone": "none", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": text, "no_reply_reason": "",
+    }
+    reply = ReplyDecision(text, metadata)
+    bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        reply,
+        incoming_text=incoming,
+    )
+
+    assert bot.pending_strategy_reply(state, "100", "mention") == reply
+
+
+def test_long_form_principle_reply_context_remains_receipt_safe() -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    incoming = "Institutions endure when people defend their purpose. " + ("context " * 3000)
+    text = "Institutions endure only when people defend their purpose."
+    metadata = {
+        "mode": "principle_reply", "humour_tone": "none", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": text, "no_reply_reason": "",
+    }
+    reply = ReplyDecision(text, metadata)
+    bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        reply,
+        incoming_text=incoming,
+    )
+    receipt = {
+        "schema_version": 1, "target_id": "100", "reply_post_id": "900000",
+        "author_id": "200", "reply_epoch": 2_000_000_000,
+        "daily_reply_date": "2033-05-18", "candidate_source": "mention",
+        "conversation_id": "100", "reply_text": text,
+        "strategy_metadata": metadata, "incoming_text": incoming,
+    }
+
+    assert len(incoming) > 10_000
+    assert bot.pending_strategy_reply(state, "100", "mention") == reply
+    assert bot.confirmed_reply_receipt_is_semantically_valid(receipt) is True
+
+
+def test_pending_strategy_reply_rejects_context_beyond_receipt_limit() -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    text = "Institutions endure only when people defend their purpose."
+    metadata = {
+        "mode": "principle_reply", "humour_tone": "none", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": text, "no_reply_reason": "",
+    }
+
+    stored = bot.store_pending_strategy_reply(
+        state,
+        "100",
+        "mention",
+        ReplyDecision(text, metadata),
+        incoming_text="x" * (bot.PENDING_REPLY_CONTEXT_MAX_CHARS + 1),
+    )
+
+    assert stored is False
+    assert bot.pending_strategy_reply(state, "100", "mention") is None
+
+
+def test_pending_reply_created_under_an_older_validator_is_not_reused() -> None:
+    state = bot.default_state()
+    state["pending_reply_drafts"] = {
+        "mention:100": {
+            "target_id": "100",
+            "candidate_source": "mention",
+            "reply_text": "An old draft.",
+            "strategy_metadata": {
+                "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
+                "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+                "grounded": False, "reply_text": "An old draft.", "no_reply_reason": "",
+            },
+            "incoming_text": "An incoming post.",
+            "strategy_validation_version": 1,
+        }
+    }
+
     assert bot.pending_strategy_reply(state, "100", "mention") is None
 
 
@@ -6806,6 +6982,64 @@ def test_deterministic_spam_skip_precedes_context_media_retrieval_and_xai(
 
     assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
     assert state["daily_reply_count"] == 0
+
+
+def test_strategy_persistence_failure_blocks_mention_x_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from reply_strategy import ReplyDecision
+
+    state = bot.default_state()
+    state["last_reply_epoch"] = 0
+    mention = {
+        "id": "100",
+        "author_id": "200",
+        "text": "@MrsMThatcher Institutions endure when people defend their purpose.",
+        "entities": {"mentions": [{"id": "12345", "username": "MrsMThatcher"}]},
+        "conversation_id": "100",
+        "referenced_tweets": [],
+    }
+    text = "Institutions endure only when people defend their purpose."
+    metadata = {
+        "mode": "principle_reply", "humour_tone": "none", "evidence_confidence": "none",
+        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
+        "grounded": False, "reply_text": text, "no_reply_reason": "",
+    }
+
+    monkeypatch.setattr(bot, "ENABLE_AUTO_REPLIES", True)
+    monkeypatch.setattr(bot, "DRY_RUN_REPLIES", False)
+    monkeypatch.setattr(bot, "MIN_SECONDS_BETWEEN_REPLIES", 0)
+    monkeypatch.setattr(bot, "MAX_AUTO_REPLIES_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MAX_REPLIES_PER_AUTHOR_PER_DAY", 5)
+    monkeypatch.setattr(bot, "MY_USER_ID", "12345")
+    monkeypatch.setattr(bot, "MY_USERNAME", "MrsMThatcher")
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
+    monkeypatch.setattr(bot, "lane_paused", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "in_api_cooldown", lambda *args, **kwargs: False)
+    monkeypatch.setattr(bot, "reconcile_confirmed_reply_receipt", lambda _state: False)
+    monkeypatch.setattr(bot, "get_mentions", lambda _state: [dict(mention)])
+    monkeypatch.setattr(bot, "get_hot_post_reply_candidates", lambda _state: [])
+    monkeypatch.setattr(bot, "is_probably_spam_or_not_worth_replying", lambda _text: False)
+    monkeypatch.setattr(bot, "build_context_for_grok", lambda *_args: ("context", True))
+    monkeypatch.setattr(bot, "reply_media_context_for_candidate", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(
+        bot,
+        "ask_grok_for_reply",
+        lambda *_args, **_kwargs: ReplyDecision(text, metadata),
+    )
+    monkeypatch.setattr(bot, "store_pending_strategy_reply", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda *_args, **_kwargs: pytest.fail("X write must not be called"),
+    )
+    monkeypatch.setattr(bot, "save_state", lambda *_args, **_kwargs: None)
+
+    assert bot.maybe_reply_to_mentions(state) == bot.NORMAL_CHECK_STATUS_CHECKED
+    assert state["daily_reply_count"] == 0
+    assert state["reply_evaluation_records"]["100"]["reason"] == (
+        "strategy_persistence_validation_failed"
+    )
 
 
 def test_ineligible_truncated_mention_is_terminal_before_context_media_or_xai(

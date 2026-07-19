@@ -124,6 +124,45 @@ def test_corpus_contract_counts_and_unresolved_exclusion() -> None:
     assert not set(unresolved["unresolved_quote_ids"]) & set(quotes)
 
 
+@pytest.mark.parametrize(
+    "speaker",
+    [
+        "Abi Morgan (spoken by Meryl Streep as Margaret Thatcher)",
+        "Alexander Dubcek (quoted by Margaret Thatcher)",
+        "Unknown (Misattributed to Margaret Thatcher)",
+    ],
+)
+def test_speaker_attribution_does_not_confuse_context_with_the_speaker(speaker: str) -> None:
+    _canonical_speaker, status = rem.speaker_attribution_status({
+        "speaker": speaker,
+        "verification_status": "misattributed",
+    })
+    assert status == "contradicted_non_thatcher"
+
+
+@pytest.mark.parametrize(
+    "speaker",
+    [
+        "Margaret Thatcher",
+        "Margaret Thatcher (as Margaret Roberts)",
+    ],
+)
+def test_speaker_attribution_accepts_thatchers_own_canonical_identity(speaker: str) -> None:
+    _canonical_speaker, status = rem.speaker_attribution_status({
+        "speaker": speaker,
+        "verification_status": "exact",
+    })
+    assert status == "confirmed_thatcher"
+
+
+def test_speaker_attribution_does_not_infer_thatcher_from_bare_maiden_name() -> None:
+    _canonical_speaker, status = rem.speaker_attribution_status({
+        "speaker": "Margaret Roberts",
+        "verification_status": "exact",
+    })
+    assert status == "contradicted_non_thatcher"
+
+
 def test_collection_level_thatcher_identity_attestation() -> None:
     _, images = rem.load_contracts(RUN)
     originals = [row for row in images.values() if row["source_class"] == "original"]

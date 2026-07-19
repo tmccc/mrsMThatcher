@@ -15,6 +15,7 @@ from historical_context_formatter import (
     format_context_reply,
     format_context_reply_v2,
     load_and_validate_corpus,
+    packet_is_attributed_to_margaret_thatcher,
     packet_for_posted_quote,
     quote_text_hash,
     select_primary_source,
@@ -39,6 +40,25 @@ def test_completed_corpus_validation_and_unresolved_rejection(corpus):
     packets, unresolved = corpus
     assert len(packets) == 626 and len(unresolved) == 6 and not set(packets) & unresolved
     assert packet_for_posted_quote(packets, unresolved, next(iter(unresolved)), "anything") is None
+
+
+def test_posted_quote_lookup_rejects_attribution_ineligible_completed_packet(corpus):
+    packets, unresolved = corpus
+    quote_id = "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646"
+    packet = packets[quote_id]
+
+    assert packet_for_posted_quote(packets, unresolved, quote_id, packet["quote_text"]) is None
+
+
+def test_bare_maiden_name_is_not_a_thatcher_identity_attestation():
+    assert packet_is_attributed_to_margaret_thatcher({
+        "speaker": "Margaret Roberts",
+        "verification_status": "exact",
+    }) is False
+    assert packet_is_attributed_to_margaret_thatcher({
+        "speaker": "Margaret Thatcher (as Margaret Roberts)",
+        "verification_status": "exact",
+    }) is True
 
 
 def test_duplicate_manifest_record_is_rejected_before_dictionary_collapse(tmp_path):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import sqlite3
 from pathlib import Path
 
@@ -139,7 +140,9 @@ def test_production_regular_selector_has_completed_research_gate() -> None:
     assert "excluded_quote_hashes = set(excluded_quote_hashes or set()).union(research_ineligible_hashes)" in source
 
 
-def test_completed_research_gate_yields_613_source_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_completed_research_gate_excludes_all_attribution_ineligible_source_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import mrsMThatcher2 as bot
 
     monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", cleanup.RESEARCH_RUN / "research_packets.json")
@@ -151,9 +154,41 @@ def test_completed_research_gate_yields_613_source_candidates(monkeypatch: pytes
     unresolved = set(
         cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")["unresolved_quote_ids"]
     )
-    assert len(source_hashes & completed) == 613
-    assert len(source_hashes - completed) == 6
-    assert unresolved == source_hashes - completed
+    false_positive_ids = {
+        "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
+        "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
+        "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
+    }
+    assert len(source_hashes & completed) == 610
+    assert len(source_hashes - completed) == 9
+    assert unresolved | false_positive_ids == source_hashes - completed
+
+
+def test_test_mode_research_gate_still_requires_an_attribution_eligible_packet(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import mrsMThatcher2 as bot
+
+    quote_text = "A synthetic attributed quotation."
+    quote_id = hashlib.sha256(quote_text.encode("utf-8")).hexdigest()
+    research_path = tmp_path / "research_packets.json"
+    packet = {
+        "quote_id": quote_id,
+        "quote_text": quote_text,
+        "speaker": "Margaret Thatcher",
+        "verification_status": "exact",
+    }
+    research_path.write_text(json.dumps({"items": {quote_id: packet}}), encoding="utf-8")
+    monkeypatch.setattr(bot, "COMPLETED_QUOTE_RESEARCH_FILE", research_path)
+    monkeypatch.setattr(bot, "TEST_MODE", True)
+
+    assert bot.completed_research_quote_hashes() == {bot.quote_text_hash(quote_text)}
+
+    packet["speaker"] = "Another speaker"
+    research_path.write_text(json.dumps({"items": {quote_id: packet}}), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="no attribution-eligible packets"):
+        bot.completed_research_quote_hashes()
 
 
 def test_no_network_or_provider_code_in_cleanup_tool() -> None:
