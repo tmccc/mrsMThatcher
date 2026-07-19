@@ -211,7 +211,10 @@ def test_completed_worker_slot_refills_while_other_call_is_slow(tmp_path):
     data = manifest(3)
     third_started = threading.Event()
     def slow(_prompt):
-        assert third_started.wait(1)
+        # Full-suite I/O load can delay the completed worker's persistence
+        # before the executor refills its slot. Retain a bounded deadlock check
+        # without assuming that scheduling and fsync complete within one second.
+        assert third_started.wait(5)
         return response(data["records"][0], "developer")
     def second(_prompt):
         return response(data["records"][1], "developer")

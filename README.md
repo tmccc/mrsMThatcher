@@ -124,6 +124,8 @@ deployed as a coherent set:
 - `reply_strategy.py`
 - `historical_context_formatter.py`
 - `historical_context_reply_schema.json`
+- `shadow_lifecycle.py`
+- `shadow_feature_lifecycle.json`
 - `semantic_quote_image_veto.py`
 - `semantic_alignment/quote_image_semantic_veto.py`
 - `semantic_alignment/hybrid_reply_retrieval.py`
@@ -255,6 +257,21 @@ python3 mrsMThatcher2.py audit-replies \
   --research-run semantic_alignment_research/quote_research_full_001 \
   --json
 ```
+
+## Experimental Shadow Lifecycle
+
+`shadow_feature_lifecycle.json` records the purpose, evidence target and current
+state of each maintained shadow feature. Hybrid reply retrieval is
+`offline_only`: it is absent from the production reply path, which continues to
+use lexical retrieval, but its deterministic index, replay and evaluation tools
+remain available. See
+[`semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md`](semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md).
+
+Generated-image identity-policy processing is `suspended` while the generated
+pool is disabled. Re-enabling its shadow requires both the generated pool and
+`ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING`; enabling the latter alone
+does no audit loading, scoring or telemetry work. The semantic-veto and
+original-editorial features remain non-enforcing active shadows.
 
 ## Historical Context Reply Persistence
 

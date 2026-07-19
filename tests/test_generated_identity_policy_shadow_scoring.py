@@ -85,6 +85,7 @@ def quote(hash_char: str = "f") -> dict:
 
 
 def test_disabled_mode_does_not_require_audit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "GENERATED_IDENTITY_AUDIT_FILE", "/missing/audit.json")
     bot.validate_generated_identity_shadow_startup()
@@ -299,7 +300,11 @@ def test_selector_production_tie_is_identical_with_both_shadows_enabled(
     monkeypatch.setattr(bot, "score_image_for_quote", lambda *_args: (10.0, {"topics": 10.0}, True))
     monkeypatch.setattr(bot, "current_datetime", lambda: datetime(2026, 7, 10))
     monkeypatch.setattr(bot, "load_original_editorial_analysis", lambda: {p.name: {"dimension_scores": {d: 0 for d in bot.ORIGINAL_EDITORIAL_DIMENSIONS}, "overall_editorial_utility": 5.5} for p in paths})
-    monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: {})
+    monkeypatch.setattr(
+        bot,
+        "load_generated_identity_audit",
+        lambda: pytest.fail("disabled generated pool must suspend identity shadow work"),
+    )
     state = {"original_regular_posts_since_generated_image": 2}
 
     random.seed(1234)
@@ -444,6 +449,7 @@ def test_digest_parses_and_renders_shadow_only_tables() -> None:
 
 def test_one_log_event_per_selection(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     name = f"tg_{'a' * 64}.png"
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: {name: valid_identity_analysis()})
     caplog.set_level("INFO", logger=bot.log.name)
@@ -458,6 +464,7 @@ def test_runtime_shadow_failure_cannot_abort_production_selection(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", True)
     monkeypatch.setattr(bot, "load_generated_identity_audit", lambda: (_ for _ in ()).throw(RuntimeError("broken audit")))
     production = candidate("t01.jpg", 10, source="original")

@@ -66,40 +66,6 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def hybrid_retrieval_shadow_snapshot(project_dir: Path) -> Dict[str, Any]:
-    """Read local shadow telemetry without importing or running the embedder."""
-    path = project_dir / "hybrid_reply_retrieval_runtime" / "shadow_status.json"
-    try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(value, dict):
-            raise ValueError("status root is not an object")
-        counts = {
-            key: int(value.get(key, 0) or 0)
-            for key in (
-                "events", "completed", "failures", "hybrid_changed_evidence_set",
-                "hybrid_only_evidence", "lexical_only_evidence", "no_evidence_disagreements",
-            )
-        }
-        measurements = {
-            key: None if value.get(key) is None else float(value[key])
-            for key in (
-                "top_5_overlap_percent", "latency_p50_ms", "latency_p95_ms", "latency_max_ms",
-            )
-        }
-    except FileNotFoundError:
-        return {"available": False, "reason": "shadow mode disabled or no events observed"}
-    except Exception as exc:
-        return {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"}
-    return {
-        "available": True,
-        **counts,
-        **measurements,
-        "index_version": str(value.get("index_version") or "unavailable"),
-        "model_revision": str(value.get("model_revision") or "unavailable"),
-        "updated_at": value.get("updated_at"),
-    }
-
-
 def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, Any]:
     """Read the local material-veto shadow status without any provider access."""
     path = project_dir / "quote_image_semantic_veto_runtime" / "shadow_status.json"
@@ -1284,6 +1250,31 @@ def strip_internal_context_markers(value: Any) -> Any:
     return value
 
 
+def shadow_lifecycle_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Load the compact local lifecycle register without contacting a provider."""
+    path = project_dir / "shadow_feature_lifecycle.json"
+    try:
+        from shadow_lifecycle import lifecycle_decision_schedule, load_lifecycle_register
+
+        value = load_lifecycle_register(path)
+        schedule = lifecycle_decision_schedule(value)
+    except Exception as exc:
+        return {
+            "available": False,
+            "reason": f"lifecycle register unavailable: {type(exc).__name__}: {exc}",
+            "features": [],
+        }
+    return {
+        "available": True,
+        "schema_version": value["schema_version"],
+        "features": value["features"],
+        "decision_schedule": schedule,
+        "overdue_decisions": [
+            row for row in schedule if row["decision_overdue"]
+        ],
+    }
+
+
 def merge_context(current: Dict[str, Any], previous: Dict[str, Any]) -> Dict[str, Any]:
     """Fill missing/None fields in current from previous, preserving current values.
 
@@ -2225,11 +2216,19 @@ def quote_image_semantic_veto_category(event: Dict[str, Any]) -> Optional[str]:
     if event.get("shadow_status") != "veto":
         return None
     category = event.get("veto_category")
-    if category in {"selection_error_candidate_available", "coverage_gap_no_safe_image"}:
+    if category == "selection_error_candidate_available":
+        return str(category)
+    if (
+        category == "coverage_gap_no_safe_image"
+        and event.get("quote_pair_fully_resolved") is True
+    ):
         return str(category)
     if event.get("alternative_available") is True:
         return "selection_error_candidate_available"
-    if event.get("quote_has_no_allowed_candidate_globally") is True:
+    if (
+        event.get("quote_has_no_allowed_candidate_globally") is True
+        and event.get("quote_pair_fully_resolved") is True
+    ):
         return "coverage_gap_no_safe_image"
     return None
 
@@ -2254,7 +2253,15 @@ def _quote_image_semantic_veto_summary_subset(events: List[Dict[str, Any]]) -> D
     no_safe_quote_ids = {
         str(event.get("quote_id"))
         for event in events
-        if event.get("quote_has_no_allowed_candidate_globally") is True and event.get("quote_id")
+        if event.get("quote_has_no_allowed_candidate_globally") is True
+        and event.get("quote_pair_fully_resolved") is True
+        and event.get("quote_id")
+    }
+    incomplete_quote_ids = {
+        str(event.get("quote_id"))
+        for event in events
+        if event.get("quote_has_incomplete_pair_coverage") is True
+        and event.get("quote_id")
     }
     examples = []
     for event in vetoed[:5]:
@@ -2281,6 +2288,15 @@ def _quote_image_semantic_veto_summary_subset(events: List[Dict[str, Any]]) -> D
         "selection_error_candidate_available": categories["selection_error_candidate_available"],
         "coverage_gap_no_safe_image": categories["coverage_gap_no_safe_image"],
         "quotes_with_no_globally_allowed_candidate": len(no_safe_quote_ids),
+        "quotes_with_incomplete_pair_coverage": len(incomplete_quote_ids),
+        "adjudicated_unknown_selections": sum(
+            event.get("selected_pair_adjudication_status") == "adjudicated_unknown"
+            for event in events
+        ),
+        "not_adjudicated_selections": sum(
+            event.get("selected_pair_adjudication_status") == "not_adjudicated_missing"
+            for event in events
+        ),
         "median_alternative_score_delta": statistics.median(deltas) if deltas else None,
         "manifest_policy_version": next((event.get("manifest_policy_version") for event in reversed(events) if event.get("manifest_policy_version")), "unavailable"),
         "manifest_sha256": next((event.get("manifest_sha256") for event in reversed(events) if event.get("manifest_sha256")), ""),
@@ -2624,6 +2640,11 @@ def analyse(
                     alternative_score=event_obj.get("alternative_score"),
                     score_delta_from_production_winner=event_obj.get("score_delta_from_production_winner"),
                     quote_has_no_allowed_candidate_globally=event_obj.get("quote_has_no_allowed_candidate_globally"),
+                    quote_has_incomplete_pair_coverage=event_obj.get("quote_has_incomplete_pair_coverage"),
+                    quote_pair_fully_resolved=event_obj.get("quote_pair_fully_resolved"),
+                    selected_pair_adjudication_status=event_obj.get("selected_pair_adjudication_status"),
+                    quote_pair_adjudicated_unknown_count=event_obj.get("quote_pair_adjudicated_unknown_count"),
+                    quote_pair_not_adjudicated_count=event_obj.get("quote_pair_not_adjudicated_count"),
                     manifest_policy_version=event_obj.get("manifest_policy_version") or "unavailable",
                     manifest_sha256=event_obj.get("manifest_sha256") or "",
                     lookup_latency_ms=event_obj.get("lookup_latency_ms"),
@@ -4857,6 +4878,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             selection_error = summary.get("selection_error_candidate_available", 0)
             coverage_gap = summary.get("coverage_gap_no_safe_image", 0)
             no_global = summary.get("quotes_with_no_globally_allowed_candidate", 0)
+            incomplete_global = summary.get("quotes_with_incomplete_pair_coverage", 0)
+            adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
+            not_adjudicated = summary.get("not_adjudicated_selections", 0)
             median_delta = summary.get("median_alternative_score_delta")
             version = summary.get("manifest_policy_version", "unavailable")
             manifest_hash = summary.get("manifest_sha256") or ""
@@ -4880,6 +4904,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             selection_error = summary.get("selection_error_candidate_available", with_alternative)
             coverage_gap = summary.get("coverage_gap_no_safe_image", 0)
             no_global = summary.get("quotes_with_no_globally_allowed_candidate", 0)
+            incomplete_global = summary.get("quotes_with_incomplete_pair_coverage", 0)
+            adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
+            not_adjudicated = summary.get("not_adjudicated_selections", 0)
             median_delta = summary.get("alternative_score_delta_median")
             version = summary.get("manifest_policy_version", "unavailable")
             manifest_hash = summary.get("manifest_sha256") or ""
@@ -4890,6 +4917,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(f"  - alternative available: **{selection_error}**")
         out.append(f"  - no safe image exists: **{coverage_gap}**")
         out.append(f"- Unknown: **{unknown}**")
+        out.append(
+            f"  - adjudicated unknown: **{adjudicated_unknown}**; "
+            f"not adjudicated/missing: **{not_adjudicated}**"
+        )
         out.append(f"- Generated out of scope: **{generated}**")
         out.append(
             f"In-scope historical selections: **{in_scope}**; vetoed with/without an allowed "
@@ -4909,6 +4940,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append("")
         out.append("Coverage gaps:")
         out.append(f"- quotations with no safe historical image: **{no_global}**")
+        out.append(
+            f"- observed quotations with incomplete manifest coverage: **{incomplete_global}**"
+        )
         examples = veto_window.get("examples") or []
         if examples:
             out.append("")
@@ -4926,31 +4960,28 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 ]))
     out.append("")
 
-    hybrid_shadow = report.get("hybrid_retrieval_shadow") or {}
-    out.append("## Hybrid retrieval shadow")
-    if not hybrid_shadow.get("available"):
-        out.append(f"Unavailable: **{hybrid_shadow.get('reason') or 'shadow mode disabled'}**.")
+    lifecycle = report.get("shadow_feature_lifecycle") or {}
+    out.append("## Shadow feature lifecycle")
+    if not lifecycle.get("available"):
+        out.append(f"Unavailable: **{lifecycle.get('reason') or 'invalid lifecycle register'}**.")
     else:
-        overlap = hybrid_shadow.get("top_5_overlap_percent")
         out.append(
-            f"Events: **{hybrid_shadow.get('events', 0)}**; completed: **{hybrid_shadow.get('completed', 0)}**; "
-            f"failures: **{hybrid_shadow.get('failures', 0)}**; lexical/hybrid top-5 overlap: "
-            f"**{f'{float(overlap):.1f}%' if overlap is not None else 'unavailable'}**."
+            "; ".join(
+                f"**{feature.get('feature_name')}**=`{feature.get('current_state')}`"
+                for feature in lifecycle.get("features", [])
+            )
+            + "."
         )
-        out.append(
-            f"Changed evidence sets: **{hybrid_shadow.get('hybrid_changed_evidence_set', 0)}**; "
-            f"hybrid-only: **{hybrid_shadow.get('hybrid_only_evidence', 0)}**; "
-            f"lexical-only: **{hybrid_shadow.get('lexical_only_evidence', 0)}**; "
-            f"no-evidence disagreements: **{hybrid_shadow.get('no_evidence_disagreements', 0)}**."
-        )
-        out.append(
-            "Latency p50/p95/max: "
-            f"**{hybrid_shadow.get('latency_p50_ms', 'unavailable')} / "
-            f"{hybrid_shadow.get('latency_p95_ms', 'unavailable')} / "
-            f"{hybrid_shadow.get('latency_max_ms', 'unavailable')} ms**; "
-            f"index/model: **{hybrid_shadow.get('index_version', 'unavailable')} / "
-            f"{hybrid_shadow.get('model_revision', 'unavailable')}**."
-        )
+        overdue = lifecycle.get("overdue_decisions") or []
+        if overdue:
+            out.append(
+                "Overdue lifecycle decisions: **"
+                + ", ".join(
+                    f"{row.get('feature_name')} ({row.get('next_decision_date')})"
+                    for row in overdue
+                )
+                + "**."
+            )
     out.append("")
 
     strategy = report.get("reply_strategy") or {}
@@ -5565,7 +5596,7 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "reason": f"analytics summary unavailable: {type(exc).__name__}",
             "tracked_post_pairs": 0,
         }
-    report["hybrid_retrieval_shadow"] = hybrid_retrieval_shadow_snapshot(project_dir)
+    report["shadow_feature_lifecycle"] = shadow_lifecycle_snapshot(project_dir)
     veto_section = report.setdefault("quote_image_semantic_veto_shadow", {"events": [], "summary": {}})
     veto_section["runtime_summary"] = quote_image_semantic_veto_shadow_snapshot(project_dir)
 

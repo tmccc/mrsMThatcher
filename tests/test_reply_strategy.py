@@ -336,17 +336,13 @@ def test_burnham_failure_is_rejected_through_production_reply_call_path(
             **bot.reply_strategy,
             "enabled": True,
             "research_corpus_enabled": True,
-            "hybrid_retrieval": {
-                **bot.reply_strategy["hybrid_retrieval"],
-                "enabled": False,
-            },
         },
     )
 
     outcome: dict[str, str] = {}
     result = bot.ask_grok_for_reply(
         "Parent post: She left office 36 years ago.\n\nIncoming post: " + BURNHAM_FAILURE_TEXT,
-        shadow_incoming_text=BURNHAM_FAILURE_TEXT,
+        incoming_contribution_text=BURNHAM_FAILURE_TEXT,
         direct_question_text=BURNHAM_FAILURE_TEXT,
         evaluation_outcome=outcome,
     )

@@ -52,6 +52,7 @@ TZ = ZoneInfo(TZ_NAME)
 EXPECTED_COMPLETED = 626
 EXPECTED_UNRESOLVED = 6
 EXPECTED_ATTRIBUTION_EXCLUDED = 16
+EXPECTED_ATTRIBUTION_ACTIVE = 610
 EXPECTED_ACTIVE = 610
 DEFAULT_YEARS = (2026, 2028, 2029)
 SELECTION_CONFIG_KEYS = (
@@ -95,7 +96,7 @@ IMMUTABLE_SOURCES = (
     "semantic_alignment_research/quote_research_full_001/research_packets.json",
     "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json",
     "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/attribution_exclusion_tombstones.json",
-    "semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json",
+    "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json",
 )
 
 
@@ -357,7 +358,7 @@ def effective_selection_config() -> tuple[dict[str, Any], dict[str, Any]]:
 
 
 def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
-    """Return whether write eligible quotes."""
+    """Write the attribution-eligible regular-post source subset."""
     packets = json.loads((snapshot / "research_packets.json").read_text(encoding="utf-8"))
     status = json.loads((snapshot / "final_research_status.json").read_text(encoding="utf-8"))
     items = packets.get("items") if isinstance(packets, dict) else None
@@ -369,6 +370,7 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
     source_lines = (snapshot / "mrsMThatcher.txt").read_text(encoding="utf-8").splitlines()
     selected: list[str] = []
     seen: set[str] = set()
+    attribution_seen: set[str] = set()
     for raw in source_lines:
         text = raw.rstrip()
         if not text:
@@ -380,9 +382,10 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
                 raise HarnessError(f"immutable quote identity mismatch: {quote_id}")
             if not packet_is_attributed_to_margaret_thatcher(packet):
                 continue
+            attribution_seen.add(quote_id)
             selected.append(text)
             seen.add(quote_id)
-    missing_completed = set(items).difference(seen)
+    missing_completed = set(items).difference(attribution_seen)
     tombstone_path = snapshot / "attribution_exclusion_tombstones.json"
     if not tombstone_path.is_file():
         tombstone_path = ROOT / "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/attribution_exclusion_tombstones.json"
@@ -393,6 +396,10 @@ def write_eligible_quotes(snapshot: Path) -> tuple[list[str], set[str]]:
     if len(excluded) != 13 or not excluded <= missing_completed or len(missing_completed) != EXPECTED_ATTRIBUTION_EXCLUDED:
         raise HarnessError(
             "active source attribution exclusions do not reconcile to 13 historical tombstones plus three corrected records"
+        )
+    if len(attribution_seen) != EXPECTED_ATTRIBUTION_ACTIVE:
+        raise HarnessError(
+            f"attribution-eligible active quote count must be {EXPECTED_ATTRIBUTION_ACTIVE}"
         )
     if len(selected) != EXPECTED_ACTIVE:
         raise HarnessError(f"eligible active quote count must be {EXPECTED_ACTIVE}")
@@ -439,7 +446,7 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
         "semantic_alignment_research/quote_research_full_001/research_packets.json": "research_packets.json",
         "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": "final_research_status.json",
         "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/attribution_exclusion_tombstones.json": "attribution_exclusion_tombstones.json",
-        "semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json": "material_veto_v2_shadow_manifest.json",
+        "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/material_veto_v3_shadow_manifest.json": "material_veto_v3_shadow_manifest.json",
         "semantic_alignment/quote_image_semantic_veto.py": "code/semantic_alignment_quote_image_semantic_veto.py",
     }
     for relative in IMMUTABLE_SOURCES:
@@ -485,8 +492,8 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
         records[f"logs/{source.name}"]["mutable_source"] = True
 
     eligible, unresolved = write_eligible_quotes(snapshot)
-    veto = json.loads((snapshot / "material_veto_v2_shadow_manifest.json").read_text(encoding="utf-8"))
-    expected_veto = (626, 91, 5862, 5453, 409)
+    veto = json.loads((snapshot / "material_veto_v3_shadow_manifest.json").read_text(encoding="utf-8"))
+    expected_veto = (610, 91, 22_066, 21_938, 128)
     actual_veto = tuple(veto.get(key) for key in ("quote_count", "image_count", "pair_count", "allow_count", "veto_count"))
     if actual_veto != expected_veto:
         raise HarnessError(f"corrected semantic-veto manifest counts differ: {actual_veto}")
@@ -499,11 +506,12 @@ def source_snapshot(run_dir: Path) -> dict[str, Any]:
         "files": records,
         "completed_quote_count": len(eligible),
         "historical_completed_packet_count": EXPECTED_COMPLETED,
+        "attribution_eligible_quote_count": EXPECTED_ATTRIBUTION_ACTIVE,
         "attribution_excluded_count": EXPECTED_ATTRIBUTION_EXCLUDED,
         "unresolved_quote_count": len(unresolved),
         "unresolved_quote_ids": sorted(unresolved),
         "eligible_quote_id_set_sha256": hashlib.sha256(
-            "\n".join(sorted(json.loads((snapshot / "research_packets.json").read_text())["items"])).encode()
+            "\n".join(sorted(hashlib.sha256(text.encode("utf-8")).hexdigest() for text in eligible)).encode()
         ).hexdigest(),
         "veto_manifest_counts": dict(zip(("quote_count", "image_count", "pair_count", "allow_count", "veto_count"), actual_veto)),
         "stable_read_protocol": "stat/read/stat plus matching two-pass group snapshot for mutable state",
@@ -879,13 +887,13 @@ def load_context(run_dir: Path) -> HarnessContext:
     config = {
         "enabled": True,
         "mode": "shadow",
-        "manifest_path": str(snapshot / "material_veto_v2_shadow_manifest.json"),
+        "manifest_path": str(snapshot / "material_veto_v3_shadow_manifest.json"),
         "fail_open": True,
         "record_best_allowed_alternative": True,
         "maximum_shadow_history": 100,
     }
     veto = ShadowRuntime.load(snapshot, config, verify_source_hashes=False, enable_history=False)
-    if not veto.available or len(veto.pairs or {}) != 5862:
+    if not veto.available or len(veto.pairs or {}) != 22_066:
         raise HarnessError(f"corrected semantic-veto manifest unavailable: {veto.reason}")
     packets = json.loads((snapshot / "research_packets.json").read_text(encoding="utf-8"))["items"]
     lines = (snapshot / "eligible_quotes.txt").read_text(encoding="utf-8").splitlines()
@@ -1898,7 +1906,7 @@ def stress_boundaries(ctx: HarnessContext) -> dict[str, Any]:
 def snapshot_replay_manifest_sources(ctx: HarnessContext, replay_root: Path) -> dict[str, Any]:
     """Stable-copy the compiled manifest's hashed dependencies into the private replay root."""
     manifest = json.loads(
-        (ctx.snapshot / "material_veto_v2_shadow_manifest.json").read_text(encoding="utf-8")
+        (ctx.snapshot / "material_veto_v3_shadow_manifest.json").read_text(encoding="utf-8")
     )
     records: dict[str, dict[str, Any]] = {}
     for source_key, source_record in sorted((manifest.get("source_file_hashes") or {}).items()):
@@ -1924,7 +1932,7 @@ def snapshot_replay_manifest_sources(ctx: HarnessContext, replay_root: Path) -> 
     payload = {
         "schema_version": 1,
         "generated_at": utc_now(),
-        "source_manifest_sha256": sha256_file(ctx.snapshot / "material_veto_v2_shadow_manifest.json"),
+        "source_manifest_sha256": sha256_file(ctx.snapshot / "material_veto_v3_shadow_manifest.json"),
         "records": records,
     }
     atomic_write_json(ctx.run_dir / "replay_source_snapshot_manifest.json", payload)
@@ -1945,7 +1953,7 @@ def historical_replay(ctx: HarnessContext, since_days: int) -> dict[str, Any]:
     snapshot_replay_manifest_sources(ctx, replay_root)
     payload = veto_replay(
         replay_root,
-        ctx.snapshot / "material_veto_v2_shadow_manifest.json",
+        ctx.snapshot / "material_veto_v3_shadow_manifest.json",
         since_days=since_days,
     )
     records = replay_records(payload)
@@ -2507,12 +2515,24 @@ def generate_reports(run_dir: Path) -> dict[str, Any]:
     total = sum(summary["total_simulations"] for summary in mode_summaries.values())
     runtime_resources = runtime_resource_summary(run_rows)
     veto_manifest = json.loads(
-        (run_dir / SNAPSHOT_DIRNAME / "material_veto_v2_shadow_manifest.json").read_text(encoding="utf-8")
+        (run_dir / SNAPSHOT_DIRNAME / "material_veto_v3_shadow_manifest.json").read_text(encoding="utf-8")
     )
     global_veto_coverage = {
         "quotes_with_allowed_candidate": int(veto_manifest["quotes_with_allowed_candidate"]),
         "quotes_without_allowed_candidate": int(veto_manifest["quotes_without_allowed_candidate"]),
         "quotes_without_allowed_candidate_ids": list(veto_manifest["quotes_without_allowed_candidate_ids"]),
+        "quotes_with_incomplete_pair_coverage": int(
+            veto_manifest.get("quotes_with_incomplete_pair_coverage", 0)
+        ),
+        "quotes_with_incomplete_pair_coverage_ids": list(
+            veto_manifest.get("quotes_with_incomplete_pair_coverage_ids") or []
+        ),
+        "adjudicated_unknown_pair_count": int(
+            veto_manifest.get("adjudicated_unknown_pair_count", 0)
+        ),
+        "not_adjudicated_pair_count": int(
+            veto_manifest.get("not_adjudicated_pair_count", 0)
+        ),
     }
     calendar_map = json.loads((run_dir / "seasonal_calendar_map.json").read_text(encoding="utf-8"))
     calendar_summary = seasonal_calendar_summary(calendar_map)
@@ -2631,7 +2651,8 @@ def generate_reports(run_dir: Path) -> dict[str, Any]:
         "## Results", "", f"Total simulations: {total}", "",
         f"Seasonal signatures: {calendar_summary['unique_state_count']} across years "
         f"{', '.join(str(year) for year in calendar_summary['years'])}",
-        f"Global semantic-veto coverage gaps: {global_veto_coverage['quotes_without_allowed_candidate']} quotations", "",
+        f"Complete all-veto semantic conclusions: {global_veto_coverage['quotes_without_allowed_candidate']} quotations",
+        f"Incomplete semantic pair coverage: {global_veto_coverage['quotes_with_incomplete_pair_coverage']} quotations", "",
         f"Corrected isolated-run audit: {correction.get('reason') if correction else 'none required'}", "",
     ]
     for mode, summary in mode_summaries.items():

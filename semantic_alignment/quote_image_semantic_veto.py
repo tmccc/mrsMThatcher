@@ -24,7 +24,7 @@ from .io import atomic_write_json, atomic_write_text, sha256_file
 SCHEMA_VERSION = 1
 POLICY_VERSION = "material-veto-v2-postrun-corrected-shadow-v1"
 ATTRIBUTION_CLEANED_V3_POLICY_VERSION = (
-    "affirmative-material-contradiction-rules-v3-runtime-eligible-610"
+    "affirmative-material-contradiction-rules-v3-runtime-eligible-610-coverage-v2"
 )
 ATTRIBUTION_ELIGIBILITY_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 DEFAULT_MANIFEST = (
@@ -457,26 +457,39 @@ def _validate_attribution_cleaned_v3_manifest(
         "allow_count": 21_938,
         "veto_count": 128,
         "quotes_with_allowed_candidate": 609,
-        "quotes_without_allowed_candidate": 1,
+        "quotes_without_allowed_candidate": 0,
         "unknown_pair_count_excluded_from_lookup": 167,
+        "adjudicated_unknown_pair_count": 167,
+        "not_adjudicated_pair_count": 33_277,
+        "total_authorised_pair_count": 55_510,
+        "resolved_pair_count": 22_066,
+        "quotes_with_incomplete_pair_coverage": 610,
+        "quotes_without_observed_allow_but_incomplete": 1,
     }
     for key, expected in exact.items():
         _expect(value.get(key) == expected, f"v3 manifest {key} mismatch")
     _expect(value.get("live_production_enabled") is False, "manifest incorrectly marks live enforcement")
 
+    image_hashes = set(value.get("image_hashes") or [])
+    _expect(
+        len(image_hashes) == exact["image_count"]
+        and all(HEX64.fullmatch(str(image_hash)) is not None for image_hash in image_hashes),
+        "v3 authorised image set is invalid",
+    )
     pairs = value.get("pairs")
     _expect(isinstance(pairs, dict) and len(pairs) == exact["pair_count"], "v3 pair index is incomplete")
     counts: Counter[str] = Counter()
     pair_ids: set[str] = set()
     quote_ids: set[str] = set()
-    image_hashes: set[str] = set()
+    observed_image_hashes: set[str] = set()
+    coverage_counts: dict[str, Counter[str]] = {}
     for key, row in pairs.items():
         _expect(isinstance(row, dict), f"v3 manifest pair {key} is not an object")
         quote_id = str(row.get("quote_id") or "")
         image_hash = str(row.get("image_hash") or "")
         _expect(key == f"{quote_id}:{image_hash}", f"v3 manifest key mismatch {key}")
         _expect(HEX64.fullmatch(quote_id) is not None, f"invalid v3 quote ID {quote_id}")
-        _expect(HEX64.fullmatch(image_hash) is not None, f"invalid v3 image hash {image_hash}")
+        _expect(image_hash in image_hashes, f"unauthorised v3 image hash {image_hash}")
         decision = str(row.get("decision") or "")
         _expect(decision in {"allow", "veto"}, f"unknown v3 pair verdict {decision!r}")
         _expect(decision != "veto" or bool(row.get("veto_reason_codes")), f"v3 veto {key} lacks reason")
@@ -484,16 +497,90 @@ def _validate_attribution_cleaned_v3_manifest(
         _expect(HEX64.fullmatch(pair_id) is not None and pair_id not in pair_ids, f"duplicate/invalid v3 source pair ID {pair_id}")
         pair_ids.add(pair_id)
         quote_ids.add(quote_id)
-        image_hashes.add(image_hash)
+        observed_image_hashes.add(image_hash)
         counts[decision] += 1
+        coverage_counts.setdefault(quote_id, Counter())[decision] += 1
+
+    unknown_pairs = value.get("adjudicated_unknown_pairs")
+    _expect(
+        isinstance(unknown_pairs, dict)
+        and len(unknown_pairs) == exact["adjudicated_unknown_pair_count"],
+        "v3 adjudicated-unknown pair index mismatch",
+    )
+    _expect(not (set(pairs) & set(unknown_pairs)), "v3 resolved and unknown pair indexes overlap")
+    for key, row in unknown_pairs.items():
+        _expect(isinstance(row, dict), f"v3 unknown pair {key} is not an object")
+        quote_id = str(row.get("quote_id") or "")
+        image_hash = str(row.get("image_hash") or "")
+        _expect(key == f"{quote_id}:{image_hash}", f"v3 unknown pair key mismatch {key}")
+        _expect(HEX64.fullmatch(quote_id) is not None, f"invalid v3 unknown quote ID {quote_id}")
+        _expect(image_hash in image_hashes, f"unauthorised v3 unknown image hash {image_hash}")
+        _expect(
+            row.get("adjudication_status") == "unknown",
+            f"v3 unknown pair {key} has the wrong adjudication status",
+        )
+        pair_id = str(row.get("source_pair_id") or "")
+        _expect(
+            HEX64.fullmatch(pair_id) is not None and pair_id not in pair_ids,
+            f"duplicate/invalid v3 unknown source pair ID {pair_id}",
+        )
+        pair_ids.add(pair_id)
+        quote_ids.add(quote_id)
+        observed_image_hashes.add(image_hash)
+        coverage_counts.setdefault(quote_id, Counter())["unknown"] += 1
 
     _expect(counts == {"allow": 21_938, "veto": 128}, "v3 manifest decision totals mismatch")
     _expect(len(quote_ids) == 610, "v3 manifest quotation coverage mismatch")
-    _expect(len(image_hashes) == 91, "v3 manifest authorised image set mismatch")
+    _expect(observed_image_hashes == image_hashes, "v3 manifest does not exercise every authorised image")
     flags = value.get("quote_has_allowed_candidate")
     _expect(isinstance(flags, dict) and set(flags) == quote_ids, "v3 global quote safety flags are incomplete")
     _expect(sum(flag is True for flag in flags.values()) == 609, "v3 global quote safety flag totals mismatch")
-    _expect(sum(flag is False for flag in flags.values()) == 1, "v3 no-safe-image flag total mismatch")
+    _expect(sum(flag is False for flag in flags.values()) == 0, "v3 no-safe-image flag total mismatch")
+    _expect(sum(flag is None for flag in flags.values()) == 1, "v3 incomplete-without-allow flag total mismatch")
+
+    coverage = value.get("quote_pair_coverage")
+    _expect(isinstance(coverage, dict) and set(coverage) == quote_ids, "v3 pair coverage index is incomplete")
+    missing_total = 0
+    for quote_id in sorted(quote_ids):
+        row = coverage.get(quote_id)
+        _expect(isinstance(row, dict), f"v3 pair coverage is invalid for {quote_id}")
+        observed = coverage_counts.get(quote_id, Counter())
+        allow_count = observed["allow"]
+        veto_count = observed["veto"]
+        unknown_count = observed["unknown"]
+        missing_count = len(image_hashes) - allow_count - veto_count - unknown_count
+        expected_row = {
+            "authorised_image_count": len(image_hashes),
+            "allow_count": allow_count,
+            "veto_count": veto_count,
+            "adjudicated_unknown_count": unknown_count,
+            "not_adjudicated_count": missing_count,
+            "observed_pair_count": allow_count + veto_count + unknown_count,
+            "resolved_pair_count": allow_count + veto_count,
+            "complete_pair_coverage": missing_count == 0,
+            "fully_resolved_pair_coverage": missing_count == 0 and unknown_count == 0,
+            "global_no_safe_image": (
+                missing_count == 0 and unknown_count == 0 and allow_count == 0
+            ),
+        }
+        _expect(row == expected_row, f"v3 pair coverage counts mismatch for {quote_id}")
+        expected_flag = (
+            True if allow_count else
+            False if expected_row["global_no_safe_image"] else
+            None
+        )
+        _expect(flags[quote_id] is expected_flag, f"v3 global safety flag is invalid for {quote_id}")
+        missing_total += missing_count
+    _expect(missing_total == exact["not_adjudicated_pair_count"], "v3 missing pair total mismatch")
+    _expect(
+        value.get("quotes_without_allowed_candidate_ids") == [],
+        "v3 no-safe-image IDs must be empty without complete all-veto coverage",
+    )
+    incomplete_ids = value.get("quotes_with_incomplete_pair_coverage_ids")
+    _expect(
+        isinstance(incomplete_ids, list) and set(incomplete_ids) == quote_ids,
+        "v3 incomplete pair coverage IDs mismatch",
+    )
     aliases = value.get("runtime_quote_aliases") or {}
     _expect(isinstance(aliases, dict) and len(aliases) == 5, "v3 runtime quote aliases mismatch")
     runtime_quote_ids = value.get("runtime_eligible_quote_ids")
@@ -536,7 +623,11 @@ def _validate_attribution_cleaned_v3_manifest(
         "pair_count": len(pairs),
         "allow_count": counts["allow"],
         "veto_count": counts["veto"],
-        "source_pair_ids_unique": len(pair_ids) == len(pairs),
+        "adjudicated_unknown_pair_count": len(unknown_pairs),
+        "not_adjudicated_pair_count": missing_total,
+        "quotes_with_incomplete_pair_coverage": len(incomplete_ids),
+        "quotes_without_allowed_candidate": 0,
+        "source_pair_ids_unique": len(pair_ids) == len(pairs) + len(unknown_pairs),
         "strict": bool(strict),
     }
 
@@ -684,8 +775,10 @@ class ShadowRuntime:
     manifest_sha256: str = ""
     policy_version: str = ""
     pairs: dict[str, dict[str, Any]] | None = None
+    adjudicated_unknown_pairs: dict[str, dict[str, Any]] | None = None
     quote_aliases: dict[str, str] | None = None
-    quote_flags: dict[str, bool] | None = None
+    quote_flags: dict[str, bool | None] | None = None
+    quote_coverage: dict[str, dict[str, Any]] | None = None
     quote_text: dict[str, str] | None = None
     reason: str = ""
     status: str = "manifest_unavailable"
@@ -751,14 +844,25 @@ class ShadowRuntime:
                         status="manifest_stale",
                         load_time_ms=(time.perf_counter() - started) * 1000,
                     )
+            coverage = manifest.get("quote_pair_coverage") or {}
+            quote_flags = dict(manifest["quote_has_allowed_candidate"])
+            for quote_id, flag in tuple(quote_flags.items()):
+                coverage_row = coverage.get(quote_id)
+                if flag is False and not (
+                    isinstance(coverage_row, dict)
+                    and coverage_row.get("global_no_safe_image") is True
+                ):
+                    quote_flags[quote_id] = None
             runtime = cls(
                 True,
                 path,
                 manifest_sha256=sha256_file(path),
                 policy_version=str(manifest["policy_version"]),
                 pairs=manifest["pairs"],
+                adjudicated_unknown_pairs=manifest.get("adjudicated_unknown_pairs") or {},
                 quote_aliases=manifest.get("runtime_quote_aliases") or {},
-                quote_flags=manifest["quote_has_allowed_candidate"],
+                quote_flags=quote_flags,
+                quote_coverage=coverage,
                 quote_text=manifest.get("quote_text") or {},
                 status="allow",
                 load_time_ms=(time.perf_counter() - started) * 1000,
@@ -766,8 +870,10 @@ class ShadowRuntime:
             )
             runtime.memory_bytes = _deep_size({
                 "pairs": runtime.pairs,
+                "unknown_pairs": runtime.adjudicated_unknown_pairs,
                 "aliases": runtime.quote_aliases,
                 "flags": runtime.quote_flags,
+                "coverage": runtime.quote_coverage,
             })
             if enable_history:
                 runtime.writer = ShadowHistoryWriter(
@@ -792,6 +898,19 @@ class ShadowRuntime:
         """Return the pair."""
         return (self.pairs or {}).get(f"{quote_id}:{str(image_hash or '').lower()}")
 
+    def pair_adjudication(
+        self, quote_id: str, image_hash: str
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Return resolved, adjudicated-unknown, or missing status for one pair."""
+        key = f"{quote_id}:{str(image_hash or '').lower()}"
+        resolved = (self.pairs or {}).get(key)
+        if resolved is not None:
+            return str(resolved.get("decision") or ""), resolved
+        unknown = (self.adjudicated_unknown_pairs or {}).get(key)
+        if unknown is not None:
+            return "adjudicated_unknown", unknown
+        return "not_adjudicated_missing", None
+
     def evaluate(
         self,
         *,
@@ -808,22 +927,38 @@ class ShadowRuntime:
         selected_hash = str(selected.get("image_hash") or "").lower()
         selected_score = float(selected.get("score") or 0.0)
         selected_pair: dict[str, Any] | None = None
+        selected_adjudication = "not_adjudicated_missing"
         if not self.available:
             status = self.status
+            selected_adjudication = self.status
         elif source == "generated":
             status = "out_of_scope_generated"
+            selected_adjudication = "out_of_scope_generated"
         else:
-            selected_pair = self.pair(quote_id, selected_hash)
-            status = str(selected_pair.get("decision")) if selected_pair else "unknown_unjudged"
+            selected_adjudication, selected_pair = self.pair_adjudication(
+                quote_id, selected_hash
+            )
+            status = (
+                selected_adjudication
+                if selected_adjudication in {"allow", "veto"}
+                else "unknown_unjudged"
+            )
 
-        classified: list[tuple[dict[str, Any], str, dict[str, Any] | None]] = []
+        classified: list[tuple[dict[str, Any], str, str, dict[str, Any] | None]] = []
         for candidate in candidates:
             candidate_source = str(candidate.get("image_source") or "original")
             if candidate_source == "generated":
-                classified.append((candidate, "out_of_scope_generated", None))
+                classified.append(
+                    (candidate, "out_of_scope_generated", "out_of_scope_generated", None)
+                )
                 continue
-            row = self.pair(quote_id, str(candidate.get("image_hash") or "")) if self.available else None
-            classified.append((candidate, str(row.get("decision")) if row else "unknown_unjudged", row))
+            adjudication, row = (
+                self.pair_adjudication(quote_id, str(candidate.get("image_hash") or ""))
+                if self.available else
+                (self.status, None)
+            )
+            candidate_status = adjudication if adjudication in {"allow", "veto"} else "unknown_unjudged"
+            classified.append((candidate, candidate_status, adjudication, row))
         allowed = [item for item in classified if item[1] == "allow"]
         alternative = None
         if status == "veto" and self.record_alternative and allowed:
@@ -838,6 +973,7 @@ class ShadowRuntime:
             else:
                 alternative = min(tied, key=lambda item: str(item.get("basename") or ""))
         quote_flag = (self.quote_flags or {}).get(quote_id)
+        quote_coverage = (self.quote_coverage or {}).get(quote_id) or {}
         veto_category = classify_veto_category(
             status,
             alternative_available=alternative is not None,
@@ -868,15 +1004,37 @@ class ShadowRuntime:
             "alternative_reason": (
                 None if alternative else
                 "quote_has_no_allowed_candidate_globally" if quote_flag is False else
+                "quote_pair_coverage_incomplete" if status == "veto" and quote_flag is None else
                 "no_allowed_alternative_in_current_candidate_set" if status == "veto" else None
             ),
             "eligible_candidate_count": len(candidates),
             "allowed_candidate_count": sum(item[1] == "allow" for item in classified),
             "vetoed_candidate_count": sum(item[1] == "veto" for item in classified),
             "unknown_candidate_count": sum(item[1] == "unknown_unjudged" for item in classified),
+            "adjudicated_unknown_candidate_count": sum(
+                item[2] == "adjudicated_unknown" for item in classified
+            ),
+            "not_adjudicated_candidate_count": sum(
+                item[2] == "not_adjudicated_missing" for item in classified
+            ),
             "out_of_scope_candidate_count": sum(item[1] == "out_of_scope_generated" for item in classified),
+            "selected_pair_adjudication_status": selected_adjudication,
             "quote_has_allowed_candidate_globally": quote_flag is True,
             "quote_has_no_allowed_candidate_globally": quote_flag is False,
+            "quote_has_incomplete_pair_coverage": not bool(
+                quote_coverage.get("complete_pair_coverage")
+            ),
+            "quote_pair_fully_resolved": bool(
+                quote_coverage.get("fully_resolved_pair_coverage")
+            ),
+            "quote_pair_allow_count": quote_coverage.get("allow_count"),
+            "quote_pair_veto_count": quote_coverage.get("veto_count"),
+            "quote_pair_adjudicated_unknown_count": quote_coverage.get(
+                "adjudicated_unknown_count"
+            ),
+            "quote_pair_not_adjudicated_count": quote_coverage.get(
+                "not_adjudicated_count"
+            ),
             "manifest_policy_version": self.policy_version,
             "manifest_sha256": self.manifest_sha256,
             "lookup_latency_ms": round(latency, 6),
@@ -919,6 +1077,7 @@ def _summarise_event_subset(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
             alternative_available=row.get("alternative_available") is True,
             quote_has_no_allowed_candidate_globally=(
                 row.get("quote_has_no_allowed_candidate_globally") is True
+                and row.get("quote_pair_fully_resolved") is True
             ),
         )
         for row in veto_rows
@@ -926,7 +1085,14 @@ def _summarise_event_subset(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
     no_safe_quote_ids = {
         str(row.get("quote_id"))
         for row in events
-        if row.get("quote_has_no_allowed_candidate_globally") is True and row.get("quote_id")
+        if row.get("quote_has_no_allowed_candidate_globally") is True
+        and row.get("quote_pair_fully_resolved") is True
+        and row.get("quote_id")
+    }
+    incomplete_quote_ids = {
+        str(row.get("quote_id"))
+        for row in events
+        if row.get("quote_has_incomplete_pair_coverage") is True and row.get("quote_id")
     }
     return {
         "events": len(events),
@@ -942,6 +1108,15 @@ def _summarise_event_subset(events: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "selection_error_candidate_available": categories["selection_error_candidate_available"],
         "coverage_gap_no_safe_image": categories["coverage_gap_no_safe_image"],
         "quotes_with_no_globally_allowed_candidate": len(no_safe_quote_ids),
+        "quotes_with_incomplete_pair_coverage": len(incomplete_quote_ids),
+        "adjudicated_unknown_selections": sum(
+            row.get("selected_pair_adjudication_status") == "adjudicated_unknown"
+            for row in events
+        ),
+        "not_adjudicated_selections": sum(
+            row.get("selected_pair_adjudication_status") == "not_adjudicated_missing"
+            for row in events
+        ),
         "veto_reason_counts": dict(reasons.most_common()),
         "alternative_score_delta_median": statistics.median(deltas) if deltas else None,
         "alternative_score_delta_min": min(deltas) if deltas else None,
@@ -1086,9 +1261,16 @@ def historical_replay(project_dir: Path, manifest_path: Path, *, since_days: int
         if source == "generated":
             status = "out_of_scope_generated"
             row = None
+            pair_adjudication = "out_of_scope_generated"
         else:
-            row = runtime.pair(runtime.canonical_quote_id(quote_hash), image_hash)
-            status = str(row.get("decision")) if row else "unknown_unjudged"
+            pair_adjudication, row = runtime.pair_adjudication(
+                runtime.canonical_quote_id(quote_hash), image_hash
+            )
+            status = (
+                pair_adjudication
+                if pair_adjudication in {"allow", "veto"}
+                else "unknown_unjudged"
+            )
         alternative = None
         if status == "veto":
             replay_candidates = [(basename, score), *pending_candidates]
@@ -1107,11 +1289,15 @@ def historical_replay(project_dir: Path, manifest_path: Path, *, since_days: int
         quote_has_no_allowed_candidate_globally = (
             (runtime.quote_flags or {}).get(runtime.canonical_quote_id(quote_hash)) is False
         )
+        quote_coverage = (runtime.quote_coverage or {}).get(
+            runtime.canonical_quote_id(quote_hash)
+        ) or {}
         observed.append({
             "time": ts.isoformat(), "post_id": str(event.get("post_id") or ""),
             "quote_id": runtime.canonical_quote_id(quote_hash), "quote_hash": quote_hash,
             "image_basename": basename, "image_hash": image_hash, "image_source": source,
             "score": score, "shadow_status": status,
+            "selected_pair_adjudication_status": pair_adjudication,
             "veto_category": classify_veto_category(
                 status,
                 alternative_available=alternative is not None,
@@ -1125,6 +1311,18 @@ def historical_replay(project_dir: Path, manifest_path: Path, *, since_days: int
             "score_delta_from_production_winner": alternative[1] - score if alternative else None,
             "alternative_basis": "logged_top_candidates" if alternative else None,
             "quote_has_no_allowed_candidate_globally": quote_has_no_allowed_candidate_globally,
+            "quote_has_incomplete_pair_coverage": not bool(
+                quote_coverage.get("complete_pair_coverage")
+            ),
+            "quote_pair_fully_resolved": bool(
+                quote_coverage.get("fully_resolved_pair_coverage")
+            ),
+            "quote_pair_adjudicated_unknown_count": quote_coverage.get(
+                "adjudicated_unknown_count"
+            ),
+            "quote_pair_not_adjudicated_count": quote_coverage.get(
+                "not_adjudicated_count"
+            ),
             "manifest_policy_version": runtime.policy_version,
             "manifest_sha256": runtime.manifest_sha256,
             "production_selection_changed": False,

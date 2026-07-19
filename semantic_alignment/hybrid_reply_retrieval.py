@@ -1,9 +1,4 @@
-"""Offline semantic retrieval and fail-open conversational shadow evaluation.
-
-The production reply path deliberately consumes none of the values returned by
-this module.  Live integration is limited to :func:`submit_shadow_comparison`,
-which queues local work on a daemon thread and writes shadow telemetry.
-"""
+"""Offline lexical-versus-semantic retrieval indexing and benchmarking."""
 
 from __future__ import annotations
 
@@ -12,20 +7,18 @@ import html
 import json
 import math
 import os
-import queue
 import re
 import resource
 import shutil
 import sys
 import tempfile
-import threading
 import time
 import unicodedata
 import urllib.request
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Sequence
 
 import numpy as np
 
@@ -841,75 +834,6 @@ def make_shadow_result(
     }
 
 
-class ShadowHistoryWriter:
-    """Persist and manage shadow history records."""
-    def __init__(self, runtime_dir: Path, maximum_records: int):
-        """Initialise the shadow history writer."""
-        self.runtime_dir = runtime_dir
-        self.path = runtime_dir / "shadow_history.jsonl"
-        self.status_path = runtime_dir / "shadow_status.json"
-        self.maximum_records = max(100, int(maximum_records))
-        self.lock = threading.Lock()
-        runtime_dir.mkdir(parents=True, exist_ok=True)
-        initial: list[dict[str, Any]] = []
-        if self.path.is_file():
-            try:
-                initial = [
-                    json.loads(line)
-                    for line in self.path.read_text(encoding="utf-8").splitlines()
-                    if line.strip()
-                ]
-            except Exception:
-                initial = []
-        archive_rows: list[dict[str, Any]] = []
-        for archive in self.runtime_dir.glob("shadow_history.*.jsonl"):
-            try:
-                archive_rows.extend(
-                    json.loads(line)
-                    for line in archive.read_text(encoding="utf-8").splitlines()
-                    if line.strip()
-                )
-            except Exception:
-                continue
-        self.count = len(initial)
-        self.seen_event_ids = {
-            str(item.get("event_id")) for item in [*archive_rows, *initial]
-            if isinstance(item, dict) and item.get("event_id")
-        }
-
-    def append(self, record: dict[str, Any]) -> None:
-        """Append one event while enforcing the bounded shadow history."""
-        line = json.dumps(record, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
-        with self.lock:
-            event_id = str(record.get("event_id") or "")
-            if event_id and event_id in self.seen_event_ids:
-                return
-            if self.count >= self.maximum_records and self.path.exists():
-                timestamp = int(time.time())
-                archive = self.runtime_dir / f"shadow_history.{timestamp}.jsonl"
-                suffix = 1
-                while archive.exists():
-                    archive = self.runtime_dir / f"shadow_history.{timestamp}.{suffix}.jsonl"
-                    suffix += 1
-                os.replace(self.path, archive)
-                self.count = 0
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(line)
-                handle.flush()
-                os.fsync(handle.fileno())
-            self.count += 1
-            if event_id:
-                self.seen_event_ids.add(event_id)
-            summary = shadow_summary(read_shadow_records(self.runtime_dir, maximum=self.maximum_records))
-            summary.update({
-                "schema_version": 1,
-                "updated_at": utc_now(),
-                "active_history_records": self.count,
-                "runtime_dir": str(self.runtime_dir),
-            })
-            atomic_write_json(self.status_path, summary)
-
-
 def read_shadow_records(runtime_dir: Path, maximum: int = 5000) -> list[dict[str, Any]]:
     """Read shadow records."""
     path = runtime_dir / "shadow_history.jsonl"
@@ -991,259 +915,6 @@ def shadow_summary(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "status_counts": dict(sorted(Counter(str(record.get("status") or "unavailable") for record in records).items())),
         "disagreement_counts": dict(sorted(classes.items())),
     }
-
-
-class ShadowWorker:
-    """Single daemon worker; submission never waits for semantic retrieval."""
-
-    def __init__(
-        self,
-        *,
-        project_dir: Path,
-        retrieval_dir: Path,
-        research_run: Path,
-        timeout_ms: int,
-        maximum_history: int,
-        runtime_limits: dict[str, int] | None = None,
-        event_logger: Callable[..., None] | None = None,
-        retriever_factory: Callable[[], HybridRetriever] | None = None,
-    ):
-        """Initialise the shadow worker."""
-        self.project_dir = project_dir
-        self.retrieval_dir = retrieval_dir
-        self.research_run = research_run
-        self.timeout_ms = int(timeout_ms)
-        self.event_logger = event_logger
-        self.runtime_limits = dict(runtime_limits or {})
-        self.writer = ShadowHistoryWriter(project_dir / "hybrid_reply_retrieval_runtime", maximum_history)
-        self.retriever_factory = retriever_factory or (lambda: HybridRetriever(retrieval_dir, research_run))
-        self.retriever: HybridRetriever | None = None
-        self.jobs: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=64)
-        self.thread = threading.Thread(target=self._run, name="hybrid-retrieval-shadow", daemon=True)
-        self.thread.start()
-
-    def submit(self, job: dict[str, Any]) -> bool:
-        """Submit one shadow retrieval job without blocking production."""
-        try:
-            self.jobs.put_nowait(job)
-            return True
-        except queue.Full:
-            # Shadow telemetry must never turn queue pressure into synchronous
-            # fsync/history work on the production reply thread.
-            return False
-
-    def drain(self, timeout: float = 10.0) -> bool:
-        """Return the drain."""
-        deadline = time.monotonic() + timeout
-        while self.jobs.unfinished_tasks and time.monotonic() < deadline:
-            time.sleep(0.01)
-        return self.jobs.unfinished_tasks == 0
-
-    def _failure_record(self, job: dict[str, Any], status: str, reason: str) -> dict[str, Any]:
-        return {
-            "schema_version": SHADOW_RESULT_SCHEMA_VERSION,
-            "event_id": job["event_id"],
-            "timestamp": utc_now(),
-            "lane": job["lane"],
-            "target_id": str(job["target_id"]),
-            "query_text_hash": build_query(job["incoming_text"], job.get("parent_context", ""), job.get("thread_context", ""))["query_text_hash"],
-            "query_language": query_language_hint(job["incoming_text"]),
-            "substantive_query": substantive_query(job["incoming_text"])[0],
-            "lexical_results": [],
-            "semantic_results": [],
-            "hybrid_results": [],
-            "production_lexical_quote_ids": [item.quote_id for item in job.get("production_lexical", [])],
-            "shadow_hybrid_quote_ids": [],
-            "top_5_overlap_count": 0,
-            "would_change_evidence_set": False,
-            "lexical_no_evidence": not job.get("production_lexical"),
-            "hybrid_no_evidence": True,
-            "disagreement_class": "shadow_unavailable",
-            "index_version": "unavailable",
-            "model_revision": MODEL_REVISION,
-            "latency_ms": 0.0,
-            "status": status,
-            "reason": reason[:300],
-        }
-
-    def _persist(self, record: dict[str, Any]) -> None:
-        try:
-            self.writer.append(record)
-            if self.event_logger:
-                self.event_logger(
-                    "hybrid_retrieval_shadow",
-                    lane=record.get("lane"),
-                    target_id=record.get("target_id"),
-                    status=record.get("status"),
-                    reason=record.get("reason"),
-                    top_5_overlap_count=record.get("top_5_overlap_count"),
-                    would_change_evidence_set=record.get("would_change_evidence_set"),
-                    disagreement_class=record.get("disagreement_class"),
-                    production_lexical_count=len(record.get("production_lexical_quote_ids", [])),
-                    shadow_hybrid_count=len(record.get("shadow_hybrid_quote_ids", [])),
-                    latency_ms=record.get("latency_ms"),
-                    index_version=record.get("index_version"),
-                    model_revision=record.get("model_revision"),
-                )
-        except Exception:
-            # Telemetry failure is deliberately unable to affect production.
-            return
-
-    def _run(self) -> None:
-        while True:
-            job = self.jobs.get()
-            try:
-                try:
-                    query = build_query(job["incoming_text"], job.get("parent_context", ""), job.get("thread_context", ""))
-                    if not query["substantive_query"]:
-                        try:
-                            manifest = json.loads((self.retrieval_dir / "index" / "index_manifest.json").read_text(encoding="utf-8"))
-                        except Exception:
-                            manifest = {"index_schema_version": "unavailable", "model_revision": MODEL_REVISION}
-                        result = {
-                            "query": query, "lexical": [], "semantic": [], "hybrid": [],
-                            "production_lexical_quote_ids": [item.quote_id for item in job.get("production_lexical", [])],
-                            "shadow_hybrid_quote_ids": [], "timings_ms": {"total": 0.0},
-                        }
-                        record = make_shadow_result(
-                            event_id=job["event_id"], lane=job["lane"], target_id=job["target_id"],
-                            result=result, manifest=manifest, status="completed", reason="no_substantive_query",
-                        )
-                        self._persist(record)
-                        continue
-                    model_load_ms = 0.0
-                    if self.retriever is None:
-                        load_started = time.perf_counter()
-                        self.retriever = self.retriever_factory()
-                        model_load_ms = (time.perf_counter() - load_started) * 1000
-                        if hasattr(self.retriever, "thresholds"):
-                            for key, value in self.runtime_limits.items():
-                                self.retriever.thresholds[key] = value
-                    started = time.perf_counter()
-                    result = self.retriever.retrieve(
-                        job["incoming_text"],
-                        parent_context=job.get("parent_context", ""),
-                        thread_context=job.get("thread_context", ""),
-                        production_lexical=job.get("production_lexical", []),
-                    )
-                    elapsed_ms = (time.perf_counter() - started) * 1000
-                    status = "completed" if elapsed_ms <= self.timeout_ms else "timeout"
-                    reason = "" if status == "completed" else f"local_shadow_timeout:{elapsed_ms:.1f}ms>{self.timeout_ms}ms"
-                    record = make_shadow_result(
-                        event_id=job["event_id"], lane=job["lane"], target_id=job["target_id"],
-                        result=result, manifest=self.retriever.manifest, status=status, reason=reason,
-                    )
-                    record["latency_ms"] = round(elapsed_ms, 3)
-                    record.setdefault("timings_ms", {})["lazy_model_index_load"] = round(model_load_ms, 3)
-                except RuntimeError as exc:
-                    message = str(exc)
-                    status = "index_mismatch" if "index" in message or "model mismatch" in message else "model_error"
-                    record = self._failure_record(job, status, message)
-                except Exception as exc:
-                    record = self._failure_record(job, "model_error", f"{type(exc).__name__}: {exc}")
-                self._persist(record)
-            finally:
-                self.jobs.task_done()
-
-
-_WORKERS: dict[tuple[str, str], ShadowWorker] = {}
-_WORKERS_LOCK = threading.Lock()
-
-
-def validate_shadow_config(value: Any) -> list[str]:
-    """Validate that semantic veto configuration is disabled or shadow-only."""
-    expected = {
-        "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
-        "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
-    }
-    if not isinstance(value, dict):
-        return ["reply_strategy.hybrid_retrieval must be an object"]
-    if set(value) != expected:
-        return ["reply_strategy.hybrid_retrieval fields mismatch"]
-    errors: list[str] = []
-    if type(value.get("enabled")) is not bool:
-        errors.append("reply_strategy.hybrid_retrieval.enabled must be boolean")
-    if value.get("mode") != "shadow":
-        errors.append("reply_strategy.hybrid_retrieval.mode must be shadow")
-    if not isinstance(value.get("index_path"), str) or not value["index_path"].strip():
-        errors.append("reply_strategy.hybrid_retrieval.index_path must be a non-empty string")
-    for key, low, high in (
-        ("maximum_results", 1, 5), ("semantic_candidate_count", 5, 100),
-        ("lexical_candidate_count", 5, 100), ("query_timeout_ms", 50, 10_000),
-        ("maximum_shadow_history", 100, 100_000),
-    ):
-        number = value.get(key)
-        if type(number) is not int or not low <= number <= high:
-            errors.append(f"reply_strategy.hybrid_retrieval.{key} must be an integer from {low} to {high}")
-    if value.get("fail_open") is not True:
-        errors.append("reply_strategy.hybrid_retrieval.fail_open must remain true")
-    return errors
-
-
-def submit_shadow_comparison(
-    *,
-    config: dict[str, Any],
-    project_dir: Path,
-    research_run: Path,
-    incoming_text: str,
-    parent_context: str,
-    thread_context: str,
-    lane: str,
-    target_id: str,
-    production_lexical: Sequence[RetrievedEvidence],
-    event_logger: Callable[..., None] | None = None,
-) -> None:
-    """Queue shadow work and intentionally return no retrieval value."""
-    try:
-        if not config.get("enabled") or config.get("mode") != "shadow":
-            return None
-        if validate_shadow_config(config):
-            return None
-        index_path = Path(str(config["index_path"]))
-        if not index_path.is_absolute():
-            index_path = project_dir / index_path
-        key = (str(project_dir.resolve()), str(index_path.resolve()))
-        with _WORKERS_LOCK:
-            worker = _WORKERS.get(key)
-            if worker is None:
-                worker = ShadowWorker(
-                    project_dir=project_dir,
-                    retrieval_dir=index_path,
-                    research_run=research_run,
-                    timeout_ms=int(config["query_timeout_ms"]),
-                    maximum_history=int(config["maximum_shadow_history"]),
-                    runtime_limits={
-                        "maximum_results": int(config["maximum_results"]),
-                        "semantic_candidate_count": int(config["semantic_candidate_count"]),
-                        "lexical_candidate_count": int(config["lexical_candidate_count"]),
-                    },
-                    event_logger=event_logger,
-                )
-                _WORKERS[key] = worker
-        try:
-            index_identity = sha256_file(index_path / "index" / "index_manifest.json")
-        except Exception:
-            index_identity = "unavailable"
-        query_identity = build_query(incoming_text, parent_context, thread_context)["query_text_hash"]
-        event_id = sha256_bytes(canonical_json({
-            "lane": lane,
-            "target_id": str(target_id),
-            "query_text_hash": query_identity,
-            "index": str(index_path),
-            "index_identity": index_identity,
-        }))
-        worker.submit({
-            "event_id": event_id,
-            "lane": lane,
-            "target_id": str(target_id),
-            "incoming_text": incoming_text,
-            "parent_context": parent_context,
-            "thread_context": thread_context,
-            "production_lexical": list(production_lexical),
-        })
-    except Exception:
-        return None
-    return None
 
 
 HARD_NEGATIVES = (
@@ -2727,11 +2398,18 @@ def write_hybrid_report(retrieval_dir: Path, project_dir: Path) -> dict[str, Any
     sample = json.loads((retrieval_dir / "review_sample_100.json").read_text(encoding="utf-8"))
     runtime = shadow_summary(read_shadow_records(project_dir / "hybrid_reply_retrieval_runtime"))
     try:
-        local = json.loads((project_dir / "mrsMThatcher.local.json").read_text(encoding="utf-8"))
-        live_enabled = bool(local.get("reply_strategy", {}).get("hybrid_retrieval", {}).get("enabled"))
-        live_mode = str(local.get("reply_strategy", {}).get("hybrid_retrieval", {}).get("mode") or "unavailable")
+        lifecycle = json.loads(
+            (project_dir / "shadow_feature_lifecycle.json").read_text(encoding="utf-8")
+        )
+        hybrid_feature = next(
+            feature
+            for feature in lifecycle.get("features", [])
+            if feature.get("feature_name") == "hybrid_reply_retrieval"
+        )
+        live_mode = str(hybrid_feature.get("current_state") or "unavailable")
     except Exception:
-        live_enabled, live_mode = False, "unavailable"
+        live_mode = "unavailable"
+    live_enabled = False
     replay_items = replay.get("items", [])
     hybrid_only = [item for item in replay_items if item.get("disagreement_class") == "hybrid_only_evidence"]
     short_risks = [

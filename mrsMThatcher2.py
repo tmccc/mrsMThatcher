@@ -245,17 +245,6 @@ reply_strategy = {
     "maximum_retrieved_packets": 5,
     "minimum_grounded_confidence": "medium",
     "no_hashtags": True,
-    "hybrid_retrieval": {
-        "enabled": False,
-        "mode": "shadow",
-        "index_path": "semantic_alignment_research/hybrid_reply_retrieval_001",
-        "maximum_results": 5,
-        "semantic_candidate_count": 20,
-        "lexical_candidate_count": 20,
-        "query_timeout_ms": 1000,
-        "maximum_shadow_history": 5000,
-        "fail_open": True,
-    },
 }
 quote_image_semantic_veto = {
     "enabled": False,
@@ -707,7 +696,6 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
         "completed_packets_only", "allow_historical_correction", "allow_historical_context",
         "allow_researched_principle", "allow_humour", "preferred_humour_tones",
         "maximum_retrieved_packets", "minimum_grounded_confidence", "no_hashtags",
-        "hybrid_retrieval",
     }
     if not isinstance(strategy_config, dict):
         errors.append("reply_strategy must be an object")
@@ -733,30 +721,6 @@ def validate_runtime_config_values(values: dict[str, object]) -> list[str]:
             errors.append("reply_strategy.preferred_humour_tones contains unsupported values")
         if strategy_config.get("minimum_grounded_confidence") not in {"medium", "high"}:
             errors.append("reply_strategy.minimum_grounded_confidence must be medium or high")
-        shadow = strategy_config.get("hybrid_retrieval")
-        shadow_keys = {
-            "enabled", "mode", "index_path", "maximum_results", "semantic_candidate_count",
-            "lexical_candidate_count", "query_timeout_ms", "maximum_shadow_history", "fail_open",
-        }
-        if not isinstance(shadow, dict) or set(shadow) != shadow_keys:
-            errors.append("reply_strategy.hybrid_retrieval fields mismatch")
-        else:
-            if type(shadow.get("enabled")) is not bool:
-                errors.append("reply_strategy.hybrid_retrieval.enabled must be boolean")
-            if shadow.get("mode") != "shadow":
-                errors.append("reply_strategy.hybrid_retrieval.mode must be shadow")
-            if not isinstance(shadow.get("index_path"), str) or not shadow["index_path"].strip():
-                errors.append("reply_strategy.hybrid_retrieval.index_path must be non-empty")
-            for key, low, high in (
-                ("maximum_results", 1, 5), ("semantic_candidate_count", 5, 100),
-                ("lexical_candidate_count", 5, 100), ("query_timeout_ms", 50, 10_000),
-                ("maximum_shadow_history", 100, 100_000),
-            ):
-                number = shadow.get(key)
-                if type(number) is not int or not low <= number <= high:
-                    errors.append(f"reply_strategy.hybrid_retrieval.{key} must be an integer from {low} to {high}")
-            if shadow.get("fail_open") is not True:
-                errors.append("reply_strategy.hybrid_retrieval.fail_open must remain true")
         if strategy_config.get("enabled"):
             if strategy_config.get("accuracy_first") is not True:
                 errors.append("reply_strategy.accuracy_first must remain true when enabled")
@@ -915,6 +879,14 @@ def apply_local_config() -> None:
         if key not in LOCAL_CONFIG_ALLOWED_KEYS or key not in globals():
             ignored.append(str(key))
             continue
+
+        if key == "reply_strategy" and isinstance(value, dict) and "hybrid_retrieval" in value:
+            value = dict(value)
+            value.pop("hybrid_retrieval", None)
+            log.warning(
+                "Ignoring retired live reply_strategy.hybrid_retrieval configuration; "
+                "the deterministic hybrid benchmark remains available offline"
+            )
 
         try:
             coerced = _coerce_local_config_value(key, value, globals()[key])
@@ -5945,7 +5917,16 @@ def load_generated_identity_audit() -> dict[str, dict]:
 
 def validate_generated_identity_shadow_startup() -> None:
     """Validate generated identity shadow startup."""
-    if not (ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING or ENABLE_GENERATED_IDENTITY_POLICY_SCORING):
+    if not ENABLE_GENERATED_IMAGE_POOL:
+        if ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING or ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+            log.info(
+                "Generated identity-policy processing suspended because the generated image pool is disabled"
+            )
+        return
+    if not (
+        ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
+        or ENABLE_GENERATED_IDENTITY_POLICY_SCORING
+    ):
         return
     items = load_generated_identity_audit()
     policies = Counter(str(item.get("recommended_cross_quote_policy")) for item in items.values())
@@ -5967,6 +5948,19 @@ def validate_generated_identity_shadow_startup() -> None:
             GENERATED_IDENTITY_SHADOW_SMALL_PENALTY,
             GENERATED_IDENTITY_SHADOW_STRONG_PENALTY,
         )
+
+
+def generated_identity_policy_scoring_active() -> bool:
+    """Return whether generated candidates can receive production policy scoring."""
+    return bool(ENABLE_GENERATED_IMAGE_POOL and ENABLE_GENERATED_IDENTITY_POLICY_SCORING)
+
+
+def generated_identity_policy_shadow_active() -> bool:
+    """Return whether generated candidates can receive observational policy scoring."""
+    return bool(
+        ENABLE_GENERATED_IMAGE_POOL
+        and ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING
+    )
 
 
 def generated_identity_candidate_shadow_row(candidate: dict, audit_by_basename: dict[str, dict]) -> dict:
@@ -6244,7 +6238,7 @@ def log_generated_identity_policy_shadow_result(
     selection_rng_state: object | None = None,
 ) -> None:
     """Log generated identity policy shadow result."""
-    if not ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING:
+    if not generated_identity_policy_shadow_active():
         return
     try:
         payload = generated_identity_policy_shadow_result(
@@ -7006,7 +7000,7 @@ def choose_matched_unused_image(
     baseline_tied = [item for item in scored if float(item["score"]) == baseline_best_score]
     policy_rows: list[dict] | None = None
     production_candidates = scored
-    if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+    if generated_identity_policy_scoring_active():
         policy_rows, policy_candidates = generated_identity_policy_selection(scored)
         if not policy_candidates:
             log.warning(
@@ -7034,7 +7028,7 @@ def choose_matched_unused_image(
     )
     log_regular_image_selection(chosen)
     log_original_editorial_shadow_result(quote_choice, chosen, scored, selection_phase=selection_phase)
-    if ENABLE_GENERATED_IDENTITY_POLICY_SCORING:
+    if generated_identity_policy_scoring_active():
         assert policy_rows is not None
         log_generated_identity_policy_applied_result(
             generated_identity_policy_applied_result(
@@ -8303,13 +8297,10 @@ def ask_grok_for_reply(
     media_context: dict | None = None,
     *,
     recent_replies: list[str] | None = None,
-    shadow_incoming_text: str | None = None,
-    shadow_parent_context: str = "",
-    shadow_thread_context: str = "",
+    incoming_contribution_text: str | None = None,
     evaluation_outcome: dict | None = None,
     direct_question_text: str | None = None,
     clarification_reply: bool = False,
-    _shadow_submitted: bool = False,
 ) -> str | None:
     """Request and locally validate one structured conversational-reply decision."""
     log.info("Asking Grok for reply. context_text=%r", context_text)
@@ -8317,8 +8308,8 @@ def ask_grok_for_reply(
     media_metadata = media_context if isinstance(media_context, dict) else {}
     strategy_enabled = bool(reply_strategy.get("enabled"))
     incoming_contribution = (
-        shadow_incoming_text
-        if shadow_incoming_text is not None
+        incoming_contribution_text
+        if incoming_contribution_text is not None
         else direct_question_text
     )
     evidence = []
@@ -8332,21 +8323,6 @@ def ask_grok_for_reply(
             research_path,
             maximum=int(reply_strategy["maximum_retrieved_packets"]),
         )
-        shadow_config = reply_strategy.get("hybrid_retrieval")
-        if isinstance(shadow_config, dict) and shadow_config.get("enabled") and not _shadow_submitted:
-            from semantic_alignment.hybrid_reply_retrieval import submit_shadow_comparison
-            submit_shadow_comparison(
-                config=shadow_config,
-                project_dir=BASE_DIR,
-                research_run=research_path,
-                incoming_text=str(incoming_contribution or ""),
-                parent_context=shadow_parent_context,
-                thread_context=shadow_thread_context,
-                lane=str(media_metadata.get("lane") or media_metadata.get("source") or "unavailable"),
-                target_id=str(media_metadata.get("target_id") or ""),
-                production_lexical=evidence,
-                event_logger=log_event,
-            )
     if clarification_reply and not evidence:
         log.info("Skipping clarification repair: no completed-corpus evidence was retrieved")
         if evaluation_outcome is not None:
@@ -8508,13 +8484,10 @@ def ask_grok_for_reply(
                 context_text,
                 retry_context,
                 recent_replies=recent_replies,
-                shadow_incoming_text=shadow_incoming_text,
-                shadow_parent_context=shadow_parent_context,
-                shadow_thread_context=shadow_thread_context,
+                incoming_contribution_text=incoming_contribution_text,
                 evaluation_outcome=evaluation_outcome,
                 direct_question_text=direct_question_text,
                 clarification_reply=clarification_reply,
-                _shadow_submitted=True,
             )
 
         log.error("xAI error %s: %s", response.status_code, response.text)
@@ -9437,8 +9410,7 @@ def maybe_reply_to_mentions(state: dict) -> str:
                     context_text,
                     media_context,
                     recent_replies=recent_auto_reply_texts(state),
-                    shadow_incoming_text=incoming_text,
-                    shadow_parent_context=context_text,
+                    incoming_contribution_text=incoming_text,
                     evaluation_outcome=evaluation_outcome,
                     direct_question_text=direct_question,
                     clarification_reply=clarification is not None,
@@ -10300,8 +10272,7 @@ def maybe_reply_to_quote_tweets(state: dict) -> str:
                         context_text,
                         media_context,
                         recent_replies=recent_auto_reply_texts(state),
-                        shadow_incoming_text=quote_text,
-                        shadow_parent_context=context_text,
+                        incoming_contribution_text=quote_text,
                         evaluation_outcome=evaluation_outcome,
                         direct_question_text=quote_text,
                     )

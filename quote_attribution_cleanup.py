@@ -535,15 +535,139 @@ def unknown_category(record: dict[str, Any]) -> str:
     return "other_explicitly_explained"
 
 
-def _deployment_shadow(active_ids: set[str], quote_texts: dict[str, str], records: list[dict[str, Any]], image_count: int) -> dict[str, Any]:
+def semantic_pair_coverage(
+    active_ids: set[str],
+    records: Iterable[dict[str, Any]],
+    authorised_image_hashes: set[str],
+) -> dict[str, Any]:
+    """Return explicit resolved, unknown and missing pair coverage for each quote."""
+    if not active_ids:
+        raise CleanupError("semantic pair coverage requires at least one quotation")
+    if len(authorised_image_hashes) != 91 or any(
+        re.fullmatch(r"[0-9a-f]{64}", image_hash) is None
+        for image_hash in authorised_image_hashes
+    ):
+        raise CleanupError("semantic pair coverage requires exactly 91 authorised image hashes")
+
+    seen: set[tuple[str, str]] = set()
+    by_quote: dict[str, Counter[str]] = {
+        quote_id_value: Counter() for quote_id_value in active_ids
+    }
+    unknown_pairs: dict[str, dict[str, Any]] = {}
+    for record in records:
+        quote_id_value = str(record.get("quote_id") or "")
+        if quote_id_value not in active_ids:
+            continue
+        image_hash = str(record.get("image_hash") or "")
+        if image_hash not in authorised_image_hashes:
+            raise CleanupError(
+                f"semantic pair uses an unauthorised image: {quote_id_value}:{image_hash}"
+            )
+        key_tuple = (quote_id_value, image_hash)
+        if key_tuple in seen:
+            raise CleanupError(f"duplicate active semantic pair: {quote_id_value}:{image_hash}")
+        seen.add(key_tuple)
+        decision = str(record.get("decision") or "")
+        if decision not in {"allow", "veto", "unknown"}:
+            raise CleanupError(
+                f"unsupported semantic pair decision {decision!r}: {quote_id_value}:{image_hash}"
+            )
+        by_quote[quote_id_value][decision] += 1
+        if decision == "unknown":
+            key = f"{quote_id_value}:{image_hash}"
+            unknown_pairs[key] = {
+                "quote_id": quote_id_value,
+                "image_hash": image_hash,
+                "image_id": record.get("image_id"),
+                "adjudication_status": "unknown",
+                "reason": record.get("basis"),
+                "deterministic_reasons": list(record.get("deterministic_reasons") or []),
+                "source_pair_id": record.get("source_pair_id") or record.get("pair_id"),
+            }
+
+    image_count = len(authorised_image_hashes)
+    coverage: dict[str, dict[str, Any]] = {}
+    flags: dict[str, bool | None] = {}
+    for quote_id_value in sorted(active_ids):
+        counts = by_quote[quote_id_value]
+        observed = counts["allow"] + counts["veto"] + counts["unknown"]
+        missing = image_count - observed
+        if missing < 0:
+            raise CleanupError(f"semantic pair coverage exceeds image corpus for {quote_id_value}")
+        complete = missing == 0
+        fully_resolved = complete and counts["unknown"] == 0
+        no_safe_image = fully_resolved and counts["allow"] == 0
+        if counts["allow"]:
+            flag: bool | None = True
+        elif no_safe_image:
+            flag = False
+        else:
+            flag = None
+        flags[quote_id_value] = flag
+        coverage[quote_id_value] = {
+            "authorised_image_count": image_count,
+            "allow_count": counts["allow"],
+            "veto_count": counts["veto"],
+            "adjudicated_unknown_count": counts["unknown"],
+            "not_adjudicated_count": missing,
+            "observed_pair_count": observed,
+            "resolved_pair_count": counts["allow"] + counts["veto"],
+            "complete_pair_coverage": complete,
+            "fully_resolved_pair_coverage": fully_resolved,
+            "global_no_safe_image": no_safe_image,
+        }
+
+    total_authorised = len(active_ids) * image_count
+    resolved = sum(row["resolved_pair_count"] for row in coverage.values())
+    adjudicated_unknown = sum(row["adjudicated_unknown_count"] for row in coverage.values())
+    not_adjudicated = sum(row["not_adjudicated_count"] for row in coverage.values())
+    if resolved + adjudicated_unknown + not_adjudicated != total_authorised:
+        raise CleanupError("semantic pair coverage totals do not reconcile")
+    return {
+        "image_hashes": sorted(authorised_image_hashes),
+        "adjudicated_unknown_pairs": dict(sorted(unknown_pairs.items())),
+        "quote_pair_coverage": coverage,
+        "quote_has_allowed_candidate": flags,
+        "total_authorised_pair_count": total_authorised,
+        "resolved_pair_count": resolved,
+        "adjudicated_unknown_pair_count": adjudicated_unknown,
+        "not_adjudicated_pair_count": not_adjudicated,
+        "quotes_with_allowed_candidate": sum(flag is True for flag in flags.values()),
+        "quotes_without_allowed_candidate": sum(flag is False for flag in flags.values()),
+        "quotes_without_allowed_candidate_ids": sorted(
+            quote_id_value for quote_id_value, flag in flags.items() if flag is False
+        ),
+        "quotes_with_incomplete_pair_coverage": sum(
+            not row["complete_pair_coverage"] for row in coverage.values()
+        ),
+        "quotes_with_incomplete_pair_coverage_ids": sorted(
+            quote_id_value
+            for quote_id_value, row in coverage.items()
+            if not row["complete_pair_coverage"]
+        ),
+        "quotes_without_observed_allow_but_incomplete": sum(
+            flag is None for flag in flags.values()
+        ),
+        "quotes_without_observed_allow_but_incomplete_ids": sorted(
+            quote_id_value for quote_id_value, flag in flags.items() if flag is None
+        ),
+    }
+
+
+def _deployment_shadow(
+    active_ids: set[str],
+    quote_texts: dict[str, str],
+    records: list[dict[str, Any]],
+    authorised_image_hashes: set[str],
+    *,
+    compiled_at: str,
+) -> dict[str, Any]:
     pairs = {}
-    unknown = 0
     for record in records:
         if record["quote_id"] not in active_ids:
             continue
         decision = record.get("decision")
         if decision == "unknown":
-            unknown += 1
             continue
         key = f"{record['quote_id']}:{record['image_hash']}"
         if key in pairs:
@@ -563,18 +687,21 @@ def _deployment_shadow(active_ids: set[str], quote_texts: dict[str, str], record
             "source_pair_id": record.get("source_pair_id") or record.get("pair_id"),
         }
     counts = Counter(row["decision"] for row in pairs.values())
-    by_quote = Counter(row["quote_id"] for row in pairs.values() if row["decision"] == "allow")
+    coverage = semantic_pair_coverage(active_ids, records, authorised_image_hashes)
     return {
-        "schema_version": 1, "policy_version": "affirmative-material-contradiction-rules-v3-attribution-cleanup-candidate",
-        "source_run_id": "quote_image_metadata_remediation_001", "compiled_at": utc_now(),
-        "live_production_enabled": False, "quote_count": len(active_ids), "image_count": image_count,
+        "schema_version": 1,
+        "policy_version": (
+            "affirmative-material-contradiction-rules-v3-"
+            "attribution-cleanup-candidate-coverage-v2"
+        ),
+        "source_run_id": "quote_image_metadata_remediation_001", "compiled_at": compiled_at,
+        "live_production_enabled": False, "quote_count": len(active_ids),
+        "image_count": len(authorised_image_hashes),
         "pair_count": len(pairs), "allow_count": counts["allow"], "veto_count": counts["veto"],
-        "unknown_pair_count_excluded_from_lookup": unknown, "pairs": dict(sorted(pairs.items())),
+        "unknown_pair_count_excluded_from_lookup": coverage["adjudicated_unknown_pair_count"],
+        "pairs": dict(sorted(pairs.items())),
         "quote_text": {qid: quote_texts[qid] for qid in sorted(active_ids)},
-        "quote_has_allowed_candidate": {qid: by_quote[qid] > 0 for qid in sorted(active_ids)},
-        "quotes_with_allowed_candidate": sum(by_quote[qid] > 0 for qid in active_ids),
-        "quotes_without_allowed_candidate": sum(by_quote[qid] == 0 for qid in active_ids),
-        "quotes_without_allowed_candidate_ids": sorted(qid for qid in active_ids if by_quote[qid] == 0),
+        **coverage,
     }
 
 
@@ -691,8 +818,13 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     if len(runtime_aliases) != 5:
         raise CleanupError(f"expected five established whitespace aliases, found {len(runtime_aliases)}")
     quote_texts = {qid: contracts_by_id[qid]["quote_text"] for qid in active_ids}
+    source_manifest = read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json")
+    generated_at = str(
+        removal.get("generated_at") or source_manifest.get("generated_at") or ""
+    )
     active_manifest = {
-        "schema_version": 1, "generated_at": utc_now(), "historical_canonical_count": EXPECTED_SOURCE_CANONICAL,
+        "schema_version": 1, "generated_at": generated_at,
+        "historical_canonical_count": EXPECTED_SOURCE_CANONICAL,
         "source_record_count_physical": len(source_rows), "source_record_count_canonical": len(source_ids),
         "active_confirmed_thatcher_count": len(active_ids), "active_quote_ids": sorted(active_ids),
         "active_quote_id_set_sha256": sha256_bytes("\n".join(sorted(active_ids)).encode()),
@@ -702,7 +834,6 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
         "research_unresolved_retained_count": len(unresolved_ids), "research_unresolved_quote_ids": sorted(unresolved_ids),
         "attribution_exclusion_count": len(tombstone_ids), "attribution_exclusion_quote_ids": sorted(tombstone_ids),
     }
-    source_manifest = read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json")
     all_records = list((source_manifest.get("records") or {}).values())
     active_records = [row for row in all_records if row.get("quote_id") in active_ids]
     if {row["quote_id"] for row in active_records} != active_ids:
@@ -715,11 +846,22 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     after_categories = Counter(unknown_category(row) for row in after_unknown)
     if sum(before_categories.values()) != len(before_unknown) or sum(after_categories.values()) != len(after_unknown):
         raise CleanupError("unknown pair reconciliation does not balance")
-    shadow = _deployment_shadow(active_ids, quote_texts, active_records, int(source_manifest.get("image_count") or 91))
+    image_contracts = jsonl(DEFAULT_REMEDIATION / "image_contracts_v3.jsonl")
+    authorised_image_hashes = {
+        str(row.get("image_hash") or "") for row in image_contracts
+    }
+    shadow = _deployment_shadow(
+        active_ids,
+        quote_texts,
+        active_records,
+        authorised_image_hashes,
+        compiled_at=str(source_manifest.get("generated_at") or ""),
+    )
     shadow["runtime_quote_aliases"] = dict(sorted(runtime_aliases.items()))
     shadow["source_file_hashes"] = {
         "candidate_manifest_v3": sha256_file(DEFAULT_REMEDIATION / "candidate_manifest_v3.json"),
         "quote_contracts_v3": sha256_file(DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl"),
+        "image_contracts_v3": sha256_file(DEFAULT_REMEDIATION / "image_contracts_v3.jsonl"),
         "active_source": sha256_file(ROOT / SOURCE_NAME),
     }
     deployment = run_dir / "deployment_candidate"
@@ -727,7 +869,8 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     shutil.copyfile(ROOT / SOURCE_NAME, deployment / SOURCE_NAME)
     atomic_write_json(deployment / "active_quote_manifest.json", active_manifest)
     atomic_write_json(deployment / "attribution_exclusion_tombstones.json", {
-        "schema_version": 1, "generated_at": utc_now(), "records": removal["records"], "count": len(removal["records"]),
+        "schema_version": 1, "generated_at": generated_at,
+        "records": removal["records"], "count": len(removal["records"]),
     })
     atomic_write_json(deployment / "semantic_veto_shadow_manifest.json", shadow)
     audit_payload = {
@@ -743,11 +886,23 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     if audit_payload["removed_quote_ids_present"] or audit_payload["non_thatcher_speaker_portrait_substitution_count"]:
         raise CleanupError("blocking removed-attribution reference remains in candidate semantic manifest")
     atomic_write_json(deployment / "manifest_audit.json", audit_payload)
-    checksums = {path.name: sha256_file(path) for path in deployment.iterdir() if path.is_file()}
+    checksums = {
+        path.name: sha256_file(path)
+        for path in deployment.iterdir()
+        if path.is_file() and path.name != "checksums.json"
+    }
     atomic_write_json(deployment / "checksums.json", checksums)
     atomic_write_text(deployment / "rollback_plan.md", "# Rollback Plan\n\nRestore `mrsMThatcher_before.txt` atomically, retain the tombstones for audit, and do not replace the live semantic-veto manifest until a separately authorised deployment. Production state uses quote hashes; no line-index migration is required.\n")
     rebuild_report = {
-        "active_manifest": active_manifest, "semantic_manifest": {key: value for key, value in shadow.items() if key not in {"pairs", "quote_text", "quote_has_allowed_candidate"}},
+        "active_manifest": active_manifest,
+        "semantic_manifest": {
+            key: value for key, value in shadow.items()
+            if key not in {
+                "pairs", "adjudicated_unknown_pairs", "quote_pair_coverage",
+                "quote_text", "quote_has_allowed_candidate", "image_hashes",
+                "quotes_with_incomplete_pair_coverage_ids",
+            }
+        },
         "manifest_sha256": sha256_file(deployment / "semantic_veto_shadow_manifest.json"), "unknown_reconciliation": audit_payload,
         "state_migration": {"required": False, "basis": "production history is hash-based; shifted line numbers are not durable identities", "legacy_indices": "normalised to quote hashes by existing loader"},
     }
@@ -755,7 +910,12 @@ def rebuild(project_dir: Path, run_dir: Path) -> dict[str, Any]:
     atomic_write_text(run_dir / "derived_rebuild_report.md", "\n".join([
         "# Derived Rebuild Report", "", f"Active confirmed Thatcher quotations: {len(active_ids)}",
         f"Unresolved retained but ineligible: {len(unresolved_ids)}", f"Semantic records including unknown: {len(active_records)}",
-        f"Runtime lookup pairs (allow/veto): {shadow['pair_count']}", f"Remaining unknown pairs: {len(after_unknown)}",
+        f"Runtime lookup pairs (allow/veto): {shadow['pair_count']}",
+        f"Adjudicated unknown pairs: {shadow['adjudicated_unknown_pair_count']}",
+        f"Not-adjudicated pairs: {shadow['not_adjudicated_pair_count']}",
+        f"Complete all-veto quotations: {shadow['quotes_without_allowed_candidate']}",
+        f"Quotations with incomplete pair coverage: {shadow['quotes_with_incomplete_pair_coverage']}",
+        f"Remaining unknown pairs: {len(after_unknown)}",
         f"Unknown categories: {dict(after_categories)}", "", "No live manifest, state, history, receipt, log or generated-image pool was modified.",
     ]) + "\n")
     return rebuild_report
@@ -1196,6 +1356,13 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
     source = read_json(source_path)
     active = read_json(active_path)
     validation = read_json(validation_path)
+    if source.get("policy_version") != (
+        "affirmative-material-contradiction-rules-v3-"
+        "attribution-cleanup-candidate-coverage-v2"
+    ):
+        raise CleanupError(
+            "v3 source manifest lacks explicit unknown and missing pair coverage; rebuild it first"
+        )
     gates = validation.get("gates") or {}
     required_gates = {
         "current_production_winners_known": 1.0,
@@ -1309,6 +1476,24 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         for key, row in manifest["pairs"].items()
         if str(row.get("quote_id") or "") in resolved_runtime_ids
     }
+    manifest["adjudicated_unknown_pairs"] = {
+        key: row
+        for key, row in (manifest.get("adjudicated_unknown_pairs") or {}).items()
+        if str(row.get("quote_id") or "") in resolved_runtime_ids
+    }
+    coverage_records = [
+        *manifest["pairs"].values(),
+        *(
+            {**row, "decision": "unknown", "basis": row.get("reason")}
+            for row in manifest["adjudicated_unknown_pairs"].values()
+        ),
+    ]
+    coverage = semantic_pair_coverage(
+        resolved_runtime_ids,
+        coverage_records,
+        set(manifest.get("image_hashes") or []),
+    )
+    manifest.update(coverage)
     decisions = Counter(str(row.get("decision") or "") for row in manifest["pairs"].values())
     manifest["policy_version"] = ATTRIBUTION_CLEANED_V3_POLICY_VERSION
     manifest["source_run_id"] = f"{source.get('source_run_id', 'v3')}-runtime-eligible-610"
@@ -1320,21 +1505,6 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         quote_key: text for quote_key, text in (manifest.get("quote_text") or {}).items()
         if quote_key in resolved_runtime_ids
     }
-    manifest["quote_has_allowed_candidate"] = {
-        quote_key: flag
-        for quote_key, flag in (manifest.get("quote_has_allowed_candidate") or {}).items()
-        if quote_key in resolved_runtime_ids
-    }
-    manifest["quotes_with_allowed_candidate"] = sum(
-        flag is True for flag in manifest["quote_has_allowed_candidate"].values()
-    )
-    manifest["quotes_without_allowed_candidate"] = sum(
-        flag is False for flag in manifest["quote_has_allowed_candidate"].values()
-    )
-    manifest["quotes_without_allowed_candidate_ids"] = sorted(
-        quote_key for quote_key, flag in manifest["quote_has_allowed_candidate"].items()
-        if flag is False
-    )
     manifest["runtime_eligible_quote_ids"] = sorted(runtime_quote_ids)
     manifest["attribution_rule_version"] = THATCHER_ATTRIBUTION_RULE_VERSION
     manifest["compiled_at"] = str(source.get("compiled_at") or "")
@@ -1371,6 +1541,36 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "stale_manifest_quote_count_removed": len(stale_quote_ids),
         "new_ai_spend_usd": 0.0,
     }
+    gorbachev_quote_id = "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d"
+    gorbachev_image_hash = "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
+    image_contracts = {
+        str(row.get("image_hash") or ""): row
+        for row in jsonl(DEFAULT_REMEDIATION / "image_contracts_v3.jsonl")
+    }
+    gorbachev_pair_key = f"{gorbachev_quote_id}:{gorbachev_image_hash}"
+    gorbachev_image = image_contracts.get(gorbachev_image_hash) or {}
+    if gorbachev_quote_id not in manifest["quote_pair_coverage"]:
+        raise CleanupError("Gorbachev quotation is absent from runtime pair coverage")
+    if "Mikhail Gorbachev" not in (gorbachev_image.get("known_participants") or []):
+        raise CleanupError("source-grounded Gorbachev image metadata is unavailable")
+    gorbachev_investigation = {
+        "quote_id": gorbachev_quote_id,
+        "quote_text": manifest["quote_text"][gorbachev_quote_id],
+        "pair_coverage": manifest["quote_pair_coverage"][gorbachev_quote_id],
+        "thatcher_gorbachev_raisa_image": {
+            "image_id": gorbachev_image.get("image_id"),
+            "image_hash": gorbachev_image_hash,
+            "known_participants": gorbachev_image.get("known_participants"),
+            "source_caption": gorbachev_image.get("source_caption"),
+            "pair_status": (
+                "resolved" if gorbachev_pair_key in manifest["pairs"] else
+                "adjudicated_unknown" if gorbachev_pair_key in manifest["adjudicated_unknown_pairs"] else
+                "not_adjudicated_missing"
+            ),
+        },
+        "global_no_safe_image": manifest["quote_has_allowed_candidate"][gorbachev_quote_id] is False,
+        "coverage_gap_reported": manifest["quote_has_allowed_candidate"][gorbachev_quote_id] is None,
+    }
     audit = validate_compiled_manifest(manifest, strict=True)
     output = run_dir / "deployment_candidate/material_veto_v3_shadow_manifest.json"
     atomic_write_json(output, manifest)
@@ -1404,6 +1604,7 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "configured_manifest_file_rebuilt": True,
         "running_shadow_runtime_reloaded": False,
         "veto_reason_rows_normalised_from_prior_judgement": normalised_veto_reason_count,
+        "gorbachev_pair_coverage_investigation": gorbachev_investigation,
     }
     atomic_write_json(run_dir / "deployment_candidate/v3_shadow_manifest_audit.json", result)
     atomic_write_text(run_dir / "deployment_candidate/v3_shadow_manifest_audit.md", "\n".join([
@@ -1413,6 +1614,14 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         f"- Quotations: {result['quote_count']}",
         f"- Images: {result['image_count']}",
         f"- Pairs: {result['pair_count']} ({result['allow_count']} allow, {result['veto_count']} veto)",
+        f"- Adjudicated unknown pairs: {result['adjudicated_unknown_pair_count']}",
+        f"- Not-adjudicated pairs: {result['not_adjudicated_pair_count']}",
+        f"- Complete all-veto quotations: {result['quotes_without_allowed_candidate']}",
+        f"- Incomplete quotation/image coverage: {result['quotes_with_incomplete_pair_coverage']} quotations",
+        f"- Gorbachev quotation coverage: {gorbachev_investigation['pair_coverage']}",
+        "- Thatcher/Gorbachev/Raisa image pair: "
+        f"{gorbachev_investigation['thatcher_gorbachev_raisa_image']['pair_status']}; "
+        "no allow/veto was invented",
         f"- Current-winner coverage: {gates['current_production_winners_known']:.2%}",
         f"- Seasonal-boundary coverage: {gates['seasonal_boundary_winners_known']:.2%}",
         f"- Stateful weighted coverage: {gates['stateful_weighted_winner_coverage']:.2%}",
@@ -1422,6 +1631,12 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "- Running shadow runtime reloaded: no (the current process retains its prior in-memory lookup)",
         "- New AI calls: 0", "",
     ]))
+    deployment = run_dir / "deployment_candidate"
+    atomic_write_json(deployment / "checksums.json", {
+        path.name: sha256_file(path)
+        for path in deployment.iterdir()
+        if path.is_file() and path.name != "checksums.json"
+    })
     return result
 
 

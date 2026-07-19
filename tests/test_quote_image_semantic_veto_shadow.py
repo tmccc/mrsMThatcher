@@ -114,6 +114,9 @@ def test_attribution_cleaned_v3_policy_is_strictly_validated() -> None:
     audit = validate_compiled_manifest(manifest)
     assert (audit["quote_count"], audit["image_count"]) == (610, 91)
     assert (audit["allow_count"], audit["veto_count"]) == (21_938, 128)
+    assert audit["adjudicated_unknown_pair_count"] == 167
+    assert audit["not_adjudicated_pair_count"] == 33_277
+    assert audit["quotes_without_allowed_candidate"] == 0
 
 
 def test_attribution_cleaned_v3_rejects_old_corpus_counts() -> None:
@@ -220,17 +223,86 @@ def test_alternative_tie_uses_cloned_production_rng_without_consuming_it(tmp_pat
     assert random.getstate() == selection_state
 
 
-def test_global_no_safe_image_and_no_current_alternative(tmp_path: Path) -> None:
+def test_legacy_incomplete_manifest_cannot_claim_global_no_safe_image(tmp_path: Path) -> None:
     manifest = load_manifest()
     quote_id = manifest["quotes_without_allowed_candidate_ids"][0]
     veto = next(row for row in manifest["pairs"].values() if row["quote_id"] == quote_id)
     selected = {"basename": "unsafe.jpg", "image_hash": veto["image_hash"], "image_source": "original", "score": 12.0}
     runtime = ShadowRuntime.load(tmp_path, enabled_config(), verify_source_hashes=False, enable_history=False)
     event = runtime.evaluate(quote_hash=quote_id, selected=selected, candidates=[selected])
-    assert event["veto_category"] == "coverage_gap_no_safe_image"
+    assert event["veto_category"] is None
     assert event["alternative_available"] is False
+    assert event["alternative_reason"] == "quote_pair_coverage_incomplete"
+    assert event["quote_has_no_allowed_candidate_globally"] is False
+    assert event["quote_has_incomplete_pair_coverage"] is True
+
+
+def test_complete_all_veto_runtime_coverage_reports_global_no_safe_image(tmp_path: Path) -> None:
+    quote_id = "a" * 64
+    image_hash = "b" * 64
+    pair = {
+        "quote_id": quote_id,
+        "image_hash": image_hash,
+        "decision": "veto",
+        "veto_reason_codes": ["wrong_relationship"],
+    }
+    runtime = ShadowRuntime(
+        True,
+        tmp_path / "synthetic.json",
+        pairs={f"{quote_id}:{image_hash}": pair},
+        quote_flags={quote_id: False},
+        quote_coverage={
+            quote_id: {
+                "allow_count": 0,
+                "veto_count": 91,
+                "adjudicated_unknown_count": 0,
+                "not_adjudicated_count": 0,
+                "complete_pair_coverage": True,
+                "fully_resolved_pair_coverage": True,
+                "global_no_safe_image": True,
+            }
+        },
+    )
+    selected = {
+        "basename": "unsafe.jpg",
+        "image_hash": image_hash,
+        "image_source": "original",
+        "score": 12.0,
+    }
+
+    event = runtime.evaluate(quote_hash=quote_id, selected=selected, candidates=[selected])
+
+    assert event["veto_category"] == "coverage_gap_no_safe_image"
     assert event["alternative_reason"] == "quote_has_no_allowed_candidate_globally"
     assert event["quote_has_no_allowed_candidate_globally"] is True
+    assert event["quote_has_incomplete_pair_coverage"] is False
+
+
+def test_v3_gorbachev_coverage_distinguishes_unknown_from_missing() -> None:
+    path = PROJECT / (
+        "semantic_alignment_research/quote_attribution_cleanup_001/"
+        "deployment_candidate/material_veto_v3_shadow_manifest.json"
+    )
+    runtime = ShadowRuntime.load(
+        PROJECT,
+        enabled_config(path),
+        verify_source_hashes=False,
+        enable_history=False,
+    )
+    quote_id = "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d"
+    gorbachev_image_hash = "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a"
+    unknown_key = next(
+        key for key in runtime.adjudicated_unknown_pairs or {}
+        if key.startswith(f"{quote_id}:")
+    )
+
+    assert runtime.quote_flags[quote_id] is None
+    assert runtime.quote_coverage[quote_id]["adjudicated_unknown_count"] == 27
+    assert runtime.quote_coverage[quote_id]["not_adjudicated_count"] == 54
+    assert runtime.pair_adjudication(*unknown_key.split(":"))[0] == "adjudicated_unknown"
+    assert runtime.pair_adjudication(
+        quote_id, gorbachev_image_hash
+    )[0] == "not_adjudicated_missing"
 
 
 @pytest.mark.parametrize("mode", ["active", "enforce", "production", "replace", "filter", "prefer"])
@@ -400,7 +472,7 @@ def test_digest_aggregates_selection_and_confirmed_post() -> None:
     assert "alternative available" in rendered
 
 
-def test_digest_classifies_legacy_veto_without_category_as_coverage_gap() -> None:
+def test_digest_does_not_treat_unproven_legacy_no_safe_flag_as_coverage_gap() -> None:
     legacy_event = {
         "quote_id": "a" * 64,
         "shadow_status": "veto",
@@ -412,9 +484,9 @@ def test_digest_classifies_legacy_veto_without_category_as_coverage_gap() -> Non
     }
     summary = digest.quote_image_semantic_veto_summary([legacy_event, dict(legacy_event)])
     assert summary["selection_error_candidate_available"] == 0
-    assert summary["coverage_gap_no_safe_image"] == 2
-    assert summary["quotes_with_no_globally_allowed_candidate"] == 1
-    assert summary["examples"][0]["veto_category"] == "coverage_gap_no_safe_image"
+    assert summary["coverage_gap_no_safe_image"] == 0
+    assert summary["quotes_with_no_globally_allowed_candidate"] == 0
+    assert summary["examples"][0]["veto_category"] is None
 
 
 def test_runtime_summary_does_not_mix_manifest_versions() -> None:

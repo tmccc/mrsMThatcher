@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import queue
-import time
 from pathlib import Path
 
 import numpy as np
@@ -17,8 +15,6 @@ from semantic_alignment.hybrid_reply_retrieval import (
     DOCUMENT_TEMPLATE_VERSION,
     MODEL_ID,
     MODEL_REVISION,
-    ShadowHistoryWriter,
-    ShadowWorker,
     build_index,
     build_query,
     build_review_sample,
@@ -29,14 +25,10 @@ from semantic_alignment.hybrid_reply_retrieval import (
     fuse_results,
     model_preflight,
     load_local_conversation_catalog,
-    read_shadow_records,
     replay_context_snapshot,
     save_review,
-    shadow_summary,
     substantive_query,
-    submit_shadow_comparison,
     validate_corpus_invariants,
-    validate_shadow_config,
 )
 
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
@@ -118,11 +110,13 @@ def test_insufficient_top_margin_rejects_ambiguous_set():
     assert not any(row["accepted"] for row in rows)
 
 
-def test_shadow_configuration_is_source_disabled_and_shadow_only():
-    config = bot.reply_strategy["hybrid_retrieval"]
-    assert config["enabled"] is False and config["mode"] == "shadow" and config["fail_open"] is True
-    assert validate_shadow_config(config) == []
-    assert validate_shadow_config({**config, "mode": "active"})
+def test_hybrid_retrieval_is_offline_only_and_absent_from_live_configuration():
+    assert "hybrid_retrieval" not in bot.reply_strategy
+    assert not hasattr(hybrid, "submit_shadow_comparison")
+    assert not hasattr(hybrid, "ShadowWorker")
+    source = Path("mrsMThatcher2.py").read_text(encoding="utf-8")
+    assert "semantic_alignment.hybrid_reply_retrieval" not in source
+    assert "hybrid_retrieval_shadow" not in source
 
 
 def test_model_preflight_is_pinned_local_only_and_never_downloads(tmp_path: Path):
@@ -133,182 +127,6 @@ def test_model_preflight_is_pinned_local_only_and_never_downloads(tmp_path: Path
     assert preflight["normal_runtime_local_files_only"] is True
     assert preflight["download_complete"] is False
     assert not (tmp_path / "missing").exists()
-
-
-class FakeRetriever:
-    manifest = {"index_schema_version": 1, "embeddings_sha256": "a" * 64, "model_revision": MODEL_REVISION}
-
-    def retrieve(self, incoming_text, **kwargs):
-        lexical = kwargs.get("production_lexical") or []
-        return {
-            "query": build_query(incoming_text),
-            "lexical": [(item.quote_id, item.score) for item in lexical],
-            "semantic": [], "hybrid": [],
-            "production_lexical_quote_ids": [item.quote_id for item in lexical],
-            "shadow_hybrid_quote_ids": [],
-            "timings_ms": {"total": 1.0},
-        }
-
-
-def test_shadow_worker_is_async_bounded_and_persists_no_text(tmp_path: Path):
-    worker = ShadowWorker(
-        project_dir=tmp_path, retrieval_dir=tmp_path / "index", research_run=RESEARCH,
-        timeout_ms=1000, maximum_history=100, retriever_factory=FakeRetriever,
-    )
-    assert worker.submit({
-        "event_id": "e", "lane": "mention", "target_id": "123",
-        "incoming_text": "A substantive question about tax", "parent_context": "", "thread_context": "",
-        "production_lexical": [],
-    })
-    assert worker.drain()
-    rows = read_shadow_records(tmp_path / "hybrid_reply_retrieval_runtime")
-    assert rows[0]["status"] == "completed"
-    assert "incoming_text" not in rows[0]
-    assert shadow_summary(rows)["events"] == 1
-
-
-def test_shadow_worker_queue_overflow_does_no_synchronous_persistence() -> None:
-    worker = object.__new__(ShadowWorker)
-    worker.jobs = queue.Queue(maxsize=1)
-    worker.jobs.put_nowait({"event_id": "already-queued"})
-    worker._persist = lambda _record: pytest.fail(
-        "queue overflow must not persist synchronously on the production caller"
-    )
-
-    assert worker.submit({"event_id": "overflow"}) is False
-
-
-def test_shadow_worker_timeout_and_model_failure_fail_open(tmp_path: Path):
-    class SlowRetriever(FakeRetriever):
-        def retrieve(self, incoming_text, **kwargs):
-            time.sleep(0.02)
-            return super().retrieve(incoming_text, **kwargs)
-
-    slow = ShadowWorker(
-        project_dir=tmp_path / "slow", retrieval_dir=tmp_path, research_run=RESEARCH,
-        timeout_ms=1, maximum_history=100, retriever_factory=SlowRetriever,
-    )
-    slow.submit({"event_id": "slow", "lane": "mention", "target_id": "1", "incoming_text": "tax policy", "production_lexical": []})
-    assert slow.drain()
-    assert read_shadow_records(tmp_path / "slow" / "hybrid_reply_retrieval_runtime")[0]["status"] == "timeout"
-
-    def broken():
-        raise RuntimeError("shadow index corpus hash mismatch")
-
-    failed = ShadowWorker(
-        project_dir=tmp_path / "failed", retrieval_dir=tmp_path, research_run=RESEARCH,
-        timeout_ms=1000, maximum_history=100, retriever_factory=broken,
-    )
-    failed.submit({"event_id": "failed", "lane": "mention", "target_id": "2", "incoming_text": "tax policy", "production_lexical": []})
-    assert failed.drain()
-    assert read_shadow_records(tmp_path / "failed" / "hybrid_reply_retrieval_runtime")[0]["status"] == "index_mismatch"
-
-
-def test_shadow_history_deduplicates_repeated_event_ids(tmp_path: Path):
-    worker = ShadowWorker(
-        project_dir=tmp_path, retrieval_dir=tmp_path, research_run=RESEARCH,
-        timeout_ms=1000, maximum_history=100, retriever_factory=FakeRetriever,
-    )
-    job = {"event_id": "same", "lane": "mention", "target_id": "1", "incoming_text": "tax policy", "production_lexical": []}
-    worker.submit(job)
-    worker.submit(job)
-    assert worker.drain()
-    assert len(read_shadow_records(tmp_path / "hybrid_reply_retrieval_runtime")) == 1
-
-
-def test_shadow_history_rotates_at_bound_without_losing_audit_records(tmp_path: Path):
-    writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
-    for index in range(101):
-        writer.append({"event_id": str(index), "status": "completed", "latency_ms": 1, "production_lexical_quote_ids": [], "shadow_hybrid_quote_ids": []})
-    retained = read_shadow_records(tmp_path, maximum=100)
-    assert len(retained) == 100
-    assert [row["event_id"] for row in retained] == [str(index) for index in range(1, 101)]
-    archives = list(tmp_path.glob("shadow_history.*.jsonl"))
-    assert len(archives) == 1 and len(archives[0].read_text().splitlines()) == 100
-
-
-def test_shadow_history_same_second_rotations_do_not_overwrite_archives(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-):
-    monkeypatch.setattr(hybrid.time, "time", lambda: 1234.0)
-    writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
-    for index in range(201):
-        writer.append({"event_id": str(index), "status": "completed"})
-
-    archives = list(tmp_path.glob("shadow_history.*.jsonl"))
-    assert len(archives) == 2
-    assert sum(len(path.read_text().splitlines()) for path in archives) == 200
-
-
-def test_shadow_history_restart_without_active_file_keeps_archive_deduplication(
-    tmp_path: Path,
-):
-    archived = tmp_path / "shadow_history.1234.jsonl"
-    archived.write_text('{"event_id":"same","status":"completed"}\n', encoding="utf-8")
-    writer = ShadowHistoryWriter(tmp_path, maximum_records=100)
-
-    writer.append({"event_id": "same", "status": "completed"})
-
-    assert not (tmp_path / "shadow_history.jsonl").exists()
-
-
-def test_reaction_only_shadow_does_not_load_model_and_records_no_substantive_query(tmp_path: Path):
-    def forbidden_factory():
-        raise AssertionError("reaction-only query must not load model")
-
-    worker = ShadowWorker(
-        project_dir=tmp_path, retrieval_dir=tmp_path, research_run=RESEARCH,
-        timeout_ms=1000, maximum_history=100, retriever_factory=forbidden_factory,
-    )
-    worker.submit({"event_id": "reaction", "lane": "mention", "target_id": "1", "incoming_text": "Yep", "parent_context": "Liberty and tax", "production_lexical": []})
-    assert worker.drain()
-    row = read_shadow_records(tmp_path / "hybrid_reply_retrieval_runtime")[0]
-    assert row["status"] == "completed" and row["reason"] == "no_substantive_query"
-    assert row["hybrid_no_evidence"] is True
-
-
-def test_shadow_submit_disabled_has_no_side_effect(tmp_path: Path):
-    config = {**bot.reply_strategy["hybrid_retrieval"], "enabled": False}
-    result = submit_shadow_comparison(
-        config=config, project_dir=tmp_path, research_run=RESEARCH,
-        incoming_text="Tax policy", parent_context="", thread_context="", lane="mention", target_id="1",
-        production_lexical=[],
-    )
-    assert result is None
-    assert not (tmp_path / "hybrid_reply_retrieval_runtime").exists()
-
-
-def test_shadow_event_identity_changes_when_bounded_context_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    submitted = []
-
-    class CapturingWorker:
-        def __init__(self, **kwargs):
-            pass
-
-        def submit(self, job):
-            submitted.append(job)
-            return True
-
-    monkeypatch.setattr(hybrid, "ShadowWorker", CapturingWorker)
-    hybrid._WORKERS.clear()
-    config = {**bot.reply_strategy["hybrid_retrieval"], "enabled": True}
-    common = {
-        "config": config,
-        "project_dir": tmp_path,
-        "research_run": RESEARCH,
-        "incoming_text": "What did Thatcher mean by economic freedom?",
-        "thread_context": "",
-        "lane": "mention",
-        "target_id": "1",
-        "production_lexical": [],
-    }
-    submit_shadow_comparison(parent_context="Parent version one", **common)
-    submit_shadow_comparison(parent_context="Parent version two", **common)
-    hybrid._WORKERS.clear()
-
-    assert len(submitted) == 2
-    assert submitted[0]["event_id"] != submitted[1]["event_id"]
 
 
 def test_existing_lexical_retrieval_is_unchanged_and_deterministic():
@@ -327,11 +145,14 @@ def test_final_offline_evaluation_includes_multilingual_and_hard_negatives():
     assert data["multilingual"]["overall_topic_match_rate"] > 0
 
 
-def test_shadow_mode_cannot_change_prompt_reply_or_add_network_call(monkeypatch: pytest.MonkeyPatch):
+def test_live_reply_uses_only_lexical_retrieval_and_does_no_embedding_work(monkeypatch: pytest.MonkeyPatch):
     import reply_strategy as strategy
 
-    submitted = []
-    monkeypatch.setattr(hybrid, "submit_shadow_comparison", lambda **kwargs: submitted.append(kwargs))
+    monkeypatch.setattr(
+        hybrid,
+        "HybridRetriever",
+        lambda *args, **kwargs: pytest.fail("live reply path must not construct hybrid retrieval"),
+    )
     evidence = strategy.RetrievedEvidence("a" * 64, 4.0, "exact", "Evidence", {
         "verified_text": "Exact evidence.", "research_confidence": "high", "verification_status": "exact",
     })
@@ -346,17 +167,13 @@ def test_shadow_mode_cannot_change_prompt_reply_or_add_network_call(monkeypatch:
         "topical_basis": "",
     })}}]}).encode()
     monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: calls.append(kwargs["json"]) or response)
-    monkeypatch.setattr(bot, "reply_strategy", {
-        **bot.reply_strategy, "enabled": True,
-        "hybrid_retrieval": {**bot.reply_strategy["hybrid_retrieval"], "enabled": True},
-    })
+    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": True})
     result = bot.ask_grok_for_reply(
         "assembled production context", {"lane": "mention", "target_id": "123"},
-        shadow_incoming_text="incoming contribution", shadow_parent_context="assembled production context",
+        incoming_contribution_text="incoming contribution",
     )
     assert result == "A concise reply."
-    assert len(calls) == 1 and len(submitted) == 1
-    assert submitted[0]["production_lexical"] == [evidence]
+    assert len(calls) == 1
     prompt_text = json.dumps(calls[0]["messages"][1]["content"])
     assert "Exact evidence." in prompt_text
     assert "shadow_hybrid" not in prompt_text and "hybrid_results" not in prompt_text
@@ -688,49 +505,57 @@ def test_build_review_sample_cannot_overwrite_context_migrated_sample(tmp_path: 
     assert json.loads((tmp_path / "review_sample_100.json").read_text()) == migrated
 
 
-def test_shadow_operations_do_not_modify_production_state_or_receipts(tmp_path: Path):
+def test_offline_benchmark_primitives_do_not_modify_production_state_or_receipts():
     paths = [Path(name) for name in ("bot_state.json", "confirmed_reply_receipt.json", "regular_post_receipt.json") if Path(name).exists()]
     before = {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
-    submit_shadow_comparison(
-        config={**bot.reply_strategy["hybrid_retrieval"], "enabled": False},
-        project_dir=tmp_path, research_run=RESEARCH, incoming_text="tax policy",
-        parent_context="", thread_context="", lane="mention", target_id="1", production_lexical=[],
-    )
+    first = retrieve_research_packets("tax policy", RESEARCH, maximum=5)
+    second = retrieve_research_packets("tax policy", RESEARCH, maximum=5)
+    assert [(row.quote_id, row.score) for row in first] == [
+        (row.quote_id, row.score) for row in second
+    ]
     assert before == {path: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
 
 
-def test_digest_reads_only_local_shadow_status_and_handles_absence(tmp_path: Path):
-    missing = digest.hybrid_retrieval_shadow_snapshot(tmp_path)
+def test_digest_reads_local_lifecycle_register_and_reports_offline_hybrid(tmp_path: Path):
+    missing = digest.shadow_lifecycle_snapshot(tmp_path)
     assert missing["available"] is False
-    runtime = tmp_path / "hybrid_reply_retrieval_runtime"
-    runtime.mkdir()
-    (runtime / "shadow_status.json").write_text(json.dumps({
-        "events": 4, "completed": 3, "failures": 1, "top_5_overlap_percent": 60.0,
-        "hybrid_changed_evidence_set": 2, "hybrid_only_evidence": 1, "lexical_only_evidence": 0,
-        "no_evidence_disagreements": 1, "latency_p50_ms": 100, "latency_p95_ms": 200,
-        "latency_max_ms": 250, "index_version": "1:test", "model_revision": MODEL_REVISION,
-    }))
-    value = digest.hybrid_retrieval_shadow_snapshot(tmp_path)
-    assert value["available"] is True and value["events"] == 4
+    (tmp_path / "shadow_feature_lifecycle.json").write_text(
+        Path("shadow_feature_lifecycle.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    value = digest.shadow_lifecycle_snapshot(tmp_path)
+    assert value["available"] is True
     report = digest.analyse([])
-    report["hybrid_retrieval_shadow"] = value
+    report["shadow_feature_lifecycle"] = value
     rendered = digest.render_markdown(report)
-    assert "## Hybrid retrieval shadow" in rendered and "60.0%" in rendered
+    assert "## Shadow feature lifecycle" in rendered
+    assert "**hybrid_reply_retrieval**=`offline_only`" in rendered
 
 
-def test_digest_handles_malformed_optional_shadow_metrics(tmp_path: Path):
-    runtime = tmp_path / "hybrid_reply_retrieval_runtime"
-    runtime.mkdir()
-    (runtime / "shadow_status.json").write_text(json.dumps({
-        "events": "not-a-number",
-        "completed": [],
-        "top_5_overlap_percent": "bad-percent",
-    }))
+def test_digest_reports_overdue_lifecycle_decisions(tmp_path: Path):
+    register = json.loads(Path("shadow_feature_lifecycle.json").read_text(encoding="utf-8"))
+    register["features"][0]["next_decision_date"] = "2000-01-01"
+    (tmp_path / "shadow_feature_lifecycle.json").write_text(
+        json.dumps(register),
+        encoding="utf-8",
+    )
+    value = digest.shadow_lifecycle_snapshot(tmp_path)
+    assert value["overdue_decisions"][0]["feature_name"] == "hybrid_reply_retrieval"
+    report = digest.analyse([])
+    report["shadow_feature_lifecycle"] = value
+    rendered = digest.render_markdown(report)
+    assert "Overdue lifecycle decisions" in rendered
+    assert "hybrid_reply_retrieval (2000-01-01)" in rendered
 
-    value = digest.hybrid_retrieval_shadow_snapshot(tmp_path)
 
+def test_digest_handles_malformed_lifecycle_register(tmp_path: Path):
+    (tmp_path / "shadow_feature_lifecycle.json").write_text(
+        '{"schema_version":1,"features":[{"current_state":"active"}]}',
+        encoding="utf-8",
+    )
+    value = digest.shadow_lifecycle_snapshot(tmp_path)
     assert value["available"] is False
-    assert "unavailable" in value["reason"]
+    assert "lifecycle register unavailable" in value["reason"]
 
 
 def test_index_output_parent_is_created_before_atomic_staging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):

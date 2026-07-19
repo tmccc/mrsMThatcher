@@ -29,12 +29,13 @@ and AppleDouble files.
 | `mrsMThatcher2.py` | Production scheduling, quotation/image selection, replies, receipts and recovery | X and xAI only after explicit production bootstrap; durable production state |
 | `reply_strategy.py` | Retrieval, structured reply parsing, grounding, relevance and safety validation | Local corpus reads; its audit CLI is offline |
 | `historical_context_formatter.py` | Canonical research loading, compact context formatting and context-reply persistence | Local state; posting only through an injected callback |
+| `shadow_lifecycle.py` | Strict validation for the versioned shadow-feature lifecycle register | Local file reads only |
 | `mrs_log_digest.py` | Structured/legacy log parsing, aggregation and Markdown/JSON reports | Local log and resume-state reads/writes; no provider calls |
 | `mrs_engagement_analytics.py` | Read-only X metrics collection and isolated SQLite reporting | X reads only with explicit flags; writes only under `engagement_analytics/` |
 | `semantic_quote_image_veto.py` | CLI for compiling, validating, replaying and inspecting semantic-veto shadow data | Local files only |
 | `semantic_alignment/quote_image_semantic_veto.py` | Read-only in-memory shadow lookup used after production selection | Bounded local shadow history; never filters production candidates |
 | `hybrid_reply_retrieval.py` | CLI for local hybrid retrieval experiments and review artefacts | Offline by default; provider-review commands require explicit execution and budgets |
-| `semantic_alignment/hybrid_reply_retrieval.py` | Local E5 indexing, retrieval, replay and shadow worker | Local model and bounded shadow history; production use remains observational |
+| `semantic_alignment/hybrid_reply_retrieval.py` | Local E5 indexing, lexical-versus-hybrid evaluation and historical replay | Offline research files only; it is not imported by the production bot |
 
 `mrsMThatcher2.py` is intentionally import-safe: importing it does not load the
 private host configuration, acquire the production lock or enter the posting
@@ -54,8 +55,8 @@ completed packets and six unresolved records. The active source is different:
 The nine runtime exclusions comprise the six unresolved records and three
 additional packets rejected by the current source-grounded attribution
 predicate. Historical research, logs and receipts retain their original IDs.
-The production selector and reply retriever fail closed unless the eligible
-count is exactly 610.
+The production selector, reply retriever and historical-context path fail closed
+unless attribution eligibility is exactly 610.
 
 ## Safety Boundaries
 
@@ -64,8 +65,11 @@ count is exactly 610.
 - An ambiguous X write pauses all posting until an operator reconciles it.
 - Generated images are disabled by source default and, when enabled locally,
   obey the configured original-post spacing rule.
-- Hybrid retrieval and semantic veto are shadow-only production features; they
-  cannot change selection or posting.
+- Hybrid retrieval is an offline-only benchmark and is absent from the
+  production reply path. Semantic veto remains a non-enforcing production
+  shadow and cannot change selection or posting.
+- Generated-image identity-policy work is suspended whenever the generated
+  pool is disabled. The original-editorial selector remains observational.
 - Research/provider CLIs require explicit execution flags and bounded spend;
   offline audit, replay and report commands do not contact providers.
 - Tests use temporary state and fake endpoints. They must never point at live X

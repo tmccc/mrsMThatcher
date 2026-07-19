@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "features": [
+    {
+      "feature_name": "hybrid_reply_retrieval",
+      "purpose": "Compare lexical reply evidence with local semantic fusion after retrieval-corpus or embedding changes.",
+      "current_state": "offline_only",
+      "start_date": "2026-07-15",
+      "evidence_metric": "Useful evidence sets found only by hybrid retrieval in completed live comparisons.",
+      "target_observation_count": 0,
+      "promotion_criteria": "A fresh deterministic offline benchmark demonstrates source-grounded rescues without unacceptable hard-negative regressions.",
+      "retirement_criteria": "The benchmark is superseded or no longer reproducible against the maintained research corpus.",
+      "next_decision_date": "2026-10-01",
+      "reason_for_current_state": "Fifty retained live comparisons produced zero hybrid-only evidence rescues; manual benchmarking preserves the experiment without recurring production cost."
+    },
+    {
+      "feature_name": "generated_image_identity_policy",
+      "purpose": "Measure whether identity-dependent generated images would require cross-quotation penalties or exclusions.",
+      "current_state": "suspended",
+      "start_date": "2026-07-10",
+      "evidence_metric": "Policy-caused winner changes while generated images are eligible for production selection.",
+      "target_observation_count": 100,
+      "promotion_criteria": "Generated pool activation is separately approved and deterministic shadow evidence shows safe, useful policy effects.",
+      "retirement_criteria": "Generated images remain disabled permanently or the identity policy is replaced by a validated successor.",
+      "next_decision_date": "2026-08-15",
+      "reason_for_current_state": "The generated-image pool is disabled, so routine identity-policy shadow scoring cannot produce decision-relevant observations."
+    },
+    {
+      "feature_name": "quote_image_semantic_veto",
+      "purpose": "Observe materially misleading historical quotation-image relationships without changing production selection.",
+      "current_state": "active_shadow",
+      "start_date": "2026-07-16",
+      "evidence_metric": "Judged production winners, veto reasons, safe alternatives and production-selection invariant failures.",
+      "target_observation_count": 200,
+      "promotion_criteria": "Separately authorised evaluation retains strict safety and coverage gates with zero production-selection invariant failures.",
+      "retirement_criteria": "The manifest becomes stale, coverage falls below its gates or a validated successor replaces it.",
+      "next_decision_date": "2026-08-01",
+      "reason_for_current_state": "The corrected v3 manifest is loaded in non-enforcing shadow mode and continues to collect production-relevant relationship evidence."
+    },
+    {
+      "feature_name": "original_editorial_selector",
+      "purpose": "Compare original-image editorial metadata adjustments with the production image winner.",
+      "current_state": "active_shadow",
+      "start_date": "2026-07-10",
+      "evidence_metric": "Shadow winner disagreements, score adjustments and editorial mismatch reasons.",
+      "target_observation_count": 200,
+      "promotion_criteria": "A separately reviewed sample demonstrates consistent editorial improvement without selection or state side effects.",
+      "retirement_criteria": "The scorer provides no useful disagreements or is replaced by a validated selector revision.",
+      "next_decision_date": "2026-08-01",
+      "reason_for_current_state": "The scorer remains observational and has produced useful comparative ranking evidence without affecting production."
+    }
+  ]
+}

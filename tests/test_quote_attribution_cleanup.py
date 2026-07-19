@@ -127,6 +127,56 @@ def test_unknown_category_is_total_and_explicit() -> None:
     assert "canonical_speaker_not_grounded" in counts
 
 
+def test_incomplete_pair_coverage_is_not_reported_as_global_no_safe_image() -> None:
+    quote_id = "a" * 64
+    image_hashes = {f"{value:064x}" for value in range(91)}
+    records = [
+        {
+            "quote_id": quote_id,
+            "image_hash": f"{0:064x}",
+            "decision": "veto",
+            "pair_id": "b" * 64,
+        },
+        {
+            "quote_id": quote_id,
+            "image_hash": f"{1:064x}",
+            "decision": "unknown",
+            "pair_id": "c" * 64,
+            "basis": "source_evidence_gap",
+        },
+    ]
+
+    result = cleanup.semantic_pair_coverage({quote_id}, records, image_hashes)
+
+    assert result["quote_has_allowed_candidate"][quote_id] is None
+    assert result["quotes_without_allowed_candidate"] == 0
+    assert result["adjudicated_unknown_pair_count"] == 1
+    assert result["not_adjudicated_pair_count"] == 89
+    assert result["quote_pair_coverage"][quote_id]["global_no_safe_image"] is False
+
+
+def test_complete_all_veto_coverage_is_reported_as_global_no_safe_image() -> None:
+    quote_id = "a" * 64
+    image_hashes = {f"{value:064x}" for value in range(91)}
+    records = [
+        {
+            "quote_id": quote_id,
+            "image_hash": image_hash,
+            "decision": "veto",
+            "pair_id": hashlib.sha256(f"{quote_id}:{image_hash}".encode()).hexdigest(),
+        }
+        for image_hash in sorted(image_hashes)
+    ]
+
+    result = cleanup.semantic_pair_coverage({quote_id}, records, image_hashes)
+
+    assert result["quote_has_allowed_candidate"][quote_id] is False
+    assert result["quotes_without_allowed_candidate"] == 1
+    assert result["quotes_without_allowed_candidate_ids"] == [quote_id]
+    assert result["not_adjudicated_pair_count"] == 0
+    assert result["quote_pair_coverage"][quote_id]["global_no_safe_image"] is True
+
+
 def test_production_history_uses_quote_hashes_not_shifted_line_indices() -> None:
     source = (cleanup.ROOT / "mrsMThatcher2.py").read_text(encoding="utf-8")
     assert "lines_used.add(quote_hash)" in source

@@ -31,7 +31,11 @@ class MinimalBot:
 
 
 def load_veto() -> ShadowRuntime:
-    path = ROOT / "semantic_alignment_research/quote_image_semantic_veto_001/shadow/material_veto_v2_shadow_manifest.json"
+    path = (
+        ROOT
+        / "semantic_alignment_research/quote_attribution_cleanup_001/deployment_candidate/"
+        "material_veto_v3_shadow_manifest.json"
+    )
     runtime = ShadowRuntime.load(
         ROOT,
         {
@@ -243,9 +247,9 @@ def test_unknown_pair_is_not_treated_as_allowed() -> None:
     assert pair is None
 
 
-def test_no_safe_image_policy_does_not_select_vetoed_or_unknown(tmp_path: Path) -> None:
+def test_incomplete_coverage_policy_does_not_select_vetoed_or_unknown(tmp_path: Path) -> None:
     runtime = load_veto()
-    quote_id = next(key for key, has_allowed in runtime.quote_flags.items() if has_allowed is False)
+    quote_id = next(key for key, has_allowed in runtime.quote_flags.items() if has_allowed is None)
     pair = next(value for value in runtime.pairs.values() if value["quote_id"] == quote_id and value["decision"] == "veto")
     ctx = minimal_context(tmp_path, quote_id, runtime)
     quote = {"quote_hash": quote_id, "text": "A quotation.", "analysis": {}}
@@ -256,7 +260,8 @@ def test_no_safe_image_policy_does_not_select_vetoed_or_unknown(tmp_path: Path) 
     policies = harness.evaluate_policies(ctx, quote, production, [production, unknown])
     assert policies["semantic_winner"] is None
     assert policies["combined_winner"] is None
-    assert policies["veto_event"]["quote_has_no_allowed_candidate_globally"] is True
+    assert policies["veto_event"]["quote_has_no_allowed_candidate_globally"] is False
+    assert policies["veto_event"]["quote_has_incomplete_pair_coverage"] is True
     ctx.connection.close()
 
 
@@ -546,7 +551,9 @@ def test_replay_dependencies_are_stable_copied_and_hash_checked(tmp_path: Path) 
             "readme": {"path": "README.md", "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}
         }
     }
-    (snapshot / "material_veto_v2_shadow_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (snapshot / "material_veto_v3_shadow_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
     ctx = type("Context", (), {"snapshot": snapshot, "run_dir": tmp_path})()
     replay_root = tmp_path / "replay"
     result = harness.snapshot_replay_manifest_sources(ctx, replay_root)

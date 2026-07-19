@@ -1,10 +1,16 @@
 # Attribution-cleaned v3 shadow manifest
 
 - Result: **PASS**
-- Manifest SHA-256: `fd04f7500b5824811ea987dfbe885ce034dc8af7b1f6286e533cd78628e5c3f4`
+- Manifest SHA-256: `594b5fc9fdc1599a5f03c53a09fbcdbccfaa4d2003c019a3aefc070aa13d11f6`
 - Quotations: 610
 - Images: 91
 - Pairs: 22066 (21938 allow, 128 veto)
+- Adjudicated unknown pairs: 167
+- Not-adjudicated pairs: 33277
+- Complete all-veto quotations: 0
+- Incomplete quotation/image coverage: 610 quotations
+- Gorbachev quotation coverage: {'authorised_image_count': 91, 'allow_count': 0, 'veto_count': 10, 'adjudicated_unknown_count': 27, 'not_adjudicated_count': 54, 'observed_pair_count': 37, 'resolved_pair_count': 10, 'complete_pair_coverage': False, 'fully_resolved_pair_coverage': False, 'global_no_safe_image': False}
+- Thatcher/Gorbachev/Raisa image pair: not_adjudicated_missing; no allow/veto was invented
 - Current-winner coverage: 100.00%
 - Seasonal-boundary coverage: 100.00%
 - Stateful weighted coverage: 99.77%

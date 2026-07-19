@@ -53,12 +53,31 @@ def test_disabled_production_and_shadow_do_not_require_audit(monkeypatch: pytest
 
 
 def test_enabled_production_requires_audit(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", True)
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", True)
     monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", False)
     monkeypatch.setattr(bot, "GENERATED_IDENTITY_AUDIT_FILE", "/missing")
     monkeypatch.setattr(bot, "_GENERATED_IDENTITY_AUDIT_CACHE", {})
     with pytest.raises(FileNotFoundError):
         bot.validate_generated_identity_shadow_startup()
+
+
+def test_disabled_generated_pool_suspends_enabled_identity_processing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IMAGE_POOL", False)
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SCORING", True)
+    monkeypatch.setattr(bot, "ENABLE_GENERATED_IDENTITY_POLICY_SHADOW_SCORING", True)
+    monkeypatch.setattr(
+        bot,
+        "load_generated_identity_audit",
+        lambda: pytest.fail("disabled generated pool must not load identity audit"),
+    )
+
+    bot.validate_generated_identity_shadow_startup()
+
+    assert bot.generated_identity_policy_scoring_active() is False
+    assert bot.generated_identity_policy_shadow_active() is False
 
 
 def test_policy_selection_applies_all_categories_without_mutation(monkeypatch: pytest.MonkeyPatch) -> None:
