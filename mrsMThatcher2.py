@@ -2660,6 +2660,14 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
         log.error("X API error %s: %s", response.status_code, response.text)
         reset_epoch = print_rate_limit_headers(response)
 
+        if ambiguous_write and 500 <= response.status_code < 600:
+            raise AmbiguousRemotePostOutcome(
+                f"X may have accepted the write before returning HTTP {response.status_code}: {response.text}",
+                service="x",
+                status_code=response.status_code,
+                reset_epoch=reset_epoch,
+            )
+
         raise ApiError(
             f"X API error {response.status_code}: {response.text}",
             service="x",
@@ -7329,7 +7337,9 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         line_no=line_no,
         image_no=image_no,
         image_basename=image_basename,
+        image_hash=image_choice.get("image_hash"),
         image_score=image_choice.get("score"),
+        quote_hash=quote_hash,
     )
     log.info("Quote/image posted successfully. posted_id=%s", posted_id)
 
@@ -8726,6 +8736,7 @@ def strategy_metadata_is_semantically_valid(
         HUMOUR_TONES,
         MODES,
         principle_reply_assertion_error,
+        ungrounded_reply_assertion_error,
     )
     required = {
         "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
@@ -8777,9 +8788,16 @@ def strategy_metadata_is_semantically_valid(
         or not isinstance(incoming_text, str)
         or not incoming_text.strip()
         or len(incoming_text) > PENDING_REPLY_CONTEXT_MAX_CHARS
-        or principle_reply_assertion_error(str(text or ""), incoming_text) is not None
     ):
         return False
+    if not factual:
+        assertion_validator = (
+            principle_reply_assertion_error
+            if mode == "principle_reply"
+            else ungrounded_reply_assertion_error
+        )
+        if assertion_validator(str(text or ""), str(incoming_text or "")) is not None:
+            return False
     if grounded and (not ids or not strategy_metadata["evidence_summary"].strip()):
         return False
     if factual and (not grounded or not ids or not strategy_metadata["evidence_summary"].strip()):

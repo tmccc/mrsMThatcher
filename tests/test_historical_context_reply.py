@@ -125,6 +125,21 @@ def test_standalone_formatter_cli_uses_production_v2(corpus, capsys):
     assert "Historical context\n" not in output
 
 
+def test_standalone_formatter_cli_rejects_non_thatcher_quote_id(corpus, capsys):
+    packets, _ = corpus
+    packet = next(
+        row for row in packets.values()
+        if not packet_is_attributed_to_margaret_thatcher(row)
+    )
+
+    with pytest.raises(SystemExit, match="no attribution-eligible completed canonical research packet"):
+        context_module.main([
+            "--research-dir", str(RESEARCH), "--quote-id", packet["quote_id"],
+        ])
+
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.parametrize("status,label", sorted(VERIFICATION_LABELS.items()))
 def test_verification_wording_is_explicit(corpus, status, label):
     packets, _ = corpus; packet = next(row for row in packets.values() if row["verification_status"] == status)

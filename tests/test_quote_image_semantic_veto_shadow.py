@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import mrs_log_digest as digest
+import semantic_alignment.quote_image_semantic_veto as semantic_veto
 from semantic_alignment.io import sha256_file
 from semantic_alignment.quote_image_semantic_veto import (
     ATTRIBUTION_CLEANED_V3_POLICY_VERSION,
@@ -451,7 +452,10 @@ def test_digest_aggregates_selection_and_confirmed_post() -> None:
         "manifest_policy_version": POLICY_VERSION, "manifest_sha256": "c" * 64,
         "lookup_latency_ms": 0.2, "production_selection_changed": False,
     }
-    posted = {"event": "main_post_posted", "lane": "quote_image", "post_id": "123", "image_basename": "t01.jpg"}
+    posted = {
+        "event": "main_post_posted", "lane": "quote_image", "post_id": "123",
+        "quote_hash": "a" * 64, "image_hash": "b" * 64, "image_basename": "t01.jpg",
+    }
     records = [
         digest.Record(datetime(2026, 7, 16, 12, 0, 0), "INFO", "test", 1, "EVENT " + json.dumps(event), "test.log", 1),
         digest.Record(datetime(2026, 7, 16, 12, 0, 1), "INFO", "test", 2, "EVENT " + json.dumps(posted), "test.log", 2),
@@ -470,6 +474,85 @@ def test_digest_aggregates_selection_and_confirmed_post() -> None:
     assert "Selection-time observations" in rendered
     assert "ally_adversary_confusion" in rendered
     assert "alternative available" in rendered
+
+
+def test_digest_does_not_confirm_semantic_veto_event_against_a_different_post() -> None:
+    shadow = {
+        "event": "quote_image_semantic_veto_shadow",
+        "quote_id": "a" * 64,
+        "quote_hash": "a" * 64,
+        "selected_image_hash": "b" * 64,
+        "selected_image_basename": "t01.jpg",
+        "shadow_status": "veto",
+        "would_veto_production_winner": True,
+        "veto_reason_codes": ["wrong_event"],
+        "manifest_policy_version": POLICY_VERSION,
+        "manifest_sha256": "c" * 64,
+        "production_selection_changed": False,
+    }
+    unrelated_post = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": "123",
+        "quote_hash": "d" * 64,
+        "image_hash": "e" * 64,
+        "image_basename": "t02.jpg",
+    }
+    later_matching_post = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": "124",
+        "quote_hash": "a" * 64,
+        "image_hash": "b" * 64,
+        "image_basename": "t01.jpg",
+    }
+    records = [
+        digest.Record(datetime(2026, 7, 16, 12, 0), "INFO", "test", 1, "EVENT " + json.dumps(shadow), "test.log", 1),
+        digest.Record(datetime(2026, 7, 16, 12, 1), "INFO", "test", 2, "EVENT " + json.dumps(unrelated_post), "test.log", 2),
+        digest.Record(datetime(2026, 7, 16, 12, 2), "INFO", "test", 3, "EVENT " + json.dumps(later_matching_post), "test.log", 3),
+    ]
+
+    report = digest.analyse(records)
+
+    event = report["quote_image_semantic_veto_shadow"]["events"][0]
+    assert event.get("confirmed_post") is not True
+    assert not event.get("post_id")
+    assert report["quote_image_semantic_veto_shadow"]["summary"]["confirmed_successful_posts"] == 0
+
+
+@pytest.mark.parametrize(("elapsed_minutes", "confirmed"), [(29, True), (31, False)])
+def test_digest_bounds_basename_correlation_for_older_logs(
+    elapsed_minutes: int,
+    confirmed: bool,
+) -> None:
+    shadow = {
+        "event": "quote_image_semantic_veto_shadow",
+        "quote_hash": "a" * 64,
+        "selected_image_basename": "t01.jpg",
+        "shadow_status": "allow",
+        "manifest_policy_version": POLICY_VERSION,
+        "manifest_sha256": "c" * 64,
+        "production_selection_changed": False,
+    }
+    posted = {
+        "event": "main_post_posted",
+        "lane": "quote_image",
+        "post_id": "123",
+        "image_basename": "t01.jpg",
+    }
+    records = [
+        digest.Record(datetime(2026, 7, 16, 12, 0), "INFO", "test", 1, "EVENT " + json.dumps(shadow), "test.log", 1),
+        digest.Record(
+            datetime(2026, 7, 16, 12, elapsed_minutes),
+            "INFO", "test", 2, "EVENT " + json.dumps(posted), "test.log", 2,
+        ),
+    ]
+
+    report = digest.analyse(records)
+
+    event = report["quote_image_semantic_veto_shadow"]["events"][0]
+    assert event["confirmed_post"] is confirmed
+    assert event.get("post_id") == ("123" if confirmed else None)
 
 
 def test_digest_does_not_treat_unproven_legacy_no_safe_flag_as_coverage_gap() -> None:
@@ -519,7 +602,10 @@ def test_runtime_summary_does_not_mix_manifest_versions() -> None:
     assert len(summary["manifest_strata"]) == 2
 
 
-def test_shadow_status_progress_uses_only_configured_manifest(tmp_path: Path) -> None:
+def test_shadow_status_progress_uses_only_configured_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     manifest = tmp_path / "manifest.json"
     manifest.write_bytes(MANIFEST.read_bytes())
     manifest_value = json.loads(manifest.read_text(encoding="utf-8"))
@@ -548,6 +634,7 @@ def test_shadow_status_progress_uses_only_configured_manifest(tmp_path: Path) ->
         "".join(json.dumps(row) + "\n" for row in rows),
         encoding="utf-8",
     )
+    monkeypatch.setattr(semantic_veto, "manifest_source_hash_mismatches", lambda *_args: [])
 
     status = shadow_status(tmp_path)
 
@@ -556,6 +643,21 @@ def test_shadow_status_progress_uses_only_configured_manifest(tmp_path: Path) ->
     assert status["vetoed"] == 0
     assert status["observation_progress"] == {"toward_100": 1, "toward_200": 1}
     assert status["events_excluded_from_current_manifest_summary"] == 1
+
+
+def test_shadow_status_rejects_manifest_with_missing_recorded_sources(tmp_path: Path) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_bytes(MANIFEST.read_bytes())
+    (tmp_path / "mrsMThatcher.local.json").write_text(
+        json.dumps({"quote_image_semantic_veto": enabled_config(manifest)}),
+        encoding="utf-8",
+    )
+
+    status = shadow_status(tmp_path)
+
+    assert status["manifest"]["valid"] is False
+    assert "source hash mismatch" in status["manifest"]["reason"]
+    assert status["manifest"]["sha256"] == sha256_file(manifest)
 
 
 def test_digest_reports_latest_manifest_without_inheriting_old_vetoes() -> None:

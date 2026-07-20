@@ -55,8 +55,8 @@ PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE = re.compile(
     r"\b(?:the\s+)?(?:government|cabinet|prime minister|president|ministers?|"
     r"politicians?|officials?|civil service|courts?|media|they|he|she)\s+"
     r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|believes?|"
-    r"knows?|understands?|refuses?|intends?|lied|lies|covered|conspired|betrayed|"
-    r"failed|fails)\b)",
+    r"knows?|understands?|refuses?|intends?|continues?|conceals?|hides?|misleads?|"
+    r"lied|lies|covered|covers?|conspired|betrayed|failed|fails)\b)",
     re.IGNORECASE,
 )
 PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE = re.compile(
@@ -65,7 +65,8 @@ PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE = re.compile(
     r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\b|\s+(?:is|are|was|were|has|have|had|"
     r"does|do|did|will|would|wants?|seeks?|craves?|believes?|knows?|understands?|"
     r"refuses?|intends?|advocates?|attacks?|champions?|denies?|endorses?|promotes?|"
-    r"supports?|undermines?|lied|lies|betrayed|failed|fails)\b)",
+    r"supports?|undermines?|conceals?|continues?|covers?|hides?|misleads?|"
+    r"lied|lies|betrayed|failed|fails)\b)",
     re.IGNORECASE | re.MULTILINE | re.UNICODE,
 )
 PRINCIPLE_REPLY_PROPER_NAME_RE = re.compile(
@@ -83,15 +84,16 @@ PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE = re.compile(
     r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\s+[a-z][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})?\s+"
     r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|seeks?|"
     r"craves?|believes?|knows?|understands?|refuses?|intends?|advocates?|attacks?|"
-    r"backs?|backed|blocks?|blocked|champions?|cuts?|endorses?|fails?|failed|lies?|"
-    r"made|promotes?|raises?|raised|serves?|speaks?|supports?|undermines?|works?|wrote)\b",
+    r"backs?|backed|blocks?|blocked|champions?|conceals?|continues?|covers?|cuts?|"
+    r"endorses?|fails?|failed|hides?|lies?|made|misleads?|promotes?|raises?|raised|"
+    r"serves?|speaks?|supports?|undermines?|works?|wrote)\b",
     re.IGNORECASE | re.UNICODE,
 )
 PRINCIPLE_REPLY_ABSTRACT_SUBJECTS = {
     "accountability", "action", "character", "citizens", "courage", "conviction", "democracy", "enterprise",
     "freedom", "institutions", "leadership", "liberty", "responsibility",
-    "individuals", "law", "leaders", "people", "politics", "power", "principles",
-    "society", "socialism", "trust", "truth", "understanding",
+    "history", "individuals", "law", "leaders", "people", "politics", "power", "principles",
+    "reality", "society", "socialism", "trust", "truth", "understanding",
 }
 PRINCIPLE_REPLY_GENERIC_SUBJECT_PREFIXES = ("the case",)
 ABSOLUTE_TEMPORAL_ANSWER_RE = re.compile(
@@ -624,8 +626,13 @@ def strategy_mode_guidance() -> str:
     )
 
 
-def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
-    """Reject obvious concrete allegations disguised as an ungrounded principle."""
+def _ungrounded_assertion_error(
+    text: str,
+    incoming_text: str,
+    *,
+    strict_single_subject: bool,
+) -> str | None:
+    """Reject concrete claims whose safety cannot rest on model-supplied metadata."""
     value = str(text or "")
     incoming_actor_tokens = {
         handle.casefold()
@@ -637,9 +644,9 @@ def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str |
     for name in PRINCIPLE_REPLY_PROPER_NAME_RE.findall(str(incoming_text or "")):
         incoming_actor_tokens.update(part.casefold() for part in name.split())
     if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(value):
-        return "principle_reply cannot contain a specific unsupported factual assertion"
-    if PRINCIPLE_REPLY_PROPER_NAME_RE.search(value):
-        return "principle_reply cannot contain a specific unsupported factual assertion"
+        return "ungrounded reply cannot contain a specific unsupported factual assertion"
+    if strict_single_subject and PRINCIPLE_REPLY_PROPER_NAME_RE.search(value):
+        return "ungrounded reply cannot contain a specific unsupported factual assertion"
     for match in PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE.finditer(value):
         raw_actor = match.group("actor")
         actor = raw_actor.casefold()
@@ -647,16 +654,17 @@ def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str |
             actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
             and (raw_actor[0].isupper() or actor in incoming_actor_tokens)
         ):
-            return "principle_reply cannot contain a specific unsupported factual assertion"
-    for match in PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE.finditer(value):
-        actor = match.group("actor").casefold()
-        following = match.group("predicate").casefold()
-        if (
-            actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-            and following not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-            and actor not in {"a", "an", "the"}
-        ):
-            return "principle_reply cannot contain a specific unsupported factual assertion"
+            return "ungrounded reply cannot contain a specific unsupported factual assertion"
+    if strict_single_subject:
+        for match in PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE.finditer(value):
+            actor = match.group("actor").casefold()
+            following = match.group("predicate").casefold()
+            if (
+                actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+                and following not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
+                and actor not in {"a", "an", "the"}
+            ):
+                return "ungrounded reply cannot contain a specific unsupported factual assertion"
     for match in PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE.finditer(value):
         raw_actor = match.group("actor")
         actor = raw_actor.casefold()
@@ -674,8 +682,18 @@ def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str |
             or generic_subject
         ):
             continue
-        return "principle_reply cannot contain a specific unsupported factual assertion"
+        return "ungrounded reply cannot contain a specific unsupported factual assertion"
     return None
+
+
+def ungrounded_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
+    """Reject concrete allegations in any reply which supplies no grounded evidence."""
+    return _ungrounded_assertion_error(text, incoming_text, strict_single_subject=False)
+
+
+def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
+    """Apply the stricter assertion boundary required for a general principle reply."""
+    return _ungrounded_assertion_error(text, incoming_text, strict_single_subject=True)
 
 
 def concrete_factual_question_word(text: str) -> str | None:
@@ -831,6 +849,57 @@ def concrete_factual_question_word(text: str) -> str | None:
     return word
 
 
+def _berlin_wall_answer_is_east_to_west(first_sentence: str) -> bool:
+    """Return whether a first sentence explicitly gives the historically correct direction."""
+    value = " ".join(str(first_sentence or "").casefold().split())
+    east = re.compile(r"\beast(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b")
+    west = re.compile(r"\bwest(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b")
+
+    def relation_is_negated(start: int, end: int) -> bool:
+        context = value[max(0, start - 80):end]
+        return bool(re.search(
+            r"\b(?:did|do|does|would|could|should)\s+not\s+"
+            r"(?:move|run|travel|go|head|flow)\b|"
+            r"\bnever\s+(?:moved|ran|travelled|went|headed|flowed)\b|"
+            r"\bno(?:body|\s+one)\s+(?:moved|ran|travelled|went|headed|flowed)\b|"
+            r"\b(?:movement|flow)\s+(?:was|were|is|are)?\s*not\b|"
+            r"\bno\s+(?:movement|flow)\b|\bnot\s+from\s+",
+            context,
+        ))
+
+    for match in re.finditer(
+        r"\bfrom\s+(?P<source>[^,.;!?]{1,120}?)\s+"
+        r"(?:to|towards?|into)\s+(?P<destination>[^,.;!?]+)",
+        value,
+    ):
+        if (
+            east.search(match.group("source"))
+            and west.search(match.group("destination"))
+            and not relation_is_negated(match.start(), match.end())
+        ):
+            return True
+
+    for match in re.finditer(
+        r"\b(?:to|towards?|into)\s+(?P<destination>[^,.;!?]{1,120}?)"
+        r"(?:,\s*|\s+)from\s+(?P<source>[^,.;!?]+)",
+        value,
+    ):
+        if (
+            west.search(match.group("destination"))
+            and east.search(match.group("source"))
+            and not relation_is_negated(match.start(), match.end())
+        ):
+            return True
+
+    match = re.search(
+        r"\beast(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b"
+        r"[^,.;!?]{0,100}\b(?:moved|ran|travelled|went|headed|flowed)\b"
+        r"[^,.;!?]{0,60}\bwest(?:ward|wards)?\b",
+        value,
+    )
+    return bool(match and not relation_is_negated(match.start(), match.end()))
+
+
 def direct_factual_answer_error(
     question: str,
     reply: str,
@@ -910,12 +979,8 @@ def direct_factual_answer_error(
 
     question_lower = question.lower()
     if "berlin wall" in question_lower and question_word == "where":
-        if not (
-            "east" in lowered
-            and "west" in lowered
-            and ("berlin" in lowered or "germany" in lowered)
-        ):
-            return "the Berlin Wall direction question must directly distinguish East from West"
+        if not _berlin_wall_answer_is_east_to_west(first_sentence):
+            return "the Berlin Wall direction question must directly answer movement from East to West"
     evidence = list(selected_evidence)
     if evidence:
         answer_tokens = {
@@ -1216,8 +1281,13 @@ def validate_reply_decision(
             raise ValueError("hashtags are not allowed")
         if _contains_emoji(reply):
             raise ValueError("emoji are not allowed")
-        if mode == "principle_reply":
-            assertion_error = principle_reply_assertion_error(reply, str(incoming_text or ""))
+        if not value["factual_claim_made"]:
+            assertion_validator = (
+                principle_reply_assertion_error
+                if mode == "principle_reply"
+                else ungrounded_reply_assertion_error
+            )
+            assertion_error = assertion_validator(reply, str(incoming_text or ""))
             if assertion_error:
                 raise ValueError(assertion_error)
         if not _quotes_are_verified(reply, selected_evidence):

@@ -700,6 +700,18 @@ def validate_shadow_config(config: Any) -> list[str]:
     return errors
 
 
+def manifest_source_hash_mismatches(project_dir: Path, manifest: dict[str, Any]) -> list[str]:
+    """Return manifest source paths which are missing or no longer hash-identical."""
+    stale: list[str] = []
+    for item in manifest.get("source_file_hashes", {}).values():
+        source_path = Path(str(item.get("path") or ""))
+        if not source_path.is_absolute():
+            source_path = project_dir / source_path
+        if not source_path.is_file() or sha256_file(source_path) != item.get("sha256"):
+            stale.append(str(source_path))
+    return stale
+
+
 class ShadowHistoryWriter:
     """Persist and manage shadow history records."""
     def __init__(self, runtime_dir: Path, maximum_records: int):
@@ -808,14 +820,7 @@ class ShadowRuntime:
         try:
             manifest = _read_object(path)
             validate_compiled_manifest(manifest)
-            stale = []
-            if verify_source_hashes:
-                for item in manifest.get("source_file_hashes", {}).values():
-                    source_path = Path(str(item.get("path") or ""))
-                    if not source_path.is_absolute():
-                        source_path = project_dir / source_path
-                    if not source_path.is_file() or sha256_file(source_path) != item.get("sha256"):
-                        stale.append(str(source_path))
+            stale = manifest_source_hash_mismatches(project_dir, manifest) if verify_source_hashes else []
             if stale:
                 return cls(
                     False, path, manifest_sha256=sha256_file(path), policy_version=str(manifest.get("policy_version") or ""),
@@ -1417,11 +1422,16 @@ def shadow_status(project_dir: Path) -> dict[str, Any]:
     if not manifest.is_absolute():
         manifest = project_dir / manifest
     validity: dict[str, Any]
+    configured_manifest_sha256: str | None = None
+    configured_policy_version: str | None = None
     try:
         value = _read_object(manifest)
         audit = validate_compiled_manifest(value)
         configured_manifest_sha256 = sha256_file(manifest)
         configured_policy_version = str(value.get("policy_version") or "unavailable")
+        stale = manifest_source_hash_mismatches(project_dir, value)
+        if stale:
+            raise ShadowManifestError(f"source hash mismatch: {stale[0]}")
         validity = {
             "valid": True,
             **audit,
@@ -1429,9 +1439,11 @@ def shadow_status(project_dir: Path) -> dict[str, Any]:
             "source_file_hashes": value.get("source_file_hashes", {}),
         }
     except Exception as exc:
-        configured_manifest_sha256 = None
-        configured_policy_version = None
-        validity = {"valid": False, "reason": f"{type(exc).__name__}: {exc}"}
+        validity = {
+            "valid": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+            "sha256": configured_manifest_sha256,
+        }
     summary = summarise_events(
         history,
         current_manifest_sha256=configured_manifest_sha256,

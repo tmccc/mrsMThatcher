@@ -1144,6 +1144,7 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    events: list[tuple[str, dict[str, object]]] = []
     image_dir = tmp_path / "images"
     image_dir.mkdir()
     image_path = image_dir / "t01.jpg"
@@ -1162,6 +1163,7 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     monkeypatch.setattr(bot, "maybe_schedule_meme_after_quote_post", lambda state, quote_post_epoch=None, **kwargs: None)
     monkeypatch.setattr(bot, "cache_tweet", lambda *args, **kwargs: None)
     monkeypatch.setattr(bot, "record_recent_own_post", lambda *args, **kwargs: None)
+    monkeypatch.setattr(bot, "log_event", lambda name, **fields: events.append((name, fields)))
     monkeypatch.setattr(
         bot,
         "load_quote_analysis",
@@ -1206,6 +1208,9 @@ def test_post_random_quote_retries_alternate_quote_when_first_has_no_image_match
     assert lines_used == {bot.quote_text_hash("Good visual quote.")}
     assert images_used == {"t01.jpg"}
     assert state["last_regular_image_filename"] == "t01.jpg"
+    posted = next(fields for name, fields in events if name == "main_post_posted")
+    assert posted["quote_hash"] == bot.quote_text_hash("Good visual quote.")
+    assert posted["image_hash"] == hashlib.sha256(b"fake").hexdigest()
 
 
 def configure_generated_cycle_recovery_post(

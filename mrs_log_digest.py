@@ -2386,6 +2386,28 @@ def analyse(
     active_xai_context: Optional[Dict[str, Any]] = dict(initial_active_xai_context or {}) or None
     last_created_post: Dict[str, Any] = {}
     pending_semantic_veto_event: Optional[Dict[str, Any]] = None
+    pending_semantic_veto_ts: Optional[datetime] = None
+
+    def semantic_veto_matches_post(
+        shadow_event: Dict[str, Any],
+        shadow_ts: datetime,
+        posted_event: Dict[str, Any],
+        posted_ts: datetime,
+    ) -> bool:
+        elapsed = (posted_ts - shadow_ts).total_seconds()
+        if elapsed < 0 or elapsed > 30 * 60:
+            return False
+        comparisons: List[bool] = []
+        for shadow_field, posted_field in (
+            ("quote_hash", "quote_hash"),
+            ("selected_image_hash", "image_hash"),
+            ("selected_image_basename", "image_basename"),
+        ):
+            shadow_value = str(shadow_event.get(shadow_field) or "")
+            posted_value = str(posted_event.get(posted_field) or "")
+            if shadow_value and posted_value:
+                comparisons.append(shadow_value == posted_value)
+        return bool(comparisons) and all(comparisons)
 
     def add_event(kind: str, ts: datetime, **kwargs: Any) -> Dict[str, Any]:
         ev = {"time": ts.strftime("%Y-%m-%d %H:%M:%S"), "kind": kind}
@@ -2608,12 +2630,24 @@ def analyse(
                         "line_no": event_obj.get("line_no"),
                         "image_no": event_obj.get("image_no"),
                         "image_basename": event_obj.get("image_basename"),
+                        "image_hash": event_obj.get("image_hash"),
                         "image_score": event_obj.get("image_score"),
+                        "quote_hash": event_obj.get("quote_hash"),
                     })
-                    if pending_semantic_veto_event is not None:
+                    if (
+                        pending_semantic_veto_event is not None
+                        and pending_semantic_veto_ts is not None
+                        and semantic_veto_matches_post(
+                            pending_semantic_veto_event,
+                            pending_semantic_veto_ts,
+                            event_obj,
+                            r.ts,
+                        )
+                    ):
                         pending_semantic_veto_event["confirmed_post"] = True
                         pending_semantic_veto_event["post_id"] = event_obj.get("post_id") or ""
-                        pending_semantic_veto_event = None
+                    pending_semantic_veto_event = None
+                    pending_semantic_veto_ts = None
                 elif event_obj.get("lane") == "daily_meme":
                     pending_meme.update({
                         "post_id": event_obj.get("post_id"),
@@ -2652,6 +2686,7 @@ def analyse(
                     confirmed_post=False,
                 )
                 quote_image_semantic_veto_events.append(pending_semantic_veto_event)
+                pending_semantic_veto_ts = r.ts
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
                 add_event(

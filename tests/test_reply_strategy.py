@@ -574,6 +574,63 @@ def test_misspelled_production_berlin_wall_question_requires_direct_answer() -> 
     assert direct_factual_answer_error(question, reply) is None
 
 
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "People moved from West Berlin and West Germany towards East Berlin and East Germany.",
+        "People moved from West to East.",
+        "East and West were the two directions involved.",
+        "People did not move from East Berlin towards West Berlin.",
+        "The flow was not from East to West.",
+        "East Germans never went west when the Wall fell.",
+    ],
+)
+def test_berlin_wall_question_rejects_reversed_unordered_or_negated_direction(reply: str) -> None:
+    question = "Where did people run towards when the Berlin Wall fell?"
+    packet = {
+        "quote_text": "Movement opened from East Berlin towards West Berlin.",
+        "verified_text": "Movement opened from East Berlin towards West Berlin.",
+        "verification_status": "exact",
+        "research_confidence": "high",
+        "speaker": "Margaret Thatcher",
+        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
+        "historical_context": "People moved from East Germany towards West Germany.",
+    }
+    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "East to West.", packet)]
+
+    with pytest.raises(ValueError, match="movement from East to West"):
+        validate_reply_decision(
+            decision(
+                mode="historical_context",
+                humour_tone="none",
+                evidence_confidence="high",
+                retrieved_quote_ids=["a" * 64],
+                evidence_summary="People moved from East to West.",
+                factual_claim_made=True,
+                grounded=True,
+                reply_text=reply,
+            ),
+            evidence,
+            allowed_quote_ids={"a" * 64},
+            direct_question_text=question,
+        )
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "The flow was overwhelmingly from East to West once the option existed.",
+        "People moved towards West Berlin from East Berlin.",
+        "East Germans went west when the Wall fell.",
+    ],
+)
+def test_berlin_wall_question_accepts_explicit_east_to_west_variants(reply: str) -> None:
+    assert direct_factual_answer_error(
+        "Where did people run towards when the Berlin Wall fell?",
+        reply,
+    ) is None
+
+
 def test_concrete_who_question_rejects_a_declarative_non_answer() -> None:
     question = "Who was Prime Minister in 1979?"
     reply = "That deserves serious consideration."
@@ -1108,6 +1165,101 @@ def test_principle_reply_rejects_unsupported_actor_specific_assertion() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("mode", "tone", "reply"),
+    [
+        ("wry_reply", "wry", "Andy Burnham lied about his record."),
+        ("warm_reply", "warm", "The government covered up the figures."),
+        ("deadpan_reply", "deadpan", "Keir Starmer has betrayed every promise."),
+        ("playful_reply", "playful", "The government continues to conceal the truth."),
+    ],
+)
+def test_every_ungrounded_mode_rejects_unsupported_factual_assertions(
+    mode: str,
+    tone: str,
+    reply: str,
+) -> None:
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode=mode,
+                humour_tone=tone,
+                factual_claim_made=False,
+                grounded=False,
+                reply_text=reply,
+            ),
+            [],
+            allowed_quote_ids=set(),
+            incoming_text="Why does the government keep concealing the truth?",
+        )
+
+
+def test_false_factual_flag_cannot_evade_assertion_check_with_grounded_metadata() -> None:
+    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=1)
+    selected = evidence[0]
+
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode="wry_reply",
+                humour_tone="wry",
+                evidence_confidence="high",
+                retrieved_quote_ids=[selected.quote_id],
+                evidence_summary="An unrelated high-confidence historical packet.",
+                factual_claim_made=False,
+                grounded=True,
+                reply_text="Andy Burnham lied about his record.",
+            ),
+            evidence,
+            allowed_quote_ids={selected.quote_id},
+            incoming_text="An unsupported allegation about Andy Burnham.",
+        )
+
+
+@pytest.mark.parametrize(
+    ("mode", "tone", "reply"),
+    [
+        ("wry_reply", "wry", "A tidy theory. Reality may request amendments."),
+        ("warm_reply", "warm", "The vigilance required never ends."),
+        ("deadpan_reply", "deadpan", "Quite so."),
+        ("playful_reply", "playful", "An interesting theory, awaiting acquaintance with reality."),
+        ("warm_reply", "warm", "Merry Christmas."),
+    ],
+)
+def test_non_factual_ungrounded_modes_remain_available(
+    mode: str,
+    tone: str,
+    reply: str,
+) -> None:
+    result = validate_reply_decision(
+        decision(mode=mode, humour_tone=tone, reply_text=reply),
+        [],
+        allowed_quote_ids=set(),
+        incoming_text="A general political observation.",
+    )
+
+    assert result["mode"] == mode
+
+
+def test_principle_reply_rejects_premise_preserving_institutional_claim() -> None:
+    incoming = "Why does the government keep concealing the truth?"
+    reply = "The government continues to conceal the truth."
+
+    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
+        validate_reply_decision(
+            decision(
+                mode="principle_reply",
+                humour_tone="none",
+                evidence_confidence="none",
+                reply_text=reply,
+                topical_basis="government concealing truth",
+            ),
+            [],
+            allowed_quote_ids=set(),
+            incoming_text=incoming,
+        )
+
+
 def test_principle_reply_rejects_named_actor_allegation() -> None:
     incoming = "Andy Burnham only wants public popularity."
     reply = "Burnham craves popularity rather than responsibility."
@@ -1288,6 +1440,29 @@ def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> No
         unsafe,
         unsafe["reply_text"],
         incoming_text=incoming,
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "tone", "text"),
+    [
+        ("wry_reply", "wry", "Andy Burnham lied about his record."),
+        ("warm_reply", "warm", "The government covered up the figures."),
+        ("deadpan_reply", "deadpan", "Keir Starmer has betrayed every promise."),
+    ],
+)
+def test_unsafe_ungrounded_assertion_cannot_survive_in_durable_strategy_metadata(
+    mode: str,
+    tone: str,
+    text: str,
+) -> None:
+    metadata = decision(mode=mode, humour_tone=tone, reply_text=text)
+    metadata.pop("topical_basis")
+
+    assert not bot.strategy_metadata_is_semantically_valid(
+        metadata,
+        text,
+        incoming_text="A contribution containing an unsupported allegation.",
     )
 
 

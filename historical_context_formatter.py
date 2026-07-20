@@ -873,7 +873,12 @@ def main(argv: list[str] | None = None) -> int:
     quote_id = args.quote_id or (quote_text_hash(args.quote_text) if args.quote_text else None)
     if not quote_id: parser.error("--quote-id or --quote-text is required")
     packet = packets.get(quote_id) if args.quote_id else packet_for_posted_quote(packets, unresolved, quote_id, args.quote_text)
-    if quote_id in unresolved or packet is None: raise SystemExit("no completed canonical research packet; no reply")
+    if (
+        quote_id in unresolved
+        or packet is None
+        or not packet_is_attributed_to_margaret_thatcher(packet)
+    ):
+        raise SystemExit("no attribution-eligible completed canonical research packet; no reply")
     result = format_context_reply_v2(packet, maximum_length=args.maximum_length)
     if result is None: raise SystemExit("canonical packet cannot produce a supported reply")
     print(result["text"])

@@ -190,6 +190,58 @@ def test_ambiguous_remote_post_blocks_process_when_marker_write_fails(tmp_path, 
     assert calls == 1
 
 
+@pytest.mark.parametrize("status_code", [500, 502, 503, 504])
+def test_x_server_error_on_post_creates_durable_ambiguity_barrier(
+    status_code: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_paths(monkeypatch, tmp_path)
+
+    class Response:
+        text = '{"detail":"upstream unavailable"}'
+        headers: dict[str, str] = {}
+
+        def __init__(self, status: int) -> None:
+            self.status_code = status
+
+    monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: Response(status_code))
+
+    with pytest.raises(bot.AmbiguousRemotePostOutcome) as caught:
+        bot.create_post("test")
+
+    assert caught.value.status_code == status_code
+    marker = json.loads((tmp_path / "ambiguous_post_outcome.json").read_text(encoding="utf-8"))
+    assert marker["outcome"] == "ambiguous_remote_post"
+    assert bot.ambiguous_remote_post_is_blocking() is True
+
+
+@pytest.mark.parametrize("status_code", [400, 403, 429])
+def test_x_definite_client_rejection_does_not_create_ambiguity_barrier(
+    status_code: int,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_paths(monkeypatch, tmp_path)
+
+    class Response:
+        text = '{"detail":"request rejected"}'
+        headers: dict[str, str] = {}
+
+        def __init__(self, status: int) -> None:
+            self.status_code = status
+
+    monkeypatch.setattr(bot.requests, "request", lambda *_args, **_kwargs: Response(status_code))
+
+    with pytest.raises(bot.ApiError) as caught:
+        bot.create_post("test")
+
+    assert not isinstance(caught.value, bot.AmbiguousRemotePostOutcome)
+    assert caught.value.status_code == status_code
+    assert not (tmp_path / "ambiguous_post_outcome.json").exists()
+    assert bot.ambiguous_remote_post_is_blocking() is False
+
+
 @pytest.mark.parametrize(
     "lane",
     ["regular_quote", "meme", "mention", "quote_tweet", "historical_context"],
