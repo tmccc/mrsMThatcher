@@ -135,6 +135,9 @@ def prepare_base_dir(
     (base_dir / "mrsMThatcher.txt").write_text("A test quote.\n", encoding="utf-8")
     (base_dir / "images").mkdir()
     (base_dir / "images" / "t01.jpg").write_bytes(b"fake image bytes")
+    (base_dir / "reply_factual_evidence.json").write_bytes(
+        (ROOT / "reply_factual_evidence.json").read_bytes()
+    )
     write_minimal_asset_analysis(base_dir)
 
     config = {
@@ -145,6 +148,28 @@ def prepare_base_dir(
         "MAX_MENTIONS_PER_CHECK": 10,
         "MAX_AUTO_REPLIES_PER_DAY": 24,
         "MAX_REPLIES_PER_AUTHOR_PER_DAY": 1,
+        "ai_first_reply_strategy": {
+            "enabled": True,
+            "strategy_version": "ai-first-reply-v3",
+            "proposer_model": "fixture-proposer",
+            "reviewer_model": "fixture-reviewer",
+            "evidence_model": "fixture-evidence",
+            "research_corpus_path": str(ROOT / "semantic_alignment_research/quote_research_full_001"),
+            "maximum_model_calls": 6,
+            "proposer_timeout_seconds": 10,
+            "evidence_timeout_seconds": 10,
+            "reviewer_timeout_seconds": 10,
+            "proposer_max_output_tokens": 900,
+            "evidence_max_output_tokens": 1800,
+            "reviewer_max_output_tokens": 900,
+            "maximum_revisions": 1,
+            "maximum_invalid_response_retries": 1,
+            "maximum_claims": 6,
+            "maximum_evidence_packets_per_claim": 6,
+            "maximum_evidence_passages_per_claim": 24,
+            "maximum_reply_sentences": 2,
+            "fail_closed": True,
+        },
     }
     if local_config:
         config.update(local_config)
@@ -462,6 +487,25 @@ def run_branch_parity_case(
         server.stop()
 
 
+def normalize_scheduler_parity_result(result: dict) -> dict:
+    """Remove only the deliberately replaced conversational AI implementation."""
+    normalized = copy.deepcopy(result)
+    normalized.pop("xai_requests", None)
+    path_counts = normalized.get("path_counts")
+    if isinstance(path_counts, dict):
+        path_counts.pop("/v1/chat/completions", None)
+    state = normalized.get("state")
+    if isinstance(state, dict):
+        for key in (
+            "ai_reply_history",
+            "pending_ai_reply_drafts",
+            "pending_reply_drafts",
+            "reply_strategy_history",
+        ):
+            state.pop(key, None)
+    return normalized
+
+
 def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_scheduler_delta(tmp_path: Path) -> None:
     master_root = tmp_path / "master-archive"
     master_root.mkdir()
@@ -579,7 +623,9 @@ def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_sch
     for case in base_cases + fuzz_cases:
         master_result = run_branch_parity_case(master_root, tmp_path / "master-runs", **case)
         promotion_result = run_branch_parity_case(ROOT, tmp_path / "promotion-runs", **case)
-        assert promotion_result == master_result, case["name"]
+        assert normalize_scheduler_parity_result(promotion_result) == normalize_scheduler_parity_result(
+            master_result
+        ), case["name"]
 
     server_master = FakeApiServer({}).start()
     server_promotion = FakeApiServer({}).start()
@@ -691,6 +737,29 @@ def test_normal_mention_reply(tmp_path: Path, fake_server: FakeApiServer) -> Non
     assert state["last_seen_mention_id"] == "100"
     assert state["next_reply_lane_priority"] == "quote"
     assert not (PRODUCTION_BASE_DIR / "bot_state.json.tmp").exists()
+
+
+@pytest.mark.parametrize("fake_server", ["normal_mention_reply.json"], indirect=True)
+def test_missing_reply_evidence_fails_before_model_or_post(
+    tmp_path: Path,
+    fake_server: FakeApiServer,
+) -> None:
+    base_dir = prepare_base_dir(tmp_path)
+    config = read_json(base_dir / "mrsMThatcher.local.json")
+    config["ai_first_reply_strategy"]["research_corpus_path"] = str(
+        base_dir / "missing-research-corpus"
+    )
+    write_json(base_dir / "mrsMThatcher.local.json", config)
+
+    result = run_cycle(base_dir, fake_server)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert fake_server.xai_requests == []
+    assert fake_server.uploads == []
+    assert fake_server.posts == []
+    assert "reply_evidence_unavailable" in result.stdout
+    state = read_json(base_dir / "bot_state.json")
+    assert state.get("xai_error_epochs", []) == []
 
 
 def test_dry_run_mention_reply_caches_generated_reply_without_posting(tmp_path: Path) -> None:
@@ -2784,7 +2853,7 @@ def test_duplicate_mention_hot_post_counts_and_state_increment_once(tmp_path: Pa
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert len(server.xai_requests) == 1
+        assert len(server.xai_requests) == 2
         assert state["daily_reply_count"] == 1
         assert state["daily_replied_author_ids"].count("210") == 1
         assert state["replied_to_ids"].count("110") == 1
@@ -3276,7 +3345,7 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         assert result.returncode == 0, result.stderr + result.stdout
         assert len(server.posts) == 1
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "911"
-        assert len(server.xai_requests) == 1
+        assert len(server.xai_requests) == 2
         state = read_json(base_dir / "bot_state.json")
         assert "911" in state["replied_to_quote_post_ids"]
         assert "912" not in state["replied_to_quote_post_ids"]
@@ -3773,7 +3842,7 @@ def test_duplicate_mention_and_hot_post_candidate_posts_once(tmp_path: Path, fak
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == 1
     assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "110"
-    assert len(fake_server.xai_requests) == 1
+    assert len(fake_server.xai_requests) == 2
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "110"
 
@@ -3886,7 +3955,7 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
         assert len(server.posts) == 2
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
         assert server.posts[1]["reply"]["in_reply_to_tweet_id"] == "101"
-        assert len(server.xai_requests) == 2
+        assert len(server.xai_requests) == 4
         state = read_json(base_dir / "bot_state.json")
         assert state["daily_replied_author_counts"]["240"] == 2
         assert state["daily_replied_author_ids"] == ["240"]
@@ -4718,8 +4787,8 @@ def test_connection_refused_for_x_and_xai_are_recorded(tmp_path: Path) -> None:
         ({"xai_non_json": True}, True, False),
         ({"xai_success_body": {}}, True, False),
         ({"xai_success_body": {"choices": [{"message": {}}]}}, True, False),
-        ({"xai_success_body": {"choices": [{"message": {"content": ""}}]}}, False, False),
-        ({"xai_success_body": {"choices": [{"message": {"content": "word " * 200}}]}}, False, True),
+        ({"xai_success_body": {"choices": [{"message": {"content": ""}}]}}, True, False),
+        ({"xai_success_body": {"choices": [{"message": {"content": "word " * 200}}]}}, True, False),
     ],
 )
 def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, expect_xai_error: bool, expect_post: bool) -> None:
@@ -4732,6 +4801,8 @@ def test_malformed_xai_success_responses(tmp_path: Path, scenario_update: dict, 
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
         assert bool(state["xai_error_epochs"]) is expect_xai_error
+        assert state.get("last_seen_mention_id") is None
+        assert state.get("reply_evaluation_records", {}) == {}
         assert bool(server.posts) is expect_post
         if expect_post:
             assert len(server.posts[0]["text"]) <= 270
@@ -5881,7 +5952,8 @@ def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
     assert "## Reply strategy decisions" in digest.stdout
-    assert "| 2026-07-14 12:00:00 | unavailable | historical_context | dry | medium | 1 | True | True |  |" in digest.stdout
+    assert "| time | lane | strategy_version | mode | humour_tone | evidence_confidence | retrieved_count | evidence_reference_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
+    assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context | dry | medium | 1 |  | True | True |  |  |  |  |" in digest.stdout
 
 
 def test_digest_markdown_distinguishes_principle_and_editorial_no_reply_categories(

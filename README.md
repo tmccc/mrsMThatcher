@@ -117,30 +117,36 @@ Scenario fixtures live in `tests/fixtures/scenarios/`. The fake server implement
 
 ## Files To Keep Together
 
-The integration harness and golden tests assume these files are versioned or
+The production runtime and its operational support assume these files are
 deployed as a coherent set:
 
 - `mrsMThatcher2.py`
 - `reply_strategy.py`
+- `reply_evidence.py`
 - `historical_context_formatter.py`
 - `historical_context_reply_schema.json`
 - `shadow_lifecycle.py`
 - `shadow_feature_lifecycle.json`
 - `semantic_quote_image_veto.py`
 - `semantic_alignment/quote_image_semantic_veto.py`
-- `semantic_alignment/hybrid_reply_retrieval.py`
-- `semantic_alignment/quote_research_gemini.py`
+- `semantic_alignment/quote_research_schema.py`
 - `semantic_alignment_research/quote_research_full_001/corpus_manifest.json`
 - `semantic_alignment_research/quote_research_full_001/research_packets.json`
 - `semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json`
-- `tests/test_integration_harness.py`
-- `tests/fake_api_server.py`
-- `tests/fixtures/scenarios/*.json`
 - `mrs_log_digest.py`
-- `README.md`
 - `runMrsMThatcher2`
 - `deploy/systemd-user/*`
 - `mrsMThatcher.env.example`
+
+The offline research and benchmark implementation remains versioned with the
+project, but is not a production runtime dependency:
+
+- `semantic_alignment/quote_research_gemini.py`
+- `semantic_alignment/hybrid_reply_retrieval.py`
+- `tests/test_integration_harness.py`
+- `tests/fake_api_server.py`
+- `tests/fixtures/scenarios/*.json`
+- `README.md`
 - `requirements.txt`
 - `requirements-dev.txt`
 - `mrsMThatcher.local.example.json`
@@ -181,12 +187,13 @@ eligible. The generated pool remains disabled by source default.
 
 The optional historical-context stage posts a neutral, corpus-backed threaded reply only
 after a regular quotation post has been confirmed. It does not change the quotation,
-image selection, schedule, or main-post receipt semantics. Startup validates the immutable
-research archive as exactly 626 completed packets and six unresolved quotations. The
-current 619 canonical source records are then filtered to exactly 610 attribution-eligible
-runtime quotations; six unresolved and three additional attribution-ineligible records
-remain unavailable for posting. A quote without an eligible completed packet receives no
-context reply.
+image selection, schedule, or main-post receipt semantics. When enabled, startup validates
+the immutable archive against the counts and packet-file hash declared by its manifest and
+final status. The current archive declares 626 completed packets and six unresolved
+quotations. The current 619 canonical source records are then filtered to exactly 610
+attribution-eligible runtime quotations; six unresolved and three additional
+attribution-ineligible records remain unavailable for posting. A quote without an eligible
+completed packet receives no context reply.
 
 Enable it in the ignored `mrsMThatcher.local.json` file:
 
@@ -209,62 +216,78 @@ it uses compact `Context —`, optional `Meaning —`, `Verification —`, and `
 sections. Its deterministic Meaning rule omits only redundant explanation; provenance is
 never shortened away. The reviewed corpus fits below 650 weighted characters.
 
-## Accuracy-First Conversational Replies
+## AI-First Conversational Replies
 
-Mention and quote-tweet replies can optionally use the completed historical
-research corpus. The feature is disabled by default and does not affect main
-quote posts or historical context-thread replies. When enabled, the model must
-return a structured decision using one of the historical, humour, warm, or
-`no_reply` modes. Local validation rejects unsupported factual claims,
-unverified quotations in quotation marks, disabled modes, weakly grounded
-historical claims, hashtags, repetitive stock lines, and replies over the
-existing conversational-reply limit.
+Mention and quote-tweet replies use one production strategy: a structured AI
+proposer, claim-specific local evidence adjudication when the draft contains
+facts, and a fresh independent AI reviewer. Only an explicit reviewer approval
+can reach the durable posting path. The historical quotation corpus remains
+available as factual evidence and for exact quotation verification, but replies
+are not assembled from a selected quotation packet.
 
-Enable it through the ignored local configuration after review:
+Configure it through the ignored local configuration after review:
 
 ```json
 {
-  "reply_strategy": {
+  "ai_first_reply_strategy": {
     "enabled": true,
-    "accuracy_first": true,
-    "research_corpus_enabled": true,
+    "strategy_version": "ai-first-reply-v3",
+    "proposer_model": "grok-4.3",
+    "reviewer_model": "grok-4.3",
+    "evidence_model": "grok-4.3",
     "research_corpus_path": "semantic_alignment_research/quote_research_full_001",
-    "completed_packets_only": true,
-    "allow_historical_correction": true,
-    "allow_historical_context": true,
-    "allow_researched_principle": true,
-    "allow_humour": true,
-    "preferred_humour_tones": ["dry", "wry", "playful", "deadpan", "warm"],
-    "maximum_retrieved_packets": 5,
-    "minimum_grounded_confidence": "medium",
-    "no_hashtags": true
+    "maximum_model_calls": 6,
+    "proposer_timeout_seconds": 60,
+    "evidence_timeout_seconds": 60,
+    "reviewer_timeout_seconds": 60,
+    "proposer_max_output_tokens": 900,
+    "evidence_max_output_tokens": 1800,
+    "reviewer_max_output_tokens": 900,
+    "maximum_revisions": 1,
+    "maximum_invalid_response_retries": 1,
+    "maximum_claims": 6,
+    "maximum_evidence_packets_per_claim": 6,
+    "maximum_evidence_passages_per_claim": 24,
+    "maximum_reply_sentences": 2,
+    "fail_closed": true
   }
 }
 ```
 
-The historical corpus is validated as 626 completed and six unresolved records,
-then filtered to exactly 610 attribution-eligible packets before an enabled
-production run starts. Strategy metadata is attached to the confirmed reply
-receipt and retained in `reply_strategy_history` after reconciliation.
-`mrs_log_digest.py` reports decision mode, confidence, evidence count, and
-grounding status without publishing internal quote IDs.
+The source corpus is loaded lazily on the first candidate that reaches the reply
+pipeline. Its partition and packet-file hash are checked against its own immutable
+manifest and final status, then the current archive is filtered to exactly 610
+attribution-eligible Thatcher packets. Production packet validation comes from
+the dependency-free `semantic_alignment/quote_research_schema.py`; it does not
+import the Gemini/Vertex research runner or provider SDK. A failed corpus load is
+cached for the process and fails closed before media preparation or an AI call.
+Factual claims must be supported by exact, hash-validated local passages. Approved
+drafts use schema version 2 and are revalidated against their contribution,
+context, models, prompts and source hashes before reuse or receipt reconciliation.
+V1 drafts are never migrated or posted.
 
-Audit a digest without credentials, posting, or network access:
+Audit legacy V1 drafts without credentials, posting, or network access:
 
 ```bash
-python3 mrsMThatcher2.py audit-replies \
-  --digest /home/tonym/Dropbox/digest014.md \
-  --research-run semantic_alignment_research/quote_research_full_001 \
-  --json
+python3 reply_strategy.py \
+  --state bot_state.json \
+  --output semantic_alignment_research/ai_first_reply_strategy_001/legacy_v1_draft_audit.json
+```
+
+Run the network-free fixture, saved-history and local-retrieval evaluation:
+
+```bash
+python3 tools/evaluate_ai_first_reply_strategy.py \
+  --project-dir /disks/disk1/etc/mrsMThatcher \
+  --output-dir semantic_alignment_research/ai_first_reply_strategy_001
 ```
 
 ## Experimental Shadow Lifecycle
 
 `shadow_feature_lifecycle.json` records the purpose, evidence target and current
 state of each maintained shadow feature. Hybrid reply retrieval is
-`offline_only`: it is absent from the production reply path, which continues to
-use lexical retrieval, but its deterministic index, replay and evaluation tools
-remain available. See
+`offline_only`: it is absent from the production reply path, while its
+deterministic index, replay and evaluation tools remain available. See
 [`semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md`](semantic_alignment_research/hybrid_reply_retrieval_001/OFFLINE_BENCHMARK.md).
 
 Generated-image identity-policy processing is `suspended` while the generated
@@ -478,6 +501,11 @@ source /disks/disk1/etc/mrsMThatcher/mrsMThatcher.env
 set +a
 python3 /usr/local/bin/mrsMThatcher2.py --self-test
 ```
+
+The self-test validates local configuration, credentials and core installation
+assets without importing provider research SDKs or loading the quotation research
+tree. Operational corpus validation remains fail closed on the first real reply
+candidate (and at startup for an enabled historical-context stage).
 
 Restart the live service using the normal service manager for this host.
 After restart, check the live log for startup config and safety markers:

@@ -1,1978 +1,1666 @@
 from __future__ import annotations
 
+import copy
 import json
-import subprocess
-import sys
+from dataclasses import replace
 from pathlib import Path
+from typing import Any, Callable
 
 import pytest
-from jsonschema import ValidationError as JsonSchemaValidationError
 from jsonschema import validate as validate_json_schema
 
-import mrsMThatcher2 as bot
+from reply_evidence import EvidencePassage, EvidenceRepository
 from reply_strategy import (
-    RetrievedEvidence,
-    ReplyDecision,
-    audit_digest,
-    build_strategy_prompt_context,
-    concrete_factual_question_word,
-    decision_schema_instruction,
-    direct_factual_answer_error,
-    direct_question_prompt_guidance,
-    normalise_reply_decision,
-    parse_decision_json,
-    principle_reply_assertion_error,
-    reply_topical_relevance_error,
-    reply_decision_json_schema,
-    strategy_mode_guidance,
-    retrieve_research_packets,
-    validate_reply_decision,
+    AIReply,
+    DRAFT_SCHEMA_VERSION,
+    EVIDENCE_PROMPT_VERSION,
+    MODES,
+    PROPOSER_PROMPT_VERSION,
+    REVIEWER_PROMPT_VERSION,
+    STRATEGY_VERSION,
+    claim_retrieval_query,
+    deterministic_reply_error,
+    evidence_schema,
+    legacy_draft_audit,
+    proposer_schema,
+    reviewer_schema,
+    run_reply_pipeline,
+    sentence_count,
+    validate_evidence_response,
+    validate_persisted_draft,
+    validate_proposer,
+    validate_reply_context,
+    validate_reviewer,
+    validate_strategy_config,
 )
+
 
 RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
-BURNHAM_FAILURE_TEXT = (
-    "@andrewlawrence DON'T FORGET THIS LOW-LIFE @andyburnham HAS NEVER HAD A JOB IN HIS LIFE. "
-    "- 1976 - 1997 Margaret Thatcher @simplysimontfa @MrsMThatcher * First time since the "
-    "1900s economy was left in a positive state. (+£) * Berlin Wall Down * Brighter future "
-    "for generations to"
-)
+FACTUAL_EVIDENCE = Path("reply_factual_evidence.json")
+ADVERSARIAL_FIXTURE = Path("tests/fixtures/ai_first_reply_adversarial_cases.json")
 
 
-def decision(**overrides):
-    value = {
-        "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
-        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
-        "grounded": False, "reply_text": "A tidy theory. Reality may request amendments.",
-        "no_reply_reason": "", "topical_basis": "",
+class FakeRepository:
+    """Minimal exact-reference repository for deterministic pipeline tests."""
+
+    def __init__(self) -> None:
+        passage = EvidencePassage(
+            evidence_id="a" * 64,
+            source_hash="b" * 64,
+            quote_id="c" * 64,
+            field="historical_context",
+            passage="In November 1989 movement was overwhelmingly from East Germany towards West Germany.",
+            source_title="Verified local source",
+            source_url="https://example.invalid/local-source",
+            stable_locator="fixture:1",
+            verification_status="exact",
+            research_confidence="high",
+        )
+        self.passages = {passage.evidence_id: passage}
+        self.passage = passage
+        self.return_candidates = True
+
+    def candidate_passages(self, *_args: object, **_kwargs: object) -> list[EvidencePassage]:
+        return [self.passage] if self.return_candidates else []
+
+    def validate_reference(self, evidence_id: str, exact_passage: str) -> EvidencePassage:
+        passage = self.passages.get(evidence_id)
+        if passage is None or passage.passage != exact_passage:
+            raise ValueError("evidence reference mismatch")
+        return passage
+
+    def exact_quote_is_authorised(self, text: str) -> bool:
+        return text == "Authorised historical words are exact"
+
+    def exact_quote_occurs_in_reply(self, reply_text: str, exact_text: str) -> bool:
+        return exact_text in reply_text
+
+    def detected_authorised_quote_ids(self, text: str) -> set[str]:
+        if "authorised historical words are exact" in text.casefold():
+            return {"c" * 64}
+        return set()
+
+    def detected_authorised_quote_ids_outside_exact(
+        self,
+        text: str,
+        exact_text: str,
+    ) -> set[str]:
+        remainder = text.replace(exact_text, "")
+        return self.detected_authorised_quote_ids(remainder)
+
+
+class ScriptedTransport:
+    """Return one saved response per named stage and retain exact call inputs."""
+
+    def __init__(self, responses: dict[str, object | list[object] | Callable[..., object]]) -> None:
+        self.responses = responses
+        self.calls: list[dict[str, Any]] = []
+
+    def __call__(self, **kwargs: Any) -> object:
+        self.calls.append(copy.deepcopy(kwargs))
+        stage = kwargs["stage"]
+        if stage not in self.responses:
+            raise AssertionError(f"unexpected model stage: {stage}")
+        response = self.responses[stage]
+        if callable(response):
+            return response(**kwargs)
+        if isinstance(response, list):
+            if not response:
+                raise AssertionError(f"no scripted response remains for {stage}")
+            return response.pop(0)
+        return response
+
+
+@pytest.fixture(scope="module")
+def real_repository() -> EvidenceRepository:
+    return EvidenceRepository(RESEARCH, factual_evidence_path=FACTUAL_EVIDENCE)
+
+
+@pytest.fixture()
+def repository() -> FakeRepository:
+    return FakeRepository()
+
+
+def strategy_config(**overrides: object) -> dict[str, object]:
+    config: dict[str, object] = {
+        "enabled": True,
+        "strategy_version": STRATEGY_VERSION,
+        "proposer_model": "proposer-model",
+        "reviewer_model": "reviewer-model",
+        "evidence_model": "evidence-model",
+        "research_corpus_path": str(RESEARCH),
+        "maximum_model_calls": 6,
+        "proposer_timeout_seconds": 30,
+        "evidence_timeout_seconds": 30,
+        "reviewer_timeout_seconds": 30,
+        "proposer_max_output_tokens": 900,
+        "evidence_max_output_tokens": 1800,
+        "reviewer_max_output_tokens": 900,
+        "maximum_revisions": 1,
+        "maximum_invalid_response_retries": 1,
+        "maximum_claims": 6,
+        "maximum_evidence_packets_per_claim": 6,
+        "maximum_evidence_passages_per_claim": 24,
+        "maximum_reply_sentences": 2,
+        "fail_closed": True,
+    }
+    config.update(overrides)
+    return config
+
+
+def reply_context(
+    contribution: str = "What happened when the Berlin Wall fell?",
+    *,
+    quoted_post: dict[str, str] | None = None,
+    parent_thread: list[dict[str, str]] | None = None,
+    clarification_request: dict[str, str] | None = None,
+) -> dict[str, object]:
+    return {
+        "target_id": "100",
+        "thread_id": "90",
+        "lane": "mention",
+        "incoming_contribution": contribution,
+        "quoted_post": quoted_post,
+        "parent_thread": parent_thread or [],
+        "clarification_request": clarification_request,
+        "current_date": "2026-07-20",
+    }
+
+
+def claim(
+    text: str = "People moved from East Germany towards West Germany in November 1989.",
+) -> dict[str, object]:
+    return {
+        "claim_id": "claim-1",
+        "claim_text": text,
+        "requires_evidence": True,
+        "actor": "people in East Germany",
+        "action_or_relationship": "moved",
+        "direction_or_polarity": "East to West",
+        "date_or_period": "November 1989",
+        "quantity": "",
+    }
+
+
+def proposer(
+    reply: str = "People moved from East Germany towards West Germany.",
+    *,
+    mode: str = "direct_factual_answer",
+    claims: list[dict[str, object]] | None = None,
+    confidence: str = "high",
+    exact_wording: str = "",
+    no_reply_reason: str = "",
+) -> dict[str, object]:
+    factual_claims = [claim()] if claims is None and mode == "direct_factual_answer" else (claims or [])
+    if mode == "no_reply":
+        reply = ""
+        factual_claims = []
+        no_reply_reason = no_reply_reason or "No useful and safe reply is warranted."
+    return {
+        "mode": mode,
+        "interpretation": "The user asks a concrete question or offers a political observation.",
+        "proposed_reply": reply,
+        "factual_claims": factual_claims,
+        "exact_thatcher_wording_used": bool(exact_wording),
+        "exact_thatcher_wording": exact_wording,
+        "tone": "neutral" if mode != "light_humour" else "light",
+        "confidence": confidence,
+        "no_reply_reason": no_reply_reason,
+    }
+
+
+def reviewer(
+    verdict: str = "approve",
+    *,
+    direct_question: bool = True,
+    answers_first: bool = True,
+    factual_claims: list[str] | None = None,
+    **overrides: object,
+) -> dict[str, object]:
+    if factual_claims is None:
+        factual_claims = [str(claim()["claim_text"])] if direct_question else []
+    value: dict[str, object] = {
+        "verdict": verdict,
+        "summary": "Independent review completed.",
+        "reasons": [] if verdict == "approve" else ["The draft is unsafe or unsuitable."],
+        "actual_factual_claims": factual_claims,
+        "unsupported_factual_claims": [],
+        "direct_question_present": direct_question,
+        "answers_direct_question_first_sentence": answers_first,
+        "topically_relevant": True,
+        "endorses_unsupported_allegation": False,
+        "contains_unsupported_factual_claims": False,
+        "actor_action_relationship_correct": True,
+        "direction_polarity_correct": True,
+        "dates_quantities_correct": True,
+        "quotation_attribution_correct": True,
+        "original_prose_clearly_not_historical_quotation": True,
+        "mode_and_tone_match": True,
+        "suitable_for_account": True,
+        "revision_instructions": "Revise the draft." if verdict == "revise" else "",
     }
     value.update(overrides)
     return value
 
 
-@pytest.mark.parametrize(
-    ("content", "expected"),
-    [
-        (json.dumps(decision()), decision()["reply_text"]),
-        ("not structured JSON", None),
-        (json.dumps(decision(mode=[])), None),
-    ],
-)
-def test_strategy_reply_handles_omitted_media_context(
-    monkeypatch: pytest.MonkeyPatch,
-    content: str,
-    expected: str | None,
-) -> None:
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": content}}],
-    }).encode("utf-8")
-    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {
-            **bot.reply_strategy,
-            "enabled": True,
-            "research_corpus_enabled": False,
-        },
+def supporting_evidence(repository: FakeRepository) -> Callable[..., object]:
+    def response(**kwargs: Any) -> object:
+        payload = json.loads(kwargs["user_prompt"])
+        rows = []
+        for supplied_claim in payload["claims"]:
+            rows.append({
+                "claim_id": supplied_claim["claim_id"],
+                "claim_text": supplied_claim["claim_text"],
+                "verdict": "supports",
+                "evidence": [{
+                    "evidence_id": repository.passage.evidence_id,
+                    "exact_supporting_passage": repository.passage.passage,
+                    "relation": "supports",
+                }],
+                "actor": supplied_claim["actor"],
+                "action_or_relationship": supplied_claim["action_or_relationship"],
+                "direction_or_polarity": supplied_claim["direction_or_polarity"],
+                "date_or_period": supplied_claim["date_or_period"],
+                "quantity": supplied_claim["quantity"],
+                "explanation": "The exact supplied passage supports the complete claim.",
+            })
+        return {"claims": rows}
+
+    return response
+
+
+def run_pipeline(
+    repository: FakeRepository,
+    responses: dict[str, object | list[object] | Callable[..., object]],
+    *,
+    context: dict[str, object] | None = None,
+    config: dict[str, object] | None = None,
+) -> tuple[object, ScriptedTransport]:
+    transport = ScriptedTransport(responses)
+    result = run_reply_pipeline(
+        context=context or reply_context(),
+        config=config or strategy_config(),
+        repository=repository,  # type: ignore[arg-type]
+        transport=transport,
+        maximum_reply_length=500,
+        recent_replies=[],
+        creation_time="2026-07-20T12:00:00Z",
     )
-
-    result = bot.ask_grok_for_reply("Incoming post: A concise observation.")
-
-    assert result == expected
+    return result, transport
 
 
-def test_strategy_prompt_never_instructs_provider_to_return_bare_skip(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": json.dumps(decision(
-            mode="no_reply",
-            humour_tone="none",
-            reply_text="",
-            no_reply_reason="No useful response.",
-        ))}}],
-    }).encode("utf-8")
-    captured: dict = {}
-
-    def post(*_args, **kwargs):
-        captured.update(kwargs["json"])
-        return response
-
-    monkeypatch.setattr(bot.requests, "post", post)
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
-    )
-
-    assert bot.ask_grok_for_reply("Incoming post: Nothing to add.") is None
-    prompt_text = json.dumps(captured["messages"], ensure_ascii=False)
-    assert "Return exactly SKIP" not in prompt_text
-    assert "never output bare SKIP" in prompt_text
-    assert "Valid no_reply example" in prompt_text
+def test_source_schemas_are_strict_and_provider_compatible() -> None:
+    proposal = proposer(mode="courtesy", reply="Thank you for saying so.", claims=[])
+    review = reviewer(direct_question=False, answers_first=False)
+    validate_json_schema(proposal, proposer_schema(500, 6))
+    validate_json_schema(review, reviewer_schema(6))
+    assert proposer_schema(500, 6)["additionalProperties"] is False
+    assert evidence_schema(6, 24)["additionalProperties"] is False
+    assert reviewer_schema(6)["additionalProperties"] is False
 
 
-def test_strategy_request_uses_conditional_structured_output_schema(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": json.dumps(decision(
-            mode="no_reply",
-            humour_tone="none",
-            reply_text="",
-            no_reply_reason="No useful response.",
-        ))}}],
-    }).encode("utf-8")
-    captured: dict = {}
-
-    def post(*_args, **kwargs):
-        captured.update(kwargs["json"])
-        return response
-
-    monkeypatch.setattr(bot.requests, "post", post)
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {
-            **bot.reply_strategy,
-            "enabled": True,
-            "research_corpus_enabled": False,
-            "maximum_retrieved_packets": 7,
-        },
-    )
-
-    assert bot.ask_grok_for_reply("Incoming post: Nothing to add.") is None
-    response_format = captured["response_format"]
-    assert response_format["type"] == "json_schema"
-    assert response_format["json_schema"]["strict"] is True
-    schema = response_format["json_schema"]["schema"]
-    assert schema["if"]["properties"]["mode"] == {"const": "no_reply"}
-    assert schema["then"]["properties"]["reply_text"] == {"maxLength": 0}
-    assert schema["properties"]["retrieved_quote_ids"]["maxItems"] == 7
-    posted_mode_rule = schema["allOf"][0]
-    assert "no_reply" not in posted_mode_rule["if"]["properties"]["mode"]["enum"]
-    assert posted_mode_rule["then"]["properties"]["no_reply_reason"] == {"maxLength": 0}
-    topical_rule = schema["allOf"][1]
-    assert topical_rule["if"]["properties"]["mode"] == {"enum": ["principle_reply", "researched_principle"]}
-    assert topical_rule["then"]["properties"]["topical_basis"] == {"minLength": 3}
-    principle_rule = schema["allOf"][2]
-    assert principle_rule["if"]["properties"]["mode"] == {"const": "principle_reply"}
-    assert principle_rule["then"]["properties"]["factual_claim_made"] == {"const": False}
-
-
-def test_strategy_model_response_accepts_principle_reply_without_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    value = decision(
-        mode="principle_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="The case still has to be made and acted upon.",
-        topical_basis="understand this",
-    )
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": json.dumps(value)}}],
-    }).encode("utf-8")
-    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
-    )
-
-    result = bot.ask_grok_for_reply(
-        "Incoming post/comment to answer:\nWhy doesn't anyone in government understand this?",
-        direct_question_text="Why doesn't anyone in government understand this?",
-    )
-
-    assert result == value["reply_text"]
-    assert isinstance(result, ReplyDecision)
-    assert result.strategy_metadata["mode"] == "principle_reply"
-
-
-def test_strategy_schema_defines_factual_claim_flag_for_historical_modes() -> None:
-    guidance = strategy_mode_guidance()
-    assert "factual_claim_made=true" in guidance
-    assert "final reply states a historical or policy fact" in guidance
-
-
-def test_strategy_reply_classifies_non_object_provider_json_as_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = b"[]"
-    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {
-            **bot.reply_strategy,
-            "enabled": True,
-            "research_corpus_enabled": False,
-        },
-    )
-
-    with pytest.raises(bot.ApiError, match="JSON object"):
-        bot.ask_grok_for_reply("Incoming post: A concise observation.")
-
-
-def test_reply_classifies_non_string_provider_content_as_api_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": 123}}],
-    }).encode("utf-8")
-    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: response)
-    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": False})
-
-    with pytest.raises(bot.ApiError, match="content must be a string"):
-        bot.ask_grok_for_reply("Incoming post: A concise observation.")
-
-
-def test_retrieval_uses_only_completed_packets_and_is_deterministic():
-    first = retrieve_research_packets("Government creates wealth and prosperity", RESEARCH, maximum=5)
-    second = retrieve_research_packets("Government creates wealth and prosperity", RESEARCH, maximum=5)
-    assert first and [item.quote_id for item in first] == [item.quote_id for item in second]
-    assert len(first) <= 5 and all(len(item.quote_id) == 64 for item in first)
-
-
-def test_prompt_context_does_not_expose_internal_prose_or_unresolved_records():
-    evidence = retrieve_research_packets("free enterprise and government", RESEARCH, maximum=3)
-    payload = json.loads(build_strategy_prompt_context(evidence))
-    assert len(payload) <= 3
-    assert all(set(item) == {"quote_id", "verification_status", "research_confidence", "source_event", "date", "immediate_subject", "intended_argument", "broader_principle", "mechanism", "claimed_consequence", "verified_text"} for item in payload)
-
-
-def test_historical_correction_precedes_humour_and_requires_high_confidence():
-    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=2)
-    qid = evidence[0].quote_id
-    valid = validate_reply_decision(decision(
-        mode="historical_correction", humour_tone="dry", evidence_confidence="high",
-        retrieved_quote_ids=[qid], evidence_summary="Government sets conditions rather than creating wealth.",
-        factual_claim_made=True, grounded=True,
-        reply_text="Government may set the conditions for prosperity; it does not manufacture prosperity itself.",
-    ), evidence, allowed_quote_ids={item.quote_id for item in evidence})
-    assert valid["mode"] == "historical_correction"
-    with pytest.raises(ValueError, match="requires high confidence"):
-        validate_reply_decision({**valid, "evidence_confidence": "medium"}, evidence, allowed_quote_ids={item.quote_id for item in evidence})
-
-
-def test_burnham_failure_rejects_incidental_wall_researched_principle() -> None:
-    evidence = retrieve_research_packets(BURNHAM_FAILURE_TEXT, RESEARCH, maximum=5)
-    wall = next(item for item in evidence if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434")
-    reply = "No Western nation has to build a wall round itself to keep its people in."
-
-    with pytest.raises(ValueError, match="topical_relevance"):
-        validate_reply_decision(
-            decision(
-                mode="researched_principle",
-                humour_tone="none",
-                evidence_confidence="high",
-                retrieved_quote_ids=[wall.quote_id],
-                evidence_summary=reply,
-                factual_claim_made=True,
-                grounded=True,
-                reply_text=reply,
-                topical_basis="Berlin Wall Down",
-            ),
-            evidence,
-            allowed_quote_ids={item.quote_id for item in evidence},
-            incoming_text=BURNHAM_FAILURE_TEXT,
-        )
-
-
-def test_burnham_failure_is_rejected_through_production_reply_call_path(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    import reply_strategy as strategy
-
-    wall = next(
-        item
-        for item in retrieve_research_packets(BURNHAM_FAILURE_TEXT, RESEARCH, maximum=5)
-        if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434"
-    )
-    retrieval_queries: list[str] = []
-    rejection_events: list[tuple[str, dict]] = []
-
-    def retrieve(query, _research_path, *, maximum):
-        retrieval_queries.append(query)
-        assert maximum >= 1
-        return [wall]
-
-    value = decision(
-        mode="researched_principle",
-        humour_tone="none",
-        evidence_confidence="high",
-        retrieved_quote_ids=[wall.quote_id],
-        evidence_summary="No Western nation has to build a wall round itself to keep its people in.",
-        factual_claim_made=True,
-        grounded=True,
-        reply_text="No Western nation has to build a wall round itself to keep its people in.",
-        topical_basis="Berlin Wall Down",
-    )
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({
-        "choices": [{"message": {"content": json.dumps(value)}}],
-    }).encode("utf-8")
-    monkeypatch.setattr(strategy, "retrieve_research_packets", retrieve)
-    monkeypatch.setattr(bot.requests, "post", lambda *_args, **_kwargs: response)
-    monkeypatch.setattr(bot, "log_event", lambda name, **fields: rejection_events.append((name, fields)))
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {
-            **bot.reply_strategy,
-            "enabled": True,
-            "research_corpus_enabled": True,
-        },
-    )
-
-    outcome: dict[str, str] = {}
-    result = bot.ask_grok_for_reply(
-        "Parent post: She left office 36 years ago.\n\nIncoming post: " + BURNHAM_FAILURE_TEXT,
-        incoming_contribution_text=BURNHAM_FAILURE_TEXT,
-        direct_question_text=BURNHAM_FAILURE_TEXT,
-        evaluation_outcome=outcome,
-    )
-
-    assert result is None
-    assert retrieval_queries == [BURNHAM_FAILURE_TEXT]
-    assert outcome == {"status": "no_reply", "reason": "topical_relevance_rejected"}
-    assert (
-        "reply_strategy_rejection",
-        {"lane": "unavailable", "reason": "topical_relevance_rejected", "detail_code": "basis_not_substantive"},
-    ) in rejection_events
-
-
-def test_wall_evidence_remains_valid_for_related_coercive_border_issue() -> None:
-    incoming = "The Berlin Wall showed how a coercive border trapped citizens in the communist East."
-    evidence = retrieve_research_packets(incoming, RESEARCH, maximum=5)
-    wall = next(item for item in evidence if item.quote_id == "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434")
-    result = validate_reply_decision(
-        decision(
-            mode="researched_principle",
-            humour_tone="none",
-            evidence_confidence="high",
-            retrieved_quote_ids=[wall.quote_id],
-            evidence_summary="Communist regimes used the Berlin Wall to prevent emigration.",
-            factual_claim_made=True,
-            grounded=True,
-            reply_text="A regime that needs a wall to keep its citizens in has confessed the failure of coercion.",
-            topical_basis="Berlin Wall",
-        ),
-        evidence,
-        allowed_quote_ids={item.quote_id for item in evidence},
-        incoming_text=incoming,
-    )
-    assert result["mode"] == "researched_principle"
-
-
-def test_lexical_retrieval_excludes_handles_and_url_components() -> None:
-    clean = "A minister should value conviction above personal popularity."
-    contaminated = (
-        "@freedom https://example.test/berlin/wall "
-        "A minister should value conviction above personal popularity."
-    )
-    expected = retrieve_research_packets(clean, RESEARCH, maximum=5)
-    actual = retrieve_research_packets(contaminated, RESEARCH, maximum=5)
-    assert [item.quote_id for item in actual] == [item.quote_id for item in expected]
-    assert [item.score for item in actual] == [item.score for item in expected]
+def test_configuration_is_explicit_and_fail_closed() -> None:
+    assert validate_strategy_config(strategy_config()) == []
+    assert validate_strategy_config(strategy_config(fail_closed=False))
+    assert validate_strategy_config(strategy_config(maximum_revisions=2))
+    assert validate_strategy_config(strategy_config(maximum_model_calls=9))
+    assert validate_strategy_config(strategy_config(maximum_model_calls=7))
+    assert validate_strategy_config(strategy_config(proposer_timeout_seconds=121))
+    assert validate_strategy_config(strategy_config(evidence_max_output_tokens=4001))
+    assert validate_strategy_config({**strategy_config(), "legacy_mode": True})
 
 
 @pytest.mark.parametrize(
-    ("incoming", "reply", "basis"),
+    ("field", "value"),
     [
-        ("Government must restore public confidence.", "Government must choose freedom over fear.", "Government must restore public confidence"),
-        ("The economy needs reform.", "Economic leadership requires freedom.", "economy needs reform"),
-        ("National leadership is failing.", "A nation needs leadership grounded in freedom.", "National leadership is failing"),
+        ("maximum_model_calls", "6"),
+        ("maximum_claims", None),
+        ("maximum_reply_sentences", []),
+        ("reviewer_timeout_seconds", {}),
+        ("evidence_max_output_tokens", 3.5),
     ],
 )
-def test_common_political_vocabulary_alone_cannot_establish_relevance(
-    incoming: str,
-    reply: str,
-    basis: str,
-) -> None:
-    assert reply_topical_relevance_error(
-        incoming,
-        reply,
-        [],
-        mode="principle_reply",
-        topical_basis=basis,
-    ) is not None
-
-
-def test_relevance_basis_cannot_come_only_from_inherited_thread_text() -> None:
-    error = reply_topical_relevance_error(
-        "A minister should value conviction above personal popularity.",
-        "No nation needs a wall to keep its people in.",
-        [],
-        mode="principle_reply",
-        topical_basis="Berlin Wall",
-    )
-    assert error == "topical_relevance:basis_not_in_incoming"
-
-
-def test_topical_relevance_is_deterministic_for_identical_inputs() -> None:
-    args = (
-        "This is about a leader's desire for popularity.",
-        "Leaders serve best when conviction, not popularity, guides their course.",
-        [],
-    )
-    results = [
-        reply_topical_relevance_error(
-            *args,
-            mode="principle_reply",
-            topical_basis="desire for popularity",
-        )
-        for _ in range(10)
-    ]
-    assert results == [None] * 10
-
-
-def test_researched_principle_requires_grounding_and_topical_relevance() -> None:
-    item = RetrievedEvidence(
-        "a" * 64,
-        5.0,
-        "exact",
-        "Free enterprise and democratic accountability.",
-            {
-                "verified_text": "Free enterprise and democratic accountability.",
-                "verification_status": "exact",
-                "research_confidence": "high",
-                "speaker": "Margaret Thatcher",
-                "immediate_subject": "Free enterprise and democratic accountability.",
-            "intended_argument": "Markets require accountable democratic government.",
-        },
-    )
-    incoming = "Free markets require democratic accountability and political responsibility."
-    value = decision(
-        mode="researched_principle",
-        humour_tone="none",
-        evidence_confidence="high",
-        retrieved_quote_ids=[item.quote_id],
-        evidence_summary="Free enterprise requires accountability.",
-        factual_claim_made=True,
-        grounded=True,
-        reply_text="Free enterprise must answer to democratic accountability.",
-        topical_basis="Free markets require democratic accountability",
-    )
-
-    result = validate_reply_decision(
-        value,
-        [item],
-        allowed_quote_ids={item.quote_id},
-        incoming_text=incoming,
-    )
-    assert result["mode"] == "researched_principle"
-    assert reply_topical_relevance_error(
-        incoming,
-        value["reply_text"],
-        [item],
-        mode=value["mode"],
-        topical_basis=value["topical_basis"],
-    ) is None
-
-
-def test_grounding_confidence_alone_cannot_satisfy_topical_relevance() -> None:
-    unrelated = RetrievedEvidence(
-        "b" * 64,
-        99.0,
-        "exact",
-        "A highly confident but unrelated packet.",
-        {
-            "verified_text": "No nation needs a wall to keep its people in.",
-            "research_confidence": "high",
-            "immediate_subject": "Cold War borders and coercion.",
-            "intended_argument": "Freedom does not require walls.",
-        },
-    )
-    error = reply_topical_relevance_error(
-        "A minister should value conviction above personal popularity.",
-        "No nation needs a wall to keep its people in.",
-        [unrelated],
-        mode="researched_principle",
-        topical_basis="conviction above personal popularity",
-    )
-    assert error is not None
-
-
-def test_conviction_and_popularity_principle_remains_topically_valid() -> None:
-    incoming = "This is what I said about Burnham's desire for popularity."
-    reply = "Leaders serve best when conviction, not popularity, guides their course."
-    assert reply_topical_relevance_error(
-        incoming,
-        reply,
-        [],
-        mode="principle_reply",
-        topical_basis="desire for popularity",
-    ) is None
-
-
-def test_berlin_wall_question_requires_a_direct_east_to_west_answer() -> None:
-    question = "Where did people run towards when the Berlin Wall fell?"
-    evidence = retrieve_research_packets(question, RESEARCH, maximum=5)
-    selected = evidence[:2]
-    ids = [item.quote_id for item in selected]
-    value = decision(
-        mode="historical_context",
-        humour_tone="none",
-        evidence_confidence="high",
-        retrieved_quote_ids=ids,
-        evidence_summary="The Berlin Wall divided the communist East from the free West.",
-        factual_claim_made=True,
-        grounded=True,
-        reply_text="People moved from East Berlin and East Germany towards West Berlin and West Germany.",
-    )
-
-    result = validate_reply_decision(
-        value,
-        evidence,
-        allowed_quote_ids={item.quote_id for item in evidence},
-        direct_question_text=question,
-    )
-
-    assert result["reply_text"].startswith("People moved from East Berlin")
-    assert direct_factual_answer_error(question, result["reply_text"]) is None
-
-
-def test_misspelled_production_berlin_wall_question_requires_direct_answer() -> None:
-    question = "Were did people ram towards when the Berlin Wall fell?"
-    reply = "People moved from East Berlin and East Germany towards West Berlin and West Germany."
-    evidence = retrieve_research_packets("Berlin Wall East West Germany", RESEARCH, maximum=5)
-    selected = evidence[0]
-
-    assert concrete_factual_question_word(question) == "where"
-    result = validate_reply_decision(
-        decision(
-            mode="historical_context",
-            humour_tone="none",
-            evidence_confidence="high",
-            retrieved_quote_ids=[selected.quote_id],
-            evidence_summary="The Berlin Wall divided East Berlin from West Berlin.",
-            factual_claim_made=True,
-            grounded=True,
-            reply_text=reply,
-        ),
-        evidence,
-        allowed_quote_ids={item.quote_id for item in evidence},
-        direct_question_text=question,
-    )
-
-    assert result["reply_text"] == reply
-    assert direct_factual_answer_error(question, reply) is None
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "People moved from West Berlin and West Germany towards East Berlin and East Germany.",
-        "People moved from West to East.",
-        "East and West were the two directions involved.",
-        "People did not move from East Berlin towards West Berlin.",
-        "The flow was not from East to West.",
-        "East Germans never went west when the Wall fell.",
-    ],
-)
-def test_berlin_wall_question_rejects_reversed_unordered_or_negated_direction(reply: str) -> None:
-    question = "Where did people run towards when the Berlin Wall fell?"
-    packet = {
-        "quote_text": "Movement opened from East Berlin towards West Berlin.",
-        "verified_text": "Movement opened from East Berlin towards West Berlin.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
-        "historical_context": "People moved from East Germany towards West Germany.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "East to West.", packet)]
-
-    with pytest.raises(ValueError, match="movement from East to West"):
-        validate_reply_decision(
-            decision(
-                mode="historical_context",
-                humour_tone="none",
-                evidence_confidence="high",
-                retrieved_quote_ids=["a" * 64],
-                evidence_summary="People moved from East to West.",
-                factual_claim_made=True,
-                grounded=True,
-                reply_text=reply,
-            ),
-            evidence,
-            allowed_quote_ids={"a" * 64},
-            direct_question_text=question,
-        )
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "The flow was overwhelmingly from East to West once the option existed.",
-        "People moved towards West Berlin from East Berlin.",
-        "East Germans went west when the Wall fell.",
-    ],
-)
-def test_berlin_wall_question_accepts_explicit_east_to_west_variants(reply: str) -> None:
-    assert direct_factual_answer_error(
-        "Where did people run towards when the Berlin Wall fell?",
-        reply,
-    ) is None
-
-
-def test_concrete_who_question_rejects_a_declarative_non_answer() -> None:
-    question = "Who was Prime Minister in 1979?"
-    reply = "That deserves serious consideration."
-
-    assert concrete_factual_question_word(question) == "who"
-    assert direct_factual_answer_error(question, reply) is not None
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "During difficult times.",
-        "After much consideration.",
-        "Before responsibility was accepted.",
-    ],
-)
-def test_when_question_rejects_vague_relative_time_non_answers(reply: str) -> None:
-    assert direct_factual_answer_error("When did the reform happen?", reply) is not None
-
-
-def test_when_question_accepts_a_concrete_event_period() -> None:
-    assert direct_factual_answer_error(
-        "When did the reform happen?",
-        "During the 1983 election campaign.",
-    ) is None
-
-
-def test_concrete_question_syntax_does_not_require_terminal_punctuation() -> None:
-    assert concrete_factual_question_word("Who was Prime Minister in 1979") == "who"
-
-
-@pytest.mark.parametrize(
-    ("question", "expected"),
-    [
-        ("@MrsMThatcher, where was the treaty signed?", "where"),
-        ("Please, where was the treaty signed?", "where"),
-        ("Seriously, when did it happen?", "when"),
-        ("Could you tell me what happened?", "what"),
-        ("I wonder where the treaty was signed?", "where"),
-        ("Quick question: who signed the treaty?", "who"),
-        ("Can I ask when it happened?", "when"),
-        ("Could you explain what happened?", "what"),
-        ("Please explain what happened?", "what"),
-        ("Which side did people move towards when the wall fell?", "which"),
-        ("How many years did the wall stand?", "how_many"),
-        ("How long did the wall stand?", "how_long"),
-        ("Whose government introduced the policy?", "whose"),
-        ("Did the wall divide East and West?", "yes_no"),
-        ("Was the treaty signed in London", "yes_no"),
-        ("Did inflation fall in the 1980s?", "yes_no"),
-        ("Did unemployment rise?", "yes_no"),
-        ("Did the economy grow?", "yes_no"),
-        ("Did taxes increase?", "yes_no"),
-        ("Was inflation lower?", "yes_no"),
-        ("Is freedom important?", None),
-        ("Does leadership matter?", None),
-        ("Do you think leadership matters?", None),
-        ("What do you think about privatisation?", None),
-        ("What is your view of the policy?", None),
-        ("What should the government do?", None),
-        ("Which policy would you choose?", None),
-        ("What would happen if the policy changed?", None),
-        ("Who should lead Britain?", None),
-        ("Where should government invest?", None),
-        ("When should ministers resign?", None),
-        ("Who would you choose as leader?", None),
-        ("Where would people go if the border closed?", None),
-        ("When would you call an election?", None),
-        ("Who would become Prime Minister after Heath?", "who"),
-        ("What could happen if inflation rose?", None),
-        ("Who might win the election?", None),
-        ("Who was the best Prime Minister?", None),
-        ("Who was right about Europe?", None),
-        ("What was the best policy?", None),
-        ("Which policy was better?", None),
-        ("Where is the best place for investment?", None),
-        ("Was Thatcher right about Europe?", None),
-        ("Which minister signed the treaty?", "which"),
-        ("Which May speech mentioned Europe?", "which"),
-        ("What was Right to Buy?", "what"),
-        ("What was the Good Friday Agreement?", "what"),
-        ("Would socialism work?", None),
-        ("What a mess?", None),
-        ("What an absolute mess?", None),
-        ("What a complete disaster?", None),
-    ],
-)
-def test_concrete_question_recognises_addressing_but_not_rhetorical_exclamations(
-    question: str,
-    expected: str | None,
-) -> None:
-    assert concrete_factual_question_word(question) == expected
-
-
-def test_grounded_metadata_cannot_rescue_a_non_answer_to_a_factual_question() -> None:
-    packet = {
-        "quote_text": "Enterprise and responsibility go together.",
-        "verified_text": "Enterprise and responsibility go together.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "Economic policy.", packet)]
-    with pytest.raises(ValueError, match="direct answer"):
-        validate_reply_decision(
-            decision(
-                mode="historical_context",
-                humour_tone="none",
-                evidence_confidence="high",
-                retrieved_quote_ids=["a" * 64],
-                evidence_summary="A grounded but unrelated economic principle.",
-                factual_claim_made=True,
-                grounded=True,
-                reply_text="That deserves serious consideration.",
-            ),
-            evidence,
-            allowed_quote_ids={"a" * 64},
-            direct_question_text="Who was Prime Minister in 1979?",
-        )
-
-
-def test_which_and_how_many_questions_require_the_requested_supported_fact() -> None:
-    packet = {
-        "quote_text": "The Berlin Wall divided East Berlin from West Berlin from 1961 until 1989.",
-        "verified_text": "The Berlin Wall divided East Berlin from West Berlin from 1961 until 1989.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
-        "historical_context": "The wall stood for 28 years before movement opened from East to West.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
-
-    assert direct_factual_answer_error(
-        "Which side did people move towards when the Berlin Wall fell?",
-        "People moved towards West Berlin and West Germany.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "Which side did people move towards when the Berlin Wall fell?",
-        "When free to choose, people choose freedom.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "How many years did the Berlin Wall stand?",
-        "It stood for 28 years.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "How many years did the Berlin Wall stand?",
-        "It stood for many years.",
-        evidence,
-    ) is not None
-
-
-def test_which_question_rejects_evidence_supported_abstraction_in_place_of_choice() -> None:
-    packet = {
-        "quote_text": (
-            "The Berlin Wall divided East Berlin from West Berlin. "
-            "Freedom defeated coercion when people could choose."
-        ),
-        "verified_text": "The Berlin Wall divided East Berlin from West Berlin.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["East Berlin", "West Berlin", "East Germany", "West Germany"],
-        "historical_context": (
-            "People chose freedom over coercion as movement opened from East to West."
-        ),
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
-
-    assert direct_factual_answer_error(
-        "Which side did people move towards when the Berlin Wall fell?",
-        "People chose freedom over coercion.",
-        evidence,
-    ) is not None
-
-
-@pytest.mark.parametrize("question", [
-    "What year did the Berlin Wall fall?",
-    "Which year did the Berlin Wall fall?",
-])
-def test_explicit_year_question_requires_evidence_supported_time(
-    question: str,
-) -> None:
-    packet = {
-        "quote_text": "The Berlin Wall fell in 1989, when freedom defeated coercion.",
-        "verified_text": "The Berlin Wall fell in 1989.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["Berlin Wall", "1989"],
-        "historical_context": "Freedom defeated coercion in 1989.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The Berlin Wall.", packet)]
-
-    assert direct_factual_answer_error(question, "It fell in 1989.", evidence) is None
-    assert direct_factual_answer_error(
-        question,
-        "Freedom defeated coercion.",
-        evidence,
-    ) is not None
-
-
-def test_whose_question_requires_explicit_evidence_supported_attribution() -> None:
-    packet = {
-        "quote_text": (
-            "Margaret Thatcher's government passed the 1980 Act; "
-            "government requires responsibility."
-        ),
-        "verified_text": "Margaret Thatcher's government passed the 1980 Act.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["Margaret Thatcher", "1980 Act"],
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The 1980 Act.", packet)]
-
-    assert direct_factual_answer_error(
-        "Whose government passed the 1980 Act?",
-        "Margaret Thatcher's government passed it.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "Whose government passed the 1980 Act?",
-        "Government requires responsibility.",
-        evidence,
-    ) is not None
-
-
-def test_yes_no_factual_question_requires_an_explicit_grounded_answer() -> None:
-    packet = {
-        "quote_text": "The treaty was signed in London.",
-        "verified_text": "The treaty was signed in London.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["London"],
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The treaty.", packet)]
-
-    assert direct_factual_answer_error(
-        "Was the treaty signed in London?",
-        "Yes, it was signed in London.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "Was the treaty signed in London?",
-        "The location was London.",
-        evidence,
-    ) is not None
-
-
-def test_direct_who_answer_must_be_supported_by_selected_evidence() -> None:
-    packet = {
-        "quote_text": "Government requires responsibility.",
-        "verified_text": "Government requires responsibility.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["Margaret Thatcher", "1979 United Kingdom general election"],
-        "immediate_subject": "Margaret Thatcher becoming Prime Minister in 1979.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The 1979 election.", packet)]
-    assert direct_factual_answer_error(
-        "Who was Prime Minister in 1979?",
-        "Margaret Thatcher was Prime Minister.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "Who was Prime Minister in 1979?",
-        "Michael Jordan was Prime Minister.",
-        evidence,
-    ) is not None
-
-
-def test_direct_who_answer_cannot_echo_person_already_named_in_question() -> None:
-    packet = {
-        "quote_text": "I can do business with Mr Gorbachev.",
-        "verified_text": "I can do business with Mr Gorbachev.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "entities": ["Margaret Thatcher", "Mikhail Gorbachev"],
-        "immediate_subject": "Margaret Thatcher meeting Mikhail Gorbachev.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The meeting.", packet)]
-
-    assert direct_factual_answer_error(
-        "Who did Margaret Thatcher meet?",
-        "Margaret Thatcher met the Soviet leader.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "Who did Margaret Thatcher meet?",
-        "Mikhail Gorbachev met Margaret Thatcher.",
-        evidence,
-    ) is None
-
-    evidence_without_counterpart = [RetrievedEvidence(
-        "b" * 64,
-        1.0,
-        "exact",
-        "A meeting without a source-grounded counterpart.",
-        {
-            "quote_text": "Meetings require preparation.",
-            "verified_text": "Meetings require preparation.",
-            "speaker": "Margaret Thatcher",
-            "entities": ["Margaret Thatcher"],
-        },
-    )]
-    assert direct_factual_answer_error(
-        "Who did Margaret Thatcher meet?",
-        "Margaret Thatcher met the political leader.",
-        evidence_without_counterpart,
-    ) is not None
-
-
-def test_concrete_when_where_and_what_answers_cannot_use_thematic_placeholders() -> None:
-    packet = {
-        "quote_text": "The treaty was signed in London on 14 June 1982.",
-        "verified_text": "The treaty was signed in London on 14 June 1982.",
-        "verification_status": "exact",
-        "research_confidence": "high",
-        "speaker": "Margaret Thatcher",
-        "date": "1982-06-14",
-        "entities": ["London", "United Kingdom"],
-        "immediate_subject": "The treaty, politics, freedom and government responsibility.",
-    }
-    evidence = [RetrievedEvidence("a" * 64, 1.0, "exact", "The treaty.", packet)]
-
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "In government, responsibility matters.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "During political arguments, responsibility matters.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "The year was significant.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "It was signed on 14 June 1982.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "It was signed in 1776.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "When was the treaty signed?",
-        "The event happened last year.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "Where was the treaty signed?",
-        "In politics, freedom matters.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "Where was the treaty signed?",
-        "It was signed in London.",
-        evidence,
-    ) is None
-    assert direct_factual_answer_error(
-        "What happened in 1982?",
-        "1982 was important for government.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "What happened in 1982?",
-        "Something happened in 1982.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "What happened in 1982?",
-        "There were developments in 1982.",
-        evidence,
-    ) is not None
-    assert direct_factual_answer_error(
-        "What happened in 1982?",
-        "The treaty was signed in London.",
-        evidence,
-    ) is None
-
-
-def test_berlin_wall_abstract_non_answer_is_rejected() -> None:
-    question = "Where did people run towards when the Berlin Wall fell?"
-    evidence = retrieve_research_packets(question, RESEARCH, maximum=5)
-    selected = evidence[0]
-    with pytest.raises(ValueError, match="abstract principle"):
-        validate_reply_decision(
-            decision(
-                mode="historical_context",
-                humour_tone="none",
-                evidence_confidence="high",
-                retrieved_quote_ids=[selected.quote_id],
-                evidence_summary="People rejected communist rule.",
-                factual_claim_made=True,
-                grounded=True,
-                reply_text="When free to choose, people choose freedom.",
-            ),
-            evidence,
-            allowed_quote_ids={item.quote_id for item in evidence},
-            direct_question_text=question,
-        )
-
-
-def test_concrete_question_guidance_forbids_rhetorical_substitution() -> None:
-    guidance = direct_question_prompt_guidance(
-        "Where did people run towards when the Berlin Wall fell?",
-        clarification=True,
-    )
-    assert "directly in the first sentence" in guidance
-    assert "Do not substitute an ideological summary" in guidance
-    assert "one permitted clarification repair" in guidance
-
-
-def test_clarification_without_grounded_packets_makes_no_model_call(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        bot,
-        "reply_strategy",
-        {**bot.reply_strategy, "enabled": True, "research_corpus_enabled": False},
-    )
-    monkeypatch.setattr(
-        bot.requests,
-        "post",
-        lambda *_args, **_kwargs: pytest.fail("xAI must not be called without repair evidence"),
-    )
-    outcome: dict[str, str] = {}
-
-    result = bot.ask_grok_for_reply(
-        "A correction in the same thread.",
-        direct_question_text="Where did people run towards when the Berlin Wall fell?",
-        clarification_reply=True,
-        evaluation_outcome=outcome,
-    )
-
-    assert result is None
-    assert outcome == {
-        "status": "no_reply",
-        "reason": "clarification_insufficient_grounded_evidence",
-    }
-
-
-def test_historical_correction_rejects_low_confidence_packet():
-    low = RetrievedEvidence(
-        "b" * 64, 1.0, "exact", "Low-confidence evidence.",
-        {
-            "verified_text": "Exact words.", "verification_status": "exact",
-            "research_confidence": "low", "speaker": "Margaret Thatcher",
-        },
-    )
-    with pytest.raises(ValueError, match="packet confidence"):
-        validate_reply_decision(decision(
-            mode="historical_correction", humour_tone="dry", evidence_confidence="high",
-            retrieved_quote_ids=[low.quote_id], evidence_summary="Low-confidence evidence.",
-            factual_claim_made=True, grounded=True,
-            reply_text="That historical claim is not established by the available record.",
-        ), [low], allowed_quote_ids={low.quote_id})
-
-
-def test_humour_remains_available_without_forced_history():
-    result = validate_reply_decision(decision(), [], allowed_quote_ids=set())
-    assert result["mode"] == "wry_reply" and not result["grounded"]
-
-
-@pytest.mark.parametrize(
-    ("incoming", "reply", "topical_basis"),
-    [
-        (
-            "Why doesn't anyone in government understand this?",
-            "Understanding is not always the same as having the courage to act.",
-            "understand this",
-        ),
-        (
-            "The institutions have failed because the government is acting in bad faith.",
-            "Institutions endure only when people are prepared to defend their purpose.",
-            "institutions have failed",
-        ),
-    ],
-)
-def test_uncertain_claim_can_receive_a_non_factual_principle_reply(
-    incoming: str,
-    reply: str,
-    topical_basis: str,
-) -> None:
-    result = validate_reply_decision(
-        decision(
-            mode="principle_reply",
-            humour_tone="none",
-            evidence_confidence="none",
-            reply_text=reply,
-            topical_basis=topical_basis,
-        ),
-        [],
-        allowed_quote_ids=set(),
-        incoming_text=incoming,
-        direct_question_text=incoming,
-    )
-
-    assert result["mode"] == "principle_reply"
-    assert result["retrieved_quote_ids"] == []
-    assert result["factual_claim_made"] is False
-    assert result["grounded"] is False
-    assert result["humour_tone"] == "none"
-
-
-def test_principle_reply_rejects_unsupported_actor_specific_assertion() -> None:
-    reply = "The government is deliberately concealing the truth."
-    assert principle_reply_assertion_error(reply) is not None
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode="principle_reply",
-                humour_tone="none",
-                evidence_confidence="none",
-                reply_text=reply,
-            ),
-            [],
-            allowed_quote_ids=set(),
-        )
-
-
-@pytest.mark.parametrize(
-    ("mode", "tone", "reply"),
-    [
-        ("wry_reply", "wry", "Andy Burnham lied about his record."),
-        ("warm_reply", "warm", "The government covered up the figures."),
-        ("deadpan_reply", "deadpan", "Keir Starmer has betrayed every promise."),
-        ("playful_reply", "playful", "The government continues to conceal the truth."),
-    ],
-)
-def test_every_ungrounded_mode_rejects_unsupported_factual_assertions(
-    mode: str,
-    tone: str,
-    reply: str,
-) -> None:
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode=mode,
-                humour_tone=tone,
-                factual_claim_made=False,
-                grounded=False,
-                reply_text=reply,
-            ),
-            [],
-            allowed_quote_ids=set(),
-            incoming_text="Why does the government keep concealing the truth?",
-        )
-
-
-def test_false_factual_flag_cannot_evade_assertion_check_with_grounded_metadata() -> None:
-    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=1)
-    selected = evidence[0]
-
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode="wry_reply",
-                humour_tone="wry",
-                evidence_confidence="high",
-                retrieved_quote_ids=[selected.quote_id],
-                evidence_summary="An unrelated high-confidence historical packet.",
-                factual_claim_made=False,
-                grounded=True,
-                reply_text="Andy Burnham lied about his record.",
-            ),
-            evidence,
-            allowed_quote_ids={selected.quote_id},
-            incoming_text="An unsupported allegation about Andy Burnham.",
-        )
-
-
-@pytest.mark.parametrize(
-    ("mode", "tone", "reply"),
-    [
-        ("wry_reply", "wry", "A tidy theory. Reality may request amendments."),
-        ("warm_reply", "warm", "The vigilance required never ends."),
-        ("deadpan_reply", "deadpan", "Quite so."),
-        ("playful_reply", "playful", "An interesting theory, awaiting acquaintance with reality."),
-        ("warm_reply", "warm", "Merry Christmas."),
-    ],
-)
-def test_non_factual_ungrounded_modes_remain_available(
-    mode: str,
-    tone: str,
-    reply: str,
-) -> None:
-    result = validate_reply_decision(
-        decision(mode=mode, humour_tone=tone, reply_text=reply),
-        [],
-        allowed_quote_ids=set(),
-        incoming_text="A general political observation.",
-    )
-
-    assert result["mode"] == mode
-
-
-def test_principle_reply_rejects_premise_preserving_institutional_claim() -> None:
-    incoming = "Why does the government keep concealing the truth?"
-    reply = "The government continues to conceal the truth."
-
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode="principle_reply",
-                humour_tone="none",
-                evidence_confidence="none",
-                reply_text=reply,
-                topical_basis="government concealing truth",
-            ),
-            [],
-            allowed_quote_ids=set(),
-            incoming_text=incoming,
-        )
-
-
-def test_principle_reply_rejects_named_actor_allegation() -> None:
-    incoming = "Andy Burnham only wants public popularity."
-    reply = "Burnham craves popularity rather than responsibility."
-    assert principle_reply_assertion_error(reply, incoming) is not None
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode="principle_reply",
-                humour_tone="none",
-                evidence_confidence="none",
-                reply_text=reply,
-                topical_basis="wants public popularity",
-            ),
-            [],
-            allowed_quote_ids=set(),
-            incoming_text=incoming,
-        )
-
-
-def test_principle_reply_rejects_lowercase_incoming_named_actor_allegation() -> None:
-    incoming = "andy burnham only wants public popularity."
-    reply = "Burnham craves popularity rather than responsibility."
-    assert principle_reply_assertion_error(reply, incoming) is not None
-    with pytest.raises(ValueError, match="specific unsupported factual assertion"):
-        validate_reply_decision(
-            decision(
-                mode="principle_reply",
-                humour_tone="none",
-                evidence_confidence="none",
-                reply_text=reply,
-                topical_basis="wants public popularity",
-            ),
-            [],
-            allowed_quote_ids=set(),
-            incoming_text=incoming,
-        )
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "Rishi Sunak wants popularity rather than responsibility.",
-        "Donald Trump lies about the economy.",
-        "Donald Trust lies about the economy.",
-        "Rishi Sunak champions responsibility.",
-        "Burnham backs popularity over responsibility.",
-        "Churchill wrote the policy.",
-        "Macron made the decision.",
-        "Reagan cut taxes yesterday.",
-        "Starmer raises taxes.",
-        "Sunak wants popularity rather than responsibility.",
-        "Sunak undermines freedom.",
-        "The caseworker lies about the economy.",
-        "Plainly, Burnham lies about the economy.",
-        "The point is this: Burnham backs higher taxes.",
-        "In the end, Burnham's record speaks for itself.",
-        "I think Burnham lies about the economy.",
-        "It is obvious Burnham wants popularity.",
-        "The truth is that Macron supports the policy.",
-        "I think burnham lies about the economy.",
-        "I think BURNHAM LIES about the economy.",
-    ],
-)
-def test_principle_reply_cannot_introduce_an_unverified_named_actor(reply: str) -> None:
-    incoming = "Andy Burnham wants public popularity."
-    assert principle_reply_assertion_error(reply, incoming) is not None
-
-
-@pytest.mark.parametrize(
-    "reply",
-    [
-        "Understanding is not always the same as having the courage to act.",
-        "Institutions endure only when people defend their purpose.",
-        "The case still has to be made—and acted upon.",
-        "Truth is indispensable.",
-    ],
-)
-def test_principle_reply_preserves_general_non_actor_subjects(reply: str) -> None:
-    assert principle_reply_assertion_error(reply, "A general political point.") is None
-
-
-def test_attribution_ineligible_packet_cannot_be_used_as_reply_evidence() -> None:
-    quote_id = "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8"
-    packets = json.loads((RESEARCH / "research_packets.json").read_text(encoding="utf-8"))["items"]
-    packet = packets[quote_id]
-    evidence = [RetrievedEvidence(
-        quote_id,
-        10.0,
-        str(packet["verification_status"]),
-        str(packet["intended_argument"]),
-        packet,
-    )]
-    with pytest.raises(ValueError, match="attribution-ineligible"):
-        validate_reply_decision(
-            decision(
-                mode="historical_context",
-                humour_tone="none",
-                evidence_confidence="high",
-                retrieved_quote_ids=[quote_id],
-                evidence_summary="A source-grounded claim by a different speaker.",
-                factual_claim_made=True,
-                grounded=True,
-                reply_text="Success at the highest level can require selfishness.",
-            ),
-            evidence,
-            allowed_quote_ids={quote_id},
-        )
-
-
-@pytest.mark.parametrize(
-    "quote_id",
-    [
-        "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
-        "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
-        "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
-    ],
-)
-def test_reply_retrieval_excludes_false_positive_thatcher_attributions(quote_id: str) -> None:
-    packet = json.loads((RESEARCH / "research_packets.json").read_text(encoding="utf-8"))["items"][quote_id]
-    results = retrieve_research_packets(packet["quote_text"], RESEARCH, maximum=10)
-    assert quote_id not in {item.quote_id for item in results}
-
-
-@pytest.mark.parametrize(
-    "reason",
-    [
-        "no_reply_due_to_unverifiable_claim",
-        "no_reply_due_to_bait_or_abuse",
-        "no_reply_due_to_incoherent",
-    ],
-)
-def test_stable_editorial_no_reply_categories_remain_valid(reason: str) -> None:
-    result = validate_reply_decision(
-        decision(
-            mode="no_reply",
-            humour_tone="none",
-            evidence_confidence="none",
-            reply_text="",
-            no_reply_reason=reason,
-        ),
-        [],
-        allowed_quote_ids=set(),
-    )
-    assert result["no_reply_reason"] == reason
-
-
-def test_principle_reply_cannot_smuggle_factual_or_research_metadata() -> None:
-    value = decision(
-        mode="principle_reply",
-        humour_tone="none",
-        evidence_confidence="medium",
-        factual_claim_made=True,
-        reply_text="Institutions require courage.",
-    )
-    with pytest.raises(JsonSchemaValidationError):
-        validate_json_schema(value, reply_decision_json_schema())
-    with pytest.raises(ValueError, match="principle_reply requires"):
-        validate_reply_decision(
-            value,
-            [],
-            allowed_quote_ids=set(),
-        )
-
-
-def test_principle_reply_receipt_metadata_keeps_the_same_safety_boundary() -> None:
-    text = "Responsibility matters most when excuses are easiest."
-    incoming = "Responsibility matters when excuses are tempting."
-    metadata = decision(
-        mode="principle_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text=text,
-    )
-    metadata.pop("topical_basis")
-    assert bot.strategy_metadata_is_semantically_valid(metadata, text, incoming_text=incoming)
-    unsafe = {**metadata, "reply_text": "The government is concealing the truth."}
-    assert not bot.strategy_metadata_is_semantically_valid(
-        unsafe,
-        unsafe["reply_text"],
-        incoming_text=incoming,
-    )
-
-
-@pytest.mark.parametrize(
-    ("mode", "tone", "text"),
-    [
-        ("wry_reply", "wry", "Andy Burnham lied about his record."),
-        ("warm_reply", "warm", "The government covered up the figures."),
-        ("deadpan_reply", "deadpan", "Keir Starmer has betrayed every promise."),
-    ],
-)
-def test_unsafe_ungrounded_assertion_cannot_survive_in_durable_strategy_metadata(
-    mode: str,
-    tone: str,
-    text: str,
-) -> None:
-    metadata = decision(mode=mode, humour_tone=tone, reply_text=text)
-    metadata.pop("topical_basis")
-
-    assert not bot.strategy_metadata_is_semantically_valid(
-        metadata,
-        text,
-        incoming_text="A contribution containing an unsupported allegation.",
-    )
-
-
-def test_weak_factual_evidence_requires_no_reply():
-    result = validate_reply_decision(decision(
-        mode="no_reply", humour_tone="none", evidence_confidence="none",
-        reply_text="", no_reply_reason="The historical claim cannot be grounded confidently.",
-    ), [], allowed_quote_ids=set())
-    assert result["mode"] == "no_reply"
-    with pytest.raises(ValueError, match="factual claims require grounding"):
-        validate_reply_decision(decision(factual_claim_made=True), [], allowed_quote_ids=set())
-
-
-def test_posted_mode_rejects_contradictory_no_reply_reason() -> None:
-    value = decision(no_reply_reason="No useful response.")
-
-    with pytest.raises(JsonSchemaValidationError):
-        validate_json_schema(value, reply_decision_json_schema())
-    with pytest.raises(ValueError, match="empty no_reply_reason"):
-        validate_reply_decision(value, [], allowed_quote_ids=set())
-
-
-@pytest.mark.parametrize(
-    "reply_text",
-    [
-        'Thatcher said “Women succeed without collective action.”',
-        "Thatcher said 'Women succeed without collective action.'",
-        "Thatcher said ‘Women succeed without collective action.’",
-        "Thatcher said 'Britain's women succeed without collective action.'",
-        "Thatcher said ‘Britain’s women succeed without collective action.’",
-    ],
-)
-def test_paraphrase_cannot_be_presented_as_exact_quotation(reply_text: str):
-    evidence = retrieve_research_packets("women's liberation", RESEARCH, maximum=5)
-    paraphrase = next(item for item in evidence if item.verification_status == "paraphrase")
-    with pytest.raises(ValueError, match="quotation marks require"):
-        validate_reply_decision(decision(
-            mode="researched_principle", evidence_confidence="medium", grounded=True,
-            retrieved_quote_ids=[paraphrase.quote_id], evidence_summary="A paraphrased principle.",
-            factual_claim_made=True,
-            reply_text=reply_text,
-        ), evidence, allowed_quote_ids={item.quote_id for item in evidence})
-
-
-def test_normalised_wording_cannot_be_presented_as_exact_quotation():
-    normalised = RetrievedEvidence(
-        "a" * 64, 1.0, "normalised", "Normalised wording.",
-        {
-            "verified_text": "A normalised sentence.", "verification_status": "normalised",
-            "research_confidence": "high", "speaker": "Margaret Thatcher",
-        },
-    )
-    evidence = [normalised]
-    with pytest.raises(ValueError, match="quotation marks require"):
-        validate_reply_decision(decision(
-            mode="researched_principle", evidence_confidence="medium", grounded=True,
-            retrieved_quote_ids=[normalised.quote_id], evidence_summary="Normalised wording.",
-            factual_claim_made=True,
-            reply_text='Thatcher said “A normalised sentence.”',
-        ), evidence, allowed_quote_ids={item.quote_id for item in evidence})
-
-
-@pytest.mark.parametrize(
-    "reply_text, verified_text",
-    [
-        ("Thatcher said 'Exact words.'", "Exact words."),
-        ("Thatcher said 'Britain's exact words.'", "Britain's exact words."),
-        ("Thatcher said ‘Britain’s exact words.’", "Britain’s exact words."),
-    ],
-)
-def test_verified_exact_wording_may_use_single_quotation_marks(
-    reply_text: str,
-    verified_text: str,
-):
-    exact = RetrievedEvidence(
-        "e" * 64,
-        1.0,
-        "exact",
-        "Exact evidence.",
-            {
-                "verified_text": verified_text,
-                "verification_status": "exact",
-                "research_confidence": "high",
-                "speaker": "Margaret Thatcher",
-                "immediate_subject": "Exact words and their historical record.",
-        },
-    )
-
-    result = validate_reply_decision(
-        decision(
-            mode="researched_principle",
-            evidence_confidence="high",
-            grounded=True,
-            retrieved_quote_ids=[exact.quote_id],
-            evidence_summary="Exact evidence.",
-            factual_claim_made=True,
-            reply_text=reply_text,
-            topical_basis="Exact words",
-        ),
-        [exact],
-        allowed_quote_ids={exact.quote_id},
-        incoming_text="Exact words and their historical record.",
-    )
-
-    assert result["reply_text"] == reply_text
-
-
-def test_apostrophe_in_contraction_is_not_treated_as_quotation():
-    result = validate_reply_decision(
-        decision(reply_text="Reality's reply remains concise."),
-        [],
-        allowed_quote_ids=set(),
-    )
-
-    assert result["reply_text"] == "Reality's reply remains concise."
-
-
-def test_no_hashtags_two_sentence_limit_and_repetition_controls():
-    with pytest.raises(ValueError, match="hashtags"):
-        validate_reply_decision(decision(reply_text="A point. #history"), [], allowed_quote_ids=set())
-    with pytest.raises(ValueError, match="one or two sentences"):
-        validate_reply_decision(decision(reply_text="One. Two. Three."), [], allowed_quote_ids=set())
-    with pytest.raises(ValueError, match="exact duplicate"):
-        validate_reply_decision(decision(), [], allowed_quote_ids=set(), recent_replies=[decision()["reply_text"]])
-
-
-def test_repetition_rejections_identify_exact_similar_and_canned_causes():
-    with pytest.raises(ValueError, match="exact duplicate"):
-        validate_reply_decision(decision(), [], allowed_quote_ids=set(), recent_replies=[decision()["reply_text"]])
-    with pytest.raises(ValueError, match="canned formulation"):
-        validate_reply_decision(
-            decision(reply_text="History has a habit of answering that."),
-            [], allowed_quote_ids=set(), recent_replies=[],
-        )
-    with pytest.raises(ValueError, match="highly similar"):
-        validate_reply_decision(
-            decision(reply_text="A tidy theory; reality may request amendments."),
-            [], allowed_quote_ids=set(),
-            recent_replies=["A tidy theory. Reality may request amendments."],
-        )
-
-
-def test_reply_decision_is_string_compatible_and_carries_private_metadata():
-    value = ReplyDecision("Dry, but accurate.", {"mode": "deadpan_reply"})
-    assert value == "Dry, but accurate." and value.strategy_metadata["mode"] == "deadpan_reply"
-
-
-@pytest.mark.parametrize(
-    "patch",
-    [
-        {"mode": []},
-        {"humour_tone": {}},
-        {"evidence_confidence": 1},
-        {"reply_text": 1234567890123},
-    ],
-)
-def test_reply_decision_rejects_wrong_scalar_types_as_validation_errors(patch):
-    with pytest.raises(ValueError, match="must be strings"):
-        validate_reply_decision(decision(**patch), [], allowed_quote_ids=set())
-
-
-def test_json_parser_accepts_fenced_object():
-    assert parse_decision_json('```json\n{"mode":"no_reply"}\n```')["mode"] == "no_reply"
-
-
-def test_bare_skip_is_not_a_structured_reply_decision():
-    with pytest.raises(ValueError, match="bare SKIP"):
-        parse_decision_json("SKIP")
-
-
-def test_valid_no_reply_contract_and_schema() -> None:
-    value = decision(
-        mode="no_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="",
-        no_reply_reason="No useful response.",
-    )
-
-    validate_json_schema(value, reply_decision_json_schema())
-    assert validate_reply_decision(value, [], allowed_quote_ids=set()) == value
-
-
-@pytest.mark.parametrize(
-    ("mode", "tone"),
-    [
-        ("wry_reply", "wry"),
-        ("playful_reply", "playful"),
-        ("deadpan_reply", "deadpan"),
-        ("warm_reply", "warm"),
-    ],
-)
-def test_existing_humour_reply_modes_remain_valid(mode: str, tone: str) -> None:
-    value = decision(mode=mode, humour_tone=tone)
-    validate_json_schema(value, reply_decision_json_schema())
-    assert validate_reply_decision(value, [], allowed_quote_ids=set())["mode"] == mode
-
-
-@pytest.mark.parametrize(
-    ("mode", "confidence"),
-    [
-        ("historical_correction", "high"),
-        ("historical_context", "medium"),
-        ("researched_principle", "medium"),
-    ],
-)
-def test_existing_historical_reply_modes_remain_valid(mode: str, confidence: str) -> None:
-    evidence = RetrievedEvidence(
-        "e" * 64,
-        1.0,
-        "exact",
-        "A supported historical point.",
-            {
-                "verified_text": "Exact words.",
-                "verification_status": "exact",
-                "research_confidence": "high",
-                "speaker": "Margaret Thatcher",
-                "immediate_subject": "The historical record supports a narrower conclusion.",
-        },
-    )
-    value = decision(
-        mode=mode,
-        humour_tone="dry",
-        evidence_confidence=confidence,
-        retrieved_quote_ids=[evidence.quote_id],
-        evidence_summary="A supported historical point.",
-        factual_claim_made=True,
-        grounded=True,
-        reply_text="The historical record supports that narrower conclusion.",
-        topical_basis=("historical record supports" if mode == "researched_principle" else ""),
-    )
-    validate_json_schema(value, reply_decision_json_schema())
-    assert validate_reply_decision(
-        value,
-        [evidence],
-        allowed_quote_ids={evidence.quote_id},
-        incoming_text=("The historical record supports a narrower conclusion." if mode == "researched_principle" else None),
-    )["mode"] == mode
-
-
-@pytest.mark.parametrize(
-    ("field", "invalid_value"),
-    [
-        ("humour_tone", "dry"),
-        ("evidence_confidence", "low"),
-        ("retrieved_quote_ids", ["a" * 64]),
-        ("evidence_summary", "A supposed reason placed in evidence metadata."),
-        ("factual_claim_made", True),
-        ("grounded", True),
-        ("reply_text", "A reply must not accompany no_reply."),
-    ],
-)
-def test_contradictory_no_reply_metadata_is_rejected_by_schema_and_validator(
+def test_malformed_configuration_returns_errors_instead_of_raising(
     field: str,
-    invalid_value: object,
+    value: object,
 ) -> None:
-    value = decision(
-        mode="no_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="",
-        no_reply_reason="No useful response.",
+    errors = validate_strategy_config(strategy_config(**{field: value}))
+
+    assert errors
+    assert any(field in error for error in errors)
+
+
+def test_disabled_strategy_makes_no_model_call(repository: FakeRepository) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {},
+        config=strategy_config(enabled=False),
     )
-    value[field] = invalid_value
+    assert result.reply is None
+    assert result.status == "disabled"
+    assert result.reason == "strategy_disabled"
+    assert result.model_call_count == 0
+    assert transport.calls == []
 
-    with pytest.raises(JsonSchemaValidationError):
-        validate_json_schema(value, reply_decision_json_schema())
-    with pytest.raises(ValueError, match="no_reply"):
-        validate_reply_decision(value, [], allowed_quote_ids=set())
 
-
-def test_no_reply_normalises_only_harmless_empty_representations() -> None:
-    value = decision(
-        mode="no_reply",
-        humour_tone=" ",
-        evidence_confidence=None,
-        retrieved_quote_ids=None,
-        evidence_summary=" \n",
-        factual_claim_made=None,
-        grounded=None,
-        reply_text=None,
-        no_reply_reason="  No useful response.  ",
+def test_context_keeps_contribution_quoted_post_parent_and_clarification_separate() -> None:
+    context = reply_context(
+        "You still did not answer me.",
+        quoted_post={"post_id": "80", "author_role": "account", "text": "Quoted material."},
+        parent_thread=[{"post_id": "90", "author_role": "user", "text": "Parent material."}],
+        clarification_request={
+            "original_question": "Where did people move when the Berlin Wall fell?",
+            "correction": "You still did not answer me.",
+        },
     )
-
-    assert normalise_reply_decision(value) == decision(
-        mode="no_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="",
-        no_reply_reason="No useful response.",
-    )
-    result = validate_reply_decision(value, [], allowed_quote_ids=set())
-    assert result["mode"] == "no_reply"
-    assert result["evidence_confidence"] == "none"
-    assert result["evidence_summary"] == ""
+    assert validate_reply_context(context) == context
+    bad = copy.deepcopy(context)
+    bad["clarification_request"]["correction"] = "different"  # type: ignore[index]
+    with pytest.raises(ValueError, match="correction"):
+        validate_reply_context(bad)
 
 
-def test_no_reply_normalisation_does_not_supply_omitted_required_fields() -> None:
-    value = decision(
-        mode="no_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="",
-        no_reply_reason="No useful response.",
-    )
-    value.pop("grounded")
-
-    with pytest.raises(ValueError, match="fields mismatch"):
-        validate_reply_decision(value, [], allowed_quote_ids=set())
+def test_no_reply_uses_only_one_proposer_call(repository: FakeRepository) -> None:
+    result, transport = run_pipeline(repository, {"proposer": proposer(mode="no_reply")})
+    assert result.reply is None
+    assert result.status == "no_reply"
+    assert result.model_call_count == 1
+    assert [call["stage"] for call in transport.calls] == ["proposer"]
 
 
-def test_no_reply_prompt_contains_one_explicit_valid_example() -> None:
-    instruction = decision_schema_instruction()
-    marker = 'Valid no_reply example: '
-    assert instruction.count(marker) == 1
-    example = instruction.split(marker, 1)[1].split(". For principle_reply", 1)[0]
-    value = json.loads(example)
-    assert value == decision(
-        mode="no_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="",
-        no_reply_reason="No useful response.",
+def test_one_invalid_proposer_response_is_retried_then_accepted(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": ["", proposer(mode="no_reply")]},
     )
 
+    assert result.reply is None
+    assert result.reason == "No useful and safe reply is warranted."
+    assert result.model_call_count == 2
+    assert [call["stage"] for call in transport.calls] == ["proposer", "proposer"]
+    assert [row["status"] for row in result.audit] == [
+        "invalid_response_retry",
+        "completed",
+    ]
 
-def test_principle_reply_prompt_contains_one_explicit_valid_example() -> None:
-    instruction = decision_schema_instruction()
-    marker = "Valid principle_reply example: "
-    assert instruction.count(marker) == 1
-    example = instruction.split(marker, 1)[1].removesuffix(".")
-    value = json.loads(example)
-    assert value == decision(
-        mode="principle_reply",
-        humour_tone="none",
-        evidence_confidence="none",
-        reply_text="Institutions endure only when people are prepared to defend their purpose.",
-        topical_basis="institutions have failed",
+
+def test_second_invalid_proposer_response_fails_closed(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": ["", ""]},
     )
 
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "proposer_invalid"
+    assert result.model_call_count == 2
+    assert [call["stage"] for call in transport.calls] == ["proposer", "proposer"]
+    assert [row["status"] for row in result.audit] == [
+        "invalid_response_retry",
+        "invalid",
+    ]
 
-def test_digest_audit_reports_no_rows_for_supplied_digest(tmp_path: Path):
-    digest = tmp_path / "digest.md"
-    digest.write_text("# Digest\n\nNo conversational reply tables.\n", encoding="utf-8")
-    result = audit_digest(digest)
-    assert result["auditable_reply_count"] == 0
-    assert result["finding"] == "no auditable replies in digest"
-    assert result["network_calls"] == 0
 
-
-def test_disabled_modes_and_configured_confidence_are_enforced():
-    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=2)
-    qid = evidence[0].quote_id
-    historical = decision(
-        mode="historical_context", humour_tone="dry", evidence_confidence="medium",
-        retrieved_quote_ids=[qid], evidence_summary="Context.", factual_claim_made=True,
-        grounded=True, reply_text="Government can set conditions for prosperity without manufacturing it.",
+def test_invalid_response_retry_remains_bounded_by_global_call_limit(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": ""},
+        config=strategy_config(maximum_model_calls=1),
     )
-    with pytest.raises(ValueError, match="disabled by configuration"):
-        validate_reply_decision(
-            historical, evidence, allowed_quote_ids={qid},
-            allowed_modes={"wry_reply", "no_reply"},
-        )
-    with pytest.raises(ValueError, match="configured grounded confidence"):
-        validate_reply_decision(
-            historical, evidence, allowed_quote_ids={qid}, minimum_grounded_confidence="high",
-        )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "proposer_invalid"
+    assert result.model_call_count == 1
+    assert len(transport.calls) == 1
+    assert result.audit[-1]["reason"] == "reply pipeline model-call ceiling reached"
 
 
-def test_grounded_claim_requires_selected_evidence():
-    with pytest.raises(ValueError, match="grounded replies require selected evidence"):
-        validate_reply_decision(
-            decision(factual_claim_made=True, grounded=True, evidence_confidence="medium"),
-            [], allowed_quote_ids=set(),
-        )
+def test_one_invalid_evidence_response_is_retried_before_review(
+    repository: FakeRepository,
+) -> None:
+    valid_evidence = supporting_evidence(repository)
+    attempts = 0
 
+    def evidence_sequence(**kwargs: Any) -> object:
+        nonlocal attempts
+        attempts += 1
+        return "" if attempts == 1 else valid_evidence(**kwargs)
 
-def test_grounded_claim_requires_evidence_object_for_every_selected_id():
-    qid = "d" * 64
-
-    with pytest.raises(ValueError, match="non-retrieved or unresolved quote ID"):
-        validate_reply_decision(
-            decision(
-                factual_claim_made=True,
-                grounded=True,
-                evidence_confidence="medium",
-                retrieved_quote_ids=[qid],
-                evidence_summary="A factual historical point.",
-            ),
-            [],
-            allowed_quote_ids={qid},
-        )
-
-
-def test_factual_humour_obeys_configured_grounded_confidence():
-    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=1)
-    qid = evidence[0].quote_id
-    with pytest.raises(ValueError, match="configured grounded confidence"):
-        validate_reply_decision(
-            decision(
-                evidence_confidence="low", retrieved_quote_ids=[qid],
-                evidence_summary="A factual historical point.", factual_claim_made=True,
-                grounded=True,
-            ),
-            evidence, allowed_quote_ids={qid}, minimum_grounded_confidence="medium",
-        )
-
-
-def test_factual_humour_rejects_low_confidence_packet():
-    low = RetrievedEvidence(
-        "c" * 64,
-        1.0,
-        "exact",
-        "Low-confidence evidence.",
+    result, transport = run_pipeline(
+        repository,
         {
-            "verified_text": "Exact words.", "verification_status": "exact",
-            "research_confidence": "low", "speaker": "Margaret Thatcher",
+            "proposer": proposer(),
+            "evidence": evidence_sequence,
+            "reviewer": reviewer(),
         },
     )
 
-    with pytest.raises(ValueError, match="packet confidence"):
-        validate_reply_decision(
-            decision(
-                evidence_confidence="medium",
-                retrieved_quote_ids=[low.quote_id],
-                evidence_summary="A factual historical point.",
-                factual_claim_made=True,
-                grounded=True,
+    assert isinstance(result.reply, AIReply)
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "evidence",
+        "evidence",
+        "reviewer",
+    ]
+    assert any(
+        row["stage"] == "evidence" and row["status"] == "invalid_response_retry"
+        for row in result.audit
+    )
+
+
+def test_one_invalid_reviewer_response_is_retried_before_approval(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="courtesy", reply="Thank you.", claims=[]),
+            "reviewer": [
+                "",
+                reviewer(direct_question=False, answers_first=False),
+            ],
+        },
+        context=reply_context("Thank you."),
+    )
+
+    assert isinstance(result.reply, AIReply)
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer",
+        "reviewer",
+        "reviewer",
+    ]
+    assert any(
+        row["stage"] == "reviewer" and row["status"] == "invalid_response_retry"
+        for row in result.audit
+    )
+
+
+@pytest.mark.parametrize(
+    ("mode", "text", "tone"),
+    [
+        ("opinion_or_principle", "Conviction matters more than applause.", "neutral"),
+        ("light_humour", "A slogan is not improved by shouting it twice.", "light"),
+        ("courtesy", "Thank you for the kind thought.", "neutral"),
+    ],
+)
+def test_nonfactual_modes_require_fresh_reviewer_approval(
+    repository: FakeRepository,
+    mode: str,
+    text: str,
+    tone: str,
+) -> None:
+    proposal = proposer(mode=mode, reply=text, claims=[])
+    proposal["tone"] = tone
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("A general political observation."),
+    )
+    assert isinstance(result.reply, AIReply)
+    assert str(result.reply) == text
+    assert result.reply.draft_record["mode"] == mode
+    assert [call["stage"] for call in transport.calls] == ["proposer", "reviewer"]
+
+
+def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
+    repository: FakeRepository,
+) -> None:
+    factual_text = "People moved from East Germany towards West Germany."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply=factual_text),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(
+                factual_claims=["People moved from East Germany towards West Germany in November 1989."],
             ),
-            [low],
-            allowed_quote_ids={low.quote_id},
-            minimum_grounded_confidence="medium",
-        )
-
-
-def test_historical_modes_require_factual_claim_and_evidence_summary():
-    evidence = retrieve_research_packets("Government creates wealth", RESEARCH, maximum=1)
-    qid = evidence[0].quote_id
-    base = decision(
-        mode="historical_context", humour_tone="dry", evidence_confidence="medium",
-        retrieved_quote_ids=[qid], grounded=True,
-        reply_text="Government can set conditions for prosperity without manufacturing it.",
+        },
     )
-    with pytest.raises(ValueError, match="historical modes must identify a factual claim"):
-        validate_reply_decision(base, evidence, allowed_quote_ids={qid})
-    with pytest.raises(ValueError, match="grounded replies require an evidence summary"):
-        validate_reply_decision(
-            {**base, "factual_claim_made": True}, evidence, allowed_quote_ids={qid},
-        )
+    assert isinstance(result.reply, AIReply)
+    assert str(result.reply) == factual_text
+    assert [call["stage"] for call in transport.calls] == ["proposer", "evidence", "reviewer"]
+    assert result.reply.draft_record["claim_evidence"] == [{
+        "claim_id": "claim-1",
+        "evidence_ids": [repository.passage.evidence_id],
+    }]
 
 
-def test_no_reply_metadata_is_internally_consistent():
-    with pytest.raises(ValueError, match="no_reply requires"):
-        validate_reply_decision(
-            decision(
-                mode="no_reply", humour_tone="dry", evidence_confidence="medium",
-                grounded=True, retrieved_quote_ids=[], reply_text="", no_reply_reason="Weak evidence.",
+def test_reviewer_is_fresh_and_does_not_receive_hidden_proposer_interpretation(
+    repository: FakeRepository,
+) -> None:
+    proposal = proposer(mode="courtesy", reply="Thank you for saying so.", claims=[])
+    proposal["interpretation"] = "HIDDEN PROPOSER REASONING"
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("Thank you."),
+    )
+    assert result.reply is not None
+    reviewer_call = transport.calls[-1]
+    assert reviewer_call["stage"] == "reviewer"
+    assert reviewer_call["model"] == "reviewer-model"
+    assert "HIDDEN PROPOSER REASONING" not in reviewer_call["user_prompt"]
+    assert "fresh independent final reviewer" in reviewer_call["system_prompt"]
+
+
+def test_explicit_reviewer_approval_is_mandatory(repository: FakeRepository) -> None:
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="courtesy", reply="Thank you.", claims=[]),
+            "reviewer": reviewer(
+                verdict="reject",
+                direct_question=False,
+                answers_first=False,
+                topically_relevant=False,
             ),
-            [], allowed_quote_ids=set(),
-        )
-
-
-def test_configured_humour_tones_and_emoji_are_enforced():
-    with pytest.raises(ValueError, match="humour tone is disabled"):
-        validate_reply_decision(
-            decision(humour_tone="playful"), [], allowed_quote_ids=set(),
-            allowed_humour_tones={"dry", "wry"},
-        )
-    with pytest.raises(ValueError, match="emoji"):
-        validate_reply_decision(
-            decision(reply_text="A tidy theory. Reality may disagree. 🙂"),
-            [], allowed_quote_ids=set(),
-        )
-
-
-def test_digest_table_parser_preserves_escaped_pipes(tmp_path: Path):
-    digest = tmp_path / "digest.md"
-    digest.write_text(
-        "## Mention replies\n"
-        "| time | mention_id | incoming_text | reply |\n"
-        "| --- | --- | --- | --- |\n"
-        "| now | 1 | A \\| B | A reply. |\n",
-        encoding="utf-8",
+        },
+        context=reply_context("Thank you."),
     )
-    result = audit_digest(digest)
-    assert result["auditable_reply_count"] == 1
-    assert result["items"][0]["cells"] == ["now", "1", "A | B", "A reply."]
+    assert result.reply is None
+    assert result.reason == "reviewer_rejected"
 
 
-def test_mode_guidance_defines_accuracy_first_classification_hierarchy():
-    guidance = strategy_mode_guidance()
-    assert guidance.index("materially false") < guidance.index("historical_context")
-    assert guidance.index("historical_context") < guidance.index("researched_principle")
-    assert guidance.index("researched_principle") < guidance.index("humour mode")
-    assert "Do not force history" in guidance
-    assert "Do not force humour" in guidance
-
-
-def test_audit_json_stdout_is_machine_readable(tmp_path: Path):
-    digest = tmp_path / "digest.md"
-    digest.write_text("# Digest\n\nNo conversational reply tables.\n", encoding="utf-8")
-    result = subprocess.run(
-        [
-            sys.executable, "mrsMThatcher2.py", "audit-replies",
-            "--digest", str(digest),
-            "--research-run", str(RESEARCH), "--json",
-        ],
-        text=True, capture_output=True, check=False,
+def test_one_revision_cycle_is_the_absolute_maximum(repository: FakeRepository) -> None:
+    revised = proposer(mode="courtesy", reply="Thank you for the correction.", claims=[])
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="courtesy", reply="Thank you.", claims=[]),
+            "reviewer": reviewer(
+                verdict="revise",
+                direct_question=False,
+                answers_first=False,
+                topically_relevant=False,
+            ),
+            "revision_proposer": revised,
+            "revision_reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("That did not address my point."),
     )
-    assert result.returncode == 0, result.stderr
-    payload = json.loads(result.stdout)
-    assert payload["auditable_reply_count"] == 0
-    assert payload["network_calls"] == 0
+    assert str(result.reply) == "Thank you for the correction."
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "reviewer", "revision_proposer", "revision_reviewer",
+    ]
+
+
+def test_reviewer_cannot_approve_a_factual_claim_omitted_by_proposer(
+    repository: FakeRepository,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Inflation fell by ten points, so resolve has prevailed.",
+                claims=[],
+            ),
+            "reviewer": reviewer(
+                direct_question=False,
+                answers_first=False,
+                factual_claims=["Inflation fell by ten points."],
+            ),
+            "revision_proposer": proposer(
+                mode="no_reply",
+                no_reply_reason="The unsupported factual claim cannot be repaired safely.",
+            ),
+        },
+        context=reply_context("Government must show resolve on inflation."),
+    )
+
+    assert result.reply is None
+    assert result.reason == "The unsupported factual claim cannot be repaired safely."
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "reviewer", "revision_proposer",
+    ]
+    assert any(
+        row.get("reason") == "reviewer_claim_inventory_mismatch"
+        for row in result.audit
+    )
+
+
+def test_reviewer_claim_inventory_mismatch_gets_one_strict_repair_cycle(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "People moved from East Germany towards West Germany in November 1989."
+    incomplete_claim = claim(
+        "People moved from East Germany towards West Germany."
+    )
+    complete_claim = claim(reply_text)
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply=reply_text, claims=[incomplete_claim]),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(factual_claims=[reply_text]),
+            "revision_proposer": proposer(reply=reply_text, claims=[complete_claim]),
+            "revision_evidence": supporting_evidence(repository),
+            "revision_reviewer": reviewer(factual_claims=[reply_text]),
+        },
+    )
+
+    assert str(result.reply) == reply_text
+    assert result.revision_count == 1
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "evidence", "reviewer",
+        "revision_proposer", "revision_evidence", "revision_reviewer",
+    ]
+    revision_payload = json.loads(transport.calls[3]["user_prompt"])
+    instruction = revision_payload["single_allowed_revision"]["reviewer_revision_instructions"]
+    assert "copy the complete factual sentence or clause" in instruction
+
+
+def test_partial_candidate_evidence_in_non_direct_mode_is_adjudicated_before_one_revision(
+    repository: FakeRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first = claim()
+    second = {
+        **claim("Inflation fell by ten points."),
+        "claim_id": "claim-2",
+        "actor": "inflation",
+        "action_or_relationship": "fell",
+        "direction_or_polarity": "down",
+        "date_or_period": "",
+        "quantity": "ten points",
+    }
+
+    def candidates(text: str, **_kwargs: object) -> list[EvidencePassage]:
+        return [repository.passage] if "East Germany" in text else []
+
+    monkeypatch.setattr(repository, "candidate_passages", candidates)
+
+    def partial_evidence(**kwargs: Any) -> object:
+        payload = json.loads(kwargs["user_prompt"])
+        rows = []
+        for supplied in payload["claims"]:
+            available = payload["candidate_passages_by_claim"][supplied["claim_id"]]
+            supported = bool(available)
+            rows.append({
+                "claim_id": supplied["claim_id"],
+                "claim_text": supplied["claim_text"],
+                "verdict": "supports" if supported else "insufficient",
+                "evidence": ([{
+                    "evidence_id": repository.passage.evidence_id,
+                    "exact_supporting_passage": repository.passage.passage,
+                    "relation": "supports",
+                }] if supported else []),
+                "actor": supplied["actor"],
+                "action_or_relationship": supplied["action_or_relationship"],
+                "direction_or_polarity": supplied["direction_or_polarity"],
+                "date_or_period": supplied["date_or_period"],
+                "quantity": supplied["quantity"],
+                "explanation": "Supported locally." if supported else "No supplied passage supports this claim.",
+            })
+        return {"claims": rows}
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="People moved west, and inflation fell by ten points.",
+                claims=[first, second],
+            ),
+            "evidence": partial_evidence,
+            "reviewer": reviewer(
+                verdict="revise",
+                factual_claims=[first["claim_text"], second["claim_text"]],
+                contains_unsupported_factual_claims=True,
+                unsupported_factual_claims=[second["claim_text"]],
+            ),
+            "revision_proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Resolve must be matched by evidence.",
+                claims=[],
+            ),
+            "revision_reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("What happened, and what happened to inflation?"),
+    )
+
+    assert str(result.reply) == "Resolve must be matched by evidence."
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "evidence", "reviewer", "revision_proposer", "revision_reviewer",
+    ]
+    evidence_payload = json.loads(transport.calls[1]["user_prompt"])
+    assert evidence_payload["candidate_passages_by_claim"]["claim-1"]
+    assert evidence_payload["candidate_passages_by_claim"]["claim-2"] == []
+
+
+def test_unsupported_direct_factual_answer_stops_before_review_or_revision(
+    repository: FakeRepository,
+) -> None:
+    repository.return_candidates = False
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "reviewer": reviewer(verdict="revise"),
+            "revision_proposer": proposer(),
+            "revision_reviewer": reviewer(),
+        },
+    )
+
+    assert result.reply is None
+    assert result.reason == "insufficient_claim_evidence"
+    assert result.revision_count == 0
+    assert [call["stage"] for call in transport.calls] == ["proposer"]
+    assert result.audit[-1] == {
+        "stage": "evidence",
+        "status": "rejected",
+        "reason": "direct_factual_answer_not_fully_supported",
+    }
+
+
+def test_second_revision_request_fails_closed(repository: FakeRepository) -> None:
+    revise = reviewer(
+        verdict="revise",
+        direct_question=False,
+        answers_first=False,
+        topically_relevant=False,
+    )
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="courtesy", reply="Thank you.", claims=[]),
+            "reviewer": revise,
+            "revision_proposer": proposer(mode="courtesy", reply="Thank you again.", claims=[]),
+            "revision_reviewer": copy.deepcopy(revise),
+        },
+        context=reply_context("Thank you."),
+    )
+    assert result.reply is None
+    assert result.reason == "revision_limit_reached"
+    assert len(transport.calls) == 4
+
+
+def test_evidence_call_is_omitted_for_nonfactual_reply(repository: FakeRepository) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(mode="opinion_or_principle", reply="Courage must precede action.", claims=[]),
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=reply_context("Why does nobody have the courage to act?"),
+    )
+    assert result.reply is not None
+    assert all(call["stage"] != "evidence" for call in transport.calls)
+
+
+def test_missing_claim_evidence_cannot_be_approved(repository: FakeRepository) -> None:
+    repository.return_candidates = False
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "reviewer": reviewer(),
+            "revision_proposer": proposer(),
+            "revision_reviewer": reviewer(),
+        },
+    )
+    assert result.reply is None
+    assert result.reason == "insufficient_claim_evidence"
+    assert all(call["stage"] not in {"evidence", "revision_evidence"} for call in transport.calls)
+
+
+def test_unrelated_or_invented_evidence_id_is_rejected(repository: FakeRepository) -> None:
+    proposal_claim = claim()
+    response = supporting_evidence(repository)(
+        user_prompt=json.dumps({"claims": [proposal_claim]}),
+    )
+    response["claims"][0]["evidence"][0]["evidence_id"] = "d" * 64  # type: ignore[index]
+    with pytest.raises(ValueError, match="not supplied"):
+        validate_evidence_response(
+            response,
+            [proposal_claim],
+            {"claim-1": [repository.passage]},
+            repository,  # type: ignore[arg-type]
+            maximum_references=24,
+        )
+
+
+def test_exact_supporting_passage_must_match_local_bytes(repository: FakeRepository) -> None:
+    proposal_claim = claim()
+    response = supporting_evidence(repository)(
+        user_prompt=json.dumps({"claims": [proposal_claim]}),
+    )
+    response["claims"][0]["evidence"][0]["exact_supporting_passage"] += " changed"  # type: ignore[index,operator]
+    with pytest.raises(ValueError, match="mismatch"):
+        validate_evidence_response(
+            response,
+            [proposal_claim],
+            {"claim-1": [repository.passage]},
+            repository,  # type: ignore[arg-type]
+            maximum_references=24,
+        )
+
+
+def test_support_verdict_cannot_rewrite_claim_semantic_dimensions(
+    repository: FakeRepository,
+) -> None:
+    proposal_claim = claim()
+    response = supporting_evidence(repository)(
+        user_prompt=json.dumps({"claims": [proposal_claim]}),
+    )
+    response["claims"][0]["direction_or_polarity"] = "West to East"  # type: ignore[index]
+
+    with pytest.raises(ValueError, match="semantic dimensions"):
+        validate_evidence_response(
+            response,
+            [proposal_claim],
+            {"claim-1": [repository.passage]},
+            repository,  # type: ignore[arg-type]
+            maximum_references=24,
+        )
+
+
+def test_low_confidence_passage_cannot_authorise_a_factual_claim(
+    repository: FakeRepository,
+) -> None:
+    low_confidence = replace(repository.passage, research_confidence="low")
+    repository.passage = low_confidence
+    repository.passages = {low_confidence.evidence_id: low_confidence}
+    proposal_claim = claim()
+    response = supporting_evidence(repository)(
+        user_prompt=json.dumps({"claims": [proposal_claim]}),
+    )
+
+    with pytest.raises(ValueError, match="low-confidence"):
+        validate_evidence_response(
+            response,
+            [proposal_claim],
+            {"claim-1": [low_confidence]},
+            repository,  # type: ignore[arg-type]
+            maximum_references=24,
+        )
+
+
+def test_evidence_rows_are_canonicalised_to_proposer_claim_order(
+    repository: FakeRepository,
+) -> None:
+    first = claim()
+    second = claim("Movement occurred in November 1989.")
+    second["claim_id"] = "claim-2"
+    second["actor"] = "people in East Germany"
+    second["action_or_relationship"] = "movement occurred"
+    second["direction_or_polarity"] = ""
+    proposal = proposer(
+        reply="People moved from East Germany towards West Germany in November 1989.",
+        claims=[first, second],
+    )
+
+    def reversed_evidence(**kwargs: Any) -> object:
+        response = supporting_evidence(repository)(**kwargs)
+        response["claims"].reverse()  # type: ignore[index,union-attr]
+        return response
+
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposal,
+            "evidence": reversed_evidence,
+            "reviewer": reviewer(
+                factual_claims=[str(first["claim_text"]), str(second["claim_text"])],
+            ),
+        },
+    )
+
+    assert isinstance(result.reply, AIReply)
+    assert [row["claim_id"] for row in result.reply.draft_record["claim_evidence"]] == [
+        "claim-1",
+        "claim-2",
+    ]
+    validate_persisted_draft(
+        result.reply.draft_record,
+        context=reply_context(),
+        config=strategy_config(),
+        repository=repository,  # type: ignore[arg-type]
+        maximum_reply_length=500,
+    )
+
+
+def test_proposer_metadata_is_untrusted_and_must_be_internally_consistent() -> None:
+    with pytest.raises(ValueError, match="requires at least one factual claim"):
+        validate_proposer(
+            proposer(mode="direct_factual_answer", claims=[]),
+            maximum_reply_length=500,
+            maximum_claims=6,
+        )
+    duplicate = claim()
+    duplicate["claim_id"] = "claim-2"
+    with pytest.raises(ValueError, match="must be unique"):
+        validate_proposer(
+            proposer(claims=[claim(), duplicate]),
+            maximum_reply_length=500,
+            maximum_claims=6,
+        )
+    with pytest.raises(ValueError, match="confidence"):
+        validate_proposer(
+            proposer(mode="courtesy", reply="Thank you.", claims=[], confidence="low"),
+            maximum_reply_length=500,
+            maximum_claims=6,
+        )
+    blank_interpretation = proposer(mode="courtesy", reply="Thank you.", claims=[])
+    blank_interpretation["interpretation"] = "   "
+    with pytest.raises(ValueError, match="interpretation"):
+        validate_proposer(
+            blank_interpretation,
+            maximum_reply_length=500,
+            maximum_claims=6,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "entry", "error"),
+    [
+        ("reasons", "x" * 301, "reasons"),
+        ("actual_factual_claims", "x" * 501, "actual_factual_claims"),
+        ("unsupported_factual_claims", "x" * 501, "unsupported_factual_claims"),
+    ],
+)
+def test_reviewer_local_validation_enforces_item_length_limits(
+    field: str,
+    entry: str,
+    error: str,
+) -> None:
+    review = reviewer(direct_question=False, answers_first=False)
+    review[field] = [entry]
+
+    with pytest.raises(ValueError, match=error):
+        validate_reviewer(review, maximum_claims=6)
+
+
+def test_terminal_reviewer_rejection_may_include_unused_revision_advice() -> None:
+    review = reviewer(
+        verdict="reject",
+        direct_question=False,
+        answers_first=False,
+        topically_relevant=False,
+        revision_instructions="A safer draft would need to address the contribution.",
+    )
+
+    assert validate_reviewer(review, maximum_claims=6)["verdict"] == "reject"
+
+
+def test_reviewer_approval_cannot_include_revision_instructions() -> None:
+    review = reviewer(direct_question=False, answers_first=False)
+    review["revision_instructions"] = "Change it."
+
+    with pytest.raises(ValueError, match="approval cannot include"):
+        validate_reviewer(review, maximum_claims=6)
+
+
+def test_reviewer_catches_factual_sentence_omitted_by_proposer(repository: FakeRepository) -> None:
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="The policy cut unemployment by exactly 20 per cent.",
+                claims=[],
+            ),
+            "reviewer": reviewer(
+                verdict="reject",
+                direct_question=False,
+                answers_first=False,
+                factual_claims=["The policy cut unemployment by exactly 20 per cent."],
+                unsupported_factual_claims=["The policy cut unemployment by exactly 20 per cent."],
+                contains_unsupported_factual_claims=True,
+            ),
+        },
+        context=reply_context("Tell me about the policy."),
+    )
+    assert result.reply is None
+
+
+def test_complete_adversarial_fixture_is_rejected_by_independent_review(repository: FakeRepository) -> None:
+    cases = json.loads(ADVERSARIAL_FIXTURE.read_text(encoding="utf-8"))
+    expected_ids = {
+        "burnham-unrelated-wall", "east-west-direction-reversed", "unrelated-evidence-id",
+        "unusual-allegation-verb", "unicode-fabricated-quotation", "employment-historical-record",
+        "wrong-actor", "wrong-relationship", "wrong-date", "wrong-quantity", "wrong-polarity",
+        "long-parent-hides-contribution", "quote-text-hides-commentary", "proposer-hides-factual-claim",
+    }
+    assert {case["case_id"] for case in cases} == expected_ids
+    for case in cases:
+        result, _transport = run_pipeline(
+            repository,
+            {
+                "proposer": proposer(
+                    mode="opinion_or_principle",
+                    reply=case["bad_reply"],
+                    claims=[],
+                ),
+                "reviewer": reviewer(
+                    verdict="reject",
+                    direct_question="?" in case["contribution"],
+                    answers_first=False,
+                    topically_relevant=case["failure"] not in {
+                        "topically_irrelevant", "false_lexical_bridge",
+                        "parent_context_overreach", "quoted_context_overreach",
+                    },
+                ),
+            },
+            context=reply_context(case["contribution"]),
+        )
+        assert result.reply is None, case["case_id"]
+
+
+def test_complete_valid_fixture_passes_the_real_pipeline(repository: FakeRepository) -> None:
+    cases = json.loads(Path("tests/fixtures/ai_first_reply_valid_cases.json").read_text(encoding="utf-8"))
+    assert len(cases) == 6
+    for case in cases:
+        if case["mode"] == "no_reply":
+            scripted = {"proposer": proposer(mode="no_reply")}
+        elif case["requires_evidence"]:
+            scripted = {
+                "proposer": proposer(mode=case["mode"], reply=case["reply"]),
+                "evidence": supporting_evidence(repository),
+                "reviewer": reviewer(),
+            }
+        else:
+            scripted = {
+                "proposer": proposer(mode=case["mode"], reply=case["reply"], claims=[]),
+                "reviewer": reviewer(direct_question=False, answers_first=False),
+            }
+        result, _transport = run_pipeline(
+            repository,
+            scripted,
+            context=reply_context(case["contribution"]),
+        )
+        if case["mode"] == "no_reply":
+            assert result.reply is None, case["case_id"]
+            assert result.status == "no_reply", case["case_id"]
+        else:
+            assert str(result.reply) == case["reply"], case["case_id"]
+            assert result.reply.draft_record["mode"] == case["mode"], case["case_id"]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Did the Berlin Wall fall in 1989?",
+        "Which direction did people move?",
+        "Whose government negotiated it?",
+        "How many years did it last?",
+        "How long did the division last?",
+        "Who made the decision?",
+        "What happened?",
+        "Where did people move?",
+        "When did it happen?",
+    ],
+)
+def test_direct_question_forms_use_answer_first_model_path(
+    repository: FakeRepository,
+    question: str,
+) -> None:
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(),
+        },
+        context=reply_context(question),
+    )
+    assert result.reply is not None
+    assert result.reply.draft_record["mode"] == "direct_factual_answer"
+
+
+def test_berlin_wall_regression_preserves_east_to_west_direction(repository: FakeRepository) -> None:
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply="The flow was overwhelmingly from East to West once the option existed."),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(),
+        },
+        context=reply_context("Were did people ram towards when the Berlin Wall fell?"),
+    )
+    assert str(result.reply) == "The flow was overwhelmingly from East to West once the option existed."
+
+
+def test_reversed_direction_is_rejected_even_with_a_broadly_related_passage(
+    repository: FakeRepository,
+) -> None:
+    reversed_claim = claim("People moved from West Germany towards East Germany in November 1989.")
+    reversed_claim["direction_or_polarity"] = "West to East"
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply="People moved from West towards East.", claims=[reversed_claim]),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(
+                verdict="reject",
+                direction_polarity_correct=False,
+                factual_claims=[reversed_claim["claim_text"]],
+            ),
+        },
+    )
+    assert result.reply is None
+
+
+def test_declared_and_undeclared_thatcher_wording_is_checked_without_delimiters(
+    repository: FakeRepository,
+) -> None:
+    declared = proposer(
+        mode="opinion_or_principle",
+        reply="Authorised historical words are exact.",
+        claims=[],
+        exact_wording="Authorised historical words are exact",
+    )
+    assert deterministic_reply_error(
+        declared,
+        repository,  # type: ignore[arg-type]
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) is None
+    undeclared = proposer(
+        mode="opinion_or_principle",
+        reply="Authorised historical words are exact.",
+        claims=[],
+    )
+    assert deterministic_reply_error(
+        undeclared,
+        repository,  # type: ignore[arg-type]
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) == "undeclared_thatcher_wording_detected"
+
+
+def test_exact_quote_authorisation_preserves_internal_punctuation(
+    real_repository: EvidenceRepository,
+) -> None:
+    verified = next(
+        " ".join(str(packet.get("verified_text") or "").split())
+        for packet in real_repository.packets.values()
+        if "," in str(packet.get("verified_text") or "")
+        and len(str(packet.get("verified_text") or "").split()) >= 6
+    )
+    punctuation_changed = verified.replace(",", "", 1)
+
+    assert real_repository.exact_quote_is_authorised(verified) is True
+    assert real_repository.exact_quote_is_authorised(punctuation_changed) is False
+    assert real_repository.exact_quote_is_authorised(verified[1:]) is False
+
+
+def test_declaring_one_exact_quote_does_not_authorise_a_second_quote(
+    real_repository: EvidenceRepository,
+) -> None:
+    declared = "the answer is less Socialism."
+    undeclared = "We Conservatives hate unemployment."
+    proposal = proposer(
+        mode="opinion_or_principle",
+        reply=f"{declared} {undeclared}",
+        claims=[],
+        exact_wording=declared,
+    )
+
+    assert deterministic_reply_error(
+        proposal,
+        real_repository,
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) == "undeclared_thatcher_wording_detected"
+
+
+@pytest.mark.parametrize("alteration", ["apostrophe", "initial_case"])
+def test_declared_exact_quote_must_occur_with_exact_source_text(
+    real_repository: EvidenceRepository,
+    alteration: str,
+) -> None:
+    if alteration == "apostrophe":
+        verified = next(
+            text
+            for text in real_repository._authorised_quote_texts.values()
+            if len(text) <= 500 and ("'" in text or "\u2019" in text)
+        )
+        altered = (
+            verified.replace("'", "\u2019", 1)
+            if "'" in verified
+            else verified.replace("\u2019", "'", 1)
+        )
+    else:
+        verified = next(
+            text
+            for text in real_repository._authorised_quote_texts.values()
+            if len(text) <= 500 and text and text[0].isalpha()
+        )
+        altered = verified[0].swapcase() + verified[1:]
+
+    proposal = proposer(
+        mode="opinion_or_principle",
+        reply=altered,
+        claims=[],
+        exact_wording=verified,
+    )
+    assert deterministic_reply_error(
+        proposal,
+        real_repository,
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=100,
+    ) == "declared_thatcher_wording_missing_from_reply"
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        ("Read https://example.com now.", "reply_contains_link"),
+        ("Read example.com now.", "reply_contains_link"),
+        ("Read \u4f8b\u3048.\u30c6\u30b9\u30c8 now.", "reply_contains_link"),
+        ("Read 192.0.2.10 now.", "reply_contains_link"),
+        ("Write to policy@example.com.", "reply_contains_link"),
+        ("Write to policy@\u4f8b\u3048.\u30c6\u30b9\u30c8.", "reply_contains_mention"),
+        ("Ask @someone directly.", "reply_contains_mention"),
+        ("Ask \uff20someone directly.", "reply_contains_mention"),
+        ("Principles matter. #politics", "reply_contains_hashtag"),
+        ("Principles matter. #\u00e9conomie", "reply_contains_hashtag"),
+        ("Principles matter. #\u653f\u6cbb", "reply_contains_hashtag"),
+        ("Principles matter. \uff03politics", "reply_contains_hashtag"),
+        ("Principles matter. #\u0301politics", "reply_contains_hashtag"),
+        ("Quite so. \U0001f642", "reply_contains_emoji"),
+        ("Quite so. 1\ufe0f\u20e3", "reply_contains_emoji"),
+        ("One. Two. Three.", "reply_sentence_limit_exceeded"),
+        ("One. two. three.", "reply_sentence_limit_exceeded"),
+        ("One. Two. Three", "reply_sentence_limit_exceeded"),
+        ("One! Two? Three", "reply_sentence_limit_exceeded"),
+        ("One\u061f Two\u061f Three", "reply_sentence_limit_exceeded"),
+        ("One\u0964 Two\u0964 Three", "reply_sentence_limit_exceeded"),
+        ("\u653f" * 300, "invalid_reply_length_or_whitespace"),
+        ("Go d\u200bie.", "reply_contains_control_or_format_character"),
+        ("One\nTwo\nThree", "reply_contains_line_break"),
+    ],
+)
+def test_deterministic_operational_limits_cannot_be_bypassed(
+    repository: FakeRepository,
+    text: str,
+    reason: str,
+) -> None:
+    proposal = proposer(mode="courtesy", reply=text, claims=[])
+    assert deterministic_reply_error(
+        proposal,
+        repository,  # type: ignore[arg-type]
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) == reason
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("The Rt. Hon. member must look at the data.", 1),
+        ("The Govt. must publish the evidence.", 1),
+        ("The MP. must answer the question.", 1),
+        ("Examples include policy, law, etc. A conclusion follows.", 2),
+        ("The MP. The policy follows.", 2),
+        ("The Rt. Hon. member must act. The evidence is clear.", 2),
+        ("The Rt. Hon. member must act. Evidence matters. Policy follows.", 3),
+        ("No. 10 is the answer.", 1),
+        ("No. 10 is the answer. The point is settled.", 2),
+        ("No. That is not the answer.", 2),
+    ],
+)
+def test_sentence_count_handles_common_british_political_abbreviations(
+    text: str,
+    expected: int,
+) -> None:
+    assert sentence_count(text) == expected
+
+
+def test_recent_duplicate_reply_fails_before_review(repository: FakeRepository) -> None:
+    transport = ScriptedTransport({
+        "proposer": proposer(mode="courtesy", reply="Thank you for saying so.", claims=[]),
+    })
+    result = run_reply_pipeline(
+        context=reply_context("Thank you."),
+        config=strategy_config(),
+        repository=repository,  # type: ignore[arg-type]
+        transport=transport,
+        maximum_reply_length=500,
+        recent_replies=["Thank you for saying so."],
+        creation_time="2026-07-20T12:00:00Z",
+    )
+    assert result.reply is None
+    assert result.reason == "exact_duplicate_reply"
+    assert len(transport.calls) == 1
+
+
+def approved_draft(repository: FakeRepository) -> tuple[AIReply, dict[str, object], dict[str, object]]:
+    context = reply_context()
+    config = strategy_config()
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(),
+        },
+        context=context,
+        config=config,
+    )
+    assert isinstance(result.reply, AIReply)
+    return result.reply, context, config
+
+
+def test_v3_persisted_draft_revalidates_complete_identity_and_evidence(
+    repository: FakeRepository,
+) -> None:
+    reply, context, config = approved_draft(repository)
+    validated = validate_persisted_draft(
+        reply.draft_record,
+        context=context,
+        config=config,
+        repository=repository,  # type: ignore[arg-type]
+        maximum_reply_length=500,
+    )
+    assert validated["schema_version"] == DRAFT_SCHEMA_VERSION
+    assert validated["strategy_version"] == STRATEGY_VERSION
+    assert validated["proposer_prompt_version"] == PROPOSER_PROMPT_VERSION
+    assert validated["evidence_prompt_version"] == EVIDENCE_PROMPT_VERSION
+    assert validated["reviewer_prompt_version"] == REVIEWER_PROMPT_VERSION
+    assert len(validated["approval_hash"]) == 64
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda draft: draft.update({"reviewer_verdict": "reject"}),
+        lambda draft: draft.update({"context_hash": "0" * 64}),
+        lambda draft: draft.update({"proposer_model": "different"}),
+        lambda draft: draft.update({"source_hashes": {"a" * 64: "0" * 64}}),
+        lambda draft: draft.update({"evidence_input_hashes": {"a" * 64: "0" * 64}}),
+        lambda draft: draft.update({"claim_evidence": []}),
+        lambda draft: draft["factual_claims"][0].update({"requires_evidence": False}),
+        lambda draft: draft["factual_claims"][0].update({"claim_id": "claim-2"}),
+        lambda draft: draft.update({"reviewer_reasons": "not-a-list"}),
+        lambda draft: draft.update({"exact_thatcher_wording": "Unrecorded historical words"}),
+        lambda draft: draft.update({"proposed_reply": "A different but syntactically valid reply."}),
+        lambda draft: draft.update({"creation_time": "not-a-timestampZ"}),
+    ],
+)
+def test_tampered_persisted_draft_fails_closed(
+    repository: FakeRepository,
+    mutation: Callable[[dict[str, object]], object],
+) -> None:
+    reply, context, config = approved_draft(repository)
+    draft = copy.deepcopy(reply.draft_record)
+    mutation(draft)
+    with pytest.raises(ValueError):
+        validate_persisted_draft(
+            draft,
+            context=context,
+            config=config,
+            repository=repository,  # type: ignore[arg-type]
+            maximum_reply_length=500,
+        )
+
+
+def test_persisted_direct_factual_draft_cannot_drop_its_claims(
+    repository: FakeRepository,
+) -> None:
+    reply, context, config = approved_draft(repository)
+    draft = copy.deepcopy(reply.draft_record)
+    draft["factual_claims"] = []
+    draft["claim_evidence"] = []
+    draft["evidence_ids"] = []
+    draft["source_hashes"] = {}
+    draft["evidence_input_hashes"] = {}
+
+    with pytest.raises(ValueError, match="requires a factual claim"):
+        validate_persisted_draft(
+            draft,
+            context=context,
+            config=config,
+            repository=repository,  # type: ignore[arg-type]
+            maximum_reply_length=500,
+        )
+
+
+def test_persisted_draft_is_invalidated_by_changed_prompt_visible_evidence(
+    repository: FakeRepository,
+) -> None:
+    reply, context, config = approved_draft(repository)
+    repository.passages[repository.passage.evidence_id] = replace(
+        repository.passage,
+        actor="A materially different actor",
+        action_or_relationship="A materially different action",
+        direction_or_polarity="The opposite direction",
+        date_or_period="A different date",
+        quantity="A different quantity",
+    )
+
+    with pytest.raises(ValueError, match="evidence model input changed"):
+        validate_persisted_draft(
+            reply.draft_record,
+            context=context,
+            config=config,
+            repository=repository,  # type: ignore[arg-type]
+            maximum_reply_length=500,
+        )
+
+
+def test_v1_draft_audit_never_interprets_or_migrates_content(tmp_path: Path) -> None:
+    state_path = tmp_path / "bot_state.json"
+    state = {
+        "pending_reply_drafts": {
+            "mention:100": {
+                "target_id": "100",
+                "candidate_source": "mention",
+                "reply_text": "Legacy text must not be posted.",
+            }
+        }
+    }
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+    audit = legacy_draft_audit(state, state_path=state_path)
+    assert audit["legacy_draft_count"] == 1
+    assert audit["deployment_blocked"] is True
+    assert audit["records"][0]["classification"] == "legacy_v1_nonpostable"
+    assert "reply_text" not in audit["records"][0]
+
+
+def test_real_repository_contains_only_authorised_completed_packets(
+    real_repository: EvidenceRepository,
+) -> None:
+    assert len(real_repository.packets) == 610
+    assert len(real_repository.passages) > 7_000
+    assert all(len(quote_id) == 64 for quote_id in real_repository.packets)
+    assert all(len(evidence_id) == 64 for evidence_id in real_repository.passages)
+
+
+def test_real_repository_retrieval_is_candidate_selection_not_entailment(
+    real_repository: EvidenceRepository,
+) -> None:
+    candidates = real_repository.candidate_passages(
+        "Berlin Wall East Germany West Germany",
+        maximum_packets=6,
+        maximum_passages=24,
+    )
+    assert candidates
+    assert all(isinstance(item, EvidencePassage) for item in candidates)
+    assert not hasattr(candidates[0], "verdict")
+
+
+def test_real_repository_includes_source_grounded_berlin_wall_fact(
+    real_repository: EvidenceRepository,
+) -> None:
+    candidates = real_repository.candidate_passages(
+        "Where did East Germans go when the Berlin Wall fell in November 1989?",
+        maximum_packets=6,
+        maximum_passages=24,
+    )
+    factual = [item for item in candidates if item.field == "factual_evidence"]
+    federal_caption = next(
+        item for item in factual if item.source_title.startswith("9 November")
+    )
+
+    assert real_repository.factual_evidence_count == 2
+    assert len(factual) == 2
+    assert federal_caption.passage == (
+        "The first East Germans make it by car to West Berlin’s Kurfürstendamm "
+        "where they are given an exuberant welcome."
+    )
+    assert federal_caption.direction_or_polarity == "from East Germany towards West Berlin"
+    assert all(item.verification_status == "official_source_exact" for item in factual)
+
+
+def test_misspelled_berlin_claim_retrieves_official_fact_first(
+    real_repository: EvidenceRepository,
+) -> None:
+    candidates = real_repository.candidate_passages(
+        "People ran westwards across the former border when the Berlin Wall fell. "
+        "Were did people ram towards when the Berlin Wall fell?",
+        maximum_packets=6,
+        maximum_passages=24,
+    )
+
+    assert candidates[0].field == "factual_evidence"
+    assert candidates[0].actor in {"East Germans", "East Berliners"}
+
+
+def test_east_berliners_claim_retrieves_actor_specific_official_fact(
+    real_repository: EvidenceRepository,
+) -> None:
+    candidates = real_repository.candidate_passages(
+        "East Berliners crossed into West Berlin when the Berlin Wall fell.",
+        maximum_packets=6,
+        maximum_passages=24,
+    )
+
+    assert candidates[0].field == "factual_evidence"
+    assert candidates[0].actor == "East Berliners"
+    assert "East Berliners to cross to the West" in candidates[0].passage
+
+
+@pytest.mark.parametrize(
+    ("contribution", "clarification_request"),
+    [
+        ("Where did people move when the Berlin Wall fell?", None),
+        ("Were did people ram towards when the Berlin Wall fell?", None),
+        (
+            "Yeah but that's not what I asked, on which side did people go?",
+            {
+                "original_question": "Were did people ram towards when the Berlin Wall fell?",
+                "correction": "Yeah but that's not what I asked, on which side did people go?",
+            },
+        ),
+    ],
+)
+def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
+    real_repository: EvidenceRepository,
+    contribution: str,
+    clarification_request: dict[str, str] | None,
+) -> None:
+    factual = next(
+        passage
+        for passage in real_repository.candidate_passages(
+            f"{contribution} East Germany West Berlin November 1989",
+            maximum_packets=6,
+            maximum_passages=24,
+        )
+        if passage.field == "factual_evidence"
+    )
+    proposal_claim = {
+        "claim_id": "claim-1",
+        "claim_text": "East Germans moved towards West Berlin when the Berlin Wall opened in November 1989.",
+        "requires_evidence": True,
+        "actor": "East Germans",
+        "action_or_relationship": "moved across the opened border",
+        "direction_or_polarity": "from East Germany towards West Berlin",
+        "date_or_period": "November 1989",
+        "quantity": "",
+    }
+
+    def evidence_response(**kwargs: Any) -> object:
+        supplied = json.loads(kwargs["user_prompt"])["claims"][0]
+        return {"claims": [{
+            "claim_id": supplied["claim_id"],
+            "claim_text": supplied["claim_text"],
+            "verdict": "supports",
+            "evidence": [{
+                "evidence_id": factual.evidence_id,
+                "exact_supporting_passage": factual.passage,
+                "relation": "supports",
+            }],
+            "actor": supplied["actor"],
+            "action_or_relationship": supplied["action_or_relationship"],
+            "direction_or_polarity": supplied["direction_or_polarity"],
+            "date_or_period": supplied["date_or_period"],
+            "quantity": supplied["quantity"],
+            "explanation": "The official caption establishes east-to-west movement.",
+        }]}
+
+    reply_text = "East Germans moved towards West Berlin when the Wall opened."
+    transport = ScriptedTransport({
+        "proposer": proposer(reply=reply_text, claims=[proposal_claim]),
+        "evidence": evidence_response,
+        "reviewer": reviewer(
+            factual_claims=[proposal_claim["claim_text"]],
+        ),
+    })
+    context = reply_context(
+        contribution,
+        clarification_request=clarification_request,
+    )
+    result = run_reply_pipeline(
+        context=context,
+        config=strategy_config(),
+        repository=real_repository,
+        transport=transport,
+        maximum_reply_length=270,
+        recent_replies=[],
+        media_context=None,
+        creation_time="2026-07-20T00:00:00Z",
+    )
+
+    assert str(result.reply) == reply_text
+    assert result.reason == "reviewer_approved"
+    assert result.reply.draft_record["evidence_ids"] == [factual.evidence_id]
+    assert "Relevant factual questions about political history" in transport.calls[0]["system_prompt"]
+    assert "draft cannot be posted unless that stage finds exact local support" in transport.calls[0]["system_prompt"]
+    assert "least-specific factual wording" in transport.calls[0]["system_prompt"]
+    assert "prefer a clearly rhetorical quip or question" in transport.calls[0]["system_prompt"]
+    assert "Never omit a genuine claim merely to avoid evidence review" in transport.calls[0]["system_prompt"]
+    assert "ordinary paraphrases" in transport.calls[1]["system_prompt"]
+
+
+def test_claim_retrieval_query_uses_contribution_but_not_inherited_context() -> None:
+    context = reply_context(
+        "Where did people move when the Berlin Wall fell?",
+        quoted_post={"text": "UNRELATED QUOTED CONTAMINATION"},
+        parent_thread=[{"author": "other", "text": "UNRELATED PARENT CONTAMINATION"}],
+    )
+
+    query = claim_retrieval_query(claim(), context)
+
+    assert "Berlin Wall" in query
+    assert "UNRELATED QUOTED CONTAMINATION" not in query
+    assert "UNRELATED PARENT CONTAMINATION" not in query
+
+
+def test_only_the_five_new_modes_exist() -> None:
+    assert MODES == {
+        "direct_factual_answer", "opinion_or_principle", "light_humour", "courtesy", "no_reply",
+    }
+    assert not MODES & {
+        "wry_reply", "deadpan_reply", "warm_reply", "principle_reply", "researched_principle",
+    }

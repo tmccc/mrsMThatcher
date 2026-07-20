@@ -1,0 +1,80 @@
+[
+  {
+    "case_id": "forced-revision-direct-answer-first",
+    "source_set": "forced_revision_qualification",
+    "contribution": "Where did people move when the Berlin Wall fell?",
+    "expected_outcomes": [
+      "approved"
+    ],
+    "expected_modes": [
+      "direct_factual_answer"
+    ],
+    "required_term_groups": [
+      [
+        "east"
+      ],
+      [
+        "west"
+      ]
+    ],
+    "forbidden_phrases": [
+      "west berlin towards east berlin"
+    ],
+    "initial_proposer": {
+      "mode": "direct_factual_answer",
+      "interpretation": "The user asks for the direction in which people moved when the Berlin Wall fell.",
+      "proposed_reply": "Freedom is precious. East Berliners crossed from East Berlin to the West on 9 November 1989.",
+      "factual_claims": [
+        {
+          "claim_id": "claim-1",
+          "claim_text": "East Berliners crossed from East Berlin to the West on 9 November 1989.",
+          "requires_evidence": true,
+          "actor": "East Berliners",
+          "action_or_relationship": "crossed",
+          "direction_or_polarity": "from East Berlin to the West",
+          "date_or_period": "9 November 1989",
+          "quantity": ""
+        }
+      ],
+      "exact_thatcher_wording_used": false,
+      "exact_thatcher_wording": "",
+      "tone": "firm",
+      "confidence": "high",
+      "no_reply_reason": ""
+    }
+  },
+  {
+    "case_id": "forced-revision-off-topic-principle",
+    "source_set": "forced_revision_qualification",
+    "contribution": "Politicians care too much about popularity and not enough about doing what is right.",
+    "expected_outcomes": [
+      "approved"
+    ],
+    "expected_modes": [
+      "opinion_or_principle"
+    ],
+    "required_term_groups": [
+      [
+        "conviction",
+        "principle",
+        "right",
+        "courage"
+      ]
+    ],
+    "forbidden_phrases": [
+      "closed border",
+      "berlin wall"
+    ],
+    "initial_proposer": {
+      "mode": "opinion_or_principle",
+      "interpretation": "The user argues that politicians should value doing right above popularity.",
+      "proposed_reply": "A closed border is an admission of failure.",
+      "factual_claims": [],
+      "exact_thatcher_wording_used": false,
+      "exact_thatcher_wording": "",
+      "tone": "firm",
+      "confidence": "high",
+      "no_reply_reason": ""
+    }
+  }
+]

@@ -16,7 +16,7 @@ import analyse_mrs_assets_xai_v4 as xai
 
 from .bakeoff import PRICES
 from .io import atomic_write_json, atomic_write_text, read_json, sha256_file
-from .quote_research_gemini import validate_packet
+from .quote_research_schema import validate_packet
 from .thatcher_image_hunt import (
     GeminiHuntClient,
     LogicalCallRouter,

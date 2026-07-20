@@ -26,7 +26,7 @@ from historical_context_formatter import (
     load_and_validate_corpus,
     packet_is_attributed_to_margaret_thatcher,
 )
-from reply_strategy import RetrievedEvidence, retrieve_research_packets
+from reply_evidence import RetrievedEvidence, retrieve_research_packets
 
 MODEL_REPOSITORY = "intfloat/multilingual-e5-small"
 MODEL_REVISION = "614241f622f53c4eeff9890bdc4f31cfecc418b3"

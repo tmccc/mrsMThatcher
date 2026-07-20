@@ -32,7 +32,7 @@ from .image_provider_trial import (
     read_json,
     sha256_bytes,
 )
-from .quote_research_gemini import TOP_LEVEL_FIELDS, validate_packet
+from .quote_research_schema import TOP_LEVEL_FIELDS, validate_packet
 
 MODEL = "gpt-image-1"
 QUALITIES = ("medium", "high")

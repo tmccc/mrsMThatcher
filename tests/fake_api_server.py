@@ -23,6 +23,7 @@ class FakeApiServer:
         self.requests: list[dict[str, Any]] = []
         self.path_counts: dict[str, int] = {}
         self._next_post_id = int(scenario.get("next_post_id", 900000))
+        self._current_ai_reply_text = ""
 
         handler = self._handler_class()
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
@@ -81,6 +82,130 @@ class FakeApiServer:
                     return json.loads(data.decode("utf-8"))
                 except Exception:
                     return {"_raw": data.decode("utf-8", errors="replace")}
+
+            def _ai_first_payload(self, body: dict[str, Any]) -> dict[str, Any] | None:
+                response_format = body.get("response_format")
+                if not isinstance(response_format, dict):
+                    return None
+                schema = response_format.get("json_schema")
+                name = str(schema.get("name") or "") if isinstance(schema, dict) else ""
+                if not name.startswith("ai_reply_"):
+                    return None
+                stage = name.removeprefix("ai_reply_")
+
+                messages = body.get("messages")
+                user_content: object = ""
+                if isinstance(messages, list) and messages and isinstance(messages[-1], dict):
+                    user_content = messages[-1].get("content", "")
+                if isinstance(user_content, list):
+                    text_parts = [
+                        str(item.get("text") or "")
+                        for item in user_content
+                        if isinstance(item, dict) and item.get("type") == "text"
+                    ]
+                    user_content = "\n".join(text_parts)
+                try:
+                    supplied = json.loads(str(user_content))
+                except (TypeError, ValueError):
+                    supplied = {}
+
+                if stage in {"proposer", "revision_proposer"}:
+                    replies = self.fake.scenario.setdefault("grok_replies", [])
+                    reply = replies.pop(0) if replies else self.fake.scenario.get(
+                        "grok_reply",
+                        "A measured reply is usually the sharpest one.",
+                    )
+                    reply = str(reply)
+                    self.fake._current_ai_reply_text = reply
+                    if reply.strip().upper() == "SKIP":
+                        return {
+                            "mode": "no_reply",
+                            "interpretation": "No useful and safe reply is warranted.",
+                            "proposed_reply": "",
+                            "factual_claims": [],
+                            "exact_thatcher_wording_used": False,
+                            "exact_thatcher_wording": "",
+                            "tone": "none",
+                            "confidence": "high",
+                            "no_reply_reason": "The integration fixture selected no_reply.",
+                        }
+                    return {
+                        "mode": "opinion_or_principle",
+                        "interpretation": "The contribution invites a concise general response.",
+                        "proposed_reply": reply,
+                        "factual_claims": [],
+                        "exact_thatcher_wording_used": False,
+                        "exact_thatcher_wording": "",
+                        "tone": "neutral",
+                        "confidence": "high",
+                        "no_reply_reason": "",
+                    }
+
+                if stage in {"evidence", "revision_evidence"}:
+                    rows = []
+                    claims = supplied.get("claims", []) if isinstance(supplied, dict) else []
+                    candidates_by_claim = (
+                        supplied.get("candidate_passages_by_claim", {})
+                        if isinstance(supplied, dict)
+                        else {}
+                    )
+                    for claim in claims if isinstance(claims, list) else []:
+                        if not isinstance(claim, dict):
+                            continue
+                        claim_id = str(claim.get("claim_id") or "")
+                        candidates = candidates_by_claim.get(claim_id, []) if isinstance(candidates_by_claim, dict) else []
+                        candidate = candidates[0] if isinstance(candidates, list) and candidates else None
+                        rows.append({
+                            "claim_id": claim_id,
+                            "claim_text": str(claim.get("claim_text") or ""),
+                            "verdict": "supports" if isinstance(candidate, dict) else "insufficient",
+                            "evidence": ([{
+                                "evidence_id": str(candidate.get("evidence_id") or ""),
+                                "exact_supporting_passage": str(candidate.get("passage") or ""),
+                                "relation": "supports",
+                            }] if isinstance(candidate, dict) else []),
+                            "actor": str(claim.get("actor") or ""),
+                            "action_or_relationship": str(claim.get("action_or_relationship") or ""),
+                            "direction_or_polarity": str(claim.get("direction_or_polarity") or ""),
+                            "date_or_period": str(claim.get("date_or_period") or ""),
+                            "quantity": str(claim.get("quantity") or ""),
+                            "explanation": "The first supplied fixture passage supports the claim." if isinstance(candidate, dict) else "No candidate passage was supplied.",
+                        })
+                    return {"claims": rows}
+
+                if stage in {"reviewer", "revision_reviewer"}:
+                    claims = (
+                        supplied.get("proposer_listed_factual_claims_untrusted", [])
+                        if isinstance(supplied, dict)
+                        else []
+                    )
+                    actual_claims = [
+                        str(claim.get("claim_text") or "")
+                        for claim in claims
+                        if isinstance(claim, dict)
+                    ] if isinstance(claims, list) else []
+                    self.fake._current_ai_reply_text = ""
+                    return {
+                        "verdict": "approve",
+                        "summary": "The deterministic integration fixture approves this draft.",
+                        "reasons": [],
+                        "actual_factual_claims": actual_claims,
+                        "unsupported_factual_claims": [],
+                        "direct_question_present": False,
+                        "answers_direct_question_first_sentence": True,
+                        "topically_relevant": True,
+                        "endorses_unsupported_allegation": False,
+                        "contains_unsupported_factual_claims": False,
+                        "actor_action_relationship_correct": True,
+                        "direction_polarity_correct": True,
+                        "dates_quantities_correct": True,
+                        "quotation_attribution_correct": True,
+                        "original_prose_clearly_not_historical_quotation": True,
+                        "mode_and_tone_match": True,
+                        "suitable_for_account": True,
+                        "revision_instructions": "",
+                    }
+                return None
 
             def _record(self, method: str, path: str, query: dict[str, list[str]], body: Any = None) -> None:
                 self.fake.path_counts[path] = self.fake.path_counts.get(path, 0) + 1
@@ -347,6 +472,16 @@ class FakeApiServer:
                         self._json_response(xai_status, {"error": "configured xai failure"})
                         return
                     self.fake.xai_requests.append(body)
+                    structured = self._ai_first_payload(body)
+                    if structured is not None:
+                        self._json_response(
+                            200,
+                            {
+                                "choices": [{"message": {"content": structured}}],
+                                "usage": {"total_tokens": 12},
+                            },
+                        )
+                        return
                     replies = self.fake.scenario.setdefault("grok_replies", [])
                     reply = replies.pop(0) if replies else self.fake.scenario.get("grok_reply", "A measured reply is usually the sharpest one.")
                     self._json_response(

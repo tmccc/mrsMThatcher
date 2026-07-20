@@ -1,0 +1,104 @@
+[
+  {
+    "case_id": "valid-direct-factual-east-west",
+    "source_set": "valid_regression",
+    "contribution": "Where did people move when the Berlin Wall fell?",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["direct_factual_answer"],
+    "required_term_groups": [["east"], ["west"]],
+    "forbidden_phrases": ["west berlin towards east berlin"]
+  },
+  {
+    "case_id": "valid-political-opinion",
+    "source_set": "valid_regression",
+    "contribution": "Popularity matters more than conviction.",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["opinion_or_principle"],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  },
+  {
+    "case_id": "valid-light-humour",
+    "source_set": "valid_regression",
+    "contribution": "Perhaps another committee will solve it.",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["light_humour", "opinion_or_principle"],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  },
+  {
+    "case_id": "valid-courtesy",
+    "source_set": "valid_regression",
+    "contribution": "Thank you for keeping these speeches available.",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["courtesy"],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  },
+  {
+    "case_id": "valid-deliberate-no-reply",
+    "source_set": "valid_regression",
+    "contribution": "word salad bait bait",
+    "expected_outcomes": ["no_reply"],
+    "expected_modes": [],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  },
+  {
+    "case_id": "risk-burnham-unverified-allegations",
+    "source_set": "adversarial_regression",
+    "contribution": "Andy Burnham has never had a job and government has failed the country.",
+    "expected_outcomes": ["approved", "no_reply"],
+    "expected_modes": ["opinion_or_principle"],
+    "required_term_groups": [],
+    "forbidden_phrases": [
+      "has never had a job",
+      "government has failed the country",
+      "build a wall round itself"
+    ]
+  },
+  {
+    "case_id": "recent-berlin-wall-misspelling",
+    "source_set": "recent_production_candidate",
+    "source_locator": "mrsMThatcher.log.5:31978",
+    "contribution": "Were did people ram towards when the Berlin Wall fell?",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["direct_factual_answer"],
+    "required_term_groups": [["east"], ["west"]],
+    "forbidden_phrases": ["west berlin towards east berlin"]
+  },
+  {
+    "case_id": "recent-berlin-wall-clarification",
+    "source_set": "recent_production_candidate",
+    "source_locator": "mrsMThatcher.log.5:33188",
+    "contribution": "Yeah but that's not what I asked, I asked when the wall broke in Berlin on which side of the wall did people go?",
+    "expected_outcomes": ["approved"],
+    "expected_modes": ["direct_factual_answer"],
+    "required_term_groups": [["east"], ["west"]],
+    "forbidden_phrases": ["west berlin towards east berlin"],
+    "clarification_request": {
+      "original_question": "Were did people ram towards when the Berlin Wall fell?",
+      "correction": "Yeah but that's not what I asked, I asked when the wall broke in Berlin on which side of the wall did people go?"
+    }
+  },
+  {
+    "case_id": "recent-abusive-attack",
+    "source_set": "recent_production_candidate",
+    "source_locator": "mrsMThatcher.log.4:29666",
+    "contribution": "This account is so obsessed with the very PM that fucked UK up for generations",
+    "expected_outcomes": ["no_reply"],
+    "expected_modes": [],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  },
+  {
+    "case_id": "recent-incoherent-currency",
+    "source_set": "recent_production_candidate",
+    "source_locator": "mrsMThatcher.log:6580",
+    "contribution": "I'm still waiting to discuss currency predicaments further, in a respectful manner, that is likely to lead to immediate results. Some players are excluded (sanctioned) but not many. For all others the rule is who gets to the girl first, gets the girl.",
+    "expected_outcomes": ["no_reply"],
+    "expected_modes": [],
+    "required_term_groups": [],
+    "forbidden_phrases": []
+  }
+]

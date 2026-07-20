@@ -199,6 +199,90 @@ def test_old_and_malformed_optional_metadata_remain_safe_and_unavailable():
     json.dumps(report)
 
 
+def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 20, 12), level="INFO", src="log_event", line=1,
+            msg=(
+                'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+                '"target_id":"100","status":"approved","strategy_version":"ai-first-reply-v2",'
+                '"mode":"direct_factual_answer","tone":"firm","factual_claim_count":1,'
+                '"evidence_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],'
+                '"reviewer_verdict":"approve","model_call_count":3,"revision_count":0}'
+            ),
+            path="mrsMThatcher.log", ordinal=1,
+        ),
+        digest.Record(
+            ts=datetime(2026, 7, 20, 12, 0, 1), level="INFO", src="log_event", line=2,
+            msg=(
+                'EVENT {"event":"ai_reply_pipeline_outcome","lane":"mention",'
+                '"target_id":"100","reply_post_id":"900","status":"confirmed",'
+                '"strategy_version":"ai-first-reply-v2","mode":"direct_factual_answer",'
+                '"tone":"firm","factual_claim_count":1,'
+                '"evidence_ids":["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"],'
+                '"reviewer_verdict":"approve","model_call_count":3,"revision_count":0}'
+            ),
+            path="mrsMThatcher.log", ordinal=2,
+        ),
+    ]
+
+    report = digest.analyse(records)
+    strategy = report["reply_strategy"]
+    decisions = [event for event in report["events"] if event["kind"] == "reply_strategy_decision"]
+    outcomes = [event for event in report["events"] if event["kind"] == "reply_strategy_outcome"]
+
+    assert strategy["mode_counts"]["direct_factual_answer"] == 1
+    assert strategy["generated_mode_counts"]["direct_factual_answer"] == 1
+    assert strategy["humour_tone_counts"]["firm"] == 1
+    assert strategy["confidence_counts"]["unavailable"] == 1
+    assert strategy["posted_grounded_count"] == 1
+    assert strategy["generated_average_evidence_reference_count"] == 1
+    assert strategy["average_evidence_reference_count"] == 1
+    assert strategy["generated_average_retrieved_packet_count"] is None
+    assert strategy["average_retrieved_packet_count"] is None
+    assert decisions[0]["evidence_reference_count"] == 1
+    assert outcomes[0]["evidence_reference_count"] == 1
+    assert decisions[0]["reviewer_verdict"] == "approve"
+    assert outcomes[0]["reviewer_verdict"] == "approve"
+    rendered = digest.render_markdown(report)
+    assert "ai-first-reply-v2" in rendered
+    assert "direct_factual_answer" in rendered
+    assert "AI-first evidence references" in rendered
+
+
+def test_ai_first_operational_failure_is_not_reported_as_editorial_no_reply():
+    record = digest.Record(
+        ts=datetime(2026, 7, 20, 12),
+        level="INFO",
+        src="log_event",
+        line=1,
+        msg=(
+            'EVENT {"event":"ai_reply_pipeline_failure","lane":"mention",'
+            '"target_id":"100","status":"operational_failure",'
+            '"strategy_version":"ai-first-reply-v3","reason":"proposer_invalid",'
+            '"model_call_count":2,"revision_count":0}'
+        ),
+        path="mrsMThatcher.log",
+        ordinal=1,
+    )
+
+    report = digest.analyse([record])
+    strategy = report["reply_strategy"]
+    failures = [
+        event for event in report["events"]
+        if event["kind"] == "reply_strategy_failure"
+    ]
+
+    assert strategy["pipeline_failure_count"] == 1
+    assert strategy["pipeline_failure_reason_counts"] == {"proposer_invalid": 1}
+    assert strategy["rejection_reason_counts"] == {}
+    assert strategy["outcome_status_counts"].get("terminal_no_reply", 0) == 0
+    assert failures[0]["status"] == "operational_failure"
+    rendered = digest.render_markdown(report)
+    assert "Operational AI-first pipeline failures" in rendered
+    assert "retryable, not editorial no-reply" in rendered
+
+
 def test_unposted_draft_is_excluded_and_confirmed_outcome_is_deduplicated():
     result = digest.reply_strategy_summary([
         event("reply_strategy_decision", lane="mention", target_id="draft", mode="wry_reply",

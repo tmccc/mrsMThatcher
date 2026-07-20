@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -73,7 +74,7 @@ def test_duplicate_manifest_record_is_rejected_before_dictionary_collapse(tmp_pa
     manifest["records"].append(dict(manifest["records"][0]))
     (research / "corpus_manifest.json").write_text(json.dumps(manifest))
 
-    with pytest.raises(RuntimeError, match="exactly 632 unique manifest records"):
+    with pytest.raises(RuntimeError, match="declared unique record count"):
         load_and_validate_corpus(research)
 
 
@@ -86,8 +87,55 @@ def test_duplicate_unresolved_status_id_is_rejected_before_set_collapse(tmp_path
     status["unresolved_quote_ids"].append(status["unresolved_quote_ids"][0])
     (research / "final_unresolved" / "final_research_status.json").write_text(json.dumps(status))
 
-    with pytest.raises(RuntimeError, match="exactly six unique unresolved quote IDs"):
+    with pytest.raises(RuntimeError, match="status counts or unresolved quote IDs"):
         load_and_validate_corpus(research)
+
+
+def test_corpus_partition_counts_are_derived_from_signed_metadata(tmp_path, corpus):
+    packets, unresolved = corpus
+    completed_id = next(
+        quote_id
+        for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    )
+    unresolved_id = next(iter(unresolved))
+    original_manifest = json.loads((RESEARCH / "corpus_manifest.json").read_text())
+    records_by_id = {
+        record["quote_id"]: record
+        for record in original_manifest["records"]
+    }
+
+    research = tmp_path / "research"
+    (research / "final_unresolved").mkdir(parents=True)
+    packet_document = {
+        "schema_version": 1,
+        "items": {completed_id: packets[completed_id]},
+    }
+    packet_bytes = (json.dumps(packet_document, indent=2, sort_keys=True) + "\n").encode()
+    (research / "research_packets.json").write_bytes(packet_bytes)
+    (research / "corpus_manifest.json").write_text(json.dumps({
+        **{key: value for key, value in original_manifest.items() if key != "records"},
+        "record_count": 2,
+        "records": [records_by_id[completed_id], records_by_id[unresolved_id]],
+    }))
+    original_status = json.loads(
+        (RESEARCH / "final_unresolved" / "final_research_status.json").read_text()
+    )
+    (research / "final_unresolved" / "final_research_status.json").write_text(
+        json.dumps({
+            **original_status,
+            "completed_quotes": 1,
+            "total_manifest_quotes": 2,
+            "unresolved_quotes": 1,
+            "unresolved_quote_ids": [unresolved_id],
+            "corpus_hash": hashlib.sha256(packet_bytes).hexdigest(),
+        })
+    )
+
+    loaded_packets, loaded_unresolved = load_and_validate_corpus(research)
+
+    assert set(loaded_packets) == {completed_id}
+    assert loaded_unresolved == {unresolved_id}
 
 
 def test_exact_deterministic_formatting_and_character_limit(corpus):

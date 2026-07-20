@@ -88,6 +88,15 @@ semantic_alignment_research/**/harness.log
 semantic_alignment_research/**/normalised_responses/
 semantic_alignment_research/**/providers/
 
+# AI-first reply qualification keeps only the authoritative aggregate artefacts.
+semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_20260720/
+semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_20260720_v[2-9]/
+semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_20260720_v1[0-2]/
+semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_*/cost_ledger.json
+semantic_alignment_research/ai_first_reply_strategy_001/activation_candidate/
+semantic_alignment_research/ai_first_reply_strategy_001/offline_evaluation.json
+semantic_alignment_research/ai_first_reply_strategy_001/offline_evaluation.md
+
 # Frozen superseded semantic-veto runs retain only files already versioned.
 semantic_alignment_research/relation_aware_semantic_veto_001/
 semantic_alignment_research/relation_aware_semantic_veto_002/

@@ -65,12 +65,19 @@ def test_bootstrap_is_explicit_valid_and_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr(bot, "POST_SLEEP_MIN", 7200)
     monkeypatch.setattr(bot, "POST_SLEEP_MAX", 9000)
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
+    evidence_loads: list[bool] = []
+    monkeypatch.setattr(
+        bot,
+        "reply_evidence_repository",
+        lambda: evidence_loads.append(True),
+    )
     for key in ("CONSUMER_KEY", "CONSUMER_SECRET", "ACCESS_TOKEN", "ACCESS_SECRET", "MY_USER_ID", "XAI_API_KEY"):
         monkeypatch.setattr(bot, key, "test-value")
     bot.production_bootstrap(configure_file_logging=False)
     path.write_text("{")
     bot.production_bootstrap(configure_file_logging=False)
     assert (bot.POST_SLEEP_MIN, bot.POST_SLEEP_MAX) == (8000, 8200)
+    assert evidence_loads == []
 
 
 @pytest.mark.parametrize("entry_point_name", OPERATIONAL_ENTRY_POINTS)
@@ -106,6 +113,7 @@ def test_successful_bootstrap_opens_guard_and_operational_dispatch(tmp_path, mon
     monkeypatch.setattr(bot, "_PRODUCTION_BOOTSTRAPPED", False)
     monkeypatch.setattr(bot, "setup_logging", lambda **_kwargs: bot.log)
     monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: object())
     monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
     reached_lock: list[bool] = []
 
@@ -146,7 +154,17 @@ def test_script_invalid_config_exits_before_main(tmp_path):
     script = tmp_path / "mrsMThatcher2.py"
     script.write_bytes(Path(bot.__file__).read_bytes())
     (tmp_path / "mrsMThatcher.local.json").write_text("{")
-    env = dict(os.environ, MRS_BASE_DIR=str(tmp_path), X_CONSUMER_KEY="x", X_CONSUMER_SECRET="x", X_ACCESS_TOKEN="x", X_ACCESS_SECRET="x", X_MY_USER_ID="1", XAI_API_KEY="x")
+    env = dict(
+        os.environ,
+        MRS_BASE_DIR=str(tmp_path),
+        PYTHONPATH=str(Path(bot.__file__).resolve().parent),
+        X_CONSUMER_KEY="x",
+        X_CONSUMER_SECRET="x",
+        X_ACCESS_TOKEN="x",
+        X_ACCESS_SECRET="x",
+        X_MY_USER_ID="1",
+        XAI_API_KEY="x",
+    )
     result = subprocess.run([sys.executable, str(script)], cwd=tmp_path, env=env, text=True, capture_output=True, timeout=20)
     assert result.returncode != 0
     assert "LocalConfigError" in result.stderr

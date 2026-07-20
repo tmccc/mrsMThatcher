@@ -1,0 +1,44 @@
+[
+  {
+    "case_id": "direct-factual-east-west",
+    "contribution": "Where did people move when the Berlin Wall fell?",
+    "mode": "direct_factual_answer",
+    "reply": "The flow was overwhelmingly from East to West once the option existed.",
+    "requires_evidence": true
+  },
+  {
+    "case_id": "political-opinion",
+    "contribution": "Popularity matters more than conviction.",
+    "mode": "opinion_or_principle",
+    "reply": "Conviction should lead; popularity may follow if the case is sound.",
+    "requires_evidence": false
+  },
+  {
+    "case_id": "relevant-principle",
+    "contribution": "Institutions can look after themselves.",
+    "mode": "opinion_or_principle",
+    "reply": "Institutions endure only when people defend their purpose.",
+    "requires_evidence": false
+  },
+  {
+    "case_id": "light-humour",
+    "contribution": "Perhaps another committee will solve it.",
+    "mode": "light_humour",
+    "reply": "A committee can postpone a decision with admirable punctuality.",
+    "requires_evidence": false
+  },
+  {
+    "case_id": "courtesy",
+    "contribution": "Thank you for keeping these speeches available.",
+    "mode": "courtesy",
+    "reply": "Thank you for taking the trouble to read them.",
+    "requires_evidence": false
+  },
+  {
+    "case_id": "deliberate-no-reply",
+    "contribution": "word salad bait bait",
+    "mode": "no_reply",
+    "reply": "",
+    "requires_evidence": false
+  }
+]

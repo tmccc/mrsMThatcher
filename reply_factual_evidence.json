@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "evidence_set_version": "source-grounded-factual-evidence-v1",
+  "records": [
+    {
+      "fact_id": "berlin-wall-east-germans-to-west-berlin-1989",
+      "passage": "The first East Germans make it by car to West Berlin’s Kurfürstendamm where they are given an exuberant welcome.",
+      "source_title": "9 November - a historically signficant date",
+      "publisher": "Press and Information Office of the Federal Government of Germany",
+      "source_url": "https://www.bundesregierung.de/breg-en/service/archive/archive/9-november-a-historically-signficant-date-411370",
+      "stable_locator": "The Day the Berlin Wall fell in November 1989, photo 4 caption",
+      "verification_status": "official_source_exact",
+      "research_confidence": "high",
+      "retrieval_terms": [
+        "Berlin Wall fall",
+        "East Berlin",
+        "East Germany",
+        "German Democratic Republic",
+        "GDR",
+        "West Berlin",
+        "West Germany",
+        "Federal Republic of Germany",
+        "9 November 1989",
+        "crossed border",
+        "moved east to west",
+        "ran westwards",
+        "ran westward",
+        "eastern side to western side",
+        "former border",
+        "Berlin Wall fell"
+      ],
+      "actor": "East Germans",
+      "action_or_relationship": "travelled across the opened border",
+      "direction_or_polarity": "from East Germany towards West Berlin",
+      "date_or_period": "9 November 1989",
+      "quantity": "the first East Germans"
+    },
+    {
+      "fact_id": "berlin-wall-east-berliners-cross-west-1989",
+      "passage": "After new travel regulations were announced by the GDR government in the early evening, a mass crowd forced the first of seven Berlin checkpoints to open for East Berliners to cross to the West.",
+      "source_title": "aktuell - from and about Berlin, No. 114",
+      "publisher": "The Governing Mayor of Berlin - Senate Chancellery",
+      "source_url": "https://www.berlin.de/aktuell/ausgaben/2024/dezember/24_seka_0144_magazin_aktuell_nr114_barrierefrei_web.pdf?ts=1748591957",
+      "stable_locator": "Page 18, Bose Bridge and Bornholmer Strasse",
+      "verification_status": "official_source_exact",
+      "research_confidence": "high",
+      "retrieval_terms": [
+        "Berlin Wall fall",
+        "Berlin Wall fell",
+        "East Berliners",
+        "East Berlin",
+        "western side",
+        "West Berlin",
+        "9 November 1989",
+        "crossed border",
+        "crossed into West Berlin",
+        "ran westwards",
+        "ran westward",
+        "eastern side to western side",
+        "Bornholmer Strasse",
+        "Berlin checkpoint"
+      ],
+      "actor": "East Berliners",
+      "action_or_relationship": "crossed through the first opened Berlin checkpoint",
+      "direction_or_polarity": "from East Berlin to the West",
+      "date_or_period": "9 November 1989",
+      "quantity": "a mass crowd"
+    }
+  ]
+}

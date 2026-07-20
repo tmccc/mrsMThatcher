@@ -1,0 +1,100 @@
+[
+  {
+    "case_id": "burnham-unrelated-wall",
+    "contribution": "Andy Burnham has never had a job and government has failed the country.",
+    "bad_reply": "No Western nation has to build a wall round itself to keep its people in.",
+    "failure": "topically_irrelevant",
+    "expected": "reject"
+  },
+  {
+    "case_id": "east-west-direction-reversed",
+    "contribution": "Where did people move when the Berlin Wall fell?",
+    "bad_reply": "They moved from West Berlin towards East Berlin.",
+    "failure": "wrong_direction",
+    "expected": "reject"
+  },
+  {
+    "case_id": "unrelated-evidence-id",
+    "contribution": "Where did people move when the Berlin Wall fell?",
+    "bad_reply": "They moved from East Germany towards West Germany.",
+    "failure": "unrelated_evidence",
+    "expected": "reject"
+  },
+  {
+    "case_id": "unusual-allegation-verb",
+    "contribution": "A minister embezzled public money.",
+    "bad_reply": "The minister embezzled public money.",
+    "failure": "unsupported_allegation",
+    "expected": "reject"
+  },
+  {
+    "case_id": "unicode-fabricated-quotation",
+    "contribution": "What did Thatcher say about courage?",
+    "bad_reply": "\u300cCourage always conquers every difficulty\u300d, as Thatcher said.",
+    "failure": "fabricated_quotation",
+    "expected": "reject"
+  },
+  {
+    "case_id": "employment-historical-record",
+    "contribution": "What was his employment record?",
+    "bad_reply": "The historical record proves every allegation.",
+    "failure": "false_lexical_bridge",
+    "expected": "reject"
+  },
+  {
+    "case_id": "wrong-actor",
+    "contribution": "What did Gorbachev propose?",
+    "bad_reply": "Ronald Reagan proposed it.",
+    "failure": "wrong_actor",
+    "expected": "reject"
+  },
+  {
+    "case_id": "wrong-relationship",
+    "contribution": "Were Britain and America allies?",
+    "bad_reply": "They were enemies.",
+    "failure": "wrong_relationship",
+    "expected": "reject"
+  },
+  {
+    "case_id": "wrong-date",
+    "contribution": "When did the Berlin Wall fall?",
+    "bad_reply": "It fell in 1987.",
+    "failure": "wrong_date",
+    "expected": "reject"
+  },
+  {
+    "case_id": "wrong-quantity",
+    "contribution": "How many terms did Thatcher serve?",
+    "bad_reply": "She served four terms.",
+    "failure": "wrong_quantity",
+    "expected": "reject"
+  },
+  {
+    "case_id": "wrong-polarity",
+    "contribution": "Did Thatcher support the policy?",
+    "bad_reply": "She opposed it.",
+    "failure": "wrong_polarity",
+    "expected": "reject"
+  },
+  {
+    "case_id": "long-parent-hides-contribution",
+    "contribution": "What year was she elected?",
+    "bad_reply": "The parent post's unrelated argument is correct.",
+    "failure": "parent_context_overreach",
+    "expected": "reject"
+  },
+  {
+    "case_id": "quote-text-hides-commentary",
+    "contribution": "I disagree with this conclusion.",
+    "bad_reply": "Thank you for agreeing.",
+    "failure": "quoted_context_overreach",
+    "expected": "reject"
+  },
+  {
+    "case_id": "proposer-hides-factual-claim",
+    "contribution": "Tell me about the policy.",
+    "bad_reply": "The policy cut unemployment by exactly 20 per cent.",
+    "failure": "omitted_factual_claim",
+    "expected": "reject"
+  }
+]

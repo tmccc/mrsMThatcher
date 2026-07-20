@@ -184,10 +184,9 @@ def test_restored_610_quote_cycle_histories_do_not_false_exhaust_or_write_receip
     assert all(path.read_bytes() == original for path, original in receipt_sentinels)
 
 
-def test_legacy_live_hybrid_configuration_is_ignored(
+def test_legacy_live_reply_configuration_is_rejected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     legacy = {
         "enabled": True,
@@ -202,15 +201,12 @@ def test_legacy_live_hybrid_configuration_is_ignored(
     }
     config = tmp_path / "mrsMThatcher.local.json"
     config.write_text(
-        json.dumps({"reply_strategy": {**bot.reply_strategy, "hybrid_retrieval": legacy}})
+        json.dumps({"reply_strategy": {"enabled": True, "hybrid_retrieval": legacy}})
     )
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", config)
-    monkeypatch.setattr(bot, "reply_strategy", dict(bot.reply_strategy))
 
-    bot.apply_local_config()
-
-    assert "hybrid_retrieval" not in bot.reply_strategy
-    assert "available offline" in caplog.text
+    with pytest.raises(bot.LocalConfigError, match="retired reply_strategy V1"):
+        bot.apply_local_config()
 
 
 def test_no_allowed_image_quote_is_incomplete_manifest_coverage_not_91_vetoes() -> None:

@@ -2031,6 +2031,9 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         )
         outcome_by_id.setdefault(outcome_id, event)
     outcomes = list(outcome_by_id.values())
+    pipeline_failures = [
+        event for event in events if event.get("kind") == "reply_strategy_failure"
+    ]
     published_outcomes = [
         event for event in outcomes
         if str(event.get("status") or "confirmed") in {"confirmed", "posted"}
@@ -2077,6 +2080,7 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         observations.append({"kind": "reply_strategy_unavailable", "lane": lane, "target_id": target})
 
     modes = Counter({key: 0 for key in (
+        "direct_factual_answer", "opinion_or_principle", "light_humour", "courtesy",
         "historical_correction", "historical_context", "researched_principle", "principle_reply", "wry_reply",
         "playful_reply", "deadpan_reply", "warm_reply", "no_reply", "strategy metadata unavailable",
     )})
@@ -2115,6 +2119,16 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         int(event["retrieved_count"])
         for event in decisions
         if type(event.get("retrieved_count")) is int
+    ]
+    evidence_references = [
+        int(event["evidence_reference_count"])
+        for event in observations
+        if type(event.get("evidence_reference_count")) is int
+    ]
+    generated_evidence_references = [
+        int(event["evidence_reference_count"])
+        for event in decisions
+        if type(event.get("evidence_reference_count")) is int
     ]
     rejection_reasons = Counter()
     no_reply_categories = Counter({key: 0 for key in (
@@ -2161,9 +2175,10 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
             category = _no_reply_category(reason)
             if category:
                 no_reply_categories[category] += 1
-    humour_counts = _count_optional(observations, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
+    tone_values = ("firm", "dry", "wry", "warm", "neutral", "light", "playful", "deadpan", "none", "unavailable")
+    humour_counts = _count_optional(observations, "humour_tone", tone_values)
     confidence_counts = _count_optional(observations, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
-    generated_humour_counts = _count_optional(decisions, "humour_tone", ("dry", "wry", "playful", "deadpan", "warm", "none", "unavailable"))
+    generated_humour_counts = _count_optional(decisions, "humour_tone", tone_values)
     generated_confidence_counts = _count_optional(decisions, "evidence_confidence", ("high", "medium", "low", "none", "unavailable"))
     return {
         "mode_counts": dict(sorted(modes.items())),
@@ -2191,6 +2206,16 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         ),
         "generated_maximum_retrieved_packet_count": max(generated_retrieved) if generated_retrieved else None,
         "generated_no_retrieved_packets_count": sum(value == 0 for value in generated_retrieved),
+        "generated_average_evidence_reference_count": (
+            sum(generated_evidence_references) / len(generated_evidence_references)
+            if generated_evidence_references else None
+        ),
+        "generated_maximum_evidence_reference_count": (
+            max(generated_evidence_references) if generated_evidence_references else None
+        ),
+        "generated_no_evidence_references_count": sum(
+            value == 0 for value in generated_evidence_references
+        ),
         "grounded_count": sum(event.get("grounded") is True for event in observations),
         "grounding_metadata_unavailable_count": sum(type(event.get("grounded")) is not bool for event in observations),
         "ungrounded_humour_only_count": sum(event.get("grounded") is False and event.get("factual_claim") is False and event.get("mode") not in {"no_reply", None} for event in observations),
@@ -2204,7 +2229,24 @@ def reply_strategy_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
         "maximum_retrieved_packet_count": max(retrieved) if retrieved else None,
         "no_retrieved_packets_count": sum(value == 0 for value in retrieved),
         "retrieved_packet_metadata_unavailable_count": sum(type(event.get("retrieved_count")) is not int for event in observations),
+        "average_evidence_reference_count": (
+            sum(evidence_references) / len(evidence_references)
+            if evidence_references else None
+        ),
+        "maximum_evidence_reference_count": (
+            max(evidence_references) if evidence_references else None
+        ),
+        "no_evidence_references_count": sum(value == 0 for value in evidence_references),
+        "evidence_reference_metadata_unavailable_count": sum(
+            type(event.get("evidence_reference_count")) is not int
+            for event in observations
+        ),
         "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "pipeline_failure_reason_counts": dict(Counter(
+            str(event.get("reason") or "unknown_pipeline_failure")
+            for event in pipeline_failures
+        ).most_common()),
+        "pipeline_failure_count": len(pipeline_failures),
         "no_reply_category_counts": dict(no_reply_categories),
         "routine_skip_reason_counts": dict(routine_reasons.most_common()),
         "repetition_control_counts": dict(repetition_controls),
@@ -2599,6 +2641,8 @@ def analyse(
 
         if r.src == "ask_grok_for_reply" and msg.startswith("Asking Grok for reply."):
             active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
+        if r.src == "xai_structured_reply_call" and msg.startswith("Calling AI-first reply stage="):
+            active_xai_context = xai_usage_context_from_pending(pending_mention, pending_qt)
 
         usage, usage_error = parse_xai_usage_from_msg(msg)
         if usage is not None:
@@ -2754,6 +2798,66 @@ def analyse(
                     "reply_strategy_rejection", r.ts,
                     lane=event_obj.get("lane") or "unavailable",
                     reason=event_obj.get("reason") or "other",
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_decision":
+                evidence_ids = event_obj.get("evidence_ids")
+                factual_claim_count = event_obj.get("factual_claim_count")
+                add_event(
+                    "reply_strategy_decision",
+                    r.ts,
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    strategy_version=event_obj.get("strategy_version") or "ai-first-reply-v2",
+                    mode=event_obj.get("mode"),
+                    humour_tone=event_obj.get("tone"),
+                    evidence_confidence="unavailable",
+                    retrieved_count=None,
+                    evidence_reference_count=(
+                        len(evidence_ids) if isinstance(evidence_ids, list) else None
+                    ),
+                    factual_claim=(factual_claim_count > 0) if type(factual_claim_count) is int else None,
+                    grounded=(len(evidence_ids) > 0) if isinstance(evidence_ids, list) else None,
+                    no_reply_reason=event_obj.get("reason"),
+                    reviewer_verdict=event_obj.get("reviewer_verdict"),
+                    model_call_count=event_obj.get("model_call_count"),
+                    revision_count=event_obj.get("revision_count"),
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_failure":
+                add_event(
+                    "reply_strategy_failure",
+                    r.ts,
+                    status=event_obj.get("status") or "operational_failure",
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    strategy_version=event_obj.get("strategy_version") or "unavailable",
+                    reason=event_obj.get("reason") or "unknown_pipeline_failure",
+                    model_call_count=event_obj.get("model_call_count"),
+                    revision_count=event_obj.get("revision_count"),
+                )
+            elif event_obj and event_obj.get("event") == "ai_reply_pipeline_outcome":
+                evidence_ids = event_obj.get("evidence_ids")
+                factual_claim_count = event_obj.get("factual_claim_count")
+                add_event(
+                    "reply_strategy_outcome",
+                    r.ts,
+                    status=event_obj.get("status") or "confirmed",
+                    lane=event_obj.get("lane") or "unavailable",
+                    target_id=event_obj.get("target_id") or "",
+                    reply_post_id=event_obj.get("reply_post_id") or "",
+                    strategy_version=event_obj.get("strategy_version") or "ai-first-reply-v2",
+                    mode=event_obj.get("mode"),
+                    humour_tone=event_obj.get("tone"),
+                    evidence_confidence="unavailable",
+                    retrieved_count=None,
+                    evidence_reference_count=(
+                        len(evidence_ids) if isinstance(evidence_ids, list) else None
+                    ),
+                    factual_claim=(factual_claim_count > 0) if type(factual_claim_count) is int else None,
+                    grounded=(len(evidence_ids) > 0) if isinstance(evidence_ids, list) else None,
+                    reviewer_verdict=event_obj.get("reviewer_verdict"),
+                    model_call_count=event_obj.get("model_call_count"),
+                    revision_count=event_obj.get("revision_count"),
+                    failure_reason=event_obj.get("failure_reason") or "",
                 )
             elif event_obj and event_obj.get("event") == "candidate_skipped":
                 add_event(
@@ -5033,10 +5137,16 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual decisions generated: **{strategy.get('generated_factual_claim_count', 0)}**."
     )
     out.append(
-        f"Generated retrieved packets average/max/none: **"
+        f"Legacy packet retrieval for generated decisions average/max/none: **"
         f"{round(strategy['generated_average_retrieved_packet_count'], 2) if strategy.get('generated_average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_maximum_retrieved_packet_count') if strategy.get('generated_maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('generated_no_retrieved_packets_count', 0)}**."
+    )
+    out.append(
+        f"AI-first evidence references generated average/max/none: **"
+        f"{round(strategy['generated_average_evidence_reference_count'], 2) if strategy.get('generated_average_evidence_reference_count') is not None else 'unavailable'} / "
+        f"{strategy.get('generated_maximum_evidence_reference_count') if strategy.get('generated_maximum_evidence_reference_count') is not None else 'unavailable'} / "
+        f"{strategy.get('generated_no_evidence_references_count', 0)}**."
     )
     out.append("Generated evidence confidence: " + compact_counts(strategy.get("generated_confidence_counts") or {}))
     out.append("Generated humour tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
@@ -5049,10 +5159,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"factual grounding rejections: **{strategy.get('factual_rejected_insufficient_grounding_count', 0)}**."
     )
     out.append(
-        f"Retrieved packets average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
+        f"Legacy packet retrieval for published/terminal decisions average/max/none: **{round(strategy['average_retrieved_packet_count'], 2) if strategy.get('average_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('maximum_retrieved_packet_count') if strategy.get('maximum_retrieved_packet_count') is not None else 'unavailable'} / "
         f"{strategy.get('no_retrieved_packets_count', 0)}** "
         f"(metadata unavailable: {strategy.get('retrieved_packet_metadata_unavailable_count', 0)})."
+    )
+    out.append(
+        f"AI-first evidence references published/terminal average/max/none: **"
+        f"{round(strategy['average_evidence_reference_count'], 2) if strategy.get('average_evidence_reference_count') is not None else 'unavailable'} / "
+        f"{strategy.get('maximum_evidence_reference_count') if strategy.get('maximum_evidence_reference_count') is not None else 'unavailable'} / "
+        f"{strategy.get('no_evidence_references_count', 0)}** "
+        f"(metadata unavailable: {strategy.get('evidence_reference_metadata_unavailable_count', 0)})."
     )
     out.append("Published/terminal evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
     out.append("Published/terminal humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
@@ -5063,6 +5180,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(md_table_row(["reason", "count"]))
         out.append(md_table_row(["---", "---"]))
         for reason, count in strategy["rejection_reason_counts"].items():
+            out.append(md_table_row([reason, count]))
+    if strategy.get("pipeline_failure_reason_counts"):
+        out.append("Operational AI-first pipeline failures (retryable, not editorial no-reply):")
+        out.append(md_table_row(["reason", "count"]))
+        out.append(md_table_row(["---", "---"]))
+        for reason, count in strategy["pipeline_failure_reason_counts"].items():
             out.append(md_table_row([reason, count]))
     if strategy.get("routine_skip_reason_counts"):
         out.append("Routine scheduling skips (separate):")
@@ -5115,12 +5238,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "reply_strategy_decision",
         "Reply strategy decisions",
-        ["time", "lane", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "no_reply_reason"],
+        ["time", "lane", "strategy_version", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
     )
     section(
         "reply_strategy_outcome",
         "Reply strategy outcomes",
-        ["time", "status", "lane", "target_id", "reply_post_id", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "factual_claim", "grounded", "failure_reason"],
+        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
+    )
+    section(
+        "reply_strategy_failure",
+        "Operational reply-pipeline failures",
+        ["time", "status", "lane", "target_id", "strategy_version", "reason", "model_call_count", "revision_count"],
     )
     section(
         "reply_target_terminal",

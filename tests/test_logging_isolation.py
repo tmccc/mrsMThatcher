@@ -31,6 +31,7 @@ def configure_bootstrap(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(bot, "LOCAL_CONFIG_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "SELF_TEST_REQUESTED", False)
     monkeypatch.setattr(bot, "validate_production_credentials", lambda: None)
+    monkeypatch.setattr(bot, "reply_evidence_repository", lambda: object())
 
 
 def test_plain_import_does_not_open_production_log():
@@ -141,6 +142,7 @@ def test_subprocess_bootstrap_uses_temporary_log(tmp_path):
     target = tmp_path / "subprocess.log"
     env = dict(
         os.environ,
+        PYTHONPATH=str(Path(bot.__file__).resolve().parent),
         MRS_BASE_DIR=str(tmp_path),
         MRS_LOG_FILE=str(target),
         X_CONSUMER_KEY="dummy",

@@ -1,1373 +1,1661 @@
 #!/usr/bin/env python3
-"""Offline retrieval, validation, and audit helpers for accuracy-first replies."""
+"""AI-first conversational reply proposal, evidence and independent review.
+
+Natural-language interpretation belongs to the proposer and reviewer models.
+This module supplies strict schemas, source-integrity checks and operational
+limits; it does not infer meaning from hand-maintained keyword rules.
+"""
 
 from __future__ import annotations
 
 import argparse
-import html
+import difflib
+import hashlib
+import ipaddress
 import json
+import os
 import re
+import tempfile
+import time
 import unicodedata
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable
 
-from historical_context_formatter import (
-    load_and_validate_corpus,
-    packet_is_attributed_to_margaret_thatcher,
-)
+from reply_evidence import EvidencePassage, EvidenceRepository, value_hash
+
+
+STRATEGY_VERSION = "ai-first-reply-v3"
+DRAFT_SCHEMA_VERSION = 3
+PROPOSER_PROMPT_VERSION = "ai-first-proposer-v6"
+EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v4"
+REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v3"
+LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
 
 MODES = {
-    "historical_correction", "historical_context", "researched_principle",
-    "principle_reply", "wry_reply", "playful_reply", "deadpan_reply", "warm_reply",
+    "direct_factual_answer",
+    "opinion_or_principle",
+    "light_humour",
+    "courtesy",
     "no_reply",
 }
-HUMOUR_TONES = {"dry", "wry", "playful", "deadpan", "warm", "none"}
-CONFIDENCE_LEVELS = {"high": 3, "medium": 2, "low": 1, "none": 0}
-HISTORICAL_MODES = {"historical_correction", "historical_context", "researched_principle"}
-REPLY_DECISION_FIELDS = frozenset({
-    "mode", "humour_tone", "evidence_confidence", "retrieved_quote_ids",
-    "evidence_summary", "factual_claim_made", "grounded", "reply_text",
-    "no_reply_reason", "topical_basis",
-})
-CANNED_PATTERNS = (
-    "the lesson remains unlearned", "socialism promised", "history has a habit",
-    "one system",
-)
-CONCRETE_QUESTION_RE = re.compile(
-    r"^(?:@[A-Za-z0-9_]+\s+)*(?:(?:please\s+)?(?:(?:(?:can|could|would)\s+you\s+)?"
-    r"tell\s+me|do\s+you\s+know)\s+)?"
-    r"(?P<word>how\s+(?:long|many)|who|whose|what|where|when|which|"
-    r"were(?=\s+did\b)|did|does|do|was|were|is|are|has|have|had)\b",
+TONES = {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
+CONFIDENCE_LEVELS = {"low": 1, "medium": 2, "high": 3}
+EVIDENCE_VERDICTS = {"supports", "contradicts", "insufficient"}
+REVIEWER_VERDICTS = {"approve", "reject", "revise"}
+LANES = {"mention", "hot_post_reply", "quote_tweet"}
+
+URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+DOMAIN_RE = re.compile(
+    r"(?<![@A-Za-z0-9_])(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,62}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,63}(?:/\S*)?",
     re.IGNORECASE,
 )
-ABSTRACT_ANSWER_OPENINGS = (
-    "when free to choose",
-    "when people are free",
-    "freedom is",
-    "liberty is",
-    "history shows",
-    "the lesson is",
-    "the principle is",
-)
-PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE = re.compile(
-    r"(?:https?://|@[A-Za-z0-9_]+|\b\d+(?:[.,]\d+)?%?\b|"
-    r"\b(?:the\s+)?(?:government|cabinet|prime minister|president|ministers?|"
-    r"politicians?|officials?|civil service|courts?|media|they|he|she)\s+"
-    r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|believes?|"
-    r"knows?|understands?|refuses?|intends?|continues?|conceals?|hides?|misleads?|"
-    r"lied|lies|covered|covers?|conspired|betrayed|failed|fails)\b)",
+EMAIL_RE = re.compile(
+    r"(?<![A-Za-z0-9._%+\-])[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,63}(?![A-Za-z0-9_])",
     re.IGNORECASE,
 )
-PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE = re.compile(
-    r"(?:^|(?<=[.!?;:,])\s+)(?P<actor>[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}"
-    r"(?:\s+[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}){0,2})"
-    r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\b|\s+(?:is|are|was|were|has|have|had|"
-    r"does|do|did|will|would|wants?|seeks?|craves?|believes?|knows?|understands?|"
-    r"refuses?|intends?|advocates?|attacks?|champions?|denies?|endorses?|promotes?|"
-    r"supports?|undermines?|conceals?|continues?|covers?|hides?|misleads?|"
-    r"lied|lies|betrayed|failed|fails)\b)",
-    re.IGNORECASE | re.MULTILINE | re.UNICODE,
-)
-PRINCIPLE_REPLY_PROPER_NAME_RE = re.compile(
-    r"\b[A-Z][a-z]{2,}(?:\s+[A-Z][a-z]{2,})+\b",
+DOMAIN_CANDIDATE_RE = re.compile(
+    r"(?<![@\w])(?:[^\W_][\w-]{0,62}\.)+[^\W_][\w-]{1,62}(?=$|[^\w-])",
     re.UNICODE,
 )
-PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE = re.compile(
-    r"(?:^|(?<=[.!?;:,])\s+)(?:The\s+|A\s+|An\s+)?"
-    r"(?P<actor>[A-Z][a-z'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})\s+"
-    r"(?P<predicate>[a-z][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})\b",
-    re.MULTILINE | re.UNICODE,
+IPV4_CANDIDATE_RE = re.compile(r"(?<![\w.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![\w.])")
+IDNA_DOT_TRANSLATION = str.maketrans({"\u3002": ".", "\uff0e": ".", "\uff61": "."})
+BLOCKED_REPLY_PATTERNS = (
+    re.compile(r"\b(?:kill|suicide|shoot|stab)\b", re.IGNORECASE),
+    re.compile(r"\b(?:go|should|deserves? to)\s+(?:die|hang)\b", re.IGNORECASE),
+    re.compile(r"\btraitor should\b", re.IGNORECASE),
+    re.compile(r"\bi am margaret thatcher\b", re.IGNORECASE),
+    re.compile(r"\bas margaret thatcher\b", re.IGNORECASE),
 )
-PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE = re.compile(
-    r"\b(?P<actor>[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})"
-    r"(?:['\N{RIGHT SINGLE QUOTATION MARK}]s\s+[a-z][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,})?\s+"
-    r"(?:is|are|was|were|has|have|had|does|do|did|will|would|wants?|seeks?|"
-    r"craves?|believes?|knows?|understands?|refuses?|intends?|advocates?|attacks?|"
-    r"backs?|backed|blocks?|blocked|champions?|conceals?|continues?|covers?|cuts?|"
-    r"endorses?|fails?|failed|hides?|lies?|made|misleads?|promotes?|raises?|raised|"
-    r"serves?|speaks?|supports?|undermines?|works?|wrote)\b",
-    re.IGNORECASE | re.UNICODE,
-)
-PRINCIPLE_REPLY_ABSTRACT_SUBJECTS = {
-    "accountability", "action", "character", "citizens", "courage", "conviction", "democracy", "enterprise",
-    "freedom", "institutions", "leadership", "liberty", "responsibility",
-    "history", "individuals", "law", "leaders", "people", "politics", "power", "principles",
-    "reality", "society", "socialism", "trust", "truth", "understanding",
-}
-PRINCIPLE_REPLY_GENERIC_SUBJECT_PREFIXES = ("the case",)
-ABSOLUTE_TEMPORAL_ANSWER_RE = re.compile(
-    r"\b(?:\d{3,4}|\d{1,2}(?::\d{2})?\s*(?:am|pm)|january|february|march|april|"
-    r"may|june|july|august|september|october|november|december|monday|tuesday|"
-    r"wednesday|thursday|friday|saturday|sunday|midnight|noon|"
-    r"morning|afternoon|evening|spring|summer|autumn|winter|century|decade|year|"
-    r"month|week|day|hour)\b",
-    re.IGNORECASE,
-)
-RELATIVE_TEMPORAL_ANSWER_RE = re.compile(r"\b(?:after|before|during)\s+([^,.;!?]+)", re.IGNORECASE)
-VAGUE_RELATIVE_TEMPORAL_ANSWER_RE = re.compile(
-    r"^(?:after|before|during)\s+(?:"
-    r"(?:challenging|difficult|troubled|uncertain)\s+(?:circumstances|periods?|times?)|"
-    r"(?:careful|considerable|much|serious|some)\s+(?:consideration|debate|deliberation|thought)|"
-    r"(?:courage|freedom|leadership|principles?|responsibility)\s+"
-    r"(?:had|has|have|was|were)\b)",
-    re.IGNORECASE,
-)
-QUANTITY_ANSWER_RE = re.compile(
-    r"\b(?:\d+(?:[.,]\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten|"
-    r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
-    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|"
-    r"billion|dozen)\b",
-    re.IGNORECASE,
-)
-DURATION_ANSWER_RE = re.compile(
-    r"(?:\b(?:for\s+)?(?:\d+(?:[.,]\d+)?|one|two|three|four|five|six|seven|eight|nine|"
-    r"ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
-    r"twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)"
-    r"(?:[-\s](?:one|two|three|four|five|six|seven|eight|nine))?\s+"
-    r"(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?|decades?|centuries?)\b|"
-    r"\bfrom\s+[^,.;!?]+?\s+(?:to|through|until)\s+[^,.;!?]+)",
-    re.IGNORECASE,
-)
-VAGUE_FACTUAL_PREDICATE_RE = re.compile(
-    r"\b(?:is|are|was|were)\s+(?:complex|consequential|important|noteworthy|"
-    r"remarkable|serious|significant)\b",
-    re.IGNORECASE,
-)
-RETRIEVAL_FIELDS = (
-    "quote_text", "verified_text", "source_event", "historical_context",
-    "immediate_subject", "intended_argument", "literal_meaning", "broader_principle",
-    "mechanism", "claimed_consequence",
-)
-TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9'-]{2,}")
-TOPICAL_TOKEN_RE = re.compile(r"[^\W_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]{2,}", re.UNICODE)
-STOPWORDS = {
-    "and", "are", "but", "for", "from", "has", "have", "into", "its", "not",
-    "that", "the", "their", "then", "there", "these", "they", "this", "was",
-    "were", "what", "when", "where", "which", "who", "with", "would", "your",
-}
-TOPICAL_STOPWORDS = STOPWORDS | {
-    "account", "after", "again", "also", "before", "being", "could", "first",
-    "future", "just", "life", "margaret", "mrs", "much", "people", "since",
-    "still", "than", "thatcher", "thing", "time", "towards", "very", "must",
-}
-GENERIC_POLITICAL_TOPIC_TOKENS = {
-    "country", "economic", "economy", "freedom", "government", "leader",
-    "leadership", "liberty", "nation", "national", "politic", "political",
-    "politician", "policy", "socialism", "socialist", "state",
-}
-NON_LOCATION_ANSWER_TOKENS = GENERIC_POLITICAL_TOPIC_TOKENS | {
-    "argument", "government", "matter", "matters", "principle", "question",
-    "responsibility", "politics", "century", "decade", "year", "month", "week",
-    "day", "hour",
-} | PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-NON_TEMPORAL_ANSWER_TOKENS = NON_LOCATION_ANSWER_TOKENS | {
-    "arguments", "circumstance", "circumstances", "difficulty", "difficulties",
-    "period", "periods", "times",
-}
-TOPICAL_SEGMENT_RE = re.compile(r"(?:\r?\n|\s+[|*•]\s+|(?<=[.!?;:])\s+)")
-TOPICAL_CONCEPTS = {
-    "accountability": {"accountable", "check", "democratic", "responsible"},
-    "economic_policy": {"business", "capital", "economic", "enterprise", "market", "prosperity", "wealth"},
-    "freedom_and_coercion": {"berlin", "choice", "coercion", "communism", "east", "freedom", "liberty", "wall", "west"},
-    "institutions": {"defend", "institution", "purpose"},
-    "leadership_and_popularity": {"conviction", "leader", "popular"},
-    "public_case_and_action": {"act", "case", "courage", "explain", "make", "persuade", "understand"},
-}
 
 
-@dataclass(frozen=True)
-class RetrievedEvidence:
-    """Represent retrieved evidence data."""
-    quote_id: str
-    score: float
-    verification_status: str
-    summary: str
-    packet: dict[str, Any]
-
-    def prompt_record(self) -> dict[str, Any]:
-        """Return the prompt record."""
-        packet = self.packet
-        return {
-            "quote_id": self.quote_id,
-            "verification_status": self.verification_status,
-            "research_confidence": packet.get("research_confidence", "low"),
-            "source_event": packet.get("source_event", ""),
-            "date": packet.get("date", ""),
-            "immediate_subject": packet.get("immediate_subject", ""),
-            "intended_argument": packet.get("intended_argument", ""),
-            "broader_principle": packet.get("broader_principle", ""),
-            "mechanism": packet.get("mechanism", ""),
-            "claimed_consequence": packet.get("claimed_consequence", ""),
-            "verified_text": packet.get("verified_text", ""),
-        }
+class ReplyPipelineError(RuntimeError):
+    """A local pipeline invariant failed; the caller must fail closed."""
 
 
-class ReplyDecision(str):
-    """A string-compatible reply carrying private strategy metadata."""
+class ModelCallLimitError(ReplyPipelineError):
+    """The configured per-candidate model-call ceiling was reached."""
 
-    strategy_metadata: dict[str, Any]
 
-    def __new__(cls, value: str, strategy_metadata: dict[str, Any]):
-        """Create a reply decision instance."""
+class AIReply(str):
+    """A reviewer-approved reply carrying its immutable V3 draft record."""
+
+    draft_record: dict[str, Any]
+    pipeline_metadata: dict[str, Any]
+
+    def __new__(
+        cls,
+        value: str,
+        draft_record: dict[str, Any],
+        pipeline_metadata: dict[str, Any],
+    ) -> "AIReply":
         instance = str.__new__(cls, value)
-        instance.strategy_metadata = strategy_metadata
+        instance.draft_record = draft_record
+        instance.pipeline_metadata = pipeline_metadata
         return instance
 
 
-def allowed_modes_from_config(config: dict[str, Any]) -> set[str]:
-    """Return the reply modes enabled by validated strategy configuration."""
-    modes = {"principle_reply", "no_reply"}
-    if config.get("allow_historical_correction"):
-        modes.add("historical_correction")
-    if config.get("allow_historical_context"):
-        modes.add("historical_context")
-    if config.get("allow_researched_principle"):
-        modes.add("researched_principle")
-    if config.get("allow_humour"):
-        modes.update({"wry_reply", "playful_reply", "deadpan_reply", "warm_reply"})
-    return modes
+@dataclass(frozen=True)
+class PipelineResult:
+    """Final result of one bounded conversational reply pipeline."""
+
+    reply: AIReply | None
+    status: str
+    reason: str
+    model_call_count: int
+    revision_count: int
+    audit: tuple[dict[str, Any], ...]
 
 
-def _tokens(value: Any) -> set[str]:
-    return {token for token in TOKEN_RE.findall(str(value or "").lower()) if token not in STOPWORDS}
+ModelTransport = Callable[..., object]
 
 
-def _topical_stem(token: str) -> str:
-    aliases = {
-        "accountability": "accountable", "checks": "accountable",
-        "eastern": "east", "western": "west",
-        "economy": "economic", "economies": "economic",
-        "markets": "market", "popularity": "popular",
-        "responsibility": "responsible", "responsibilities": "responsible",
-    }
-    value = aliases.get(token, token)
-    if not value.isascii():
-        return value
-    if len(value) > 5 and value.endswith("ing"):
-        value = value[:-3]
-    elif len(value) > 4 and value.endswith("ed"):
-        value = value[:-2]
-    elif len(value) > 4 and value.endswith("s") and not value.endswith(("ss", "is", "us")):
-        value = value[:-1]
-    return value
+def utc_now() -> str:
+    """Return a UTC ISO-8601 timestamp."""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _topical_tokens(value: Any) -> set[str]:
+def text_hash(text: str) -> str:
+    """Return the SHA-256 digest of exact UTF-8 text."""
+    return hashlib.sha256(str(text).encode("utf-8")).hexdigest()
+
+
+def atomic_write_json(path: Path, value: Any) -> None:
+    """Write JSON atomically and durably."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, ensure_ascii=False, sort_keys=True, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def stable_read_bytes(path: Path, attempts: int = 5) -> bytes:
+    """Read a mutable local file only when its identity and metadata stay stable."""
+    for _attempt in range(attempts):
+        before = path.stat()
+        content = path.read_bytes()
+        after = path.stat()
+        if (
+            before.st_ino == after.st_ino
+            and before.st_size == after.st_size == len(content)
+            and before.st_mtime_ns == after.st_mtime_ns
+        ):
+            return content
+        time.sleep(0.02)
+    raise RuntimeError(f"could not obtain a stable read of {path}")
+
+
+def _strict_object(properties: dict[str, Any], required: list[str]) -> dict[str, Any]:
     return {
-        _topical_stem(token.casefold())
-        for token in TOPICAL_TOKEN_RE.findall(str(value or ""))
-        if token.casefold() not in TOPICAL_STOPWORDS
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
     }
 
 
-def _normalise_topical_source(value: Any) -> str:
-    text = unicodedata.normalize("NFKC", html.unescape(str(value or "")))
-    text = re.sub(r"https?://\S+|(?<![A-Za-z0-9_])@[A-Za-z0-9_]+", " ", text)
-    return " ".join(text.split())
-
-
-def _topical_token_sequence(value: Any) -> list[str]:
-    return [_topical_stem(token.casefold()) for token in TOPICAL_TOKEN_RE.findall(str(value or ""))]
-
-
-def _contains_token_sequence(haystack: list[str], needle: list[str]) -> bool:
-    if not needle or len(needle) > len(haystack):
-        return False
-    return any(haystack[index:index + len(needle)] == needle for index in range(len(haystack) - len(needle) + 1))
-
-
-def _substantive_topic_segments(incoming_text: str) -> list[tuple[list[str], set[str]]]:
-    cleaned = _normalise_topical_source(incoming_text)
-    segments = [
-        (_topical_token_sequence(part), _topical_tokens(part))
-        for part in TOPICAL_SEGMENT_RE.split(cleaned)
-    ]
-    segments = [(sequence, tokens) for sequence, tokens in segments if tokens]
-    if not segments:
-        return []
-    # In a multi-point contribution, a short label or list fragment must not
-    # become the sole justification for an otherwise unrelated researched reply.
-    if max(len(tokens) for _sequence, tokens in segments) >= 4:
-        substantive = [(sequence, tokens) for sequence, tokens in segments if len(tokens) >= 4]
-        if substantive:
-            return substantive
-    return segments
-
-
-def _topical_concepts(tokens: set[str]) -> set[str]:
-    return {
-        concept
-        for concept, members in TOPICAL_CONCEPTS.items()
-        if tokens & members
+def claim_schema() -> dict[str, Any]:
+    """Return the strict proposer factual-claim schema."""
+    properties = {
+        "claim_id": {"type": "string", "pattern": r"^claim-[1-9][0-9]*$"},
+        "claim_text": {"type": "string", "minLength": 1, "maxLength": 500},
+        "requires_evidence": {"type": "boolean"},
+        "actor": {"type": "string", "maxLength": 200},
+        "action_or_relationship": {"type": "string", "maxLength": 300},
+        "direction_or_polarity": {"type": "string", "maxLength": 200},
+        "date_or_period": {"type": "string", "maxLength": 160},
+        "quantity": {"type": "string", "maxLength": 160},
     }
+    return _strict_object(properties, list(properties))
 
 
-def _specific_topical_tokens(tokens: set[str]) -> set[str]:
-    return tokens - GENERIC_POLITICAL_TOPIC_TOKENS
+def proposer_schema(maximum_reply_length: int, maximum_claims: int) -> dict[str, Any]:
+    """Return the strict structured-output schema for a proposer call."""
+    properties = {
+        "mode": {"type": "string", "enum": sorted(MODES)},
+        "interpretation": {"type": "string", "minLength": 1, "maxLength": 800},
+        "proposed_reply": {"type": "string", "maxLength": maximum_reply_length},
+        "factual_claims": {
+            "type": "array",
+            "items": claim_schema(),
+            "maxItems": maximum_claims,
+        },
+        "exact_thatcher_wording_used": {"type": "boolean"},
+        "exact_thatcher_wording": {"type": "string", "maxLength": maximum_reply_length},
+        "tone": {"type": "string", "enum": sorted(TONES)},
+        "confidence": {"type": "string", "enum": sorted(CONFIDENCE_LEVELS)},
+        "no_reply_reason": {"type": "string", "maxLength": 500},
+    }
+    return _strict_object(properties, list(properties))
 
 
-def _topic_pair_aligned(left: set[str], right: set[str]) -> bool:
-    left_specific = _specific_topical_tokens(left)
-    right_specific = _specific_topical_tokens(right)
-    if left_specific & right_specific:
+def evidence_schema(maximum_claims: int, maximum_references: int) -> dict[str, Any]:
+    """Return the strict structured-output schema for claim adjudication."""
+    reference = _strict_object(
+        {
+            "evidence_id": {"type": "string", "pattern": r"^[0-9a-f]{64}$"},
+            "exact_supporting_passage": {"type": "string", "minLength": 1},
+            "relation": {"type": "string", "enum": sorted(EVIDENCE_VERDICTS)},
+        },
+        ["evidence_id", "exact_supporting_passage", "relation"],
+    )
+    result = _strict_object(
+        {
+            "claim_id": {"type": "string", "pattern": r"^claim-[1-9][0-9]*$"},
+            "claim_text": {"type": "string", "minLength": 1, "maxLength": 500},
+            "verdict": {"type": "string", "enum": sorted(EVIDENCE_VERDICTS)},
+            "evidence": {"type": "array", "items": reference, "maxItems": maximum_references},
+            "actor": {"type": "string", "maxLength": 200},
+            "action_or_relationship": {"type": "string", "maxLength": 300},
+            "direction_or_polarity": {"type": "string", "maxLength": 200},
+            "date_or_period": {"type": "string", "maxLength": 160},
+            "quantity": {"type": "string", "maxLength": 160},
+            "explanation": {"type": "string", "maxLength": 600},
+        },
+        [
+            "claim_id", "claim_text", "verdict", "evidence", "actor",
+            "action_or_relationship", "direction_or_polarity", "date_or_period",
+            "quantity", "explanation",
+        ],
+    )
+    return _strict_object(
+        {"claims": {"type": "array", "items": result, "maxItems": maximum_claims}},
+        ["claims"],
+    )
+
+
+def reviewer_schema(maximum_claims: int) -> dict[str, Any]:
+    """Return the strict structured-output schema for independent review."""
+    properties = {
+        "verdict": {"type": "string", "enum": sorted(REVIEWER_VERDICTS)},
+        "summary": {"type": "string", "maxLength": 800},
+        "reasons": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 12},
+        "actual_factual_claims": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": maximum_claims},
+        "unsupported_factual_claims": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": maximum_claims},
+        "direct_question_present": {"type": "boolean"},
+        "answers_direct_question_first_sentence": {"type": "boolean"},
+        "topically_relevant": {"type": "boolean"},
+        "endorses_unsupported_allegation": {"type": "boolean"},
+        "contains_unsupported_factual_claims": {"type": "boolean"},
+        "actor_action_relationship_correct": {"type": "boolean"},
+        "direction_polarity_correct": {"type": "boolean"},
+        "dates_quantities_correct": {"type": "boolean"},
+        "quotation_attribution_correct": {"type": "boolean"},
+        "original_prose_clearly_not_historical_quotation": {"type": "boolean"},
+        "mode_and_tone_match": {"type": "boolean"},
+        "suitable_for_account": {"type": "boolean"},
+        "revision_instructions": {"type": "string", "maxLength": 800},
+    }
+    return _strict_object(properties, list(properties))
+
+
+def validate_strategy_config(config: object) -> list[str]:
+    """Return all structural and fail-closed configuration errors."""
+    if not isinstance(config, dict):
+        return ["ai_first_reply_strategy must be an object"]
+    expected = {
+        "enabled", "strategy_version", "proposer_model", "reviewer_model",
+        "evidence_model", "research_corpus_path", "maximum_model_calls",
+        "proposer_timeout_seconds", "evidence_timeout_seconds",
+        "reviewer_timeout_seconds", "proposer_max_output_tokens",
+        "evidence_max_output_tokens", "reviewer_max_output_tokens",
+        "maximum_revisions", "maximum_invalid_response_retries", "maximum_claims",
+        "maximum_evidence_packets_per_claim",
+        "maximum_evidence_passages_per_claim", "maximum_reply_sentences",
+        "fail_closed",
+    }
+    errors: list[str] = []
+    if set(config) != expected:
+        errors.append("ai_first_reply_strategy fields mismatch")
+        return errors
+    if type(config.get("enabled")) is not bool:
+        errors.append("ai_first_reply_strategy.enabled must be boolean")
+    if config.get("strategy_version") != STRATEGY_VERSION:
+        errors.append(f"ai_first_reply_strategy.strategy_version must be {STRATEGY_VERSION}")
+    for key in ("proposer_model", "reviewer_model", "evidence_model", "research_corpus_path"):
+        value = config.get(key)
+        if not isinstance(value, str) or not value.strip() or value != value.strip():
+            errors.append(f"ai_first_reply_strategy.{key} must be a non-empty trimmed string")
+    for key in (
+        "maximum_model_calls", "proposer_timeout_seconds", "evidence_timeout_seconds",
+        "reviewer_timeout_seconds", "proposer_max_output_tokens", "evidence_max_output_tokens",
+        "reviewer_max_output_tokens", "maximum_claims", "maximum_evidence_packets_per_claim",
+        "maximum_evidence_passages_per_claim", "maximum_reply_sentences",
+    ):
+        value = config.get(key)
+        if type(value) is not int or value <= 0:
+            errors.append(f"ai_first_reply_strategy.{key} must be a positive integer")
+    if type(config.get("maximum_revisions")) is not int or config.get("maximum_revisions") != 1:
+        errors.append("ai_first_reply_strategy.maximum_revisions must be exactly 1")
+    if (
+        type(config.get("maximum_invalid_response_retries")) is not int
+        or config.get("maximum_invalid_response_retries") not in {0, 1}
+    ):
+        errors.append(
+            "ai_first_reply_strategy.maximum_invalid_response_retries must be 0 or 1"
+        )
+    upper_limits = {
+        "maximum_model_calls": 6,
+        "maximum_claims": 8,
+        "maximum_evidence_packets_per_claim": 10,
+        "maximum_evidence_passages_per_claim": 40,
+        "maximum_reply_sentences": 3,
+        "proposer_timeout_seconds": 120,
+        "evidence_timeout_seconds": 120,
+        "reviewer_timeout_seconds": 120,
+        "proposer_max_output_tokens": 2_000,
+        "evidence_max_output_tokens": 4_000,
+        "reviewer_max_output_tokens": 2_000,
+    }
+    for key, maximum in upper_limits.items():
+        value = config.get(key)
+        if type(value) is int and value > maximum:
+            errors.append(f"ai_first_reply_strategy.{key} must not exceed {maximum}")
+    if config.get("fail_closed") is not True:
+        errors.append("ai_first_reply_strategy.fail_closed must remain true")
+    return errors
+
+
+def validate_reply_context(context: object) -> dict[str, Any]:
+    """Validate and return a clean, explicitly separated reply context."""
+    if not isinstance(context, dict):
+        raise ValueError("reply context must be an object")
+    required = {
+        "target_id", "thread_id", "lane", "incoming_contribution",
+        "quoted_post", "parent_thread", "clarification_request", "current_date",
+    }
+    if set(context) != required:
+        raise ValueError("reply context fields mismatch")
+    target_id = str(context.get("target_id") or "")
+    thread_id = str(context.get("thread_id") or "")
+    lane = context.get("lane")
+    incoming = context.get("incoming_contribution")
+    current_date = context.get("current_date")
+    if not target_id or not thread_id:
+        raise ValueError("reply context target and thread IDs are required")
+    if lane not in LANES:
+        raise ValueError("reply context lane is invalid")
+    if not isinstance(incoming, str) or not incoming.strip() or len(incoming) > 10_000:
+        raise ValueError("incoming contribution must be 1..10000 characters")
+    if not isinstance(current_date, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", current_date):
+        raise ValueError("reply context current_date must be YYYY-MM-DD")
+
+    quoted = context.get("quoted_post")
+    if quoted is not None:
+        _validate_context_post(quoted, "quoted_post")
+    parents = context.get("parent_thread")
+    if not isinstance(parents, list) or len(parents) > 3:
+        raise ValueError("parent_thread must contain at most three posts")
+    for parent in parents:
+        _validate_context_post(parent, "parent_thread")
+    clarification = context.get("clarification_request")
+    if clarification is not None:
+        if not isinstance(clarification, dict) or set(clarification) != {
+            "original_question", "correction",
+        }:
+            raise ValueError("clarification_request fields mismatch")
+        original_question = clarification.get("original_question")
+        correction = clarification.get("correction")
+        if (
+            not isinstance(original_question, str)
+            or not original_question.strip()
+            or len(original_question) > 10_000
+        ):
+            raise ValueError("clarification original_question is invalid")
+        if (
+            not isinstance(correction, str)
+            or not correction.strip()
+            or correction != incoming
+        ):
+            raise ValueError("clarification correction must equal the incoming contribution")
+    return json.loads(json.dumps(context, ensure_ascii=False))
+
+
+def _validate_context_post(value: object, label: str) -> None:
+    if not isinstance(value, dict) or set(value) != {"post_id", "author_role", "text"}:
+        raise ValueError(f"{label} record fields mismatch")
+    if not str(value.get("post_id") or ""):
+        raise ValueError(f"{label} post_id is required")
+    if value.get("author_role") not in {"account", "user", "unknown"}:
+        raise ValueError(f"{label} author_role is invalid")
+    if not isinstance(value.get("text"), str) or len(value["text"]) > 2_000:
+        raise ValueError(f"{label} text is invalid")
+
+
+def _parse_object(value: object, stage: str) -> dict[str, Any]:
+    if isinstance(value, str):
+        parsed = json.loads(value)
+    else:
+        parsed = value
+    if not isinstance(parsed, dict):
+        raise ValueError(f"{stage} response must be a JSON object")
+    return parsed
+
+
+def _validate_exact_keys(value: dict[str, Any], expected: set[str], stage: str) -> None:
+    if set(value) != expected:
+        missing = sorted(expected - set(value))
+        extra = sorted(set(value) - expected)
+        raise ValueError(f"{stage} fields mismatch missing={missing} extra={extra}")
+
+
+def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claims: int) -> dict[str, Any]:
+    """Validate untrusted proposer output independently of provider schemas."""
+    item = _parse_object(value, "proposer")
+    expected = {
+        "mode", "interpretation", "proposed_reply", "factual_claims",
+        "exact_thatcher_wording_used", "exact_thatcher_wording", "tone",
+        "confidence", "no_reply_reason",
+    }
+    _validate_exact_keys(item, expected, "proposer")
+    if item.get("mode") not in MODES or item.get("tone") not in TONES:
+        raise ValueError("proposer mode or tone is invalid")
+    if item.get("confidence") not in CONFIDENCE_LEVELS:
+        raise ValueError("proposer confidence is invalid")
+    for field, maximum in (
+        ("interpretation", 800), ("proposed_reply", maximum_reply_length),
+        ("exact_thatcher_wording", maximum_reply_length), ("no_reply_reason", 500),
+    ):
+        if not isinstance(item.get(field), str) or len(item[field]) > maximum:
+            raise ValueError(f"proposer {field} is invalid")
+    if not item["interpretation"].strip():
+        raise ValueError("proposer interpretation is invalid")
+    if type(item.get("exact_thatcher_wording_used")) is not bool:
+        raise ValueError("proposer exact_thatcher_wording_used must be boolean")
+    claims = item.get("factual_claims")
+    if not isinstance(claims, list) or len(claims) > maximum_claims:
+        raise ValueError("proposer factual_claims is invalid")
+    claim_ids: set[str] = set()
+    claim_texts: set[str] = set()
+    for index, claim in enumerate(claims, start=1):
+        validated = _validate_claim(claim)
+        if validated["claim_id"] in claim_ids:
+            raise ValueError("proposer claim IDs must be unique")
+        claim_ids.add(validated["claim_id"])
+        if validated["claim_id"] != f"claim-{index}":
+            raise ValueError("proposer claim IDs must be sequential")
+        if validated["requires_evidence"] is not True:
+            raise ValueError("every factual claim must require evidence")
+        normalised_claim = " ".join(validated["claim_text"].casefold().split())
+        if normalised_claim in claim_texts:
+            raise ValueError("proposer factual claims must be unique")
+        claim_texts.add(normalised_claim)
+    if item["mode"] == "no_reply":
+        if item["proposed_reply"] or claims or item["exact_thatcher_wording_used"]:
+            raise ValueError("no_reply must not contain a draft or factual claims")
+        if item["exact_thatcher_wording"] or not item["no_reply_reason"].strip():
+            raise ValueError("no_reply requires a reason and no quotation wording")
+    else:
+        if not item["proposed_reply"].strip() or item["no_reply_reason"]:
+            raise ValueError("a proposed reply requires text and an empty no_reply_reason")
+        if CONFIDENCE_LEVELS[item["confidence"]] < CONFIDENCE_LEVELS["medium"]:
+            raise ValueError("a proposed reply requires at least medium proposer confidence")
+        if item["mode"] == "direct_factual_answer" and not claims:
+            raise ValueError("direct_factual_answer requires at least one factual claim")
+    if item["exact_thatcher_wording_used"] != bool(item["exact_thatcher_wording"].strip()):
+        raise ValueError("exact Thatcher wording fields contradict each other")
+    return item
+
+
+def _validate_claim(claim: object) -> dict[str, Any]:
+    if not isinstance(claim, dict):
+        raise ValueError("factual claim must be an object")
+    expected = {
+        "claim_id", "claim_text", "requires_evidence", "actor",
+        "action_or_relationship", "direction_or_polarity", "date_or_period", "quantity",
+    }
+    _validate_exact_keys(claim, expected, "claim")
+    if not isinstance(claim.get("claim_id"), str) or not re.fullmatch(r"claim-[1-9][0-9]*", claim["claim_id"]):
+        raise ValueError("claim_id is invalid")
+    if not isinstance(claim.get("claim_text"), str) or not claim["claim_text"].strip() or len(claim["claim_text"]) > 500:
+        raise ValueError("claim_text is invalid")
+    if type(claim.get("requires_evidence")) is not bool:
+        raise ValueError("claim requires_evidence must be boolean")
+    for field, maximum in (
+        ("actor", 200), ("action_or_relationship", 300),
+        ("direction_or_polarity", 200), ("date_or_period", 160), ("quantity", 160),
+    ):
+        if not isinstance(claim.get(field), str) or len(claim[field]) > maximum:
+            raise ValueError(f"claim {field} is invalid")
+    return claim
+
+
+def validate_evidence_response(
+    value: object,
+    claims: list[dict[str, Any]],
+    candidates: dict[str, list[EvidencePassage]],
+    repository: EvidenceRepository,
+    *,
+    maximum_references: int,
+) -> list[dict[str, Any]]:
+    """Validate complete claim results and enrich exact local references."""
+    document = _parse_object(value, "evidence")
+    _validate_exact_keys(document, {"claims"}, "evidence")
+    rows = document.get("claims")
+    if not isinstance(rows, list) or len(rows) != len(claims):
+        raise ValueError("evidence response must contain every supplied claim exactly once")
+    expected_claims = {claim["claim_id"]: claim for claim in claims}
+    seen: set[str] = set()
+    enriched: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            raise ValueError("evidence claim result must be an object")
+        expected = {
+            "claim_id", "claim_text", "verdict", "evidence", "actor",
+            "action_or_relationship", "direction_or_polarity", "date_or_period",
+            "quantity", "explanation",
+        }
+        _validate_exact_keys(row, expected, "evidence claim")
+        claim_id = row.get("claim_id")
+        if claim_id not in expected_claims or claim_id in seen:
+            raise ValueError("evidence claim identity is missing, duplicated or unknown")
+        seen.add(claim_id)
+        if row.get("claim_text") != expected_claims[claim_id]["claim_text"]:
+            raise ValueError("evidence claim text differs from proposer claim")
+        if row.get("verdict") not in EVIDENCE_VERDICTS:
+            raise ValueError("evidence verdict is invalid")
+        references = row.get("evidence")
+        if not isinstance(references, list) or len(references) > maximum_references:
+            raise ValueError("evidence references are invalid")
+        allowed_ids = {passage.evidence_id for passage in candidates.get(claim_id, [])}
+        enriched_references: list[dict[str, Any]] = []
+        seen_references: set[str] = set()
+        for reference in references:
+            if not isinstance(reference, dict):
+                raise ValueError("evidence reference must be an object")
+            _validate_exact_keys(
+                reference,
+                {"evidence_id", "exact_supporting_passage", "relation"},
+                "evidence reference",
+            )
+            evidence_id = str(reference.get("evidence_id") or "")
+            if evidence_id not in allowed_ids or evidence_id in seen_references:
+                raise ValueError("evidence reference is duplicated or was not supplied")
+            seen_references.add(evidence_id)
+            if reference.get("relation") not in EVIDENCE_VERDICTS:
+                raise ValueError("evidence reference relation is invalid")
+            passage = repository.validate_reference(evidence_id, reference.get("exact_supporting_passage"))
+            enriched_references.append({
+                **reference,
+                "source_hash": passage.source_hash,
+                "evidence_input_hash": passage.model_input_hash(),
+                "quote_id": passage.quote_id,
+                "field": passage.field,
+                "source_title": passage.source_title,
+                "source_url": passage.source_url,
+                "stable_locator": passage.stable_locator,
+                "verification_status": passage.verification_status,
+                "research_confidence": passage.research_confidence,
+            })
+        if row["verdict"] == "supports" and not any(ref["relation"] == "supports" for ref in enriched_references):
+            raise ValueError("support verdict requires at least one exact supporting reference")
+        if row["verdict"] == "supports" and any(ref["relation"] != "supports" for ref in enriched_references):
+            raise ValueError("support verdict cannot include contradictory or insufficient references")
+        if row["verdict"] == "supports" and any(
+            ref["research_confidence"] not in {"high", "medium"}
+            for ref in enriched_references
+        ):
+            raise ValueError("support verdict cannot rely on a low-confidence passage")
+        if row["verdict"] != "supports" and any(ref["relation"] == "supports" for ref in enriched_references):
+            raise ValueError("non-support verdict contradicts a supporting reference")
+        for field, maximum in (
+            ("actor", 200), ("action_or_relationship", 300),
+            ("direction_or_polarity", 200), ("date_or_period", 160),
+            ("quantity", 160), ("explanation", 600),
+        ):
+            if not isinstance(row.get(field), str) or len(row[field]) > maximum:
+                raise ValueError(f"evidence {field} is invalid")
+        if row["verdict"] == "supports" and any(
+            row[field] != expected_claims[claim_id][field]
+            for field in (
+                "actor",
+                "action_or_relationship",
+                "direction_or_polarity",
+                "date_or_period",
+                "quantity",
+            )
+        ):
+            raise ValueError("support verdict changed the claim semantic dimensions")
+        enriched.append({**row, "evidence": enriched_references})
+    enriched_by_claim = {row["claim_id"]: row for row in enriched}
+    return [enriched_by_claim[claim["claim_id"]] for claim in claims]
+
+
+def validate_reviewer(value: object, *, maximum_claims: int) -> dict[str, Any]:
+    """Validate an independent reviewer response and its internal consistency."""
+    item = _parse_object(value, "reviewer")
+    expected = {
+        "verdict", "summary", "reasons", "actual_factual_claims",
+        "unsupported_factual_claims", "direct_question_present",
+        "answers_direct_question_first_sentence", "topically_relevant",
+        "endorses_unsupported_allegation", "contains_unsupported_factual_claims",
+        "actor_action_relationship_correct", "direction_polarity_correct",
+        "dates_quantities_correct", "quotation_attribution_correct",
+        "original_prose_clearly_not_historical_quotation", "mode_and_tone_match",
+        "suitable_for_account", "revision_instructions",
+    }
+    _validate_exact_keys(item, expected, "reviewer")
+    if item.get("verdict") not in REVIEWER_VERDICTS:
+        raise ValueError("reviewer verdict is invalid")
+    for field, maximum in (("summary", 800), ("revision_instructions", 800)):
+        if not isinstance(item.get(field), str) or len(item[field]) > maximum:
+            raise ValueError(f"reviewer {field} is invalid")
+    list_limits = {
+        "reasons": (12, 300),
+        "actual_factual_claims": (maximum_claims, 500),
+        "unsupported_factual_claims": (maximum_claims, 500),
+    }
+    for field, (maximum_items, maximum_length) in list_limits.items():
+        value_list = item.get(field)
+        if (
+            not isinstance(value_list, list)
+            or len(value_list) > maximum_items
+            or any(
+                not isinstance(entry, str) or len(entry) > maximum_length
+                for entry in value_list
+            )
+        ):
+            raise ValueError(f"reviewer {field} is invalid")
+    boolean_fields = expected - {
+        "verdict", "summary", "reasons", "actual_factual_claims",
+        "unsupported_factual_claims", "revision_instructions",
+    }
+    if any(type(item.get(field)) is not bool for field in boolean_fields):
+        raise ValueError("reviewer boolean fields are invalid")
+    if item["direct_question_present"] and not item["answers_direct_question_first_sentence"] and item["verdict"] == "approve":
+        raise ValueError("reviewer cannot approve an evasive direct answer")
+    if item["verdict"] == "revise" and not item["revision_instructions"].strip():
+        raise ValueError("reviewer revision requires instructions")
+    if item["verdict"] == "approve" and item["revision_instructions"]:
+        raise ValueError("reviewer approval cannot include revision instructions")
+    if item["verdict"] == "approve" and not reviewer_checks_approve(item):
+        raise ValueError("reviewer approve verdict contradicts its safety findings")
+    return item
+
+
+def reviewer_checks_approve(review: dict[str, Any]) -> bool:
+    """Return whether every independent approval condition is satisfied."""
+    positive = (
+        "topically_relevant",
+        "actor_action_relationship_correct",
+        "direction_polarity_correct",
+        "dates_quantities_correct",
+        "quotation_attribution_correct",
+        "original_prose_clearly_not_historical_quotation",
+        "mode_and_tone_match",
+        "suitable_for_account",
+    )
+    return bool(
+        all(review.get(field) is True for field in positive)
+        and (
+            review.get("direct_question_present") is False
+            or review.get("answers_direct_question_first_sentence") is True
+        )
+        and review.get("endorses_unsupported_allegation") is False
+        and review.get("contains_unsupported_factual_claims") is False
+        and not review.get("unsupported_factual_claims")
+    )
+
+
+def _is_sentence_terminator(character: str) -> bool:
+    """Return whether one Unicode character conventionally ends a sentence."""
+    if character in {".", "!", "?", "\N{HORIZONTAL ELLIPSIS}"}:
         return True
-    for concept in _topical_concepts(left) & _topical_concepts(right):
-        specific_members = TOPICAL_CONCEPTS[concept] - GENERIC_POLITICAL_TOPIC_TOKENS
-        if left_specific & specific_members and right_specific & specific_members:
+    name = unicodedata.name(character, "")
+    return bool(
+        name.endswith("FULL STOP")
+        or name.endswith("QUESTION MARK")
+        or name.endswith("EXCLAMATION MARK")
+        or "DANDA" in name
+    )
+
+
+_TITLE_OR_CONNECTOR_ABBREVIATIONS = frozenset({
+    "dr", "hon", "mr", "mrs", "ms", "prof", "rt", "st", "vs",
+})
+_CONTEXTUAL_ABBREVIATIONS = frozenset({"etc", "govt", "mp"})
+
+
+def _period_is_non_terminal_abbreviation(text: str, start: int, end: int) -> bool:
+    """Return whether one full stop belongs to a mid-sentence abbreviation."""
+    preceding_word = re.search(r"([A-Za-z]+)$", text[:start])
+    if preceding_word is None:
+        return False
+    word = preceding_word.group(1)
+    if len(word) == 1 and word.isupper():
+        return True
+    folded = word.casefold()
+    remainder = text[end:].lstrip()
+    if folded == "no":
+        return bool(remainder and remainder[0].isdigit())
+    if folded in _TITLE_OR_CONNECTOR_ABBREVIATIONS:
+        return True
+    if folded not in _CONTEXTUAL_ABBREVIATIONS:
+        return False
+    return bool(
+        remainder
+        and (remainder[0].islower() or remainder[0] in {",", ";", ":", ")", "]"})
+    )
+
+
+def sentence_count(text: str) -> int:
+    """Count user-visible sentence terminators, including lower-case starts."""
+    compact = " ".join(str(text or "").split())
+    if not compact:
+        return 0
+    boundaries = 0
+    last_boundary_end = 0
+    index = 0
+    while index < len(compact):
+        if not _is_sentence_terminator(compact[index]):
+            index += 1
+            continue
+        start = index
+        index += 1
+        while index < len(compact) and _is_sentence_terminator(compact[index]):
+            index += 1
+        punctuation = compact[start:index]
+        if punctuation == ".":
+            previous = compact[start - 1] if start else ""
+            following = compact[index] if index < len(compact) else ""
+            if previous.isdigit() and following.isdigit():
+                continue
+            if _period_is_non_terminal_abbreviation(compact, start, index):
+                continue
+        boundaries += 1
+        last_boundary_end = index
+    trailing = compact[last_boundary_end:].strip(" \t\r\n\"'\N{RIGHT SINGLE QUOTATION MARK}\N{RIGHT DOUBLE QUOTATION MARK}\N{RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK})]}")
+    if trailing:
+        boundaries += 1
+    return max(1, boundaries)
+
+
+def contains_emoji(text: str) -> bool:
+    """Return whether text includes pictographic or regional-indicator symbols."""
+    for character in str(text or ""):
+        codepoint = ord(character)
+        if (
+            0x1F000 <= codepoint <= 0x1FAFF
+            or 0x2600 <= codepoint <= 0x27BF
+            or 0x1F1E6 <= codepoint <= 0x1F1FF
+            or codepoint in {0x20E3, 0xFE0F}
+            or unicodedata.category(character) == "So"
+        ):
             return True
     return False
 
 
-def reply_topical_relevance_error(
-    incoming_text: str,
-    reply_text: str,
-    selected_evidence: Iterable[RetrievedEvidence],
-    *,
-    mode: str,
-    topical_basis: str,
-) -> str | None:
-    """Validate an untrusted model-selected issue against incoming text and the reply."""
-    if mode not in {"principle_reply", "researched_principle"}:
-        return None
-    segments = _substantive_topic_segments(incoming_text)
-    if not segments:
-        return "topical_relevance:no_substantive_incoming_topic"
-    basis_sequence = _topical_token_sequence(_normalise_topical_source(topical_basis))
-    basis_tokens = _topical_tokens(topical_basis)
-    if not basis_sequence or not basis_tokens:
-        return "topical_relevance:missing_basis"
-    incoming_sequence = _topical_token_sequence(_normalise_topical_source(incoming_text))
-    if not _contains_token_sequence(incoming_sequence, basis_sequence):
-        return "topical_relevance:basis_not_in_incoming"
-    if not any(_contains_token_sequence(sequence, basis_sequence) for sequence, _tokens in segments):
-        return "topical_relevance:basis_not_substantive"
-    if not _specific_topical_tokens(basis_tokens):
-        return "topical_relevance:basis_only_generic_political_vocabulary"
-    reply_tokens = _topical_tokens(reply_text)
-    if not reply_tokens:
-        return "topical_relevance:reply_lacks_topic"
-
-    if mode == "principle_reply":
-        if _topic_pair_aligned(basis_tokens, reply_tokens):
-            return None
-        return "topical_relevance:incoming_reply_bridge_missing"
-
-    evidence_tokens = _topical_tokens(
-        " ".join(
-            str(item.packet.get(field) or "")
-            for item in selected_evidence
-            for field in (
-                "immediate_subject", "intended_argument", "literal_meaning",
-                "broader_principle", "mechanism", "claimed_consequence",
-            )
-        )
+def x_weighted_reply_length(text: str) -> int:
+    """Return X's weighted length for link-free conversational reply text."""
+    weight_one_ranges = (
+        (0x0000, 0x10FF),
+        (0x2000, 0x200D),
+        (0x2010, 0x201F),
+        (0x2032, 0x2037),
     )
-    if not evidence_tokens:
-        return "topical_relevance:evidence_lacks_topic"
-    if not _topic_pair_aligned(basis_tokens, reply_tokens):
-        return "topical_relevance:incoming_reply_bridge_missing"
-    if not _topic_pair_aligned(basis_tokens, evidence_tokens):
-        return "topical_relevance:incoming_evidence_bridge_missing"
-    if not _topic_pair_aligned(reply_tokens, evidence_tokens):
-        return "topical_relevance:reply_evidence_bridge_missing"
-    return None
+    return sum(
+        1 if any(low <= ord(character) <= high for low, high in weight_one_ranges) else 2
+        for character in str(text or "")
+    )
 
 
-def _packet_text(packet: dict[str, Any]) -> str:
-    values: list[str] = [str(packet.get(field) or "") for field in RETRIEVAL_FIELDS]
-    for field in ("entities",):
-        item = packet.get(field)
-        if isinstance(item, list):
-            values.extend(str(part) for part in item)
-    guidance = packet.get("editorial_guidance")
-    if isinstance(guidance, dict):
-        values.append(str(guidance.get("desired_first_impression") or ""))
-    return " ".join(values)
-
-
-def retrieve_research_packets(
-    incoming_text: str,
-    research_dir: Path,
-    *,
-    maximum: int = 5,
-) -> list[RetrievedEvidence]:
-    """Retrieve bounded attribution-eligible research evidence for an incoming post."""
-    packets, unresolved = load_and_validate_corpus(research_dir)
-    if len(packets) != 626 or len(unresolved) != 6:
-        raise RuntimeError("reply retrieval requires 626 completed packets and six unresolved records")
-    eligible_packets = {
-        quote_id: packet
-        for quote_id, packet in packets.items()
-        if packet_is_attributed_to_margaret_thatcher(packet)
-    }
-    if len(eligible_packets) != 610:
-        raise RuntimeError("reply retrieval requires exactly 610 attribution-eligible completed packets")
-    # Handles and URL components are incidental metadata, not the user's issue.
-    # Keeping them in the lexical query can steer retrieval towards an unrelated
-    # entity or page-title token even though parent/thread text is already absent.
-    query = _tokens(_normalise_topical_source(incoming_text))
-    if not query:
-        return []
-    ranked: list[RetrievedEvidence] = []
-    for quote_id, packet in eligible_packets.items():
-        overlap = query & _tokens(_packet_text(packet))
-        if not overlap:
+def contains_bare_network_address(text: str) -> bool:
+    """Return whether text contains a valid bare IP address or IDNA domain."""
+    normalised = str(text or "").translate(IDNA_DOT_TRANSLATION)
+    for match in IPV4_CANDIDATE_RE.finditer(normalised):
+        try:
+            ipaddress.ip_address(match.group(0))
+        except ValueError:
             continue
-        entity_tokens = _tokens(" ".join(str(value) for value in packet.get("entities", [])))
-        score = float(len(overlap)) + 1.5 * len(query & entity_tokens)
-        summary = str(packet.get("intended_argument") or packet.get("broader_principle") or "").strip()
-        ranked.append(RetrievedEvidence(quote_id, score, str(packet["verification_status"]), summary, packet))
-    ranked.sort(key=lambda item: (-item.score, item.quote_id))
-    return ranked[:maximum]
-
-
-def build_strategy_prompt_context(evidence: Iterable[RetrievedEvidence]) -> str:
-    """Build clearly separated prompt context for a reply strategy decision."""
-    records = [item.prompt_record() for item in evidence]
-    return json.dumps(records, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def reply_decision_json_schema(
-    maximum_length: int = 270,
-    maximum_retrieved_ids: int = 5,
-) -> dict[str, Any]:
-    """Return the provider schema; local validation remains authoritative."""
-    if type(maximum_retrieved_ids) is not int or not 1 <= maximum_retrieved_ids <= 10:
-        raise ValueError("maximum_retrieved_ids must be an integer from 1 to 10")
-    properties: dict[str, Any] = {
-        "mode": {"type": "string", "enum": sorted(MODES)},
-        "humour_tone": {"type": "string", "enum": sorted(HUMOUR_TONES)},
-        "evidence_confidence": {"type": "string", "enum": sorted(CONFIDENCE_LEVELS)},
-        "retrieved_quote_ids": {
-            "type": "array",
-            "items": {"type": "string", "pattern": "[0-9a-f]{64}"},
-            "maxItems": maximum_retrieved_ids,
-            "description": "Selected completed-corpus evidence IDs; empty for principle_reply and no_reply.",
-        },
-        "evidence_summary": {
-            "type": "string",
-            "description": "Grounding summary for a posted factual reply; empty for principle_reply and no_reply.",
-        },
-        "factual_claim_made": {"type": "boolean"},
-        "grounded": {"type": "boolean"},
-        "reply_text": {"type": "string", "maxLength": maximum_length},
-        "no_reply_reason": {
-            "type": "string",
-            "description": "Reason for no_reply; do not duplicate it in evidence_summary.",
-        },
-        "topical_basis": {
-            "type": "string",
-            "maxLength": 160,
-            "description": (
-                "For principle_reply or researched_principle, copy a short exact span from the "
-                "incoming contribution identifying the issue answered. Never copy parent, quoted-post, "
-                "profile, URL, evidence, or prior-reply text. Empty for every other mode."
-            ),
-        },
-    }
-    return {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "type": "object",
-        "properties": properties,
-        "required": sorted(REPLY_DECISION_FIELDS),
-        "additionalProperties": False,
-        "if": {
-            "properties": {"mode": {"const": "no_reply"}},
-            "required": ["mode"],
-        },
-        "then": {
-            "properties": {
-                "humour_tone": {"const": "none"},
-                "evidence_confidence": {"const": "none"},
-                "retrieved_quote_ids": {"maxItems": 0},
-                "evidence_summary": {"maxLength": 0},
-                "factual_claim_made": {"const": False},
-                "grounded": {"const": False},
-                "reply_text": {"maxLength": 0},
-                "no_reply_reason": {"minLength": 1},
-                "topical_basis": {"maxLength": 0},
-            },
-        },
-        "allOf": [
-            {
-                "if": {
-                    "properties": {"mode": {"enum": sorted(MODES - {"no_reply"})}},
-                    "required": ["mode"],
-                },
-                "then": {"properties": {"no_reply_reason": {"maxLength": 0}}},
-            },
-            {
-                "if": {
-                    "properties": {"mode": {"enum": ["principle_reply", "researched_principle"]}},
-                    "required": ["mode"],
-                },
-                "then": {"properties": {"topical_basis": {"minLength": 3}}},
-                "else": {"properties": {"topical_basis": {"maxLength": 0}}},
-            },
-            {
-                "if": {
-                    "properties": {"mode": {"const": "principle_reply"}},
-                    "required": ["mode"],
-                },
-                "then": {
-                    "properties": {
-                        "humour_tone": {"const": "none"},
-                        "evidence_confidence": {"const": "none"},
-                        "retrieved_quote_ids": {"maxItems": 0},
-                        "evidence_summary": {"maxLength": 0},
-                        "factual_claim_made": {"const": False},
-                        "grounded": {"const": False},
-                        "reply_text": {"minLength": 1},
-                        "no_reply_reason": {"maxLength": 0},
-                    },
-                },
-            },
-        ],
-    }
-
-
-def normalise_reply_decision(value: dict[str, Any]) -> dict[str, Any]:
-    """Canonicalise only information-free no_reply representations."""
-    normalised = dict(value)
-    if normalised.get("mode") != "no_reply":
-        return normalised
-
-    for field in ("humour_tone", "evidence_confidence"):
-        if field not in normalised:
-            continue
-        item = normalised[field]
-        if item is None or (isinstance(item, str) and not item.strip()):
-            normalised[field] = "none"
-    if "retrieved_quote_ids" in normalised and normalised["retrieved_quote_ids"] is None:
-        normalised["retrieved_quote_ids"] = []
-    for field in ("evidence_summary", "reply_text", "topical_basis"):
-        if field not in normalised:
-            continue
-        item = normalised[field]
-        if item is None or (isinstance(item, str) and not item.strip()):
-            normalised[field] = ""
-    for field in ("factual_claim_made", "grounded"):
-        if field in normalised and normalised[field] is None:
-            normalised[field] = False
-    if isinstance(normalised.get("no_reply_reason"), str):
-        normalised["no_reply_reason"] = normalised["no_reply_reason"].strip()
-    return normalised
-
-
-def decision_schema_instruction() -> str:
-    """Return the strict structured-reply schema instruction."""
-    no_reply_example = {
-        "mode": "no_reply",
-        "humour_tone": "none",
-        "evidence_confidence": "none",
-        "retrieved_quote_ids": [],
-        "evidence_summary": "",
-        "factual_claim_made": False,
-        "grounded": False,
-        "reply_text": "",
-        "no_reply_reason": "No useful response.",
-        "topical_basis": "",
-    }
-    principle_reply_example = {
-        "mode": "principle_reply",
-        "humour_tone": "none",
-        "evidence_confidence": "none",
-        "retrieved_quote_ids": [],
-        "evidence_summary": "",
-        "factual_claim_made": False,
-        "grounded": False,
-        "reply_text": "Institutions endure only when people are prepared to defend their purpose.",
-        "no_reply_reason": "",
-        "topical_basis": "institutions have failed",
-    }
-    return (
-        'Return exactly one JSON object with fields: '
-        'mode, humour_tone, evidence_confidence, retrieved_quote_ids, evidence_summary, '
-        'factual_claim_made, grounded, reply_text, no_reply_reason, topical_basis. '
-        f'Mode must be one of {sorted(MODES)}. Humour tone must be one of {sorted(HUMOUR_TONES)}. '
-        'Confidence must be high, medium, low, or none. For no_reply, put the explanation only in '
-        'no_reply_reason and use humour_tone="none", evidence_confidence="none", '
-        'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
-        'reply_text="", and topical_basis="". Use the exact no_reply_reason values '
-        'no_reply_due_to_unverifiable_claim, no_reply_due_to_bait_or_abuse, or '
-        'no_reply_due_to_incoherent when they apply. Never return bare SKIP. Valid no_reply example: '
-        + json.dumps(no_reply_example, ensure_ascii=False, separators=(",", ":"))
-        + '. For principle_reply, use humour_tone="none", evidence_confidence="none", '
-        'retrieved_quote_ids=[], evidence_summary="", factual_claim_made=false, grounded=false, '
-        'and no_reply_reason="". Set topical_basis to a short exact span copied only from the incoming '
-        'contribution that identifies the issue answered; never copy inherited thread, quoted-post, profile, '
-        'URL, evidence, or prior-reply text. Valid principle_reply example: '
-        + json.dumps(principle_reply_example, ensure_ascii=False, separators=(",", ":"))
-        + "."
-    )
-
-
-def strategy_mode_guidance() -> str:
-    """Return prompt guidance for the enabled reply modes."""
-    return (
-        "Classification hierarchy: first identify any factual claim in the incoming post. "
-        "If it is materially false or misleading and supplied evidence resolves it with high confidence, use historical_correction. "
-        "Otherwise use historical_context when a grounded qualification materially improves a claim that is not clearly false. "
-        "Use researched_principle only for a concise evidence-backed summary of Thatcher's argument that directly addresses a substantive issue in the incoming contribution, without pretending it is a direct quotation. "
-        "Evidence confidence and an incidental shared word, name, achievement, or list fragment do not establish topical relevance. An unrelated authentic principle is worse than no_reply. "
-        "Set factual_claim_made=true whenever the final reply states a historical or policy fact; every historical mode must set it true. "
-        "When uncertain or unsupported details are not needed to answer the broader political or moral point, use principle_reply: "
-        "write one concise general sentence that addresses a substantive issue actually present in the incoming contribution and stands independently without repeating, endorsing, or implying those details, "
-        "without speculating about anyone's motives, and with no factual claim, evidence, or humour metadata. "
-        "For example, 'Why doesn't anyone in government understand this?' may be answered with "
-        "'Understanding is not always the same as having the courage to act.' "
-        "If history and principle_reply add no material value, choose the most fitting humour mode: wry_reply, playful_reply, deadpan_reply, or warm_reply. "
-        "Use no_reply_due_to_unverifiable_claim when any meaningful answer would endorse an unsupported claim; "
-        "use no_reply_due_to_bait_or_abuse for abuse or bait that would prolong conflict; use "
-        "no_reply_due_to_incoherent for gibberish or an incoherent post. Use no_reply for other weak evidence, "
-        "unclear or unrelated posts, repetition, needless conflict, or when no useful response exists. "
-        "Do not force history. Do not force humour."
-    )
-
-
-def _ungrounded_assertion_error(
-    text: str,
-    incoming_text: str,
-    *,
-    strict_single_subject: bool,
-) -> str | None:
-    """Reject concrete claims whose safety cannot rest on model-supplied metadata."""
-    value = str(text or "")
-    incoming_actor_tokens = {
-        handle.casefold()
-        for handle in re.findall(
-            r"(?<![A-Za-z0-9_])@([A-Za-z0-9_]+)",
-            str(incoming_text or ""),
-        )
-    }
-    for name in PRINCIPLE_REPLY_PROPER_NAME_RE.findall(str(incoming_text or "")):
-        incoming_actor_tokens.update(part.casefold() for part in name.split())
-    if PRINCIPLE_REPLY_UNSUPPORTED_ASSERTION_RE.search(value):
-        return "ungrounded reply cannot contain a specific unsupported factual assertion"
-    if strict_single_subject and PRINCIPLE_REPLY_PROPER_NAME_RE.search(value):
-        return "ungrounded reply cannot contain a specific unsupported factual assertion"
-    for match in PRINCIPLE_REPLY_INLINE_ACTOR_ASSERTION_RE.finditer(value):
-        raw_actor = match.group("actor")
-        actor = raw_actor.casefold()
-        if (
-            actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-            and (raw_actor[0].isupper() or actor in incoming_actor_tokens)
-        ):
-            return "ungrounded reply cannot contain a specific unsupported factual assertion"
-    if strict_single_subject:
-        for match in PRINCIPLE_REPLY_SINGLE_SUBJECT_ASSERTION_RE.finditer(value):
-            actor = match.group("actor").casefold()
-            following = match.group("predicate").casefold()
-            if (
-                actor not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-                and following not in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS
-                and actor not in {"a", "an", "the"}
-            ):
-                return "ungrounded reply cannot contain a specific unsupported factual assertion"
-    for match in PRINCIPLE_REPLY_NAMED_ACTOR_ASSERTION_RE.finditer(value):
-        raw_actor = match.group("actor")
-        actor = raw_actor.casefold()
-        parts = actor.split()
-        raw_parts = raw_actor.split()
-        abstract_subject = parts[-1] in PRINCIPLE_REPLY_ABSTRACT_SUBJECTS and (
-            len(raw_parts) == 1 or not raw_parts[-1][0].isupper()
-        )
-        generic_subject = any(
-            actor == prefix or actor.startswith(prefix + " ")
-            for prefix in PRINCIPLE_REPLY_GENERIC_SUBJECT_PREFIXES
-        )
-        if (
-            abstract_subject
-            or generic_subject
-        ):
-            continue
-        return "ungrounded reply cannot contain a specific unsupported factual assertion"
-    return None
-
-
-def ungrounded_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
-    """Reject concrete allegations in any reply which supplies no grounded evidence."""
-    return _ungrounded_assertion_error(text, incoming_text, strict_single_subject=False)
-
-
-def principle_reply_assertion_error(text: str, incoming_text: str = "") -> str | None:
-    """Apply the stricter assertion boundary required for a general principle reply."""
-    return _ungrounded_assertion_error(text, incoming_text, strict_single_subject=True)
-
-
-def concrete_factual_question_word(text: str) -> str | None:
-    """Return the requested fact class for a leading concrete question."""
-    value = " ".join(str(text or "").split())
-    candidate = value
-    for _ in range(3):
-        previous = candidate
-        candidate = re.sub(r"^(?:@[A-Za-z0-9_]+\s*[,;:]?\s*)+", "", candidate)
-        candidate = re.sub(
-            r"^(?:(?:actually|please|seriously|so|well)\b\s*[,;:]?\s*)+",
-            "",
-            candidate,
-            flags=re.IGNORECASE,
-        )
-        candidate = re.sub(
-            r"^(?:(?:quick|simple)\s+question\s*[-,;:]?\s*|"
-            r"(?:can|could|may)\s+i\s+ask\s*[-,;:]?\s*|"
-            r"i\s+(?:just\s+)?wonder(?:ed)?\s*[-,;:]?\s*|"
-            r"(?:(?:can|could|would)\s+you\s+)?(?:explain|say)\s+)",
-            "",
-            candidate,
-            flags=re.IGNORECASE,
-        )
-        if candidate == previous:
-            break
-    match = CONCRETE_QUESTION_RE.match(candidate)
-    if not match:
-        return None
-    remainder = candidate[match.end():].lstrip()
-    word = "_".join(match.group("word").lower().split())
-    if (
-        re.match(r"(?:should|ought\s+to)\b", remainder, re.IGNORECASE)
-        or re.match(r"(?:could|might)\b", remainder, re.IGNORECASE)
-        or re.match(r"may\b", remainder)
-        or re.match(r"would\s+(?:i|we|you)\b", remainder, re.IGNORECASE)
-        or re.match(r"would\b.*\bif\b", remainder, re.IGNORECASE)
-        or re.search(
-            r"\b(?:is|are|was|were)\s+(?:the\s+)?"
-            r"(?:best|worst|better|worse|favourite|favorite)\b",
-            remainder,
-            re.IGNORECASE,
-        )
-        or re.search(
-            r"\b(?:is|are|was|were)\s+(?:right|wrong|good|bad)\b"
-            r"(?:\s+(?:about|for)\b|\s*[?!.]*$)",
-            remainder,
-            re.IGNORECASE,
-        )
-    ):
-        return None
-    if word == "were" and re.match(r"did\b", remainder, re.IGNORECASE):
-        word = "where"
-    elif word in {"did", "does", "do", "was", "were", "is", "are", "has", "have", "had"}:
-        word = "yes_no"
-        subjective = re.match(
-            r"(?:you|we|i)\s+(?:agree|believe|feel|hope|prefer|suppose|think|want)\b",
-            remainder,
-            re.IGNORECASE,
-        ) or re.search(
-            r"\b(?:best|worst|right|wrong|good|bad|favourite|favorite)\b"
-            r"(?:\s+(?:about|for)\b|\s*[?!.]*$)",
-            remainder,
-            re.IGNORECASE,
-        )
-        factual_marker = (
-            re.search(r"\b\d{3,4}\b", remainder)
-            or re.search(
-                r"\b(?:became|began|born|died|elected|ended|happen(?:ed)?|held|introduced|"
-                r"join(?:ed)?|left|located|lost|occurred|passed|published|served|signed|won|"
-                r"costs?|declin(?:e|ed)|decreas(?:e|ed)|drop(?:ped)?|fall(?:en)?|fell|grew|grow(?:n)?|"
-                r"higher|increas(?:e|ed)|lower|ris(?:e|en)|rose)\b",
-                remainder,
-                re.IGNORECASE,
-            )
-            or re.search(r"\b[A-Z][A-Za-z'-]{2,}\b", remainder)
-        )
-        if subjective or not factual_marker:
-            return None
-    if word in {"what", "which"} and (
-        re.match(
-            r"(?:do|did|would)\s+you\s+"
-            r"(?:believe|feel|prefer|suppose|think|want)\b",
-            remainder,
-            re.IGNORECASE,
-        )
-        or re.match(
-            r"(?:is|are|was|were)\s+your\s+"
-            r"(?:assessment|opinion|preference|reaction|thoughts?|view)\b",
-            remainder,
-            re.IGNORECASE,
-        )
-        or re.search(r"\b(?:should|ought\s+to)\b", remainder, re.IGNORECASE)
-        or (
-            word == "what"
-            and re.match(
-                r"(?:could|would)\s+(?:i|we|you)\b|"
-                r"would\s+happen\b.*\bif\b",
-                remainder,
-                re.IGNORECASE,
-            )
-        )
-        or (
-            word == "which"
-            and re.search(r"\b(?:could|would)\s+(?:i|we|you)\b", remainder, re.IGNORECASE)
-        )
-    ):
-        return None
-    explicit_temporal_category = bool(
-        word in {"what", "which"}
-        and re.match(
-            r"(?:calendar\s+)?(?:date|day|decade|month|period|time|week|year)\b",
-            remainder,
-            re.IGNORECASE,
-        )
-    )
-    if explicit_temporal_category:
-        word = "when"
-    if word == "what" and re.match(
-        r"(?:a|an|the|this|that)\s+(?:[\w'-]+\s+){0,2}"
-        r"(?:day|disaster|joke|mess|shame|surprise)\s*[!?]*$",
-        remainder,
-        re.IGNORECASE,
-    ):
-        return None
-    if "?" not in candidate:
-        if explicit_temporal_category:
-            if not re.search(
-                r"\b(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
-                r"should|happened|became|began|ended|occurred|took)\b",
-                remainder,
-                re.IGNORECASE,
-            ):
-                return None
-        elif word in {"which", "whose", "how_many", "how_long"}:
-            if not re.search(
-                r"\b(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
-                r"should|happened|became|began|ended|occurred|took)\b",
-                remainder,
-                re.IGNORECASE,
-            ):
-                return None
-        elif word == "yes_no":
-            if not remainder:
-                return None
-        elif not re.match(
-            r"(?:is|are|was|were|do|does|did|has|have|had|will|would|can|could|"
-            r"should|happened|became|began|ended|occurred|took)\b",
-            remainder,
-            re.IGNORECASE,
-        ):
-            return None
-    return word
-
-
-def _berlin_wall_answer_is_east_to_west(first_sentence: str) -> bool:
-    """Return whether a first sentence explicitly gives the historically correct direction."""
-    value = " ".join(str(first_sentence or "").casefold().split())
-    east = re.compile(r"\beast(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b")
-    west = re.compile(r"\bwest(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b")
-
-    def relation_is_negated(start: int, end: int) -> bool:
-        context = value[max(0, start - 80):end]
-        return bool(re.search(
-            r"\b(?:did|do|does|would|could|should)\s+not\s+"
-            r"(?:move|run|travel|go|head|flow)\b|"
-            r"\bnever\s+(?:moved|ran|travelled|went|headed|flowed)\b|"
-            r"\bno(?:body|\s+one)\s+(?:moved|ran|travelled|went|headed|flowed)\b|"
-            r"\b(?:movement|flow)\s+(?:was|were|is|are)?\s*not\b|"
-            r"\bno\s+(?:movement|flow)\b|\bnot\s+from\s+",
-            context,
-        ))
-
-    for match in re.finditer(
-        r"\bfrom\s+(?P<source>[^,.;!?]{1,120}?)\s+"
-        r"(?:to|towards?|into)\s+(?P<destination>[^,.;!?]+)",
-        value,
-    ):
-        if (
-            east.search(match.group("source"))
-            and west.search(match.group("destination"))
-            and not relation_is_negated(match.start(), match.end())
-        ):
-            return True
-
-    for match in re.finditer(
-        r"\b(?:to|towards?|into)\s+(?P<destination>[^,.;!?]{1,120}?)"
-        r"(?:,\s*|\s+)from\s+(?P<source>[^,.;!?]+)",
-        value,
-    ):
-        if (
-            west.search(match.group("destination"))
-            and east.search(match.group("source"))
-            and not relation_is_negated(match.start(), match.end())
-        ):
-            return True
-
-    match = re.search(
-        r"\beast(?:ern)?(?:\s+(?:berlin|germany|germans?))?\b"
-        r"[^,.;!?]{0,100}\b(?:moved|ran|travelled|went|headed|flowed)\b"
-        r"[^,.;!?]{0,60}\bwest(?:ward|wards)?\b",
-        value,
-    )
-    return bool(match and not relation_is_negated(match.start(), match.end()))
-
-
-def direct_factual_answer_error(
-    question: str,
-    reply: str,
-    selected_evidence: Iterable[RetrievedEvidence] = (),
-) -> str | None:
-    """Conservatively reject rhetoric in place of a concrete first-sentence answer."""
-    question_word = concrete_factual_question_word(question)
-    if question_word is None:
-        return None
-    first_sentence = re.split(r"(?<=[.!?])\s+", str(reply or "").strip(), maxsplit=1)[0]
-    lowered = " ".join(first_sentence.lower().split())
-    if not lowered or first_sentence.endswith("?"):
-        return "concrete factual questions require a direct answer in the first sentence"
-    if any(lowered.startswith(opening) for opening in ABSTRACT_ANSWER_OPENINGS):
-        return "concrete factual questions cannot be answered with an abstract principle"
-    if re.match(
-        r"^(?:that|this|it)\s+(?:deserves?|raises?|requires?|merits?|calls?\s+for)\b",
-        lowered,
-    ) or re.match(r"^(?:that|this|it|the matter)\s+is\s+(?:important|serious|complex)\b", lowered):
-        return "concrete factual questions require a direct answer in the first sentence"
-    event_question = question_word in {"when", "where"} or (
-        question_word == "what"
-        and re.search(r"\b(?:did|happened|occurred|took\s+place)\b", str(question or ""), re.IGNORECASE)
-    )
-    if event_question and VAGUE_FACTUAL_PREDICATE_RE.search(lowered):
-        return "concrete factual questions require the requested fact, not a vague assessment"
-    if question_word == "what" and (
-        re.match(r"^(?:a\s+lot|something|things?|events?)\s+(?:changed|happened|occurred)\b", lowered)
-        or re.match(r"^\d{3,4}\s+changed\s+everything\b", lowered)
-    ):
-        return "what questions require the requested event or fact, not a generic occurrence"
-
-    if question_word == "who":
-        answer_words = re.findall(
-            r"[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*",
-            first_sentence,
-            re.UNICODE,
-        )
-        generic = {"a", "an", "he", "it", "she", "that", "the", "they", "this", "we"}
-        if not any(word[0].isupper() and word.casefold() not in generic for word in answer_words):
-            return "who questions require a person or office-holder in the first sentence"
-    elif question_word == "whose" and not (
-        re.search(
-            r"\b[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*"
-            r"['\N{RIGHT SINGLE QUOTATION MARK}]s\b",
-            first_sentence,
-            re.UNICODE,
-        )
-        or re.search(r"\bof\s+[^,.;!?]+", lowered)
-        or re.search(r"\b(?:belonged|belongs)\s+to\b", lowered)
-    ):
-        return "whose questions require an explicit attribution in the first sentence"
-    elif question_word == "when" and not (
-        ABSOLUTE_TEMPORAL_ANSWER_RE.search(lowered)
-        or RELATIVE_TEMPORAL_ANSWER_RE.search(lowered)
-    ):
-        return "when questions require a time or period in the first sentence"
-    elif question_word == "when" and VAGUE_RELATIVE_TEMPORAL_ANSWER_RE.search(lowered):
-        return "when questions require a concrete time, period or event in the first sentence"
-    elif question_word == "where" and not re.search(
-        r"\b(?:at|from|in|inside|into|north|south|east|west|outside|to|towards?)\b",
-        lowered,
-    ):
-        return "where questions require a place or direction in the first sentence"
-    elif (
-        question_word == "which"
-        and re.search(r"\bwhich\s+(?:direction|side|way)\b", str(question or ""), re.IGNORECASE)
-        and not re.search(r"\b(?:east|west|north|south|left|right)\b", lowered)
-    ):
-        return "directional which questions require the requested direction in the first sentence"
-    elif question_word == "how_many" and not QUANTITY_ANSWER_RE.search(lowered):
-        return "how many questions require a quantity in the first sentence"
-    elif question_word == "how_long" and not DURATION_ANSWER_RE.search(lowered):
-        return "how long questions require a duration in the first sentence"
-    elif question_word == "yes_no" and not re.match(r"^(?:yes|no)\b", lowered):
-        return "yes-or-no questions require an explicit answer in the first sentence"
-
-    question_lower = question.lower()
-    if "berlin wall" in question_lower and question_word == "where":
-        if not _berlin_wall_answer_is_east_to_west(first_sentence):
-            return "the Berlin Wall direction question must directly answer movement from East to West"
-    evidence = list(selected_evidence)
-    if evidence:
-        answer_tokens = {
-            _topical_stem(token.casefold())
-            for token in TOPICAL_TOKEN_RE.findall(first_sentence)
-            if token.casefold() not in STOPWORDS
-        }
-        evidence_text = " ".join(
-            " ".join(
-                [
-                    _packet_text(item.packet),
-                    str(item.packet.get("speaker") or ""),
-                    str(item.packet.get("date") or ""),
-                    " ".join(str(value) for value in item.packet.get("entities", [])),
-                ]
-            )
-            for item in evidence
-        )
-        evidence_tokens = {
-            _topical_stem(token.casefold())
-            for token in TOPICAL_TOKEN_RE.findall(evidence_text)
-            if token.casefold() not in STOPWORDS
-        }
-        question_tokens = {
-            _topical_stem(token.casefold())
-            for token in TOPICAL_TOKEN_RE.findall(str(question or ""))
-            if token.casefold() not in STOPWORDS
-        }
-        novel_supported_answer_tokens = (answer_tokens - question_tokens) & evidence_tokens
-        if question_word == "who":
-            person_candidates: set[str] = set()
-            requested_person_candidates: set[str] = set()
-            normalised_question = " ".join(str(question or "").casefold().split())
-            non_person_markers = {
-                "conference", "election", "government", "kingdom", "party",
-                "speech", "street", "union", "world",
-            }
-            for item in evidence:
-                values = [item.packet.get("speaker"), *(item.packet.get("entities") or [])]
-                for index, raw_value in enumerate(values):
-                    value = re.split(r"\s*\(", str(raw_value or ""), maxsplit=1)[0].strip()
-                    words = re.findall(r"[^\W\d_][\w'\N{RIGHT SINGLE QUOTATION MARK}-]*", value)
-                    if not 2 <= len(words) <= 5:
-                        continue
-                    if index != 0 and (
-                        any(word.casefold() in non_person_markers for word in words)
-                        or not all(word[0].isupper() for word in words)
-                    ):
-                        continue
-                    full_name = " ".join(words).casefold()
-                    surname = words[-1].casefold()
-                    person_candidates.add(full_name)
-                    if len(words[-1]) >= 4:
-                        person_candidates.add(surname)
-                    if not (
-                        re.search(rf"(?<!\w){re.escape(full_name)}(?!\w)", normalised_question)
-                        or re.search(rf"(?<!\w){re.escape(surname)}(?!\w)", normalised_question)
-                    ):
-                        requested_person_candidates.add(full_name)
-                        if len(words[-1]) >= 4:
-                            requested_person_candidates.add(surname)
-            if not requested_person_candidates:
-                if re.match(r"^\s*who\s+(?:is|was|were)\b", normalised_question):
-                    if not novel_supported_answer_tokens:
-                        return "who answers must be supported by the selected evidence"
-                    return None
-                return "who answers require evidence identifying the requested person"
-            candidates_to_match = requested_person_candidates
-            if not any(
-                re.search(rf"(?<!\w){re.escape(candidate)}(?!\w)", lowered)
-                for candidate in candidates_to_match
-            ):
-                return "who answers must identify a person supported by the selected evidence"
-        elif question_word == "when":
-            if ABSOLUTE_TEMPORAL_ANSWER_RE.search(lowered):
-                temporal_tokens = {
-                    _topical_stem(token.casefold())
-                    for match in ABSOLUTE_TEMPORAL_ANSWER_RE.finditer(first_sentence)
-                    for token in TOPICAL_TOKEN_RE.findall(match.group(0))
-                    if token.casefold() not in STOPWORDS
-                    and token.casefold() not in NON_TEMPORAL_ANSWER_TOKENS
-                }
-            else:
-                temporal_phrases = RELATIVE_TEMPORAL_ANSWER_RE.findall(lowered)
-                temporal_tokens = {
-                    _topical_stem(token.casefold())
-                    for phrase in temporal_phrases
-                    for token in TOPICAL_TOKEN_RE.findall(phrase)
-                    if token.casefold() not in STOPWORDS
-                    and token.casefold() not in NON_TEMPORAL_ANSWER_TOKENS
-                    and not token.isdigit()
-                }
-            if not (temporal_tokens - question_tokens) & evidence_tokens:
-                return "when answers require an evidence-supported time, period or event"
-        elif question_word == "where":
-            location_phrases = re.findall(
-                r"\b(?:at|from|in|inside|into|outside|to|towards?)\s+([^,.;!?]+)",
-                lowered,
-            )
-            location_tokens = {
-                _topical_stem(token.casefold())
-                for phrase in location_phrases
-                for token in TOPICAL_TOKEN_RE.findall(phrase)
-                if token.casefold() not in STOPWORDS
-                and token.casefold() not in NON_LOCATION_ANSWER_TOKENS
-                and not token.isdigit()
-            }
-            if not (location_tokens - question_tokens) & evidence_tokens:
-                return "where answers require an evidence-supported place or direction"
-        elif question_word == "yes_no":
-            if len(question_tokens & evidence_tokens) < 2:
-                return "yes-or-no answers require evidence supporting the questioned proposition"
-        elif not novel_supported_answer_tokens:
-            return "concrete factual answers must be supported by the selected evidence"
-    return None
-
-
-def direct_question_prompt_guidance(question: str, *, clarification: bool = False) -> str:
-    """Build deterministic provider guidance for a concrete factual question."""
-    if concrete_factual_question_word(question) is None:
-        return ""
-    prefix = (
-        "This is the one permitted clarification repair. "
-        if clarification else
-        "The incoming post asks a concrete factual question. "
-    )
-    return (
-        prefix
-        + "Answer the requested who, what, where, when, which, whose, quantity, duration, or yes/no "
-        "fact directly in the first sentence. "
-        "Do not substitute an ideological summary, researched principle, joke, or rhetorical flourish. "
-        "Use historical_context or historical_correction with grounded evidence, humour_tone=none, "
-        "and at most one brief contextual sentence after the answer. If the supplied evidence is "
-        "insufficient, select no_reply. For the question 'Where did people run towards when the "
-        "Berlin Wall fell?', a valid direct answer is 'People moved from East Berlin and East Germany "
-        "towards West Berlin and West Germany.'"
-    )
-
-
-def parse_decision_json(raw: str) -> dict[str, Any]:
-    """Parse and normalise a structured reply decision."""
-    text = str(raw or "").strip()
-    if text.upper() == "SKIP":
-        raise ValueError("bare SKIP is not a valid structured reply decision")
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I)
-    value = json.loads(text)
-    if not isinstance(value, dict):
-        raise ValueError("reply decision must be an object")
-    return value
-
-
-def _sentence_count(text: str) -> int:
-    return len(re.findall(r"[.!?](?:\s|$)", text.strip())) or (1 if text.strip() else 0)
-
-
-def _contains_emoji(text: str) -> bool:
-    return any(
-        "\U0001f000" <= char <= "\U0001faff"
-        or "\U00002600" <= char <= "\U000027bf"
-        for char in text
-    )
-
-
-def _quotes_are_verified(text: str, evidence: Iterable[RetrievedEvidence]) -> bool:
-    quoted = re.findall(r'[“"]([^”"]+)[”"]', text)
-    quoted.extend(re.findall(r"‘([^\n]+?)’(?![A-Za-z0-9])", text))
-    quoted.extend(re.findall(r"(?<![A-Za-z0-9])'([^\n]+?)'(?![A-Za-z0-9])", text))
-    if not quoted:
         return True
-    exact_texts = {
-        " ".join(str(item.packet.get("verified_text") or item.packet.get("quote_text") or "").split()).lower()
-        for item in evidence
-        if item.verification_status == "exact"
-    }
-    return all(" ".join(value.split()).lower() in exact_texts for value in quoted)
+    for match in DOMAIN_CANDIDATE_RE.finditer(normalised):
+        labels = match.group(0).split(".")
+        if any(
+            not label
+            or label.startswith("-")
+            or label.endswith("-")
+            or any(
+                character != "-"
+                and unicodedata.category(character)[:1] not in {"L", "N", "M"}
+                for character in label
+            )
+            for label in labels
+        ):
+            continue
+        try:
+            encoded_labels = [label.encode("idna").decode("ascii") for label in labels]
+        except UnicodeError:
+            continue
+        if any(not 1 <= len(label) <= 63 for label in encoded_labels):
+            continue
+        top_level = labels[-1]
+        if len(top_level) >= 2 and any(
+            unicodedata.category(character).startswith("L")
+            for character in top_level
+        ):
+            return True
+    return False
 
 
-def reply_repetition_reason(text: str, recent_replies: Iterable[str]) -> str | None:
-    """Return the reply repetition reason."""
-    normalised = " ".join(text.lower().split())
-    previous_values = [" ".join(str(previous).lower().split()) for previous in recent_replies]
-    if normalised in previous_values:
-        return "exact duplicate reply"
-    if any(pattern in normalised for pattern in CANNED_PATTERNS):
-        return "canned formulation"
-    tokens = _tokens(normalised)
-    for previous in previous_values:
-        previous_tokens = _tokens(previous)
-        union = tokens | previous_tokens
-        if union and len(tokens & previous_tokens) / len(union) >= 0.8:
-            return "highly similar reply"
+def contains_named_symbol(text: str, *, literal: str, unicode_name_suffix: str) -> bool:
+    """Return whether text contains an ASCII or compatibility-form symbol."""
+    return any(
+        character == literal
+        or unicodedata.name(character, "").endswith(unicode_name_suffix)
+        for character in str(text or "")
+    )
+
+
+def reply_repetition_reason(text: str, recent_replies: list[str]) -> str | None:
+    """Reject exact or near-duplicate recent replies deterministically."""
+    candidate = " ".join(text.casefold().split())
+    for previous in recent_replies:
+        normalised = " ".join(str(previous).casefold().split())
+        if not normalised:
+            continue
+        if candidate == normalised:
+            return "exact_duplicate_reply"
+        if difflib.SequenceMatcher(None, candidate, normalised).ratio() >= 0.9:
+            return "near_duplicate_reply"
     return None
 
 
-def validate_reply_decision(
-    value: dict[str, Any],
-    evidence: list[RetrievedEvidence],
+def deterministic_reply_error(
+    proposer: dict[str, Any],
+    repository: EvidenceRepository,
     *,
-    allowed_quote_ids: set[str],
-    recent_replies: Iterable[str] = (),
-    maximum_length: int = 270,
-    allowed_modes: set[str] | None = None,
-    allowed_humour_tones: set[str] | None = None,
-    minimum_grounded_confidence: str = "medium",
-    incoming_text: str | None = None,
-    direct_question_text: str | None = None,
-    clarification_reply: bool = False,
-) -> dict[str, Any]:
-    """Validate grounding, safety, relevance, and mode-specific reply invariants."""
-    value = normalise_reply_decision(value)
-    if set(value) != REPLY_DECISION_FIELDS:
-        raise ValueError("reply decision fields mismatch")
-    mode = value["mode"]
-    tone = value["humour_tone"]
-    confidence = value["evidence_confidence"]
-    ids = value["retrieved_quote_ids"]
-    if not all(
-        isinstance(item, str)
-        for item in (mode, tone, confidence, value["reply_text"], value["topical_basis"])
+    recent_replies: list[str],
+    maximum_reply_length: int,
+    maximum_sentences: int,
+) -> str | None:
+    """Apply hard syntax, safety, quote-integrity and duplicate limits."""
+    reply = str(proposer.get("proposed_reply") or "")
+    if (
+        not reply
+        or reply != reply.strip()
+        or len(reply) > maximum_reply_length
+        or x_weighted_reply_length(reply) > maximum_reply_length
     ):
-        raise ValueError("reply mode, tone, confidence, text, and topical basis must be strings")
-    reply = value["reply_text"].strip()
-    if mode not in MODES or tone not in HUMOUR_TONES or confidence not in CONFIDENCE_LEVELS:
-        raise ValueError("unsupported reply mode, tone, or confidence")
-    if allowed_modes is not None and mode not in allowed_modes:
-        raise ValueError("reply mode is disabled by configuration")
-    if allowed_humour_tones is not None and tone != "none" and tone not in allowed_humour_tones:
-        raise ValueError("humour tone is disabled by configuration")
-    if type(value["factual_claim_made"]) is not bool or type(value["grounded"]) is not bool:
-        raise ValueError("reply factual and grounded flags must be boolean")
-    if not isinstance(value["evidence_summary"], str) or not isinstance(value["no_reply_reason"], str):
-        raise ValueError("reply evidence and no-reply reason must be strings")
-    if mode == "no_reply" and (
-        tone != "none" or confidence != "none" or ids != []
-        or value["evidence_summary"] != "" or value["factual_claim_made"]
-        or value["grounded"] or reply != "" or value["topical_basis"] != ""
+        return "invalid_reply_length_or_whitespace"
+    if len(reply) < 3:
+        return "reply_too_short"
+    if sentence_count(reply) > maximum_sentences:
+        return "reply_sentence_limit_exceeded"
+    if (
+        URL_RE.search(reply)
+        or DOMAIN_RE.search(reply)
+        or EMAIL_RE.search(reply)
+        or contains_bare_network_address(reply)
     ):
-        raise ValueError(
-            "no_reply requires tone/confidence none, empty evidence and reply text, and false flags"
-        )
-    if mode != "no_reply" and value["no_reply_reason"] != "":
-        raise ValueError("posted reply modes require an empty no_reply_reason")
-    if mode == "principle_reply" and (
-        tone != "none" or confidence != "none" or ids != []
-        or value["evidence_summary"] != "" or value["factual_claim_made"]
-        or value["grounded"] or value["no_reply_reason"] != ""
-    ):
-        raise ValueError(
-            "principle_reply requires tone/confidence none, empty evidence and no-reply reason, and false flags"
-        )
-    if mode not in {"principle_reply", "researched_principle"} and value["topical_basis"] != "":
-        raise ValueError("topical basis is allowed only for principle reply modes")
-    evidence_ids = {item.quote_id for item in evidence}
-    if not isinstance(ids, list) or any(
-        not isinstance(item, str) or item not in allowed_quote_ids or item not in evidence_ids
-        for item in ids
-    ):
-        raise ValueError("reply cites a non-retrieved or unresolved quote ID")
-    selected_evidence = [item for item in evidence if item.quote_id in set(ids)]
-    if any(not packet_is_attributed_to_margaret_thatcher(item.packet) for item in selected_evidence):
-        raise ValueError("reply cites attribution-ineligible historical evidence")
-    if mode in HISTORICAL_MODES and not value["factual_claim_made"]:
-        raise ValueError("historical modes must identify a factual claim")
-    if mode == "historical_correction" and confidence != "high":
-        raise ValueError("historical_correction requires high confidence")
-    if mode == "historical_context" and CONFIDENCE_LEVELS[confidence] < 2:
-        raise ValueError("historical_context requires medium confidence")
-    if mode == "researched_principle" and CONFIDENCE_LEVELS[confidence] < 2:
-        raise ValueError("researched_principle requires medium confidence")
-    if mode in HISTORICAL_MODES and (not ids or not value["grounded"]):
-        raise ValueError("historical reply modes require retrieved grounded evidence")
-    if mode in HISTORICAL_MODES and CONFIDENCE_LEVELS[confidence] < CONFIDENCE_LEVELS[minimum_grounded_confidence]:
-        raise ValueError("historical reply is below configured grounded confidence")
-    if value["factual_claim_made"]:
-        packet_floor = "high" if mode == "historical_correction" else minimum_grounded_confidence
-        if any(
-            CONFIDENCE_LEVELS.get(str(item.packet.get("research_confidence") or "low"), 0)
-            < CONFIDENCE_LEVELS[packet_floor]
-            for item in selected_evidence
-        ):
-            raise ValueError("factual reply is below required packet confidence")
-    if value["factual_claim_made"] and not value["grounded"]:
-        raise ValueError("factual claims require grounding")
-    if value["grounded"] and not ids:
-        raise ValueError("grounded replies require selected evidence")
-    if value["grounded"] and not value["evidence_summary"].strip():
-        raise ValueError("grounded replies require an evidence summary")
-    if value["factual_claim_made"] and CONFIDENCE_LEVELS[confidence] < CONFIDENCE_LEVELS[minimum_grounded_confidence]:
-        raise ValueError("factual reply is below configured grounded confidence")
-    if mode == "no_reply":
-        if reply or not value["no_reply_reason"].strip():
-            raise ValueError("no_reply requires an empty reply and a reason")
-    else:
-        if not reply or len(reply) > maximum_length or _sentence_count(reply) > 2:
-            raise ValueError("reply must be one or two sentences within the configured limit")
-        if "#" in reply:
-            raise ValueError("hashtags are not allowed")
-        if _contains_emoji(reply):
-            raise ValueError("emoji are not allowed")
-        if not value["factual_claim_made"]:
-            assertion_validator = (
-                principle_reply_assertion_error
-                if mode == "principle_reply"
-                else ungrounded_reply_assertion_error
-            )
-            assertion_error = assertion_validator(reply, str(incoming_text or ""))
-            if assertion_error:
-                raise ValueError(assertion_error)
-        if not _quotes_are_verified(reply, selected_evidence):
-            raise ValueError("quotation marks require verified exact text")
-        if mode in {"principle_reply", "researched_principle"}:
-            if incoming_text is None:
-                raise ValueError("topical_relevance:incoming_text_unavailable")
-            relevance_error = reply_topical_relevance_error(
-                incoming_text,
-                reply,
-                selected_evidence,
-                mode=mode,
-                topical_basis=value["topical_basis"],
-            )
-            if relevance_error:
-                raise ValueError(relevance_error)
-        repetition_reason = reply_repetition_reason(reply, recent_replies)
-        if repetition_reason:
-            raise ValueError(repetition_reason)
-        question = str(direct_question_text or "")
-        if concrete_factual_question_word(question) is not None:
-            if mode not in {"historical_correction", "historical_context"}:
-                raise ValueError("concrete factual questions require a direct grounded historical answer")
-            if tone != "none" or not value["factual_claim_made"] or not value["grounded"]:
-                raise ValueError("direct factual answers require grounded factual metadata and no humour")
-            direct_error = direct_factual_answer_error(question, reply, selected_evidence)
-            if direct_error:
-                raise ValueError(direct_error)
-        if clarification_reply and concrete_factual_question_word(question) is None:
-            raise ValueError("clarification replies require the original concrete factual question")
-    return {
-        **value,
-        "reply_text": reply,
-        "retrieved_quote_ids": list(dict.fromkeys(ids)),
-    }
+        return "reply_contains_link"
+    if len(reply.splitlines()) > 1:
+        return "reply_contains_line_break"
+    if any(unicodedata.category(character) in {"Cc", "Cf", "Cs"} for character in reply):
+        return "reply_contains_control_or_format_character"
+    if contains_named_symbol(reply, literal="@", unicode_name_suffix="COMMERCIAL AT"):
+        return "reply_contains_mention"
+    if contains_named_symbol(reply, literal="#", unicode_name_suffix="NUMBER SIGN"):
+        return "reply_contains_hashtag"
+    if contains_emoji(reply):
+        return "reply_contains_emoji"
+    if any(pattern.search(reply) for pattern in BLOCKED_REPLY_PATTERNS):
+        return "reply_matches_blocked_safety_pattern"
+    repetition = reply_repetition_reason(reply, recent_replies)
+    if repetition:
+        return repetition
+
+    exact_used = proposer["exact_thatcher_wording_used"]
+    exact_wording = proposer["exact_thatcher_wording"]
+    detected = repository.detected_authorised_quote_ids(reply)
+    if exact_used:
+        if not repository.exact_quote_occurs_in_reply(reply, exact_wording):
+            return "declared_thatcher_wording_missing_from_reply"
+        if not repository.exact_quote_is_authorised(exact_wording):
+            return "unauthorised_thatcher_wording"
+        if repository.detected_authorised_quote_ids_outside_exact(reply, exact_wording):
+            return "undeclared_thatcher_wording_detected"
+    elif detected:
+        return "undeclared_thatcher_wording_detected"
+    return None
 
 
-def audit_digest(path: Path) -> dict[str, Any]:
-    """Audit digest."""
-    text = path.read_text(encoding="utf-8")
-    section_pattern = re.compile(
-        r"^## (Mention replies|Hot-post replies|Quote-tweet replies)\n(.*?)(?=^## |\Z)",
-        re.M | re.S,
+def _proposer_prompts(
+    context: dict[str, Any],
+    recent_replies: list[str],
+    *,
+    revision: dict[str, Any] | None,
+) -> tuple[str, str]:
+    system = (
+        "You are the proposer for a Margaret Thatcher quotation account on X. "
+        "Understand the user's actual contribution first, then either write one natural original reply "
+        "or choose no_reply. Use only these modes: direct_factual_answer, opinion_or_principle, "
+        "light_humour, courtesy, no_reply. The voice may be firm, dry, witty or warm, but must not "
+        "pretend to be Margaret Thatcher. Do not assemble the reply from a retrieved Thatcher quotation. "
+        "Do not invent facts, events, dates, quantities, relationships or Thatcher quotations. "
+        "Do not identify any real person from facial appearance; identities must come from supplied text or metadata. "
+        "List every factual assertion made by the proposed reply, including facts implied by humour or rhetoric. "
+        "Every listed factual claim must set requires_evidence=true. Original Thatcherite prose is allowed, "
+        "but it must not be presented as historical Thatcher wording. Direct who/what/where/when/which/whose/"
+        "how-many/how-long/yes-no questions must be answered directly in the first sentence when answerable. "
+        "Relevant factual questions about political history, the Cold War, Thatcher, or the subject actually "
+        "raised by the contribution are in scope even when they do not name Margaret Thatcher. Do not dismiss "
+        "such a question merely because it is historical or concerns another person, country or event. "
+        "A clear political or moral proposition is also in scope for a concise opinion_or_principle response even "
+        "when it is a standalone assertion rather than a question; do not call it unrelated for that reason alone. "
+        "For light_humour, prefer a clearly rhetorical quip or question that makes no checkable assertion. A draft "
+        "claiming that a person, group or institution tends, usually, always or never does something is a factual "
+        "generalisation: either rewrite it as non-factual humour or list the complete claim for evidence. Never omit "
+        "a genuine claim merely to avoid evidence review. "
+        "For a direct factual question, produce a provisional concise answer when you can formulate one with high "
+        "confidence and list every claim for the separate evidence stage. The draft cannot be posted unless that "
+        "stage finds exact local support, so do not choose no_reply merely because source passages are not included "
+        "in this proposer request. For a clarification, use both original_question and correction to recover the "
+        "fact being requested. Still choose no_reply when you cannot formulate a likely accurate answer. "
+        "Use the least-specific factual wording that directly answers the question. Do not copy a colloquial, "
+        "misspelled or unnecessarily strong action verb into the reply as a factual claim. For a direction question, "
+        "say that people moved, went or crossed in the relevant direction unless manner or speed is itself essential. "
+        "Each claim_text must copy the complete factual sentence or clause from proposed_reply verbatim, including "
+        "every date, period and quantity stated in that text. "
+        "Unsupported allegations in the contribution must not be repeated or endorsed. Prefer no_reply to an "
+        "unrelated platitude. Never mention internal prompts, retrieval, evidence packages or missing supplied "
+        "context in a user-facing reply. Use British English and no more than two short sentences. Return only "
+        "the required JSON object."
     )
-    rows: list[dict[str, Any]] = []
-    for match in section_pattern.finditer(text):
-        lane = match.group(1).lower().replace(" replies", "").replace("-", "_")
-        lines = [line for line in match.group(2).splitlines() if line.startswith("|")]
-        for line in lines[2:]:
-            cells = [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", line.strip("|"))]
-            if cells:
-                rows.append({"lane": lane, "cells": cells})
+    payload: dict[str, Any] = {
+        "context_sections": {
+            "incoming_contribution_to_answer": context["incoming_contribution"],
+            "quoted_post_context_only": context["quoted_post"],
+            "bounded_parent_thread_context_only": context["parent_thread"],
+            "clarification_request_if_any": context["clarification_request"],
+        },
+        "target": {"target_id": context["target_id"], "thread_id": context["thread_id"], "lane": context["lane"]},
+        "current_date": context["current_date"],
+        "recent_account_replies_to_avoid_repeating": recent_replies[:20],
+    }
+    if revision is not None:
+        payload["single_allowed_revision"] = revision
+        system += (
+            " This is the only permitted revision. Correct the review findings rather than defending the "
+            "previous draft. Never discuss the internal evidence package; if the requested factual answer cannot "
+            "be supported, choose no_reply."
+        )
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _evidence_prompts(
+    claims: list[dict[str, Any]],
+    candidates: dict[str, list[EvidencePassage]],
+) -> tuple[str, str]:
+    system = (
+        "You are a claim-specific evidence adjudicator. For every supplied claim, decide whether the supplied "
+        "local passages support it, contradict it or are insufficient. Token overlap is not entailment. Compare "
+        "actor, action or relationship, direction or polarity, date or period, and quantity. Cite only a supplied "
+        "evidence_id and copy its passage exactly. A supports result must copy the supplied claim's actor, action, "
+        "relationship, direction, polarity, date, period and quantity fields unchanged; never alter a claim to fit "
+        "the evidence. A passage marked with low research confidence cannot support a production claim. "
+        "Support is semantic entailment and does not require identical wording: ordinary paraphrases such as moved, "
+        "went, travelled and crossed may describe the same movement when actor and direction agree. A stronger "
+        "claim about manner or speed, such as ran or rushed, remains unsupported unless the passage establishes it. "
+        "Do not use outside knowledge or infer support from a broad shared "
+        "topic. Return one result for every claim and only the required JSON object."
+    )
+    payload = {
+        "claims": claims,
+        "candidate_passages_by_claim": {
+            claim_id: [passage.prompt_record() for passage in passages]
+            for claim_id, passages in candidates.items()
+        },
+    }
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _reviewer_prompts(
+    context: dict[str, Any],
+    proposer: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> tuple[str, str]:
+    system = (
+        "You are a fresh independent final reviewer. You did not participate in drafting. Judge only the incoming "
+        "contribution, bounded context, proposed reply, selected mode and supplied evidence package. Do not assume "
+        "the proposer's claim list or confidence is correct. Find omitted factual claims. Reject or request revision "
+        "if the reply is off-topic, evades a direct question, endorses an unsupported allegation, lacks evidence, "
+        "reverses actor, action, relationship, direction or polarity, gives a wrong date or quantity, fabricates or "
+        "misattributes a quotation, or presents original prose as Thatcher's historical words. Broad thematic overlap "
+        "is not enough. The user's own contribution has priority over quoted and parent text. Do not identify real "
+        "people from appearance; treat an identity absent from supplied text or metadata as unknown. Approval is "
+        "explicit and all safety findings must agree with it. In actual_factual_claims, copy every factual claim present in the "
+        "proposed reply verbatim and in order, including any claim omitted by the proposer; where a proposer claim "
+        "is accurate, copy its claim_text exactly. revision_instructions must be non-empty for revise and empty for "
+        "approve. Use revise for a correctable draft when a safe, relevant reply remains plausible. Use reject only "
+        "when the contribution should not be answered or the defect cannot be safely corrected in one revision. "
+        "A reject is terminal; revision_instructions on a reject are optional and will not be acted upon. "
+        "Return only the required JSON object."
+    )
+    payload = {
+        "context_sections": {
+            "incoming_contribution_to_answer": context["incoming_contribution"],
+            "quoted_post_context_only": context["quoted_post"],
+            "bounded_parent_thread_context_only": context["parent_thread"],
+            "clarification_request_if_any": context["clarification_request"],
+        },
+        "mode": proposer["mode"],
+        "tone": proposer["tone"],
+        "proposed_reply": proposer["proposed_reply"],
+        "proposer_listed_factual_claims_untrusted": proposer["factual_claims"],
+        "exact_thatcher_wording_used": proposer["exact_thatcher_wording_used"],
+        "exact_thatcher_wording": proposer["exact_thatcher_wording"],
+        "evidence_package": evidence,
+    }
+    return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
+def _insufficient_evidence_rows(claims: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "claim_id": claim["claim_id"],
+            "claim_text": claim["claim_text"],
+            "verdict": "insufficient",
+            "evidence": [],
+            "actor": claim["actor"],
+            "action_or_relationship": claim["action_or_relationship"],
+            "direction_or_polarity": claim["direction_or_polarity"],
+            "date_or_period": claim["date_or_period"],
+            "quantity": claim["quantity"],
+            "explanation": "No local candidate passage was available.",
+        }
+        for claim in claims
+    ]
+
+
+def _all_claims_supported(claims: list[dict[str, Any]], evidence: list[dict[str, Any]]) -> bool:
+    expected = {claim["claim_id"] for claim in claims}
+    return bool(
+        {row["claim_id"] for row in evidence} == expected
+        and all(row["verdict"] == "supports" for row in evidence)
+    )
+
+
+def claim_retrieval_query(claim: dict[str, Any], context: dict[str, Any]) -> str:
+    """Build a bounded query from the claim and user's own contribution only."""
+    values = [
+        claim.get("claim_text", ""),
+        claim.get("actor", ""),
+        claim.get("action_or_relationship", ""),
+        claim.get("direction_or_polarity", ""),
+        claim.get("date_or_period", ""),
+        claim.get("quantity", ""),
+        context.get("incoming_contribution", ""),
+    ]
+    return "\n".join(str(value).strip() for value in values if str(value).strip())
+
+
+def build_draft_record(
+    *,
+    context: dict[str, Any],
+    proposer: dict[str, Any],
+    evidence: list[dict[str, Any]],
+    reviewer: dict[str, Any],
+    config: dict[str, Any],
+    model_call_count: int,
+    revision_count: int,
+    creation_time: str,
+) -> dict[str, Any]:
+    """Build the immutable V3 persisted-draft record for an approved reply."""
+    references = [reference for row in evidence for reference in row.get("evidence", [])]
+    evidence_ids = sorted({str(reference["evidence_id"]) for reference in references})
+    claim_evidence = [
+        {
+            "claim_id": str(row["claim_id"]),
+            "evidence_ids": sorted({
+                str(reference["evidence_id"])
+                for reference in row.get("evidence", [])
+                if reference.get("relation") == "supports"
+            }),
+        }
+        for row in evidence
+    ]
+    source_hashes = {
+        evidence_id: next(
+            str(reference["source_hash"])
+            for reference in references
+            if reference["evidence_id"] == evidence_id
+        )
+        for evidence_id in evidence_ids
+    }
+    evidence_input_hashes = {
+        evidence_id: next(
+            str(reference["evidence_input_hash"])
+            for reference in references
+            if reference["evidence_id"] == evidence_id
+        )
+        for evidence_id in evidence_ids
+    }
+    record = {
+        "schema_version": DRAFT_SCHEMA_VERSION,
+        "strategy_version": STRATEGY_VERSION,
+        "target_id": context["target_id"],
+        "thread_id": context["thread_id"],
+        "candidate_source": context["lane"],
+        "contribution_hash": text_hash(context["incoming_contribution"]),
+        "context_hash": value_hash(context),
+        "proposed_reply": proposer["proposed_reply"],
+        "mode": proposer["mode"],
+        "tone": proposer["tone"],
+        "factual_claims": proposer["factual_claims"],
+        "exact_thatcher_wording_used": proposer["exact_thatcher_wording_used"],
+        "exact_thatcher_wording": proposer["exact_thatcher_wording"],
+        "evidence_ids": evidence_ids,
+        "claim_evidence": claim_evidence,
+        "source_hashes": source_hashes,
+        "evidence_input_hashes": evidence_input_hashes,
+        "reviewer_verdict": reviewer["verdict"],
+        "reviewer_reasons": reviewer["reasons"],
+        "proposer_model": config["proposer_model"],
+        "evidence_model": config["evidence_model"],
+        "reviewer_model": config["reviewer_model"],
+        "proposer_prompt_version": PROPOSER_PROMPT_VERSION,
+        "evidence_prompt_version": EVIDENCE_PROMPT_VERSION,
+        "reviewer_prompt_version": REVIEWER_PROMPT_VERSION,
+        "model_call_count": model_call_count,
+        "revision_count": revision_count,
+        "creation_time": creation_time,
+    }
+    record["approval_hash"] = value_hash(record)
+    return record
+
+
+def validate_persisted_draft(
+    record: object,
+    *,
+    context: dict[str, Any],
+    config: dict[str, Any],
+    repository: EvidenceRepository,
+    maximum_reply_length: int,
+    recent_replies: list[str] | None = None,
+) -> dict[str, Any]:
+    """Validate a V3 draft against current context, models and evidence inputs."""
+    if not isinstance(record, dict):
+        raise ValueError("persisted AI reply draft must be an object")
+    expected = {
+        "schema_version", "strategy_version", "target_id", "thread_id", "candidate_source",
+        "contribution_hash", "context_hash", "proposed_reply", "mode", "tone",
+        "factual_claims", "exact_thatcher_wording_used", "exact_thatcher_wording",
+        "evidence_ids", "claim_evidence", "source_hashes", "evidence_input_hashes",
+        "reviewer_verdict", "reviewer_reasons",
+        "proposer_model", "evidence_model", "reviewer_model", "proposer_prompt_version",
+        "evidence_prompt_version", "reviewer_prompt_version", "model_call_count",
+        "revision_count", "creation_time", "approval_hash",
+    }
+    _validate_exact_keys(record, expected, "persisted draft")
+    clean_context = validate_reply_context(context)
+    if record.get("schema_version") != DRAFT_SCHEMA_VERSION or record.get("strategy_version") != STRATEGY_VERSION:
+        raise ValueError("persisted draft version is unsupported")
+    identity = (clean_context["target_id"], clean_context["thread_id"], clean_context["lane"])
+    if identity != (record.get("target_id"), record.get("thread_id"), record.get("candidate_source")):
+        raise ValueError("persisted draft target identity mismatch")
+    if record.get("contribution_hash") != text_hash(clean_context["incoming_contribution"]):
+        raise ValueError("persisted draft contribution hash mismatch")
+    if record.get("context_hash") != value_hash(clean_context):
+        raise ValueError("persisted draft context hash mismatch")
+    model_fields = {
+        "proposer_model": config["proposer_model"],
+        "evidence_model": config["evidence_model"],
+        "reviewer_model": config["reviewer_model"],
+        "proposer_prompt_version": PROPOSER_PROMPT_VERSION,
+        "evidence_prompt_version": EVIDENCE_PROMPT_VERSION,
+        "reviewer_prompt_version": REVIEWER_PROMPT_VERSION,
+    }
+    if any(record.get(key) != value for key, value in model_fields.items()):
+        raise ValueError("persisted draft model or prompt version mismatch")
+    if record.get("reviewer_verdict") != "approve":
+        raise ValueError("persisted draft lacks explicit reviewer approval")
+    if record.get("mode") not in MODES - {"no_reply"} or record.get("tone") not in TONES:
+        raise ValueError("persisted draft mode or tone is invalid")
+    reply = record.get("proposed_reply")
+    if not isinstance(reply, str) or not reply or len(reply) > maximum_reply_length:
+        raise ValueError("persisted draft reply text is invalid")
+    if type(record.get("model_call_count")) is not int or not 1 <= record["model_call_count"] <= config["maximum_model_calls"]:
+        raise ValueError("persisted draft model call count is invalid")
+    if type(record.get("revision_count")) is not int or record["revision_count"] not in {0, 1}:
+        raise ValueError("persisted draft revision count is invalid")
+    if not isinstance(record.get("creation_time"), str) or not record["creation_time"].endswith("Z"):
+        raise ValueError("persisted draft creation time is invalid")
+    try:
+        created = datetime.fromisoformat(record["creation_time"].replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("persisted draft creation time is invalid") from exc
+    if created.tzinfo is None or created.utcoffset() != timezone.utc.utcoffset(created):
+        raise ValueError("persisted draft creation time must be UTC")
+    claims = record.get("factual_claims")
+    if not isinstance(claims, list) or len(claims) > config["maximum_claims"]:
+        raise ValueError("persisted draft factual claims are invalid")
+    seen_claim_ids: set[str] = set()
+    seen_claim_texts: set[str] = set()
+    for index, claim in enumerate(claims, start=1):
+        validated_claim = _validate_claim(claim)
+        claim_id = validated_claim["claim_id"]
+        normalised_text = " ".join(validated_claim["claim_text"].casefold().split())
+        if claim_id in seen_claim_ids or claim_id != f"claim-{index}":
+            raise ValueError("persisted draft claim IDs must be unique and sequential")
+        if normalised_text in seen_claim_texts:
+            raise ValueError("persisted draft factual claims must be unique")
+        if validated_claim["requires_evidence"] is not True:
+            raise ValueError("persisted draft factual claims must require evidence")
+        seen_claim_ids.add(claim_id)
+        seen_claim_texts.add(normalised_text)
+    if record["mode"] == "direct_factual_answer" and not claims:
+        raise ValueError("persisted direct factual answer requires a factual claim")
+    reviewer_reasons = record.get("reviewer_reasons")
+    if (
+        not isinstance(reviewer_reasons, list)
+        or len(reviewer_reasons) > 12
+        or any(
+            not isinstance(reason, str) or len(reason) > 300
+            for reason in reviewer_reasons
+        )
+    ):
+        raise ValueError("persisted draft reviewer reasons are invalid")
+    evidence_ids = record.get("evidence_ids")
+    claim_evidence = record.get("claim_evidence")
+    source_hashes = record.get("source_hashes")
+    evidence_input_hashes = record.get("evidence_input_hashes")
+    if not isinstance(evidence_ids, list) or evidence_ids != sorted(set(evidence_ids)):
+        raise ValueError("persisted draft evidence IDs are invalid")
+    if not isinstance(source_hashes, dict) or set(source_hashes) != set(evidence_ids):
+        raise ValueError("persisted draft source hashes are invalid")
+    if (
+        not isinstance(evidence_input_hashes, dict)
+        or set(evidence_input_hashes) != set(evidence_ids)
+        or any(
+            not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+            for value in evidence_input_hashes.values()
+        )
+    ):
+        raise ValueError("persisted draft evidence input hashes are invalid")
+    expected_claim_ids = [claim["claim_id"] for claim in claims]
+    if not isinstance(claim_evidence, list) or len(claim_evidence) != len(claims):
+        raise ValueError("persisted draft claim evidence is incomplete")
+    observed_claim_ids: list[str] = []
+    mapped_evidence_ids: set[str] = set()
+    for mapping in claim_evidence:
+        if not isinstance(mapping, dict) or set(mapping) != {"claim_id", "evidence_ids"}:
+            raise ValueError("persisted draft claim evidence fields mismatch")
+        claim_id = mapping.get("claim_id")
+        mapped_ids = mapping.get("evidence_ids")
+        if (
+            claim_id not in expected_claim_ids
+            or not isinstance(mapped_ids, list)
+            or not mapped_ids
+            or mapped_ids != sorted(set(mapped_ids))
+            or any(evidence_id not in evidence_ids for evidence_id in mapped_ids)
+        ):
+            raise ValueError("persisted draft claim evidence is invalid")
+        observed_claim_ids.append(claim_id)
+        mapped_evidence_ids.update(mapped_ids)
+    if observed_claim_ids != expected_claim_ids or mapped_evidence_ids != set(evidence_ids):
+        raise ValueError("persisted draft claim evidence does not cover the factual claims")
+    for evidence_id in evidence_ids:
+        passage = repository.passages.get(str(evidence_id))
+        if passage is None or source_hashes[evidence_id] != passage.source_hash:
+            raise ValueError("persisted draft evidence source changed or disappeared")
+        if evidence_input_hashes[evidence_id] != passage.model_input_hash():
+            raise ValueError("persisted draft evidence model input changed")
+    if claims and not evidence_ids:
+        raise ValueError("persisted factual draft has no evidence IDs")
+    if type(record.get("exact_thatcher_wording_used")) is not bool or not isinstance(record.get("exact_thatcher_wording"), str):
+        raise ValueError("persisted exact quotation fields are invalid")
+    if record["exact_thatcher_wording_used"] != bool(record["exact_thatcher_wording"].strip()):
+        raise ValueError("persisted exact quotation fields contradict each other")
+    synthetic_proposer = {
+        "proposed_reply": reply,
+        "exact_thatcher_wording_used": record["exact_thatcher_wording_used"],
+        "exact_thatcher_wording": record["exact_thatcher_wording"],
+    }
+    error = deterministic_reply_error(
+        synthetic_proposer,
+        repository,
+        recent_replies=recent_replies or [],
+        maximum_reply_length=maximum_reply_length,
+        maximum_sentences=config["maximum_reply_sentences"],
+    )
+    if error:
+        raise ValueError(f"persisted draft fails deterministic safety: {error}")
+    approval_hash = record.get("approval_hash")
+    unsigned = {key: value for key, value in record.items() if key != "approval_hash"}
+    if not isinstance(approval_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", approval_hash):
+        raise ValueError("persisted draft approval hash is invalid")
+    if approval_hash != value_hash(unsigned):
+        raise ValueError("persisted draft differs from the reviewer-approved record")
+    return record
+
+
+def run_reply_pipeline(
+    *,
+    context: dict[str, Any],
+    config: dict[str, Any],
+    repository: EvidenceRepository,
+    transport: ModelTransport,
+    maximum_reply_length: int,
+    recent_replies: list[str] | None = None,
+    media_context: dict[str, Any] | None = None,
+    creation_time: str | None = None,
+) -> PipelineResult:
+    """Run proposer, claim evidence and fresh reviewer with at most one revision."""
+    config_errors = validate_strategy_config(config)
+    if config_errors:
+        return PipelineResult(None, "operational_failure", "invalid_strategy_config", 0, 0, tuple({"error": error} for error in config_errors))
+    if config["enabled"] is not True:
+        return PipelineResult(None, "disabled", "strategy_disabled", 0, 0, ())
+    clean_context = validate_reply_context(context)
+    recent = [str(item) for item in (recent_replies or [])[:20]]
+    call_count = 0
+    audit: list[dict[str, Any]] = []
+    revisions = 0
+
+    def call(
+        stage: str,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema: dict[str, Any],
+        timeout: int,
+        max_output_tokens: int,
+        include_media: bool,
+    ) -> object:
+        nonlocal call_count
+        if call_count >= config["maximum_model_calls"]:
+            raise ModelCallLimitError("reply pipeline model-call ceiling reached")
+        call_count += 1
+        return transport(
+            stage=stage,
+            model=model,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response_schema=schema,
+            timeout_seconds=timeout,
+            max_output_tokens=max_output_tokens,
+            media_context=media_context if include_media else None,
+        )
+
+    def call_and_validate(
+        stage: str,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        schema: dict[str, Any],
+        timeout: int,
+        max_output_tokens: int,
+        include_media: bool,
+        validator: Callable[[object], Any],
+    ) -> Any | None:
+        """Retry one fully received invalid model response, then fail closed."""
+        maximum_retries = config["maximum_invalid_response_retries"]
+        for attempt in range(maximum_retries + 1):
+            try:
+                raw = call(
+                    stage,
+                    model=model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    schema=schema,
+                    timeout=timeout,
+                    max_output_tokens=max_output_tokens,
+                    include_media=include_media,
+                )
+                return validator(raw)
+            except ModelCallLimitError as exc:
+                audit.append({
+                    "stage": stage,
+                    "status": "invalid",
+                    "attempt": attempt + 1,
+                    "reason": str(exc),
+                })
+                return None
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
+                if attempt >= maximum_retries:
+                    audit.append({
+                        "stage": stage,
+                        "status": "invalid",
+                        "attempt": attempt + 1,
+                        "reason": str(exc),
+                    })
+                    return None
+                audit.append({
+                    "stage": stage,
+                    "status": "invalid_response_retry",
+                    "attempt": attempt + 1,
+                    "reason": str(exc),
+                    "next_attempt": attempt + 2,
+                })
+        return None
+
+    revision_request: dict[str, Any] | None = None
+    while True:
+        proposer_stage = "revision_proposer" if revisions else "proposer"
+        proposer_system, proposer_user = _proposer_prompts(clean_context, recent, revision=revision_request)
+        proposer = call_and_validate(
+            proposer_stage,
+            model=config["proposer_model"],
+            system_prompt=proposer_system,
+            user_prompt=proposer_user,
+            schema=proposer_schema(maximum_reply_length, config["maximum_claims"]),
+            timeout=config["proposer_timeout_seconds"],
+            max_output_tokens=config["proposer_max_output_tokens"],
+            include_media=True,
+            validator=lambda raw: validate_proposer(
+                raw,
+                maximum_reply_length=maximum_reply_length,
+                maximum_claims=config["maximum_claims"],
+            ),
+        )
+        if proposer is None:
+            return PipelineResult(None, "operational_failure", f"{proposer_stage}_invalid", call_count, revisions, tuple(audit))
+        audit.append({"stage": proposer_stage, "status": "completed", "mode": proposer["mode"]})
+        if proposer["mode"] == "no_reply":
+            return PipelineResult(None, "no_reply", proposer["no_reply_reason"], call_count, revisions, tuple(audit))
+
+        hard_error = deterministic_reply_error(
+            proposer,
+            repository,
+            recent_replies=recent,
+            maximum_reply_length=maximum_reply_length,
+            maximum_sentences=config["maximum_reply_sentences"],
+        )
+        if hard_error:
+            audit.append({"stage": proposer_stage, "status": "rejected", "reason": hard_error})
+            return PipelineResult(None, "no_reply", hard_error, call_count, revisions, tuple(audit))
+
+        claims = proposer["factual_claims"]
+        evidence: list[dict[str, Any]] = []
+        if claims:
+            candidates = {
+                claim["claim_id"]: repository.candidate_passages(
+                    claim_retrieval_query(claim, clean_context),
+                    maximum_packets=config["maximum_evidence_packets_per_claim"],
+                    maximum_passages=config["maximum_evidence_passages_per_claim"],
+                )
+                for claim in claims
+            }
+            if any(candidates.values()):
+                evidence_stage = "revision_evidence" if revisions else "evidence"
+                evidence_system, evidence_user = _evidence_prompts(claims, candidates)
+                evidence_result = call_and_validate(
+                    evidence_stage,
+                    model=config["evidence_model"],
+                    system_prompt=evidence_system,
+                    user_prompt=evidence_user,
+                    schema=evidence_schema(
+                        config["maximum_claims"],
+                        config["maximum_evidence_passages_per_claim"],
+                    ),
+                    timeout=config["evidence_timeout_seconds"],
+                    max_output_tokens=config["evidence_max_output_tokens"],
+                    include_media=False,
+                    validator=lambda raw: validate_evidence_response(
+                        raw,
+                        claims,
+                        candidates,
+                        repository,
+                        maximum_references=config["maximum_evidence_passages_per_claim"],
+                    ),
+                )
+                if evidence_result is None:
+                    return PipelineResult(None, "operational_failure", f"{evidence_stage}_invalid", call_count, revisions, tuple(audit))
+                evidence = evidence_result
+                audit.append({"stage": evidence_stage, "status": "completed", "supported": _all_claims_supported(claims, evidence)})
+            else:
+                evidence = _insufficient_evidence_rows(claims)
+                audit.append({"stage": "evidence", "status": "insufficient", "reason": "claim_without_candidate_passage"})
+
+        evidence_supported = _all_claims_supported(claims, evidence)
+        if proposer["mode"] == "direct_factual_answer" and not evidence_supported:
+            audit.append({
+                "stage": "evidence",
+                "status": "rejected",
+                "reason": "direct_factual_answer_not_fully_supported",
+            })
+            return PipelineResult(
+                None,
+                "no_reply",
+                "insufficient_claim_evidence",
+                call_count,
+                revisions,
+                tuple(audit),
+            )
+
+        reviewer_stage = "revision_reviewer" if revisions else "reviewer"
+        reviewer_system, reviewer_user = _reviewer_prompts(clean_context, proposer, evidence)
+        reviewer = call_and_validate(
+            reviewer_stage,
+            model=config["reviewer_model"],
+            system_prompt=reviewer_system,
+            user_prompt=reviewer_user,
+            schema=reviewer_schema(config["maximum_claims"]),
+            timeout=config["reviewer_timeout_seconds"],
+            max_output_tokens=config["reviewer_max_output_tokens"],
+            include_media=True,
+            validator=lambda raw: validate_reviewer(
+                raw,
+                maximum_claims=config["maximum_claims"],
+            ),
+        )
+        if reviewer is None:
+            return PipelineResult(None, "operational_failure", f"{reviewer_stage}_invalid", call_count, revisions, tuple(audit))
+        expected_reviewer_claims = [claim["claim_text"] for claim in claims]
+        if (
+            reviewer["verdict"] == "approve"
+            and reviewer["actual_factual_claims"] != expected_reviewer_claims
+        ):
+            audit.append({
+                "stage": reviewer_stage,
+                "status": "invalid",
+                "reason": "reviewer_claim_inventory_mismatch",
+            })
+            if revisions >= config["maximum_revisions"]:
+                return PipelineResult(
+                    None,
+                    "operational_failure",
+                    "reviewer_claim_inventory_mismatch",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+            revision_request = {
+                "previous_reply": proposer["proposed_reply"],
+                "reviewer_reasons": reviewer["reasons"],
+                "reviewer_actual_factual_claims": reviewer["actual_factual_claims"],
+                "reviewer_revision_instructions": (
+                    "Correct the factual-claim inventory. Each claim_text must copy the complete factual "
+                    "sentence or clause from proposed_reply verbatim, including every date, period and "
+                    "quantity. Do not add unsupported facts or discuss the evidence process."
+                ),
+                "evidence_status": [
+                    {"claim_id": row["claim_id"], "verdict": row["verdict"]}
+                    for row in evidence
+                ],
+            }
+            revisions += 1
+            continue
+        audit.append({"stage": reviewer_stage, "status": "completed", "verdict": reviewer["verdict"]})
+
+        explicit_approval = reviewer["verdict"] == "approve" and reviewer_checks_approve(reviewer)
+        if explicit_approval and evidence_supported:
+            draft = build_draft_record(
+                context=clean_context,
+                proposer=proposer,
+                evidence=evidence,
+                reviewer=reviewer,
+                config=config,
+                model_call_count=call_count,
+                revision_count=revisions,
+                creation_time=creation_time or utc_now(),
+            )
+            metadata = {
+                "strategy_version": STRATEGY_VERSION,
+                "mode": proposer["mode"],
+                "tone": proposer["tone"],
+                "confidence": proposer["confidence"],
+                "factual_claim_count": len(claims),
+                "evidence_ids": draft["evidence_ids"],
+                "reviewer_verdict": "approve",
+                "model_call_count": call_count,
+                "revision_count": revisions,
+            }
+            reply = AIReply(proposer["proposed_reply"], draft, metadata)
+            return PipelineResult(reply, "approved", "reviewer_approved", call_count, revisions, tuple(audit))
+
+        if revisions >= config["maximum_revisions"] or reviewer["verdict"] == "reject":
+            reason = "reviewer_rejected" if reviewer["verdict"] == "reject" else "revision_limit_reached"
+            if not evidence_supported:
+                reason = "insufficient_claim_evidence"
+            return PipelineResult(None, "no_reply", reason, call_count, revisions, tuple(audit))
+
+        revision_request = {
+            "previous_reply": proposer["proposed_reply"],
+            "reviewer_reasons": reviewer["reasons"],
+            "reviewer_revision_instructions": (
+                reviewer["revision_instructions"]
+                or "Remove every unsupported factual claim and answer the actual contribution directly."
+            ),
+            "evidence_status": [
+                {"claim_id": row["claim_id"], "verdict": row["verdict"]}
+                for row in evidence
+            ],
+        }
+        revisions += 1
+
+
+def legacy_draft_audit(
+    state: object,
+    *,
+    state_path: Path,
+    source_state_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Enumerate V1 drafts without interpreting or migrating their contents."""
+    if not isinstance(state, dict):
+        raise ValueError("state document must be an object")
+    raw = state.get("pending_reply_drafts", {})
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError("legacy pending_reply_drafts is not an object")
+    records = []
+    for key, value in sorted(raw.items()):
+        records.append({
+            "draft_key": str(key),
+            "record_hash": value_hash(value),
+            "classification": "legacy_v1_nonpostable",
+            "target_id": str(value.get("target_id") or "") if isinstance(value, dict) else "",
+            "candidate_source": str(value.get("candidate_source") or "") if isinstance(value, dict) else "",
+        })
     return {
-        "schema_version": 1,
-        "digest": str(path),
-        "auditable_reply_count": len(rows),
-        "items": rows,
-        "finding": "no auditable replies in digest" if not rows else "manual/model audit required",
-        "network_calls": 0,
+        "schema_version": LEGACY_DRAFT_AUDIT_SCHEMA_VERSION,
+        "strategy_version": STRATEGY_VERSION,
+        "source_state_path": str(state_path),
+        "source_state_sha256": source_state_sha256 or hashlib.sha256(state_path.read_bytes()).hexdigest(),
+        "legacy_draft_count": len(records),
+        "deployment_blocked": bool(records),
+        "records": records,
+        "created_at": utc_now(),
+        "policy": "Do not migrate, reinterpret or post a V1 draft through the AI-first strategy.",
     }
 
 
 def audit_cli(argv: list[str] | None = None) -> int:
-    """Audit CLI."""
-    parser = argparse.ArgumentParser(description="Offline reply digest audit")
-    parser.add_argument("--digest", required=True, type=Path)
-    parser.add_argument("--research-run", required=True, type=Path)
-    parser.add_argument("--json", action="store_true")
+    """Write a read-only audit of legacy V1 persisted reply drafts."""
+    parser = argparse.ArgumentParser(description="Audit non-migratable V1 conversational reply drafts")
+    parser.add_argument("--state", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-    packets, unresolved = load_and_validate_corpus(args.research_run)
-    result = audit_digest(args.digest)
-    result.update({"completed_packets": len(packets), "unresolved_packets": len(unresolved)})
-    if args.json:
-        print(json.dumps(result, indent=2, ensure_ascii=False))
-    else:
-        print(f"Digest: {args.digest}")
-        print(f"Auditable replies: {result['auditable_reply_count']}")
-        print(f"Finding: {result['finding']}")
-        print("No posts or network calls were made.")
-    return 0
+    state_bytes = stable_read_bytes(args.state)
+    state = json.loads(state_bytes.decode("utf-8"))
+    result = legacy_draft_audit(
+        state,
+        state_path=args.state,
+        source_state_sha256=hashlib.sha256(state_bytes).hexdigest(),
+    )
+    atomic_write_json(args.output, result)
+    print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2))
+    return 2 if result["deployment_blocked"] else 0
 
 
 if __name__ == "__main__":

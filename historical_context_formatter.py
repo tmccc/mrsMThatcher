@@ -117,35 +117,58 @@ def durable_unlink(path: Path) -> None:
 
 
 def load_and_validate_corpus(research_dir: Path = DEFAULT_RESEARCH_DIR) -> tuple[dict[str, Any], set[str]]:
-    """Load the immutable 632-record research corpus partition safely."""
-    from semantic_alignment.quote_research_gemini import TOP_LEVEL_FIELDS, validate_packet
+    """Load an immutable, internally declared research corpus partition safely."""
+    from semantic_alignment.quote_research_schema import TOP_LEVEL_FIELDS, validate_packet
 
-    packets_document = json.loads((research_dir / "research_packets.json").read_text())
+    packets_path = research_dir / "research_packets.json"
+    packets_bytes = packets_path.read_bytes()
+    packets_document = json.loads(packets_bytes)
     manifest_document = json.loads((research_dir / "corpus_manifest.json").read_text())
     status = json.loads((research_dir / "final_unresolved" / "final_research_status.json").read_text())
+    if not all(isinstance(value, dict) for value in (packets_document, manifest_document, status)):
+        raise RuntimeError("quotation research corpus documents must be JSON objects")
     packets = packets_document.get("items")
     records = manifest_document.get("records")
+    declared_total = manifest_document.get("record_count")
     if (
-        not isinstance(records, list)
-        or len(records) != 632
-        or any(not isinstance(record, dict) or not record.get("quote_id") for record in records)
-        or len({record["quote_id"] for record in records}) != 632
+        type(declared_total) is not int
+        or declared_total <= 0
+        or not isinstance(records, list)
+        or len(records) != declared_total
+        or any(
+            not isinstance(record, dict)
+            or not re.fullmatch(r"[0-9a-f]{64}", str(record.get("quote_id") or ""))
+            for record in records
+        )
+        or len({record["quote_id"] for record in records}) != declared_total
     ):
-        raise RuntimeError("historical context replies require exactly 632 unique manifest records")
+        raise RuntimeError("quotation research manifest does not match its declared unique record count")
     manifest = {record["quote_id"]: record for record in records}
     unresolved_records = status.get("unresolved_quote_ids")
+    declared_completed = status.get("completed_quotes")
+    declared_unresolved = status.get("unresolved_quotes")
+    status_total = status.get("total_manifest_quotes")
     if (
-        not isinstance(unresolved_records, list)
-        or len(unresolved_records) != 6
-        or len(set(unresolved_records)) != 6
+        type(declared_completed) is not int
+        or declared_completed < 0
+        or type(declared_unresolved) is not int
+        or declared_unresolved < 0
+        or type(status_total) is not int
+        or status_total != declared_total
+        or declared_completed + declared_unresolved != declared_total
+        or not isinstance(unresolved_records, list)
+        or len(unresolved_records) != declared_unresolved
+        or len(set(unresolved_records)) != declared_unresolved
         or any(not re.fullmatch(r"[0-9a-f]{64}", str(quote_id or "")) for quote_id in unresolved_records)
     ):
-        raise RuntimeError("historical context replies require exactly six unique unresolved quote IDs")
+        raise RuntimeError("quotation research status counts or unresolved quote IDs are inconsistent")
     unresolved = set(unresolved_records)
-    if not isinstance(packets, dict) or len(packets) != 626:
-        raise RuntimeError("historical context replies require exactly 626 completed packets")
-    if len(manifest) != 632 or set(manifest) != set(packets) | unresolved:
-        raise RuntimeError("canonical 632-record manifest does not partition into 626 completed and six unresolved")
+    if not isinstance(packets, dict) or len(packets) != declared_completed:
+        raise RuntimeError("completed quotation packet count does not match research status")
+    if status.get("corpus_hash") != hashlib.sha256(packets_bytes).hexdigest():
+        raise RuntimeError("completed quotation packet file hash does not match research status")
+    if len(manifest) != declared_total or set(manifest) != set(packets) | unresolved:
+        raise RuntimeError("canonical quotation manifest does not partition into completed and unresolved records")
     if set(packets) & unresolved:
         raise RuntimeError("unresolved quote appears in completed packet collection")
     for quote_id, packet in packets.items():

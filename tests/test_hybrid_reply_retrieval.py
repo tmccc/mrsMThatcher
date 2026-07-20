@@ -9,7 +9,7 @@ import pytest
 
 import mrsMThatcher2 as bot
 import mrs_log_digest as digest
-from reply_strategy import retrieve_research_packets
+from reply_evidence import retrieve_research_packets
 import semantic_alignment.hybrid_reply_retrieval as hybrid
 from semantic_alignment.hybrid_reply_retrieval import (
     DOCUMENT_TEMPLATE_VERSION,
@@ -111,7 +111,7 @@ def test_insufficient_top_margin_rejects_ambiguous_set():
 
 
 def test_hybrid_retrieval_is_offline_only_and_absent_from_live_configuration():
-    assert "hybrid_retrieval" not in bot.reply_strategy
+    assert "hybrid_retrieval" not in bot.ai_first_reply_strategy
     assert not hasattr(hybrid, "submit_shadow_comparison")
     assert not hasattr(hybrid, "ShadowWorker")
     source = Path("mrsMThatcher2.py").read_text(encoding="utf-8")
@@ -145,39 +145,18 @@ def test_final_offline_evaluation_includes_multilingual_and_hard_negatives():
     assert data["multilingual"]["overall_topic_match_rate"] > 0
 
 
-def test_live_reply_uses_only_lexical_retrieval_and_does_no_embedding_work(monkeypatch: pytest.MonkeyPatch):
-    import reply_strategy as strategy
-
+def test_live_reply_pipeline_does_no_embedding_or_hybrid_work(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
         hybrid,
         "HybridRetriever",
         lambda *args, **kwargs: pytest.fail("live reply path must not construct hybrid retrieval"),
     )
-    evidence = strategy.RetrievedEvidence("a" * 64, 4.0, "exact", "Evidence", {
-        "verified_text": "Exact evidence.", "research_confidence": "high", "verification_status": "exact",
-    })
-    monkeypatch.setattr(strategy, "retrieve_research_packets", lambda *args, **kwargs: [evidence])
-    calls = []
-    response = bot.requests.Response()
-    response.status_code = 200
-    response._content = json.dumps({"choices": [{"message": {"content": json.dumps({
-        "mode": "wry_reply", "humour_tone": "wry", "evidence_confidence": "none",
-        "retrieved_quote_ids": [], "evidence_summary": "", "factual_claim_made": False,
-        "grounded": False, "reply_text": "A concise reply.", "no_reply_reason": "",
-        "topical_basis": "",
-    })}}]}).encode()
-    monkeypatch.setattr(bot.requests, "post", lambda *args, **kwargs: calls.append(kwargs["json"]) or response)
-    monkeypatch.setattr(bot, "reply_strategy", {**bot.reply_strategy, "enabled": True})
-    result = bot.ask_grok_for_reply(
-        "assembled production context", {"lane": "mention", "target_id": "123"},
-        incoming_contribution_text="incoming contribution",
+    production_sources = "\n".join(
+        Path(path).read_text(encoding="utf-8")
+        for path in ("mrsMThatcher2.py", "reply_strategy.py", "reply_evidence.py")
     )
-    assert result == "A concise reply."
-    assert len(calls) == 1
-    prompt_text = json.dumps(calls[0]["messages"][1]["content"])
-    assert "Exact evidence." in prompt_text
-    assert "shadow_hybrid" not in prompt_text and "hybrid_results" not in prompt_text
-    assert result.strategy_metadata["retrieved_quote_ids"] == []
+    assert "HybridRetriever" not in production_sources
+    assert "semantic_alignment.hybrid_reply_retrieval" not in production_sources
 
 
 def test_hybrid_top20_lexical_uses_incoming_contribution_not_parent_context(
