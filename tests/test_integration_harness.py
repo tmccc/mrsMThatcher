@@ -5952,7 +5952,7 @@ def test_digest_reports_reply_strategy_decisions(tmp_path: Path) -> None:
     digest = run_digest(base)
     assert digest.returncode == 0, digest.stderr
     assert "## Reply strategy decisions" in digest.stdout
-    assert "| time | lane | strategy_version | mode | humour_tone | evidence_confidence | retrieved_count | evidence_reference_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
+    assert "| time | lane | strategy_version | mode | tone | evidence_confidence | retrieved_count | evidence_reference_count | factual_claim | grounded | reviewer_verdict | model_call_count | revision_count | no_reply_reason |" in digest.stdout
     assert "| 2026-07-14 12:00:00 | unavailable |  | historical_context | dry | medium | 1 |  | True | True |  |  |  |  |" in digest.stdout
 
 

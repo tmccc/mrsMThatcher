@@ -1602,11 +1602,14 @@ def int_usage_value(value: Any) -> int:
 
 
 def parse_xai_usage_from_msg(msg: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-    """Parse xAI usage from msg."""
+    """Parse legacy and AI-first xAI usage messages."""
     marker = "xAI usage="
-    if marker not in msg:
+    if marker in msg:
+        raw = msg.split(marker, 1)[1].strip()
+    elif msg.startswith("xAI reply stage=") and " usage=" in msg:
+        raw = msg.split(" usage=", 1)[1].strip()
+    else:
         return None, None
-    raw = msg.split(marker, 1)[1].strip()
     try:
         parsed = ast.literal_eval(raw)
     except Exception as exc:
@@ -2762,6 +2765,7 @@ def analyse(
                     target_id=event_obj.get("target_id") or "",
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
+                    tone=event_obj.get("humour_tone"),
                     evidence_confidence=event_obj.get("evidence_confidence"),
                     retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
                     factual_claim=event_obj.get("factual_claim_made"),
@@ -2778,6 +2782,7 @@ def analyse(
                     reply_post_id=event_obj.get("reply_post_id") or "",
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("humour_tone"),
+                    tone=event_obj.get("humour_tone"),
                     evidence_confidence=event_obj.get("evidence_confidence"),
                     retrieved_count=len(retrieved_ids) if isinstance(retrieved_ids, list) else None,
                     factual_claim=event_obj.get("factual_claim_made"),
@@ -2807,9 +2812,10 @@ def analyse(
                     r.ts,
                     lane=event_obj.get("lane") or "unavailable",
                     target_id=event_obj.get("target_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "ai-first-reply-v2",
+                    strategy_version=event_obj.get("strategy_version") or "unavailable",
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("tone"),
+                    tone=event_obj.get("tone"),
                     evidence_confidence="unavailable",
                     retrieved_count=None,
                     evidence_reference_count=(
@@ -2844,9 +2850,10 @@ def analyse(
                     lane=event_obj.get("lane") or "unavailable",
                     target_id=event_obj.get("target_id") or "",
                     reply_post_id=event_obj.get("reply_post_id") or "",
-                    strategy_version=event_obj.get("strategy_version") or "ai-first-reply-v2",
+                    strategy_version=event_obj.get("strategy_version") or "unavailable",
                     mode=event_obj.get("mode"),
                     humour_tone=event_obj.get("tone"),
+                    tone=event_obj.get("tone"),
                     evidence_confidence="unavailable",
                     retrieved_count=None,
                     evidence_reference_count=(
@@ -3829,6 +3836,7 @@ def analyse(
             reply_post_id="",
             mode=decision.get("mode"),
             humour_tone=decision.get("humour_tone"),
+            tone=decision.get("tone") or decision.get("humour_tone"),
             evidence_confidence=decision.get("evidence_confidence"),
             retrieved_count=decision.get("retrieved_count"),
             factual_claim=decision.get("factual_claim"),
@@ -5149,7 +5157,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"{strategy.get('generated_no_evidence_references_count', 0)}**."
     )
     out.append("Generated evidence confidence: " + compact_counts(strategy.get("generated_confidence_counts") or {}))
-    out.append("Generated humour tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
+    out.append("Generated tones: " + compact_counts(strategy.get("generated_humour_tone_counts") or {}))
     out.append(
         f"Published/terminal grounded: **{strategy.get('grounded_count', 0)}** "
         f"(metadata unavailable: {strategy.get('grounding_metadata_unavailable_count', 0)}); "
@@ -5172,7 +5180,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"(metadata unavailable: {strategy.get('evidence_reference_metadata_unavailable_count', 0)})."
     )
     out.append("Published/terminal evidence confidence: " + compact_counts(strategy.get("confidence_counts") or {}))
-    out.append("Published/terminal humour tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
+    out.append("Published/terminal tones: " + compact_counts(strategy.get("humour_tone_counts") or {}))
     out.append("No-reply categories: " + compact_counts(strategy.get("no_reply_category_counts") or {}))
     out.append("Repetition controls: " + compact_counts(strategy.get("repetition_control_counts") or {}))
     if strategy.get("rejection_reason_counts"):
@@ -5238,12 +5246,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "reply_strategy_decision",
         "Reply strategy decisions",
-        ["time", "lane", "strategy_version", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
+        ["time", "lane", "strategy_version", "mode", "tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "no_reply_reason"],
     )
     section(
         "reply_strategy_outcome",
         "Reply strategy outcomes",
-        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "humour_tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
+        ["time", "status", "lane", "target_id", "reply_post_id", "strategy_version", "mode", "tone", "evidence_confidence", "retrieved_count", "evidence_reference_count", "factual_claim", "grounded", "reviewer_verdict", "model_call_count", "revision_count", "failure_reason"],
     )
     section(
         "reply_strategy_failure",

@@ -248,6 +248,88 @@ def test_ai_first_events_report_native_modes_tones_and_reviewer_separately():
     assert "ai-first-reply-v2" in rendered
     assert "direct_factual_answer" in rendered
     assert "AI-first evidence references" in rendered
+    assert "Generated tones:" in rendered
+    assert "Published/terminal tones:" in rendered
+    assert "humour tones" not in rendered
+
+
+def test_ai_first_usage_log_format_is_counted_with_pending_context():
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 20, 19, 30),
+            level="INFO",
+            src="maybe_reply_to_mentions",
+            line=1,
+            msg="Considering mention id=123 author_id=456 text='hello'",
+            path="mrsMThatcher.log",
+            ordinal=1,
+        ),
+        digest.Record(
+            ts=datetime(2026, 7, 20, 19, 30, 1),
+            level="INFO",
+            src="xai_structured_reply_call",
+            line=2,
+            msg="Calling AI-first reply stage=proposer model=grok-4-1-fast-reasoning",
+            path="mrsMThatcher.log",
+            ordinal=2,
+        ),
+        digest.Record(
+            ts=datetime(2026, 7, 20, 19, 30, 2),
+            level="INFO",
+            src="xai_structured_reply_call",
+            line=3,
+            msg=(
+                "xAI reply stage=proposer usage={'prompt_tokens': 1779, "
+                "'completion_tokens': 123, 'total_tokens': 2608, "
+                "'prompt_tokens_details': {'cached_tokens': 192}, "
+                "'completion_tokens_details': {'reasoning_tokens': 706}, "
+                "'num_sources_used': 0, 'cost_in_usd_ticks': 40946500}"
+            ),
+            path="mrsMThatcher.log",
+            ordinal=3,
+        ),
+    ]
+
+    report = digest.analyse(records)
+
+    assert report["summary"]["stats"]["xai_usage_successes"] == 1
+    assert report["xai_usage"]["totals"] == {
+        "successful_xai_calls": 1,
+        "prompt_tokens": 1779,
+        "cached_tokens": 192,
+        "image_tokens": 0,
+        "reasoning_tokens": 706,
+        "completion_tokens": 123,
+        "total_tokens": 2608,
+        "sources_used": 0,
+        "cost_in_usd_ticks": 40946500,
+    }
+    assert report["xai_usage"]["events"][0]["lane"] == "mention"
+    assert report["xai_usage"]["events"][0]["context_id"] == "123"
+
+
+def test_ai_first_event_without_strategy_version_is_not_mislabelled_v2():
+    record = digest.Record(
+        ts=datetime(2026, 7, 20, 12),
+        level="INFO",
+        src="log_event",
+        line=1,
+        msg=(
+            'EVENT {"event":"ai_reply_pipeline_decision","lane":"mention",'
+            '"target_id":"100","mode":"no_reply","tone":"neutral",'
+            '"factual_claim_count":0,"evidence_ids":[],"reason":"not_warranted"}'
+        ),
+        path="mrsMThatcher.log",
+        ordinal=1,
+    )
+
+    report = digest.analyse([record])
+    decision = next(
+        item for item in report["events"]
+        if item["kind"] == "reply_strategy_decision"
+    )
+
+    assert decision["strategy_version"] == "unavailable"
 
 
 def test_ai_first_operational_failure_is_not_reported_as_editorial_no_reply():
