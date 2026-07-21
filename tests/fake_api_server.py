@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from reply_strategy import split_reply_sentences
+
 
 def load_scenario(path: str | Path) -> dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
@@ -122,6 +124,9 @@ class FakeApiServer:
                             "mode": "no_reply",
                             "interpretation": "No useful and safe reply is warranted.",
                             "proposed_reply": "",
+                            "direct_factual_question_present": False,
+                            "requested_answer_type": "none",
+                            "direct_answer_text": "",
                             "factual_claims": [],
                             "exact_thatcher_wording_used": False,
                             "exact_thatcher_wording": "",
@@ -133,6 +138,9 @@ class FakeApiServer:
                         "mode": "opinion_or_principle",
                         "interpretation": "The contribution invites a concise general response.",
                         "proposed_reply": reply,
+                        "direct_factual_question_present": False,
+                        "requested_answer_type": "none",
+                        "direct_answer_text": "",
                         "factual_claims": [],
                         "exact_thatcher_wording_used": False,
                         "exact_thatcher_wording": "",
@@ -173,6 +181,25 @@ class FakeApiServer:
                         })
                     return {"claims": rows}
 
+                if stage in {"claim_auditor", "revision_claim_auditor"}:
+                    proposed_reply = str(supplied.get("proposed_reply_to_audit") or "")
+                    sentences = split_reply_sentences(proposed_reply)
+                    return {
+                        "actual_factual_claims": [],
+                        "sentence_assessments": [{
+                            "sentence_text": sentence,
+                            "factual_claims": [],
+                            "world_claim_checks": {
+                                "asserts_actor_state_or_action": False,
+                                "asserts_causal_or_predictive_relation": False,
+                                "asserts_comparison_or_outcome": False,
+                                "asserts_historical_date_or_quantity": False,
+                                "asserts_meaning_or_attribution": False,
+                                "purely_non_factual": True,
+                            },
+                        } for sentence in sentences],
+                    }
+
                 if stage in {"reviewer", "revision_reviewer"}:
                     claims = (
                         supplied.get("proposer_listed_factual_claims_untrusted", [])
@@ -184,6 +211,45 @@ class FakeApiServer:
                         for claim in claims
                         if isinstance(claim, dict)
                     ] if isinstance(claims, list) else []
+                    proposed_reply = str(supplied.get("proposed_reply") or "")
+                    direct_question = bool(
+                        supplied.get("proposer_direct_factual_question_present", False)
+                    )
+                    requested_answer_type = str(
+                        supplied.get("proposer_requested_answer_type") or "none"
+                    )
+                    sentences = split_reply_sentences(proposed_reply)
+                    sentence_assessments = []
+                    remaining_claims = list(actual_claims)
+                    for sentence in sentences:
+                        sentence_claims = [
+                            claim_text
+                            for claim_text in remaining_claims
+                            if " ".join(claim_text.split()) in sentence
+                        ]
+                        remaining_claims = [
+                            claim_text
+                            for claim_text in remaining_claims
+                            if claim_text not in sentence_claims
+                        ]
+                        sentence_assessments.append({
+                            "sentence_text": sentence,
+                            "classification": (
+                                "factual_claim" if sentence_claims else "other_non_factual"
+                            ),
+                            "factual_claims": sentence_claims,
+                            "non_factual_basis": (
+                                "none" if sentence_claims else "rhetorical_question"
+                            ),
+                            "world_claim_checks": {
+                                "asserts_actor_state_or_action": bool(sentence_claims),
+                                "asserts_causal_or_predictive_relation": False,
+                                "asserts_comparison_or_outcome": False,
+                                "asserts_historical_date_or_quantity": False,
+                                "asserts_meaning_or_attribution": False,
+                                "purely_non_factual": not bool(sentence_claims),
+                            },
+                        })
                     self.fake._current_ai_reply_text = ""
                     return {
                         "verdict": "approve",
@@ -191,8 +257,11 @@ class FakeApiServer:
                         "reasons": [],
                         "actual_factual_claims": actual_claims,
                         "unsupported_factual_claims": [],
-                        "direct_question_present": False,
-                        "answers_direct_question_first_sentence": True,
+                        "sentence_assessments": sentence_assessments,
+                        "direct_factual_question_present": direct_question,
+                        "requested_answer_type": requested_answer_type,
+                        "direct_answer_complete": direct_question,
+                        "direct_answer_text": sentences[0] if direct_question and sentences else "",
                         "topically_relevant": True,
                         "endorses_unsupported_allegation": False,
                         "contains_unsupported_factual_claims": False,

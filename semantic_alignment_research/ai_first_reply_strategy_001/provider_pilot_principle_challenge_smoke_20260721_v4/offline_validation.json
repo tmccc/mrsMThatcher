@@ -1,0 +1,17 @@
+{
+  "correct_quote_resolution_count": 10,
+  "eligible_quote_count": 610,
+  "errors": [],
+  "fixture_count": 6100,
+  "fixtures_sha256": "16d1ee62d79551918df0f11d8ee4111dbf2cc0da8fbb34a0dbd9af49a427df6e",
+  "paid_sample_count": 10,
+  "paid_sample_scenario_counts": {
+    "principle_challenge": 10
+  },
+  "paid_sample_sha256": "2c12d693ba30781640122dc3df4c9b6a85f3a8d57256a5e7de69500786591833",
+  "passed": true,
+  "pilot_profile": "repeated-principle-world-claim-qualification-v7-challenge-smoke-5x2",
+  "run_version": "ai-first-quote-matrix-v13",
+  "scenario_count": 10,
+  "schema_version": 1
+}

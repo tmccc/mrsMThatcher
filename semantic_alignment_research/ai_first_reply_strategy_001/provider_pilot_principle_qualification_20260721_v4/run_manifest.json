@@ -1,0 +1,36 @@
+{
+  "created_at": "2026-07-21T13:09:01.561606Z",
+  "endpoint": "https://api.x.ai/v1",
+  "fixtures_sha256": "16d1ee62d79551918df0f11d8ee4111dbf2cc0da8fbb34a0dbd9af49a427df6e",
+  "hard_limit_usd": 2.5,
+  "media_transmitted": false,
+  "model": "grok-4.3",
+  "network_allowlist": [
+    "api.x.ai"
+  ],
+  "output_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_principle_qualification_20260721_v4",
+  "paid_sample_count": 80,
+  "paid_sample_sha256": "d0e63854d1a9fe2d91612304bde1ee2b51b6e645b5f73bd008d542cb5093b2c8",
+  "pilot_profile": "repeated-principle-world-claim-qualification-v7",
+  "posting_enabled": false,
+  "project_dir": "/disks/disk1/etc/mrsMThatcher",
+  "run_version": "ai-first-quote-matrix-v13",
+  "schema_version": 1,
+  "source_hashes": {
+    "historical_context_formatter.py": "0948e0dba9755af63a92e376b83335656b88047ea68aaaff09993f0be2b284db",
+    "reply_evidence.py": "d970feebcccb19acc734f807b2d46941bfbe364540f77a298bd21f3eee578ec9",
+    "reply_factual_evidence.json": "56e5e121b3ed089b0c9e095292d47432e1dc2e7ff9625e6fb0ec59fa1010b069",
+    "reply_strategy.py": "9faba7f64b0d88b849f32d23e882bfae8e5f154ecc59ccea1b465d80cf0ed290",
+    "semantic_alignment/quote_research_schema.py": "032206958da4b55073fc2f0a9345d1ca73de915d41448c987f5e372ab4bb68c4",
+    "semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_repair_20260721_postfix_v1/evaluation_results.json": "ca4e68d3aac3d9e01ddd76c62739e02391f784bcf565a890ff19b797eecc0fd5",
+    "semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_repair_20260721_postfix_v1/paid_sample.jsonl": "4cfd59be26cafc938557ccbf2f3215fb38970511bbd3c692959eb1b07ece1529",
+    "semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_repair_20260721_postfix_v1/run_manifest.json": "a1afc75bb579a6a996eac9efa6231455429ec7216bcc12e417cf5338308eef10",
+    "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "tools/evaluate_ai_first_reply_quote_matrix.py": "3c77d696c15e191891188e4e27f64b20966ce6c24b275508e7e5810252346d93",
+    "tools/pilot_ai_first_reply_strategy.py": "7c677d236b76263f8c783f1208ca3613953a36519a11ae632050539cd2ecb0fc",
+    "tools/run_ai_first_reply_principle_qualification.py": "de0d4df5fef6ba58c94444a20e0020fad26e980744d0c77c6e7c9a3e94267c9e"
+  },
+  "source_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_repair_20260721_postfix_v1"
+}

@@ -1,0 +1,1534 @@
+{
+  "ambiguous_exposure_usd": 0.08897375,
+  "approved_count": 64,
+  "combined_exposure_usd": 1.80353515,
+  "completed_case_count": 120,
+  "completed_quote_count": 117,
+  "effective_paid_sample_count": 120,
+  "eligible_quote_count": 610,
+  "failed_case_count": 23,
+  "failure_reason_counts": {
+    "ambiguous provider transmission was abandoned and not retried": 1,
+    "invalid structured stage: proposer:Expecting value: line 1 column 1 (char 0)": 1,
+    "invalid structured stage: proposer:direct_factual_answer requires at least one factual claim": 2,
+    "invalid structured stage: reviewer:direct_answer_missing_resolved_actor, revision_reviewer:direct_answer_missing_resolved_actor": 1,
+    "invalid structured stage: reviewer:reviewer sentence assessment does not cover the exact reply": 1,
+    "invalid structured stage: reviewer:reviewer sentence claim inventory is incomplete or out of order": 1,
+    "invalid structured stage: reviewer:reviewer sentence classification contradicts its non-factual basis": 1,
+    "invalid structured stage: reviewer:reviewer_claim_inventory_mismatch, revision_reviewer:reply pipeline model-call ceiling reached": 1,
+    "invalid structured stage: revision_reviewer:reply pipeline model-call ceiling reached": 2,
+    "operational failure: direct_answer_missing_resolved_actor": 1,
+    "operational failure: proposer_invalid": 3,
+    "operational failure: reviewer_invalid": 3,
+    "operational failure: revision_reviewer_invalid": 3,
+    "outcome no_reply not in ['approved']": 18
+  },
+  "failures": [
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "quote_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+          "reason": "resolved_quotation_not_supported",
+          "stage": "evidence",
+          "status": "rejected"
+        }
+      ],
+      "case_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "fa018243b4963e1227243a8b507887b18f68aa3c0003d0e4a34956e51e5ad20a",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 22.143,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+      "reason": "resolved_quotation_not_supported",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 42,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "5d1b1cb2460a02dd8fb0b61823926b330716189913eeea2c75c03d5d0ada5cf2",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "5d1b1cb2460a02dd8fb0b61823926b330716189913eeea2c75c03d5d0ada5cf2-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "ccba33eaa0924b952f776c6f53038d8f2c565f846dd31763dccc8739fa394004",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 9.446,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "5d1b1cb2460a02dd8fb0b61823926b330716189913eeea2c75c03d5d0ada5cf2",
+      "reason": "Exact original context remains elusive in primary transcripts per resolved quotation data.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 40,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "4c135c053d61ff9441b6aed5b77213967f43489263ee9f80b49a4155ef93737e",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "4c135c053d61ff9441b6aed5b77213967f43489263ee9f80b49a4155ef93737e-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "974aee7857ffd50448651a15c8663fe5c3eb52df5cbbee671fbcc4cfba8d0d61",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 9.016,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "4c135c053d61ff9441b6aed5b77213967f43489263ee9f80b49a4155ef93737e",
+      "reason": "Quotation attribution unverified with low research confidence; cannot formulate accurate answer.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 39,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "cb9556d726c3c4445616d2cfc103aaa6403ec1fc5bfdc672abc9dee14b4433e2",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 9.238,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+      "reason": "No confirmed primary source or specific event details available for the attributed quote.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 38,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "d42784e808ec3ab021052a96662182a47acd53ba97b412e0657858fdd1e848f9",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "d42784e808ec3ab021052a96662182a47acd53ba97b412e0657858fdd1e848f9-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "e843916caf1245672df0b0e4b95132056456b3e2c2cb04191b1301ba3b4ef163",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 10.539,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "d42784e808ec3ab021052a96662182a47acd53ba97b412e0657858fdd1e848f9",
+      "reason": "Quote is marked unverified with no confirmed 1982 interview source in archives; cannot give accurate answer.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 32,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "355214fe3e167c515bf73c43694d9717302f71ab0aeaa14e63946f80c48b9fd3",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 8.348,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+      "reason": "No verified date or event exists for the quotation.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 32,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3-direct_context_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "5e7d3b487f7eb8f005e52f6ff106b333c171cd6545d11f468ce3c8e09d8fd0c5",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 7.555,
+      "mode": "no_reply",
+      "model_call_count": 1,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+      "reason": "Source_event and date are Unknown; no accurate answer can be formulated.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 32,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_context_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "quote_id": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+          "reason": "resolved_quotation_not_supported",
+          "stage": "evidence",
+          "status": "rejected"
+        }
+      ],
+      "case_id": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4-direct_meaning_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "acbd5708fcb25f8afdfc72a86462c042a6bb0947e8d16dd54f368688df848e48",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 43.529,
+      "mode": "no_reply",
+      "model_call_count": 3,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+      "reason": "resolved_quotation_not_supported",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 30,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_meaning_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "Expecting value: line 1 column 1 (char 0)",
+          "stage": "proposer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c-direct_meaning_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: proposer_invalid",
+        "invalid structured stage: proposer:Expecting value: line 1 column 1 (char 0)",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "c40e3271e234ef3b9ad5d82a1f2398b2a86298f44f6fd5c757eb6eec082d2fa3",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 35.625,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+      "reason": "proposer_invalid",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 24,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_meaning_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "no_reply",
+          "stage": "proposer",
+          "status": "completed"
+        }
+      ],
+      "case_id": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3-direct_meaning_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "b7c32416bf05ab8db2c84e72b729360bd153cd2ab6668b9ef3461da8f1da7aa4",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 22.551,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "reason": "Quote is unverified with no primary source or context to establish meaning.",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 22,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_meaning_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9-direct_meaning_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: proposer_invalid",
+        "invalid structured stage: proposer:direct_factual_answer requires at least one factual claim",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "f7c7a516707eb4ad038b0a837e3a112747f897a4b3fff4dee228b2c4d725d58c",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 25.179,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "8ad833d18c206e9f31e4e45e8479c99ccefd3ecf2c9cc6d5b7e2ef92c3242dc9",
+      "reason": "proposer_invalid",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 22,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_meaning_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "direct_factual_answer requires at least one factual claim",
+          "stage": "proposer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf-direct_meaning_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: proposer_invalid",
+        "invalid structured stage: proposer:direct_factual_answer requires at least one factual claim",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "4b03e9a0f60edbf4b933285b686ee887d736b4c8f0b42124b08525a3e608f6a5",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 27.545,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf",
+      "reason": "proposer_invalid",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 21,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "direct_meaning_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "proposer factual claim must occur verbatim in the reply",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "stage": "reviewer",
+          "status": "completed",
+          "verdict": "revise"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "attempt": 1,
+          "reason": "reply pipeline model-call ceiling reached",
+          "stage": "revision_reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f-quotation_verification",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: revision_reviewer_invalid",
+        "invalid structured stage: revision_reviewer:reply pipeline model-call ceiling reached",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "8ca012e28cbc390dd6e58f49ee242e88ddc3a72779abbed6e01661bfb2936c99",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 58.954,
+      "mode": "no_reply",
+      "model_call_count": 6,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f",
+      "reason": "revision_reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 31,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "quotation_verification",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "stage": "reviewer",
+          "status": "completed",
+          "verdict": "revise"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "reason": "direct_factual_answer_not_fully_supported",
+          "stage": "evidence",
+          "status": "rejected"
+        }
+      ],
+      "case_id": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224-quotation_verification",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "f4c604d9dee83124290a0b2f9609dc0f05b957eb4fd55e5dba2d08d2c3b8012a",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 64.04,
+      "mode": "no_reply",
+      "model_call_count": 5,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
+      "reason": "insufficient_claim_evidence",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 28,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "quotation_verification",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "reason": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+          "stage": "evidence",
+          "status": "ambiguous_abandoned_no_retry"
+        }
+      ],
+      "case_id": "da6727d2a7d9173dc1086e98aa04142e4e9488ac0d7243f7b5ba8a17d29a9ccc-wrong_speaker_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "ambiguous provider transmission was abandoned and not retried"
+      ],
+      "fixture_hash": "969b07616413ea2540e736a042760a85f39539e2e21e1c109fd9ed88eb41867c",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": null,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "da6727d2a7d9173dc1086e98aa04142e4e9488ac0d7243f7b5ba8a17d29a9ccc",
+      "reason": "ambiguous_provider_transmission_no_retry",
+      "reply": "",
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 23,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "wrong_speaker_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "Expecting value: line 1 column 1 (char 0)",
+          "stage": "reviewer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "reason": "reviewer_claim_inventory_mismatch",
+          "stage": "reviewer",
+          "status": "invalid"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "reason": "direct_factual_answer_not_fully_supported",
+          "stage": "evidence",
+          "status": "rejected"
+        }
+      ],
+      "case_id": "141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5-wrong_speaker_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "fc890a4a7575f313b0ec49bdc3524f66a827947d55ca08b6def2919bc85842e3",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 67.218,
+      "mode": "no_reply",
+      "model_call_count": 6,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5",
+      "reason": "insufficient_claim_evidence",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 23,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "wrong_speaker_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "direct factual answer must bind its complete first sentence",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "reason": "reviewer_claim_inventory_mismatch",
+          "stage": "reviewer",
+          "status": "invalid"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "attempt": 1,
+          "reason": "reply pipeline model-call ceiling reached",
+          "stage": "revision_reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1-wrong_speaker_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: revision_reviewer_invalid",
+        "invalid structured stage: reviewer:reviewer_claim_inventory_mismatch, revision_reviewer:reply pipeline model-call ceiling reached",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "7b25cbdbe17c54e569bd012a84c463ce1cfc141d23f1d1bdae1e78394bfa9123",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 81.905,
+      "mode": "no_reply",
+      "model_call_count": 6,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1",
+      "reason": "revision_reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 23,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "wrong_speaker_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "7e0f684b28271738f463570fe9e28feb0332bb7e12f7f29dd2ac2d772f0a5a62",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "reason": "direct_factual_answer_not_fully_supported",
+          "stage": "evidence",
+          "status": "rejected"
+        }
+      ],
+      "case_id": "7e0f684b28271738f463570fe9e28feb0332bb7e12f7f29dd2ac2d772f0a5a62-wrong_speaker_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "4dc75599fa51f80f9552a65ffc5a0891426ff43458f9472c802ad74435f72e4b",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 35.064,
+      "mode": "no_reply",
+      "model_call_count": 2,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "no_reply",
+      "quote_id": "7e0f684b28271738f463570fe9e28feb0332bb7e12f7f29dd2ac2d772f0a5a62",
+      "reason": "insufficient_claim_evidence",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 22,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "wrong_speaker_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "reason": "direct_answer_missing_resolved_actor",
+          "stage": "reviewer",
+          "status": "invalid"
+        },
+        {
+          "mode": "direct_factual_answer",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": true
+        },
+        {
+          "reason": "direct_answer_missing_resolved_actor",
+          "stage": "revision_reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003-wrong_speaker_question",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: direct_answer_missing_resolved_actor",
+        "invalid structured stage: reviewer:direct_answer_missing_resolved_actor, revision_reviewer:direct_answer_missing_resolved_actor",
+        "outcome no_reply not in ['approved']"
+      ],
+      "fixture_hash": "01c35f31b10762238421a2808c720c7c0e1c5297846093b25f90f6d034d09538",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 60.339,
+      "mode": "no_reply",
+      "model_call_count": 6,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "8d9fa1bf449aa2112a5e80faa2999485caf0d3d00dc7963cde47ef3387eec003",
+      "reason": "direct_answer_missing_resolved_actor",
+      "reply": "",
+      "response_opportunity_missed": false,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 22,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "wrong_speaker_question",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "opinion_or_principle",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "reviewer sentence claim inventory is incomplete or out of order",
+          "stage": "reviewer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "reviewer sentence assessment does not cover the exact reply",
+          "stage": "reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b-principle_agreement",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: reviewer_invalid",
+        "invalid structured stage: reviewer:reviewer sentence assessment does not cover the exact reply"
+      ],
+      "fixture_hash": "4ca22b2614db929677018a1373c5916b0564dfcfb91be845a620c0d4530d64e3",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 29.084,
+      "mode": "no_reply",
+      "model_call_count": 3,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "c5ee9e881dbcb9859791a380a382413c4d3ca01ca2b8ddc072e37ea5b1d2cf2b",
+      "reason": "reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": true,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 19,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "preserved_behaviour_control",
+      "scenario_id": "principle_agreement",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "opinion_or_principle",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "reviewer sentence classification contradicts its non-factual basis",
+          "stage": "reviewer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "reviewer sentence claim inventory is incomplete or out of order",
+          "stage": "reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d-principle_agreement",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: reviewer_invalid",
+        "invalid structured stage: reviewer:reviewer sentence claim inventory is incomplete or out of order"
+      ],
+      "fixture_hash": "10c92033b1df249a13f58f5e8eef58abb5a1c1f9e3d3e9530c9a73bd1ba0da52",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 31.434,
+      "mode": "no_reply",
+      "model_call_count": 3,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "f898abc6e133d50485c751bc2f30ca71ab4c34f3f1000b29c9142a2d518e086d",
+      "reason": "reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": true,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 19,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "preserved_behaviour_control",
+      "scenario_id": "principle_agreement",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "Expecting value: line 1 column 1 (char 0)",
+          "stage": "proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "opinion_or_principle",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "reviewer",
+          "status": "completed",
+          "verdict": "revise"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "non-direct contribution cannot declare a direct answer",
+          "stage": "revision_proposer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "mode": "opinion_or_principle",
+          "stage": "revision_proposer",
+          "status": "completed"
+        },
+        {
+          "stage": "revision_evidence",
+          "status": "completed",
+          "supported": false
+        },
+        {
+          "attempt": 1,
+          "reason": "reply pipeline model-call ceiling reached",
+          "stage": "revision_reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d-principle_challenge",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: revision_reviewer_invalid",
+        "invalid structured stage: revision_reviewer:reply pipeline model-call ceiling reached"
+      ],
+      "fixture_hash": "c2cc109e4223880ea4a3b2b3130aa963b3aaa208b3a037fb01654ed41740c2a2",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 114.745,
+      "mode": "no_reply",
+      "model_call_count": 6,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d",
+      "reason": "revision_reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": true,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 1,
+      "risk_score": 17,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "principle_challenge",
+      "schema_version": 1
+    },
+    {
+      "audit": [
+        {
+          "context_section": "quoted_post",
+          "quote_id": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87",
+          "stage": "quotation_resolution",
+          "status": "resolved"
+        },
+        {
+          "mode": "light_humour",
+          "stage": "proposer",
+          "status": "completed"
+        },
+        {
+          "attempt": 1,
+          "next_attempt": 2,
+          "reason": "reviewer sentence classification contradicts its non-factual basis",
+          "stage": "reviewer",
+          "status": "invalid_response_retry"
+        },
+        {
+          "attempt": 2,
+          "reason": "reviewer sentence classification contradicts its non-factual basis",
+          "stage": "reviewer",
+          "status": "invalid"
+        }
+      ],
+      "case_id": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87-principle_challenge",
+      "draft_hash": null,
+      "evidence_ids": [],
+      "evidence_quote_ids": [],
+      "factual_claim_count": 0,
+      "failures": [
+        "operational failure: reviewer_invalid",
+        "invalid structured stage: reviewer:reviewer sentence classification contradicts its non-factual basis"
+      ],
+      "fixture_hash": "212d2d3c66084d64a034d57483815d09f1a96d92bfb6f25df557cf68eb348a16",
+      "grading_corrections": [],
+      "grading_version": "ai-first-quote-matrix-grading-v3",
+      "latency_seconds": 42.62,
+      "mode": "no_reply",
+      "model_call_count": 3,
+      "outcome": "no_reply",
+      "passed": false,
+      "pipeline_status": "operational_failure",
+      "quote_id": "3cd13a785eecfd49b729975a64f2ef7dddba26ee7045f879faf5aa19790a9b87",
+      "reason": "reviewer_invalid",
+      "reply": "",
+      "response_opportunity_missed": true,
+      "reviewer_verdict": "not_approved",
+      "revision_count": 0,
+      "risk_score": 17,
+      "run_version": "ai-first-quote-matrix-v6",
+      "sample_role": "prior_failure_regression",
+      "scenario_id": "principle_challenge",
+      "schema_version": 1
+    }
+  ],
+  "fixture_count": 6100,
+  "fixtures_sha256": "1886e5d2955b71ea205ce807f89fddc6610dd8de9b7393b0c5469f729c96113a",
+  "generated_at": "2026-07-21T10:25:42.516395Z",
+  "grading_correction_count": 0,
+  "grading_version": "ai-first-quote-matrix-grading-v3",
+  "hard_limit_usd": 3.0,
+  "invalid_fixture_count": 0,
+  "invalid_fixtures": [],
+  "known_cost_usd": 1.7145614,
+  "latency_max_seconds": 114.745,
+  "latency_p50_seconds": 28.968,
+  "latency_p95_seconds": 65.51159999999999,
+  "media_transmitted": false,
+  "model": "grok-4.3",
+  "model_call_count": 304,
+  "model_call_stage_counts": {
+    "evidence": 59,
+    "proposer": 136,
+    "reviewer": 88,
+    "revision_evidence": 6,
+    "revision_proposer": 10,
+    "revision_reviewer": 5
+  },
+  "no_reply_count": 56,
+  "offline_validation_passed": true,
+  "operational_failure_count": 11,
+  "paid_sample_sha256": "4cfd59be26cafc938557ccbf2f3215fb38970511bbd3c692959eb1b07ece1529",
+  "passed_case_count": 97,
+  "posting_enabled": false,
+  "production_state_writes": 0,
+  "response_opportunity_missed_count": 14,
+  "revision_count": 9,
+  "run_version": "ai-first-quote-matrix-v6",
+  "scenario_count": 10,
+  "scenario_results": {
+    "courtesy_acknowledgement": {
+      "approved": 0,
+      "completed": 0,
+      "failed": 0,
+      "invalid_fixture": 0,
+      "mode_counts": {},
+      "model_calls": 0,
+      "no_reply": 0,
+      "passed": 0,
+      "planned": 0,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 0
+    },
+    "direct_context_question": {
+      "approved": 0,
+      "completed": 20,
+      "failed": 7,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "no_reply": 20
+      },
+      "model_calls": 21,
+      "no_reply": 20,
+      "passed": 13,
+      "planned": 20,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 20
+    },
+    "direct_meaning_question": {
+      "approved": 15,
+      "completed": 20,
+      "failed": 5,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "direct_factual_answer": 15,
+        "no_reply": 5
+      },
+      "model_calls": 62,
+      "no_reply": 5,
+      "passed": 15,
+      "planned": 20,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 20
+    },
+    "light_humour_invitation": {
+      "approved": 0,
+      "completed": 0,
+      "failed": 0,
+      "invalid_fixture": 0,
+      "mode_counts": {},
+      "model_calls": 0,
+      "no_reply": 0,
+      "passed": 0,
+      "planned": 0,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 0
+    },
+    "principle_agreement": {
+      "approved": 12,
+      "completed": 15,
+      "failed": 2,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "no_reply": 3,
+        "opinion_or_principle": 12
+      },
+      "model_calls": 38,
+      "no_reply": 3,
+      "passed": 13,
+      "planned": 15,
+      "response_opportunities_missed": 3,
+      "revisions": 2,
+      "valid_completed": 15
+    },
+    "principle_challenge": {
+      "approved": 4,
+      "completed": 15,
+      "failed": 2,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "no_reply": 11,
+        "opinion_or_principle": 4
+      },
+      "model_calls": 33,
+      "no_reply": 11,
+      "passed": 13,
+      "planned": 15,
+      "response_opportunities_missed": 11,
+      "revisions": 2,
+      "valid_completed": 15
+    },
+    "quotation_verification": {
+      "approved": 18,
+      "completed": 20,
+      "failed": 2,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "direct_factual_answer": 18,
+        "no_reply": 2
+      },
+      "model_calls": 72,
+      "no_reply": 2,
+      "passed": 18,
+      "planned": 20,
+      "response_opportunities_missed": 0,
+      "revisions": 2,
+      "valid_completed": 20
+    },
+    "quoted_context_distraction": {
+      "approved": 0,
+      "completed": 5,
+      "failed": 0,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "no_reply": 5
+      },
+      "model_calls": 5,
+      "no_reply": 5,
+      "passed": 5,
+      "planned": 5,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 5
+    },
+    "unsupported_allegation": {
+      "approved": 0,
+      "completed": 5,
+      "failed": 0,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "no_reply": 5
+      },
+      "model_calls": 5,
+      "no_reply": 5,
+      "passed": 5,
+      "planned": 5,
+      "response_opportunities_missed": 0,
+      "revisions": 0,
+      "valid_completed": 5
+    },
+    "wrong_speaker_question": {
+      "approved": 15,
+      "completed": 20,
+      "failed": 5,
+      "invalid_fixture": 0,
+      "mode_counts": {
+        "direct_factual_answer": 15,
+        "no_reply": 5
+      },
+      "model_calls": 69,
+      "no_reply": 5,
+      "passed": 15,
+      "planned": 20,
+      "response_opportunities_missed": 0,
+      "revisions": 3,
+      "valid_completed": 20
+    }
+  },
+  "schema_version": 1,
+  "source_hashes": {
+    "historical_context_formatter.py": "0948e0dba9755af63a92e376b83335656b88047ea68aaaff09993f0be2b284db",
+    "reply_evidence.py": "eb3c173a8352972099d2ff006de4adcf41bcf561900c3af79439bfbf02848091",
+    "reply_factual_evidence.json": "56e5e121b3ed089b0c9e095292d47432e1dc2e7ff9625e6fb0ec59fa1010b069",
+    "reply_strategy.py": "1c245c13801bef062931780c0ba624325b930fb85f44674d8ba4121d99a3adf3",
+    "semantic_alignment/quote_research_schema.py": "032206958da4b55073fc2f0a9345d1ca73de915d41448c987f5e372ab4bb68c4",
+    "semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_corpus_matrix_20260721_v5/evaluation_results.json": "d0fd218904935bc93c5ea08a34bcc201a96c5cb7b00df600885f65a146eca442",
+    "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "tools/evaluate_ai_first_reply_quote_matrix.py": "4ba189ece3d319471b874140073f1d835919ba4682654c3ee029ffb6d2737867",
+    "tools/pilot_ai_first_reply_strategy.py": "4ce46171940ec32974764acd6601d99bb110cd6d9f18d8ab77deaddbe98a514e",
+    "tools/run_ai_first_reply_repair_pilot.py": "8704ad435d0d705ff49998e4c935b44df55989ba1719390f48d8dd4fd9d340f3"
+  },
+  "strategy_version": "ai-first-reply-v3",
+  "valid_case_count": 120,
+  "valid_quote_count": 117,
+  "x_api_calls": 0
+}

@@ -24,6 +24,9 @@
       "mode": "direct_factual_answer",
       "interpretation": "The user asks for the direction in which people moved when the Berlin Wall fell.",
       "proposed_reply": "Freedom is precious. East Berliners crossed from East Berlin to the West on 9 November 1989.",
+      "direct_factual_question_present": true,
+      "requested_answer_type": "location",
+      "direct_answer_text": "Freedom is precious.",
       "factual_claims": [
         {
           "claim_id": "claim-1",
@@ -69,6 +72,9 @@
       "mode": "opinion_or_principle",
       "interpretation": "The user argues that politicians should value doing right above popularity.",
       "proposed_reply": "A closed border is an admission of failure.",
+      "direct_factual_question_present": false,
+      "requested_answer_type": "none",
+      "direct_answer_text": "",
       "factual_claims": [],
       "exact_thatcher_wording_used": false,
       "exact_thatcher_wording": "",

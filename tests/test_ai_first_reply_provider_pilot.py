@@ -15,9 +15,15 @@ from tools import pilot_ai_first_reply_strategy as pilot
 class FakeResponse:
     """Minimal requests-compatible response."""
 
-    def __init__(self, document: dict, status_code: int = 200) -> None:
+    def __init__(
+        self,
+        document: dict,
+        status_code: int = 200,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         self.document = document
         self.status_code = status_code
+        self.headers = headers or {}
 
     def json(self) -> dict:
         return self.document
@@ -212,6 +218,210 @@ def test_ambiguous_transport_failure_blocks_resume_and_reserves_exposure(tmp_pat
     assert saved["ambiguous_exposure_in_usd_ticks"] > 0
     with pytest.raises(pilot.PilotError, match="blocked"):
         pilot.PilotLedger(tmp_path / "cost_ledger.json", model="grok-4.3", hard_limit_usd=1.0)
+
+
+def test_definite_429_is_retried_without_ambiguous_exposure(tmp_path: Path) -> None:
+    responses = iter([
+        FakeResponse(
+            {"error": {"message": "rate limited"}},
+            status_code=429,
+            headers={"Retry-After": "2"},
+        ),
+        FakeResponse({
+            "id": "response-after-429",
+            "model": "grok-4.3",
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 4,
+                "cost_in_usd_ticks": 1_000_000,
+            },
+            "choices": [{"message": {"content": json.dumps({"ok": True})}}],
+        }),
+    ])
+    sleeps: list[float] = []
+    ledger = pilot.PilotLedger(
+        tmp_path / "cost_ledger.json",
+        model="grok-4.3",
+        hard_limit_usd=1.0,
+    )
+    transport = pilot.PilotTransport(
+        api_key="not-a-real-key",
+        base_url=pilot.DEFAULT_XAI_BASE,
+        model_metadata=model_metadata(),
+        ledger=ledger,
+        response_dir=tmp_path / "raw_responses",
+        post=lambda *_args, **_kwargs: next(responses),
+        sleep=sleeps.append,
+        maximum_rate_limit_retries=1,
+    )
+    transport.set_case("case-a")
+
+    result = transport(
+        stage="proposer",
+        model="grok-4.3",
+        system_prompt="system",
+        user_prompt="user",
+        response_schema={
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+            "additionalProperties": False,
+        },
+        timeout_seconds=10,
+        max_output_tokens=20,
+        media_context=None,
+    )
+
+    assert json.loads(result) == {"ok": True}
+    assert sleeps == [2.0]
+    saved = json.loads((tmp_path / "cost_ledger.json").read_text(encoding="utf-8"))
+    operation = saved["operations"][0]
+    assert operation["status"] == "completed"
+    assert operation["attempt_number"] == 2
+    assert len(operation["rate_limit_events"]) == 1
+    assert saved["ambiguous_exposure_usd"] == 0
+
+
+def test_exhausted_429_stays_resumable_and_does_not_become_ambiguous(tmp_path: Path) -> None:
+    ledger = pilot.PilotLedger(
+        tmp_path / "cost_ledger.json",
+        model="grok-4.3",
+        hard_limit_usd=1.0,
+    )
+    transport = pilot.PilotTransport(
+        api_key="not-a-real-key",
+        base_url=pilot.DEFAULT_XAI_BASE,
+        model_metadata=model_metadata(),
+        ledger=ledger,
+        response_dir=tmp_path / "raw_responses",
+        post=lambda *_args, **_kwargs: FakeResponse(
+            {"error": {"message": "rate limited"}},
+            status_code=429,
+        ),
+        sleep=lambda _seconds: None,
+        maximum_rate_limit_retries=0,
+    )
+    transport.set_case("case-a")
+
+    with pytest.raises(pilot.RateLimitReached):
+        transport(
+            stage="reviewer",
+            model="grok-4.3",
+            system_prompt="system",
+            user_prompt="user",
+            response_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+            timeout_seconds=10,
+            max_output_tokens=20,
+            media_context=None,
+        )
+    saved = json.loads((tmp_path / "cost_ledger.json").read_text(encoding="utf-8"))
+    assert saved["blocked"] is False
+    assert saved["operations"][0]["status"] == "rate_limited"
+    assert saved["ambiguous_exposure_usd"] == 0
+
+
+def test_definite_503_is_retried_without_ambiguous_exposure(tmp_path: Path) -> None:
+    responses = iter([
+        FakeResponse({"error": {"message": "temporarily unavailable"}}, status_code=503),
+        FakeResponse({
+            "id": "response-after-503",
+            "model": "grok-4.3",
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 4,
+                "cost_in_usd_ticks": 1_000_000,
+            },
+            "choices": [{"message": {"content": json.dumps({"ok": True})}}],
+        }),
+    ])
+    sleeps: list[float] = []
+    ledger = pilot.PilotLedger(
+        tmp_path / "cost_ledger.json",
+        model="grok-4.3",
+        hard_limit_usd=1.0,
+    )
+    transport = pilot.PilotTransport(
+        api_key="not-a-real-key",
+        base_url=pilot.DEFAULT_XAI_BASE,
+        model_metadata=model_metadata(),
+        ledger=ledger,
+        response_dir=tmp_path / "raw_responses",
+        post=lambda *_args, **_kwargs: next(responses),
+        sleep=sleeps.append,
+        maximum_server_error_retries=1,
+    )
+    transport.set_case("case-a")
+
+    result = transport(
+        stage="reviewer",
+        model="grok-4.3",
+        system_prompt="system",
+        user_prompt="user",
+        response_schema={
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+            "additionalProperties": False,
+        },
+        timeout_seconds=10,
+        max_output_tokens=20,
+        media_context=None,
+    )
+
+    assert json.loads(result) == {"ok": True}
+    assert sleeps == [5.0]
+    saved = json.loads((tmp_path / "cost_ledger.json").read_text(encoding="utf-8"))
+    operation = saved["operations"][0]
+    assert operation["status"] == "completed"
+    assert operation["attempt_number"] == 2
+    assert operation["server_error_events"][0]["status_code"] == 503
+    assert saved["ambiguous_exposure_usd"] == 0
+
+
+def test_nonretryable_http_error_is_definite_and_unblocked(tmp_path: Path) -> None:
+    ledger = pilot.PilotLedger(
+        tmp_path / "cost_ledger.json",
+        model="grok-4.3",
+        hard_limit_usd=1.0,
+    )
+    transport = pilot.PilotTransport(
+        api_key="not-a-real-key",
+        base_url=pilot.DEFAULT_XAI_BASE,
+        model_metadata=model_metadata(),
+        ledger=ledger,
+        response_dir=tmp_path / "raw_responses",
+        post=lambda *_args, **_kwargs: FakeResponse(
+            {"error": {"message": "forbidden"}},
+            status_code=403,
+        ),
+    )
+    transport.set_case("case-a")
+
+    with pytest.raises(pilot.DefiniteHTTPError, match="HTTP 403"):
+        transport(
+            stage="proposer",
+            model="grok-4.3",
+            system_prompt="system",
+            user_prompt="user",
+            response_schema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            },
+            timeout_seconds=10,
+            max_output_tokens=20,
+            media_context=None,
+        )
+    saved = json.loads((tmp_path / "cost_ledger.json").read_text(encoding="utf-8"))
+    assert saved["blocked"] is False
+    assert saved["operations"][0]["status"] == "http_error"
+    assert saved["ambiguous_exposure_usd"] == 0
 
 
 def test_pilot_cases_are_fixed_and_include_recent_production_regressions() -> None:

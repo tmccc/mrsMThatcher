@@ -12,12 +12,16 @@ from jsonschema import validate as validate_json_schema
 from reply_evidence import EvidencePassage, EvidenceRepository
 from reply_strategy import (
     AIReply,
+    CLAIM_AUDITOR_PROMPT_VERSION,
     DRAFT_SCHEMA_VERSION,
     EVIDENCE_PROMPT_VERSION,
     MODES,
     PROPOSER_PROMPT_VERSION,
     REVIEWER_PROMPT_VERSION,
     STRATEGY_VERSION,
+    _claim_auditor_prompts,
+    _reviewer_prompts,
+    claim_auditor_schema,
     claim_retrieval_query,
     deterministic_reply_error,
     evidence_schema,
@@ -26,7 +30,9 @@ from reply_strategy import (
     reviewer_schema,
     run_reply_pipeline,
     sentence_count,
+    split_reply_sentences,
     validate_evidence_response,
+    validate_claim_auditor,
     validate_persisted_draft,
     validate_proposer,
     validate_reply_context,
@@ -59,9 +65,18 @@ class FakeRepository:
         self.passages = {passage.evidence_id: passage}
         self.passage = passage
         self.return_candidates = True
+        self.candidate_override: list[EvidencePassage] | None = None
+        self.candidate_requests: list[dict[str, object]] = []
+        self.resolved_quotation: dict[str, object] | None = None
 
-    def candidate_passages(self, *_args: object, **_kwargs: object) -> list[EvidencePassage]:
-        return [self.passage] if self.return_candidates else []
+    def candidate_passages(self, *_args: object, **kwargs: object) -> list[EvidencePassage]:
+        self.candidate_requests.append(dict(kwargs))
+        if not self.return_candidates:
+            return []
+        return list(self.candidate_override or [self.passage])
+
+    def resolve_context_quotation(self, _context: dict[str, object]) -> dict[str, object] | None:
+        return copy.deepcopy(self.resolved_quotation)
 
     def validate_reference(self, evidence_id: str, exact_passage: str) -> EvidencePassage:
         passage = self.passages.get(evidence_id)
@@ -107,7 +122,91 @@ class ScriptedTransport:
         if isinstance(response, list):
             if not response:
                 raise AssertionError(f"no scripted response remains for {stage}")
-            return response.pop(0)
+            response = response.pop(0)
+        if isinstance(response, dict) and stage in {"claim_auditor", "revision_claim_auditor"}:
+            response = copy.deepcopy(response)
+            payload = json.loads(kwargs["user_prompt"])
+            sentences = split_reply_sentences(str(payload["proposed_reply_to_audit"]))
+            assessments = response.get("sentence_assessments")
+            if (
+                isinstance(assessments, list)
+                and len(assessments) == 1
+                and assessments[0].get("sentence_text") == "__AUTO_SENTENCES__"
+            ):
+                actual_claims = list(response.get("actual_factual_claims") or [])
+                expanded = []
+                remaining = list(actual_claims)
+                for sentence in sentences:
+                    sentence_claims = [
+                        claim_text
+                        for claim_text in remaining
+                        if " ".join(str(claim_text).split()) in sentence
+                    ]
+                    remaining = [
+                        claim_text for claim_text in remaining
+                        if claim_text not in sentence_claims
+                    ]
+                    expanded.append({
+                        "sentence_text": sentence,
+                        "factual_claims": sentence_claims,
+                        "world_claim_checks": {
+                            "asserts_actor_state_or_action": bool(sentence_claims),
+                            "asserts_causal_or_predictive_relation": False,
+                            "asserts_comparison_or_outcome": False,
+                            "asserts_historical_date_or_quantity": False,
+                            "asserts_meaning_or_attribution": False,
+                            "purely_non_factual": not bool(sentence_claims),
+                        },
+                    })
+                response["sentence_assessments"] = expanded
+        if isinstance(response, dict) and stage in {"reviewer", "revision_reviewer"}:
+            response = copy.deepcopy(response)
+            payload = json.loads(kwargs["user_prompt"])
+            proposed_reply = str(payload["proposed_reply"])
+            sentences = split_reply_sentences(proposed_reply)
+            if response.get("actual_factual_claims") == ["__PROPOSER_CLAIMS__"]:
+                response["actual_factual_claims"] = [
+                    str(claim_record["claim_text"])
+                    for claim_record in payload["proposer_listed_factual_claims_untrusted"]
+                ]
+                response["sentence_assessments"][0]["factual_claims"] = list(
+                    response["actual_factual_claims"]
+                )
+            if response.get("direct_answer_text") == "__FIRST_SENTENCE__":
+                response["direct_answer_text"] = sentences[0] if sentences else ""
+            assessments = response.get("sentence_assessments")
+            if (
+                isinstance(assessments, list)
+                and len(assessments) == 1
+                and assessments[0].get("sentence_text") == "__AUTO_SENTENCES__"
+            ):
+                actual_claims = list(response.get("actual_factual_claims") or [])
+                expanded = []
+                remaining = list(actual_claims)
+                for index, sentence in enumerate(sentences):
+                    sentence_claims = [
+                        claim_text
+                        for claim_text in remaining
+                        if " ".join(str(claim_text).split()) in sentence
+                    ]
+                    if index == 0 and actual_claims and not sentence_claims:
+                        sentence_claims = list(remaining)
+                    remaining = [claim_text for claim_text in remaining if claim_text not in sentence_claims]
+                    expanded.append({
+                        "sentence_text": sentence,
+                        "classification": "factual_claim" if sentence_claims else "other_non_factual",
+                        "factual_claims": sentence_claims,
+                        "non_factual_basis": "none" if sentence_claims else "rhetorical_question",
+                        "world_claim_checks": {
+                            "asserts_actor_state_or_action": bool(sentence_claims),
+                            "asserts_causal_or_predictive_relation": False,
+                            "asserts_comparison_or_outcome": False,
+                            "asserts_historical_date_or_quantity": False,
+                            "asserts_meaning_or_attribution": False,
+                            "purely_non_factual": not bool(sentence_claims),
+                        },
+                    })
+                response["sentence_assessments"] = expanded
         return response
 
 
@@ -177,29 +276,36 @@ def claim(
         "actor": "people in East Germany",
         "action_or_relationship": "moved",
         "direction_or_polarity": "East to West",
-        "date_or_period": "November 1989",
+        "date_or_period": "November 1989" if "1989" in text else "",
         "quantity": "",
     }
 
 
 def proposer(
-    reply: str = "People moved from East Germany towards West Germany.",
+    reply: str = "People moved from East Germany towards West Germany in November 1989.",
     *,
     mode: str = "direct_factual_answer",
     claims: list[dict[str, object]] | None = None,
     confidence: str = "high",
     exact_wording: str = "",
     no_reply_reason: str = "",
+    requested_answer_type: str | None = None,
 ) -> dict[str, object]:
-    factual_claims = [claim()] if claims is None and mode == "direct_factual_answer" else (claims or [])
+    factual_claims = [claim(reply)] if claims is None and mode == "direct_factual_answer" else (claims or [])
     if mode == "no_reply":
         reply = ""
         factual_claims = []
         no_reply_reason = no_reply_reason or "No useful and safe reply is warranted."
+    direct_question = mode == "direct_factual_answer"
+    answer_type = requested_answer_type or ("action" if direct_question else "none")
+    first_sentence = split_reply_sentences(reply)
     return {
         "mode": mode,
         "interpretation": "The user asks a concrete question or offers a political observation.",
         "proposed_reply": reply,
+        "direct_factual_question_present": direct_question,
+        "requested_answer_type": answer_type,
+        "direct_answer_text": first_sentence[0] if direct_question and first_sentence else "",
         "factual_claims": factual_claims,
         "exact_thatcher_wording_used": bool(exact_wording),
         "exact_thatcher_wording": exact_wording,
@@ -215,18 +321,35 @@ def reviewer(
     direct_question: bool = True,
     answers_first: bool = True,
     factual_claims: list[str] | None = None,
+    requested_answer_type: str | None = None,
     **overrides: object,
 ) -> dict[str, object]:
     if factual_claims is None:
-        factual_claims = [str(claim()["claim_text"])] if direct_question else []
+        factual_claims = ["__PROPOSER_CLAIMS__"] if direct_question else []
     value: dict[str, object] = {
         "verdict": verdict,
         "summary": "Independent review completed.",
         "reasons": [] if verdict == "approve" else ["The draft is unsafe or unsuitable."],
         "actual_factual_claims": factual_claims,
         "unsupported_factual_claims": [],
-        "direct_question_present": direct_question,
-        "answers_direct_question_first_sentence": answers_first,
+        "sentence_assessments": [{
+            "sentence_text": "__AUTO_SENTENCES__",
+            "classification": "factual_claim" if factual_claims else "other_non_factual",
+            "factual_claims": factual_claims,
+            "non_factual_basis": "none" if factual_claims else "rhetorical_question",
+            "world_claim_checks": {
+                "asserts_actor_state_or_action": bool(factual_claims),
+                "asserts_causal_or_predictive_relation": False,
+                "asserts_comparison_or_outcome": False,
+                "asserts_historical_date_or_quantity": False,
+                "asserts_meaning_or_attribution": False,
+                "purely_non_factual": not bool(factual_claims),
+            },
+        }],
+        "direct_factual_question_present": direct_question,
+        "requested_answer_type": requested_answer_type or ("action" if direct_question else "none"),
+        "direct_answer_complete": answers_first if direct_question else False,
+        "direct_answer_text": "__FIRST_SENTENCE__" if direct_question else "",
         "topically_relevant": True,
         "endorses_unsupported_allegation": False,
         "contains_unsupported_factual_claims": False,
@@ -241,6 +364,26 @@ def reviewer(
     }
     value.update(overrides)
     return value
+
+
+def claim_auditor(factual_claims: list[str] | None = None) -> dict[str, object]:
+    """Return a strict scripted claim-auditor response."""
+    claims = list(factual_claims or [])
+    return {
+        "actual_factual_claims": claims,
+        "sentence_assessments": [{
+            "sentence_text": "__AUTO_SENTENCES__",
+            "factual_claims": claims,
+            "world_claim_checks": {
+                "asserts_actor_state_or_action": bool(claims),
+                "asserts_causal_or_predictive_relation": False,
+                "asserts_comparison_or_outcome": False,
+                "asserts_historical_date_or_quantity": False,
+                "asserts_meaning_or_attribution": False,
+                "purely_non_factual": not bool(claims),
+            },
+        }],
+    }
 
 
 def supporting_evidence(repository: FakeRepository) -> Callable[..., object]:
@@ -291,12 +434,27 @@ def run_pipeline(
 
 def test_source_schemas_are_strict_and_provider_compatible() -> None:
     proposal = proposer(mode="courtesy", reply="Thank you for saying so.", claims=[])
+    audit = claim_auditor()
     review = reviewer(direct_question=False, answers_first=False)
     validate_json_schema(proposal, proposer_schema(500, 6))
+    validate_json_schema(audit, claim_auditor_schema(6))
     validate_json_schema(review, reviewer_schema(6))
     assert proposer_schema(500, 6)["additionalProperties"] is False
     assert evidence_schema(6, 24)["additionalProperties"] is False
+    assert claim_auditor_schema(6)["additionalProperties"] is False
     assert reviewer_schema(6)["additionalProperties"] is False
+
+
+def test_claim_auditor_must_cover_the_exact_reply_without_internal_conflict() -> None:
+    reply = "Conviction matters. Evidence decides the factual issue."
+    incomplete = claim_auditor()
+
+    with pytest.raises(ValueError, match="does not cover the exact reply"):
+        validate_claim_auditor(
+            incomplete,
+            maximum_claims=6,
+            proposed_reply=reply,
+        )
 
 
 def test_configuration_is_explicit_and_fail_closed() -> None:
@@ -381,6 +539,7 @@ def test_one_invalid_proposer_response_is_retried_then_accepted(
     assert result.model_call_count == 2
     assert [call["stage"] for call in transport.calls] == ["proposer", "proposer"]
     assert [row["status"] for row in result.audit] == [
+        "not_resolved",
         "invalid_response_retry",
         "completed",
     ]
@@ -400,6 +559,7 @@ def test_second_invalid_proposer_response_fails_closed(
     assert result.model_call_count == 2
     assert [call["stage"] for call in transport.calls] == ["proposer", "proposer"]
     assert [row["status"] for row in result.audit] == [
+        "not_resolved",
         "invalid_response_retry",
         "invalid",
     ]
@@ -498,24 +658,31 @@ def test_nonfactual_modes_require_fresh_reviewer_approval(
 ) -> None:
     proposal = proposer(mode=mode, reply=text, claims=[])
     proposal["tone"] = tone
+    scripted = {
+        "proposer": proposal,
+        "reviewer": reviewer(direct_question=False, answers_first=False),
+    }
+    if mode in {"opinion_or_principle", "light_humour"}:
+        scripted["claim_auditor"] = claim_auditor()
     result, transport = run_pipeline(
         repository,
-        {
-            "proposer": proposal,
-            "reviewer": reviewer(direct_question=False, answers_first=False),
-        },
+        scripted,
         context=reply_context("A general political observation."),
     )
     assert isinstance(result.reply, AIReply)
     assert str(result.reply) == text
     assert result.reply.draft_record["mode"] == mode
-    assert [call["stage"] for call in transport.calls] == ["proposer", "reviewer"]
+    expected_stages = ["proposer"]
+    if mode in {"opinion_or_principle", "light_humour"}:
+        expected_stages.append("claim_auditor")
+    expected_stages.append("reviewer")
+    assert [call["stage"] for call in transport.calls] == expected_stages
 
 
 def test_direct_factual_answer_requires_claim_evidence_and_independent_review(
     repository: FakeRepository,
 ) -> None:
-    factual_text = "People moved from East Germany towards West Germany."
+    factual_text = "People moved from East Germany towards West Germany in November 1989."
     result, transport = run_pipeline(
         repository,
         {
@@ -598,7 +765,7 @@ def test_one_revision_cycle_is_the_absolute_maximum(repository: FakeRepository) 
     ]
 
 
-def test_reviewer_cannot_approve_a_factual_claim_omitted_by_proposer(
+def test_claim_auditor_catches_a_factual_claim_omitted_by_proposer(
     repository: FakeRepository,
 ) -> None:
     result, transport = run_pipeline(
@@ -609,11 +776,9 @@ def test_reviewer_cannot_approve_a_factual_claim_omitted_by_proposer(
                 reply="Inflation fell by ten points, so resolve has prevailed.",
                 claims=[],
             ),
-            "reviewer": reviewer(
-                direct_question=False,
-                answers_first=False,
-                factual_claims=["Inflation fell by ten points."],
-            ),
+            "claim_auditor": claim_auditor([
+                "Inflation fell by ten points, so resolve has prevailed."
+            ]),
             "revision_proposer": proposer(
                 mode="no_reply",
                 no_reply_reason="The unsupported factual claim cannot be repaired safely.",
@@ -625,10 +790,11 @@ def test_reviewer_cannot_approve_a_factual_claim_omitted_by_proposer(
     assert result.reply is None
     assert result.reason == "The unsupported factual claim cannot be repaired safely."
     assert [call["stage"] for call in transport.calls] == [
-        "proposer", "reviewer", "revision_proposer",
+        "proposer", "claim_auditor", "revision_proposer",
     ]
     assert any(
-        row.get("reason") == "reviewer_claim_inventory_mismatch"
+        row.get("stage") == "claim_auditor"
+        and row.get("factual_claim_count") == 1
         for row in result.audit
     )
 
@@ -638,7 +804,7 @@ def test_reviewer_claim_inventory_mismatch_gets_one_strict_repair_cycle(
 ) -> None:
     reply_text = "People moved from East Germany towards West Germany in November 1989."
     incomplete_claim = claim(
-        "People moved from East Germany towards West Germany."
+        "People moved from East Germany towards West Germany"
     )
     complete_claim = claim(reply_text)
     result, transport = run_pipeline(
@@ -661,16 +827,16 @@ def test_reviewer_claim_inventory_mismatch_gets_one_strict_repair_cycle(
     ]
     revision_payload = json.loads(transport.calls[3]["user_prompt"])
     instruction = revision_payload["single_allowed_revision"]["reviewer_revision_instructions"]
-    assert "copy the complete factual sentence or clause" in instruction
+    assert "complete independently checkable clause" in instruction
 
 
 def test_partial_candidate_evidence_in_non_direct_mode_is_adjudicated_before_one_revision(
     repository: FakeRepository,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    first = claim()
+    first = claim("People moved west")
     second = {
-        **claim("Inflation fell by ten points."),
+        **claim("inflation fell by ten points"),
         "claim_id": "claim-2",
         "actor": "inflation",
         "action_or_relationship": "fell",
@@ -728,6 +894,7 @@ def test_partial_candidate_evidence_in_non_direct_mode_is_adjudicated_before_one
                 reply="Resolve must be matched by evidence.",
                 claims=[],
             ),
+            "revision_claim_auditor": claim_auditor(),
             "revision_reviewer": reviewer(direct_question=False, answers_first=False),
         },
         context=reply_context("What happened, and what happened to inflation?"),
@@ -735,7 +902,8 @@ def test_partial_candidate_evidence_in_non_direct_mode_is_adjudicated_before_one
 
     assert str(result.reply) == "Resolve must be matched by evidence."
     assert [call["stage"] for call in transport.calls] == [
-        "proposer", "evidence", "reviewer", "revision_proposer", "revision_reviewer",
+        "proposer", "evidence", "reviewer", "revision_proposer",
+        "revision_claim_auditor", "revision_reviewer",
     ]
     evidence_payload = json.loads(transport.calls[1]["user_prompt"])
     assert evidence_payload["candidate_passages_by_claim"]["claim-1"]
@@ -794,12 +962,16 @@ def test_evidence_call_is_omitted_for_nonfactual_reply(repository: FakeRepositor
         repository,
         {
             "proposer": proposer(mode="opinion_or_principle", reply="Courage must precede action.", claims=[]),
+            "claim_auditor": claim_auditor(),
             "reviewer": reviewer(direct_question=False, answers_first=False),
         },
         context=reply_context("Why does nobody have the courage to act?"),
     )
     assert result.reply is not None
     assert all(call["stage"] != "evidence" for call in transport.calls)
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "claim_auditor", "reviewer",
+    ]
 
 
 def test_missing_claim_evidence_cannot_be_approved(repository: FakeRepository) -> None:
@@ -900,7 +1072,10 @@ def test_evidence_rows_are_canonicalised_to_proposer_claim_order(
     second["action_or_relationship"] = "movement occurred"
     second["direction_or_polarity"] = ""
     proposal = proposer(
-        reply="People moved from East Germany towards West Germany in November 1989.",
+        reply=(
+            "People moved from East Germany towards West Germany in November 1989. "
+            "Movement occurred in November 1989."
+        ),
         claims=[first, second],
     )
 
@@ -1014,6 +1189,9 @@ def test_reviewer_catches_factual_sentence_omitted_by_proposer(repository: FakeR
                 reply="The policy cut unemployment by exactly 20 per cent.",
                 claims=[],
             ),
+            # Exercise the final reviewer's independent safety net after a
+            # deliberately scripted claim-auditor false negative.
+            "claim_auditor": claim_auditor(),
             "reviewer": reviewer(
                 verdict="reject",
                 direct_question=False,
@@ -1046,6 +1224,7 @@ def test_complete_adversarial_fixture_is_rejected_by_independent_review(reposito
                     reply=case["bad_reply"],
                     claims=[],
                 ),
+                "claim_auditor": claim_auditor(),
                 "reviewer": reviewer(
                     verdict="reject",
                     direct_question="?" in case["contribution"],
@@ -1078,6 +1257,8 @@ def test_complete_valid_fixture_passes_the_real_pipeline(repository: FakeReposit
                 "proposer": proposer(mode=case["mode"], reply=case["reply"], claims=[]),
                 "reviewer": reviewer(direct_question=False, answers_first=False),
             }
+            if case["mode"] in {"opinion_or_principle", "light_humour"}:
+                scripted["claim_auditor"] = claim_auditor()
         result, _transport = run_pipeline(
             repository,
             scripted,
@@ -1183,6 +1364,52 @@ def test_declared_and_undeclared_thatcher_wording_is_checked_without_delimiters(
         maximum_reply_length=500,
         maximum_sentences=2,
     ) == "undeclared_thatcher_wording_detected"
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "No, the quoted wording is not verified as Margaret Thatcher's.",
+        "The quotation is not confirmed as Margaret Thatcher's exact wording.",
+        "As Margaret Thatcher once said, the wording must be checked.",
+    ],
+)
+def test_attribution_language_is_not_mistaken_for_impersonation(
+    repository: FakeRepository,
+    reply: str,
+) -> None:
+    proposal = proposer(mode="direct_factual_answer", reply=reply)
+
+    assert deterministic_reply_error(
+        proposal,
+        repository,  # type: ignore[arg-type]
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) is None
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I am Margaret Thatcher and this is my answer.",
+        "As Margaret Thatcher, I would reject that premise.",
+        "Speaking as Margaret Thatcher, I reject that premise.",
+    ],
+)
+def test_explicit_thatcher_impersonation_remains_blocked(
+    repository: FakeRepository,
+    reply: str,
+) -> None:
+    proposal = proposer(mode="opinion_or_principle", reply=reply, claims=[])
+
+    assert deterministic_reply_error(
+        proposal,
+        repository,  # type: ignore[arg-type]
+        recent_replies=[],
+        maximum_reply_length=500,
+        maximum_sentences=2,
+    ) == "reply_matches_blocked_safety_pattern"
 
 
 def test_exact_quote_authorisation_preserves_internal_punctuation(
@@ -1362,7 +1589,7 @@ def approved_draft(repository: FakeRepository) -> tuple[AIReply, dict[str, objec
     return result.reply, context, config
 
 
-def test_v3_persisted_draft_revalidates_complete_identity_and_evidence(
+def test_v4_persisted_draft_revalidates_complete_identity_and_evidence(
     repository: FakeRepository,
 ) -> None:
     reply, context, config = approved_draft(repository)
@@ -1379,6 +1606,55 @@ def test_v3_persisted_draft_revalidates_complete_identity_and_evidence(
     assert validated["evidence_prompt_version"] == EVIDENCE_PROMPT_VERSION
     assert validated["reviewer_prompt_version"] == REVIEWER_PROMPT_VERSION
     assert len(validated["approval_hash"]) == 64
+
+
+def test_claim_free_persisted_draft_revalidates_claim_audit_provenance(
+    repository: FakeRepository,
+) -> None:
+    context = reply_context("Conviction matters more than applause.")
+    config = strategy_config()
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply="Conviction matters more than applause.",
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor(),
+            "reviewer": reviewer(direct_question=False, answers_first=False),
+        },
+        context=context,
+        config=config,
+    )
+    assert result.reply is not None
+
+    validated = validate_persisted_draft(
+        result.reply.draft_record,
+        context=context,
+        config=config,
+        repository=repository,  # type: ignore[arg-type]
+        maximum_reply_length=500,
+    )
+    assert validated["claim_auditor_sentence_assessments"]
+    assert validated["claim_auditor_prompt_version"] == CLAIM_AUDITOR_PROMPT_VERSION
+    assert validated["claim_auditor_model"] == config["reviewer_model"]
+
+    for field, value in (
+        ("claim_auditor_sentence_assessments", []),
+        ("claim_auditor_prompt_version", "different"),
+        ("claim_auditor_model", "different"),
+    ):
+        tampered = copy.deepcopy(result.reply.draft_record)
+        tampered[field] = value
+        with pytest.raises(ValueError):
+            validate_persisted_draft(
+                tampered,
+                context=context,
+                config=config,
+                repository=repository,  # type: ignore[arg-type]
+                maximum_reply_length=500,
+            )
 
 
 @pytest.mark.parametrize(
@@ -1427,6 +1703,60 @@ def test_persisted_direct_factual_draft_cannot_drop_its_claims(
     draft["evidence_input_hashes"] = {}
 
     with pytest.raises(ValueError, match="requires a factual claim"):
+        validate_persisted_draft(
+            draft,
+            context=context,
+            config=config,
+            repository=repository,  # type: ignore[arg-type]
+            maximum_reply_length=500,
+        )
+
+
+def test_persisted_resolved_answer_rejects_mixed_packet_evidence(
+    repository: FakeRepository,
+) -> None:
+    repository.resolved_quotation = {
+        "quote_id": "c" * 64,
+        "matched_context_section": "quoted_post",
+        "match_basis": "exact_text",
+        "speaker": "Margaret Thatcher",
+        "resolved_context_hash": "d" * 64,
+    }
+    context = reply_context(
+        "What did this mean?",
+        quoted_post={"post_id": "quoted", "author_role": "account", "text": "A quotation."},
+    )
+    config = strategy_config()
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(),
+        },
+        context=context,
+        config=config,
+    )
+    assert result.reply is not None
+
+    unrelated = replace(
+        repository.passage,
+        evidence_id="e" * 64,
+        source_hash="f" * 64,
+        quote_id="9" * 64,
+        passage="Unrelated packet evidence.",
+        stable_locator="fixture:unrelated",
+    )
+    repository.passages[unrelated.evidence_id] = unrelated
+    draft = copy.deepcopy(result.reply.draft_record)
+    draft["evidence_ids"] = sorted([*draft["evidence_ids"], unrelated.evidence_id])
+    draft["claim_evidence"][0]["evidence_ids"] = sorted(
+        [*draft["claim_evidence"][0]["evidence_ids"], unrelated.evidence_id]
+    )
+    draft["source_hashes"][unrelated.evidence_id] = unrelated.source_hash
+    draft["evidence_input_hashes"][unrelated.evidence_id] = unrelated.model_input_hash()
+
+    with pytest.raises(ValueError, match="not confined to the resolved quotation"):
         validate_persisted_draft(
             draft,
             context=context,
@@ -1485,6 +1815,555 @@ def test_real_repository_contains_only_authorised_completed_packets(
     assert len(real_repository.passages) > 7_000
     assert all(len(quote_id) == 64 for quote_id in real_repository.packets)
     assert all(len(evidence_id) == 64 for evidence_id in real_repository.passages)
+
+
+def test_every_eligible_full_quotation_resolves_to_its_own_packet(
+    real_repository: EvidenceRepository,
+) -> None:
+    for quote_id, packet in sorted(real_repository.packets.items()):
+        text = " ".join(str(packet.get("verified_text") or "").split())
+        if text.casefold() in {"", "unknown", "unresolved", "no verified text available."}:
+            text = " ".join(str(packet.get("quote_text") or "").split())
+        context = reply_context(
+            "What did this mean?",
+            quoted_post={"post_id": quote_id, "author_role": "account", "text": text},
+        )
+        resolved = real_repository.resolve_context_quotation(context)
+        assert resolved is not None, quote_id
+        assert resolved["quote_id"] == quote_id
+        assert resolved["matched_context_section"] == "quoted_post"
+        assert len(resolved["resolved_context_hash"]) == 64
+
+
+def test_incoming_quotation_overrides_different_inherited_account_quotation(
+    real_repository: EvidenceRepository,
+) -> None:
+    first_quote_id, second_quote_id = sorted(real_repository.packets)[:2]
+    first_text = str(real_repository.packets[first_quote_id]["verified_text"])
+    second_text = str(real_repository.packets[second_quote_id]["verified_text"])
+    context = reply_context(
+        f'What did Margaret Thatcher mean by this passage: "{second_text}"?',
+        quoted_post={
+            "post_id": first_quote_id,
+            "author_role": "account",
+            "text": first_text,
+        },
+    )
+
+    resolved = real_repository.resolve_context_quotation(context)
+
+    assert resolved is not None
+    assert resolved["quote_id"] == second_quote_id
+    assert resolved["matched_context_section"] == "incoming_contribution"
+
+
+def test_external_quoted_canonical_quotation_can_be_verified(
+    real_repository: EvidenceRepository,
+) -> None:
+    quote_id = sorted(real_repository.packets)[0]
+    quote_text = str(real_repository.packets[quote_id]["verified_text"])
+    context = reply_context(
+        "Did Margaret Thatcher say this?",
+        quoted_post={
+            "post_id": "third-party-post",
+            "author_role": "other",
+            "text": quote_text,
+        },
+    )
+
+    resolved = real_repository.resolve_context_quotation(context)
+
+    assert resolved is not None
+    assert resolved["quote_id"] == quote_id
+    assert resolved["matched_context_section"] == "quoted_post"
+
+
+def test_resolved_packet_passages_are_preferred_without_claiming_entailment(
+    real_repository: EvidenceRepository,
+) -> None:
+    quote_id = sorted(real_repository.packets)[0]
+    candidates = real_repository.candidate_passages(
+        "an otherwise unrelated but non-empty retrieval query",
+        maximum_packets=1,
+        maximum_passages=8,
+        preferred_quote_id=quote_id,
+    )
+
+    assert candidates
+    assert {passage.quote_id for passage in candidates} == {quote_id}
+    assert candidates[0].field in {"verified_text", "quote_text"}
+
+
+def test_resolved_packet_retrieval_can_be_strictly_confined(
+    real_repository: EvidenceRepository,
+) -> None:
+    quote_id = sorted(real_repository.packets)[0]
+    candidates = real_repository.candidate_passages(
+        "a broad political query which would normally match several packets",
+        maximum_packets=6,
+        maximum_passages=24,
+        preferred_quote_id=quote_id,
+        restrict_to_preferred_quote=True,
+    )
+
+    assert candidates
+    assert {passage.quote_id for passage in candidates} == {quote_id}
+
+
+def test_restricted_retrieval_requires_a_known_preferred_quote(
+    real_repository: EvidenceRepository,
+) -> None:
+    with pytest.raises(ValueError, match="known preferred quotation"):
+        real_repository.candidate_passages(
+            "a non-empty query",
+            preferred_quote_id="f" * 64,
+            restrict_to_preferred_quote=True,
+        )
+
+
+def test_resolved_quotation_is_supplied_before_proposer_drafting(
+    repository: FakeRepository,
+) -> None:
+    repository.resolved_quotation = {
+        "quote_id": "c" * 64,
+        "matched_context_section": "quoted_post",
+        "match_basis": "exact_text",
+        "speaker": "Margaret Thatcher",
+        "verified_text": "A verified quotation.",
+        "historical_context": "A verified occasion.",
+        "resolved_context_hash": "d" * 64,
+    }
+    result, transport = run_pipeline(
+        repository,
+        {"proposer": proposer(mode="no_reply")},
+    )
+
+    assert result.status == "no_reply"
+    payload = json.loads(transport.calls[0]["user_prompt"])
+    assert payload["resolved_quotation_for_factual_use"]["quote_id"] == "c" * 64
+    assert payload["resolved_quotation_for_factual_use"]["speaker"] == "Margaret Thatcher"
+    assert result.audit[0]["status"] == "resolved"
+
+
+def test_wrong_resolved_actor_cannot_receive_reviewer_approval(
+    repository: FakeRepository,
+) -> None:
+    repository.resolved_quotation = {
+        "quote_id": "c" * 64,
+        "matched_context_section": "incoming_contribution",
+        "match_basis": "exact_text",
+        "speaker": "Margaret Thatcher",
+        "resolved_context_hash": "d" * 64,
+    }
+    wrong_reply = "Winston Churchill wrote those words."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                reply=wrong_reply,
+                claims=[claim(wrong_reply)],
+                requested_answer_type="actor",
+            ),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(
+                factual_claims=[wrong_reply],
+                requested_answer_type="actor",
+            ),
+            "revision_proposer": proposer(
+                mode="no_reply",
+                no_reply_reason="The authorship correction could not be completed safely.",
+            ),
+        },
+        context=reply_context("Did Winston Churchill write this quotation?"),
+    )
+
+    assert result.reply is None
+    assert result.reason == "The authorship correction could not be completed safely."
+    assert any(
+        row.get("reason") == "direct_answer_missing_resolved_actor"
+        for row in result.audit
+    )
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "evidence", "reviewer", "revision_proposer",
+    ]
+
+
+def test_direct_answer_cannot_be_grounded_in_a_different_quote_packet(
+    repository: FakeRepository,
+) -> None:
+    repository.resolved_quotation = {
+        "quote_id": "d" * 64,
+        "matched_context_section": "quoted_post",
+        "match_basis": "exact_text",
+        "speaker": "Margaret Thatcher",
+        "resolved_context_hash": "e" * 64,
+    }
+    reply_text = "People moved from East Germany towards West Germany."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply=reply_text, claims=[claim(reply_text)]),
+            "evidence": supporting_evidence(repository),
+        },
+    )
+
+    assert result.reply is None
+    assert result.reason == "resolved_quotation_not_supported"
+    assert [call["stage"] for call in transport.calls] == ["proposer", "evidence"]
+    assert result.audit[-1]["quote_id"] == "d" * 64
+    assert repository.candidate_requests[-1]["restrict_to_preferred_quote"] is True
+
+
+def test_direct_answer_rejects_mixed_target_and_unrelated_packet_evidence(
+    repository: FakeRepository,
+) -> None:
+    repository.resolved_quotation = {
+        "quote_id": "c" * 64,
+        "matched_context_section": "quoted_post",
+        "match_basis": "exact_text",
+        "speaker": "Margaret Thatcher",
+        "resolved_context_hash": "d" * 64,
+    }
+    unrelated = replace(
+        repository.passage,
+        evidence_id="e" * 64,
+        source_hash="f" * 64,
+        quote_id="9" * 64,
+        passage="A different quotation packet contains broadly similar wording.",
+        stable_locator="fixture:unrelated",
+    )
+    repository.passages[unrelated.evidence_id] = unrelated
+    repository.candidate_override = [repository.passage, unrelated]
+    reply_text = "People moved from East Germany towards West Germany."
+
+    def mixed_evidence(**kwargs: Any) -> object:
+        payload = json.loads(kwargs["user_prompt"])
+        supplied = payload["claims"][0]
+        return {"claims": [{
+            "claim_id": supplied["claim_id"],
+            "claim_text": supplied["claim_text"],
+            "verdict": "supports",
+            "evidence": [
+                {
+                    "evidence_id": repository.passage.evidence_id,
+                    "exact_supporting_passage": repository.passage.passage,
+                    "relation": "supports",
+                },
+                {
+                    "evidence_id": unrelated.evidence_id,
+                    "exact_supporting_passage": unrelated.passage,
+                    "relation": "supports",
+                },
+            ],
+            "actor": supplied["actor"],
+            "action_or_relationship": supplied["action_or_relationship"],
+            "direction_or_polarity": supplied["direction_or_polarity"],
+            "date_or_period": supplied["date_or_period"],
+            "quantity": supplied["quantity"],
+            "explanation": "Both passages were presented as supporting material.",
+        }]}
+
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply=reply_text, claims=[claim(reply_text)]),
+            "evidence": mixed_evidence,
+        },
+    )
+
+    assert result.reply is None
+    assert result.reason == "resolved_quotation_evidence_scope_violation"
+    assert [call["stage"] for call in transport.calls] == ["proposer", "evidence"]
+
+
+def test_unresolved_historical_question_retains_broad_claim_retrieval(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "People moved from East Germany towards West Germany."
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(reply=reply_text, claims=[claim(reply_text)]),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(factual_claims=[reply_text]),
+        },
+        context=reply_context("Where did people move when the Berlin Wall fell?"),
+    )
+
+    assert result.reply is not None
+    assert repository.candidate_requests[-1]["restrict_to_preferred_quote"] is False
+
+
+@pytest.mark.parametrize(
+    "reply_text",
+    [
+        "Voluntary exchange across borders advances interests on both sides when quality and price prevail.",
+        "Economic reliance on the state weakens the scope for genuine opposition.",
+        "Firm adherence to consistent policy often delivers stability where reversals breed uncertainty.",
+        "Repeated economic collapses under socialist regimes provide ample reason to reject it.",
+        "Endless blame for ancestral deeds leaves no society room to advance.",
+    ],
+)
+def test_claim_auditor_forces_hidden_world_claims_into_revision(
+    repository: FakeRepository,
+    reply_text: str,
+) -> None:
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor([reply_text]),
+            "revision_proposer": proposer(
+                mode="no_reply",
+                no_reply_reason="The factual generalisation could not be supported safely.",
+            ),
+        },
+    )
+
+    assert result.reply is None
+    assert result.reason == "The factual generalisation could not be supported safely."
+    assert any(
+        row.get("stage") == "claim_auditor"
+        and row.get("factual_claim_count") == 1
+        for row in result.audit
+    )
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "claim_auditor", "revision_proposer",
+    ]
+
+
+def test_non_factual_sentence_basis_must_match_its_classification() -> None:
+    review = reviewer(direct_question=False, answers_first=False, factual_claims=[])
+    review["sentence_assessments"][0]["non_factual_basis"] = "none"
+
+    with pytest.raises(ValueError, match="non-factual basis"):
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposed_reply="A principle should be defended.",
+        )
+
+
+def test_reviewer_world_claim_checks_must_match_sentence_classification() -> None:
+    review = reviewer(direct_question=False, answers_first=False, factual_claims=[])
+    checks = review["sentence_assessments"][0]["world_claim_checks"]
+    checks["asserts_comparison_or_outcome"] = True
+    checks["purely_non_factual"] = False
+
+    with pytest.raises(ValueError, match="world-claim checks contradict"):
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposed_reply="One course serves the country better.",
+        )
+
+
+def test_reviewer_meaning_claim_has_an_explicit_world_claim_category() -> None:
+    reply_text = "The passage means that effort, rather than idleness, brings satisfaction."
+    review = reviewer(
+        direct_question=True,
+        answers_first=True,
+        factual_claims=[reply_text],
+        requested_answer_type="meaning",
+    )
+    assessment = review["sentence_assessments"][0]
+    assessment["sentence_text"] = reply_text
+    checks = assessment["world_claim_checks"]
+    checks["asserts_actor_state_or_action"] = False
+    checks["asserts_meaning_or_attribution"] = True
+    review["direct_answer_text"] = reply_text
+
+    validated = validate_reviewer(
+        review,
+        maximum_claims=6,
+        proposed_reply=reply_text,
+    )
+
+    assert validated["sentence_assessments"][0]["world_claim_checks"][
+        "asserts_meaning_or_attribution"
+    ] is True
+
+
+def test_substantive_reviewer_contradiction_is_not_retried(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "A policy serves the country better."
+    bad_review = reviewer(direct_question=False, answers_first=False, factual_claims=[])
+    bad_review["sentence_assessments"] = [{
+        "sentence_text": reply_text,
+        "classification": "checkable_generalisation",
+        "factual_claims": [reply_text],
+        "non_factual_basis": "none",
+        "world_claim_checks": {
+            "asserts_actor_state_or_action": False,
+            "asserts_causal_or_predictive_relation": False,
+            "asserts_comparison_or_outcome": True,
+            "asserts_historical_date_or_quantity": False,
+            "asserts_meaning_or_attribution": False,
+            "purely_non_factual": False,
+        },
+    }]
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor(),
+            "reviewer": [
+                bad_review,
+                reviewer(direct_question=False, answers_first=False, factual_claims=[]),
+            ],
+        },
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "reviewer_invalid"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "claim_auditor", "reviewer",
+    ]
+    assert result.audit[-1]["retry_suppressed"] is True
+
+
+def test_substantive_claim_auditor_contradiction_is_not_retried(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "A policy serves the country better."
+    bad_audit = claim_auditor()
+    assessment = bad_audit["sentence_assessments"][0]
+    assessment["sentence_text"] = reply_text
+    checks = assessment["world_claim_checks"]
+    checks["asserts_comparison_or_outcome"] = True
+    checks["purely_non_factual"] = False
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[],
+            ),
+            "claim_auditor": [bad_audit, claim_auditor()],
+        },
+    )
+
+    assert result.reply is None
+    assert result.status == "operational_failure"
+    assert result.reason == "claim_auditor_invalid"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "claim_auditor",
+    ]
+    assert result.audit[-1]["retry_suppressed"] is True
+
+
+def test_revision_cannot_launder_a_previously_identified_world_claim(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "Advancement through merit serves everyone better."
+    result, transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[],
+            ),
+            "claim_auditor": claim_auditor([reply_text]),
+            "revision_proposer": proposer(
+                mode="opinion_or_principle",
+                reply=reply_text,
+                claims=[],
+            ),
+        },
+    )
+
+    assert result.reply is None
+    assert result.reason == "revision_dropped_previously_identified_factual_claim"
+    assert [call["stage"] for call in transport.calls] == [
+        "proposer", "claim_auditor", "revision_proposer",
+    ]
+
+
+def test_reviewer_must_account_for_every_exact_sentence_and_factual_clause() -> None:
+    review = reviewer(direct_question=False, answers_first=False, factual_claims=[])
+    review["sentence_assessments"] = [{
+        "sentence_text": "Resolve matters.",
+        "classification": "factual_claim",
+        "factual_claims": [],
+        "non_factual_basis": "none",
+        "world_claim_checks": {
+            "asserts_actor_state_or_action": False,
+            "asserts_causal_or_predictive_relation": False,
+            "asserts_comparison_or_outcome": False,
+            "asserts_historical_date_or_quantity": False,
+            "asserts_meaning_or_attribution": False,
+            "purely_non_factual": True,
+        },
+    }]
+    with pytest.raises(ValueError, match="classification contradicts"):
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposed_reply="Resolve matters. Evidence decides the factual issue.",
+        )
+    review["sentence_assessments"][0] = {
+        "sentence_text": "Resolve matters.",
+        "classification": "opinion_or_value_judgement",
+        "factual_claims": [],
+        "non_factual_basis": "normative_judgement",
+        "world_claim_checks": {
+            "asserts_actor_state_or_action": False,
+            "asserts_causal_or_predictive_relation": False,
+            "asserts_comparison_or_outcome": False,
+            "asserts_historical_date_or_quantity": False,
+            "asserts_meaning_or_attribution": False,
+            "purely_non_factual": True,
+        },
+    }
+    with pytest.raises(ValueError, match="does not cover the exact reply"):
+        validate_reviewer(
+            review,
+            maximum_claims=6,
+            proposed_reply="Resolve matters. Evidence decides the factual issue.",
+        )
+
+
+def test_reviewer_direct_answer_metadata_must_match_the_proposer(
+    repository: FakeRepository,
+) -> None:
+    reply_text = "People moved from East Germany towards West Germany."
+    result, _transport = run_pipeline(
+        repository,
+        {
+            "proposer": proposer(
+                reply=reply_text,
+                claims=[claim(reply_text)],
+                requested_answer_type="location",
+            ),
+            "evidence": supporting_evidence(repository),
+            "reviewer": reviewer(
+                factual_claims=[reply_text],
+                requested_answer_type="action",
+            ),
+            "revision_proposer": proposer(
+                mode="no_reply",
+                no_reply_reason="The direct answer could not be reconciled safely.",
+            ),
+        },
+    )
+
+    assert result.reply is None
+    assert any(
+        row.get("reason") == "direct_answer_metadata_mismatch"
+        for row in result.audit
+    )
 
 
 def test_real_repository_retrieval_is_candidate_selection_not_entailment(
@@ -1579,9 +2458,10 @@ def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
         )
         if passage.field == "factual_evidence"
     )
+    reply_text = "East Germans moved towards West Berlin when the Wall opened."
     proposal_claim = {
         "claim_id": "claim-1",
-        "claim_text": "East Germans moved towards West Berlin when the Berlin Wall opened in November 1989.",
+        "claim_text": reply_text,
         "requires_evidence": True,
         "actor": "East Germans",
         "action_or_relationship": "moved across the opened border",
@@ -1609,7 +2489,6 @@ def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
             "explanation": "The official caption establishes east-to-west movement.",
         }]}
 
-    reply_text = "East Germans moved towards West Berlin when the Wall opened."
     transport = ScriptedTransport({
         "proposer": proposer(reply=reply_text, claims=[proposal_claim]),
         "evidence": evidence_response,
@@ -1640,7 +2519,34 @@ def test_real_source_grounded_berlin_answer_can_pass_the_complete_pipeline(
     assert "least-specific factual wording" in transport.calls[0]["system_prompt"]
     assert "prefer a clearly rhetorical quip or question" in transport.calls[0]["system_prompt"]
     assert "Never omit a genuine claim merely to avoid evidence review" in transport.calls[0]["system_prompt"]
+    assert "civil challenge to a clear political or moral principle is likewise in scope" in transport.calls[0]["system_prompt"]
+    assert "do not assume that this account never engages with civil disagreement" in transport.calls[0]["system_prompt"]
+    assert "names and addresses the specific disputed principle" in transport.calls[0]["system_prompt"]
+    assert "bounded thread explicitly shows that this account has already answered" in transport.calls[0]["system_prompt"]
+    assert "A normative wrapper does not hide a factual premise" in transport.calls[0]["system_prompt"]
+    assert "defence rather than defense" in transport.calls[0]["system_prompt"]
     assert "ordinary paraphrases" in transport.calls[1]["system_prompt"]
+
+
+def test_claim_audit_prompts_treat_historical_record_as_a_factual_premise() -> None:
+    auditor_system, _ = _claim_auditor_prompts(
+        "A nation's record in defending liberty supplies its own reason to stand firm."
+    )
+    reviewer_system, _ = _reviewer_prompts(
+        reply_context("I disagree. Why should anyone accept that?"),
+        proposer(
+            reply="A nation's record in defending liberty supplies its own reason to stand firm.",
+            claims=[],
+        ),
+        [],
+        None,
+    )
+
+    assert "record or history of an actor doing something" in auditor_system
+    assert "copy those exact contiguous clauses verbatim" in auditor_system
+    assert "action-bearing relative clause" in reviewer_system
+    assert "record or history of an actor doing something" in reviewer_system
+    assert "request revision for an American spelling" in reviewer_system
 
 
 def test_claim_retrieval_query_uses_contribution_but_not_inherited_context() -> None:

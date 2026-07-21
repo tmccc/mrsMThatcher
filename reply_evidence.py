@@ -55,6 +55,36 @@ RETRIEVAL_FIELDS = (
     "claimed_consequence",
 )
 AUTHORISED_QUOTATION_STATUSES = {"exact", "normalised", "excerpt", "variant"}
+QUOTE_TEXT_SENTINELS = {"", "unknown", "unresolved", "no verified text available."}
+RESOLVED_QUOTATION_FIELDS = (
+    "quote_text",
+    "verified_text",
+    "verification_status",
+    "research_confidence",
+    "speaker",
+    "source_event",
+    "date",
+    "historical_context",
+    "literal_meaning",
+    "intended_argument",
+    "text_variation_notes",
+    "stable_locator",
+)
+PREFERRED_PASSAGE_FIELDS = (
+    "verified_text",
+    "quote_text",
+    "source_event",
+    "date",
+    "historical_context",
+    "literal_meaning",
+    "intended_argument",
+    "immediate_subject",
+    "broader_principle",
+    "mechanism",
+    "claimed_consequence",
+    "speaker",
+    "entities",
+)
 WORD_RE = re.compile(r"[^\W_]+(?:['\N{RIGHT SINGLE QUOTATION MARK}-][^\W_]+)*", re.UNICODE)
 STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by",
@@ -198,6 +228,8 @@ class EvidenceRepository:
         self._passage_tokens: dict[str, set[str]] = {}
         self._authorised_quote_texts: dict[str, str] = {}
         self._authorised_quote_words: dict[str, tuple[str, ...]] = {}
+        self._quote_match_texts: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {}
+        self._passages_by_quote: dict[str, list[EvidencePassage]] = {}
         self.factual_evidence_count = 0
         self._build_indexes()
         if self.factual_evidence_path is not None:
@@ -245,6 +277,18 @@ class EvidenceRepository:
                 )
                 self.passages[evidence_id] = passage
                 self._passage_tokens[evidence_id] = retrieval_tokens(text)
+                self._passages_by_quote.setdefault(quote_id, []).append(passage)
+
+            match_texts: list[tuple[str, tuple[str, ...]]] = []
+            seen_match_words: set[tuple[str, ...]] = set()
+            for field in ("verified_text", "quote_text"):
+                text = " ".join(str(packet.get(field) or "").split())
+                words = normalise_words(text)
+                if text.casefold() in QUOTE_TEXT_SENTINELS or not words or words in seen_match_words:
+                    continue
+                seen_match_words.add(words)
+                match_texts.append((field, words))
+            self._quote_match_texts[quote_id] = tuple(match_texts)
 
             status = str(packet.get("verification_status") or "")
             verified = " ".join(str(packet.get("verified_text") or "").split())
@@ -357,8 +401,12 @@ class EvidenceRepository:
         *,
         maximum_packets: int = 6,
         maximum_passages: int = 24,
+        preferred_quote_id: str | None = None,
+        restrict_to_preferred_quote: bool = False,
     ) -> list[EvidencePassage]:
         """Return lexical candidates without asserting that they support the claim."""
+        if restrict_to_preferred_quote and preferred_quote_id not in self.packets:
+            raise ValueError("restricted evidence retrieval requires a known preferred quotation")
         query = retrieval_tokens(claim_text)
         if not query:
             return []
@@ -377,14 +425,168 @@ class EvidenceRepository:
         ranked.sort(key=lambda row: row[:3])
         selected: list[EvidencePassage] = []
         quote_ids: set[str] = set()
+        if preferred_quote_id in self.packets:
+            field_order = {
+                field: index for index, field in enumerate(PREFERRED_PASSAGE_FIELDS)
+            }
+            preferred = sorted(
+                self._passages_by_quote.get(str(preferred_quote_id), []),
+                key=lambda passage: (
+                    field_order.get(passage.field, len(field_order)),
+                    passage.evidence_id,
+                ),
+            )
+            selected.extend(preferred[:maximum_passages])
+            if selected:
+                quote_ids.add(str(preferred_quote_id))
+        if restrict_to_preferred_quote:
+            return selected
+        selected_ids = {passage.evidence_id for passage in selected}
         for _score, _priority, _identifier, passage in ranked:
+            if passage.evidence_id in selected_ids:
+                continue
             if passage.quote_id not in quote_ids and len(quote_ids) >= maximum_packets:
                 continue
             quote_ids.add(passage.quote_id)
             selected.append(passage)
+            selected_ids.add(passage.evidence_id)
             if len(selected) >= maximum_passages:
                 break
         return selected
+
+    def resolve_context_quotation(self, context: dict[str, Any]) -> dict[str, Any] | None:
+        """Resolve one source-grounded quotation from separated reply context."""
+        contextual_sources: list[tuple[str, str]] = []
+        quoted = context.get("quoted_post")
+        if isinstance(quoted, dict):
+            contextual_sources.append(("quoted_post", str(quoted.get("text") or "")))
+        parents = context.get("parent_thread")
+        if isinstance(parents, list):
+            for parent in reversed(parents):
+                if isinstance(parent, dict) and parent.get("author_role") == "account":
+                    contextual_sources.append(
+                        ("parent_thread", str(parent.get("text") or ""))
+                    )
+
+        incoming_match, incoming_ambiguous = self._strongest_quotation_match(
+            str(context.get("incoming_contribution") or "")
+        )
+        if incoming_ambiguous:
+            return None
+
+        contextual_matches: list[tuple[str, tuple[str, str]]] = []
+        for section, text in contextual_sources:
+            match, ambiguous = self._strongest_quotation_match(text)
+            if ambiguous:
+                if incoming_match is None:
+                    return None
+                continue
+            if match is not None:
+                contextual_matches.append((section, match))
+
+        if incoming_match is not None:
+            incoming_quote_id, incoming_basis = incoming_match
+            if contextual_matches and all(
+                match[0] == incoming_quote_id for _section, match in contextual_matches
+            ):
+                section, (_quote_id, basis) = contextual_matches[0]
+                return self._resolved_quotation_record(incoming_quote_id, section, basis)
+            return self._resolved_quotation_record(
+                incoming_quote_id,
+                "incoming_contribution",
+                incoming_basis,
+            )
+
+        if contextual_matches:
+            section, (quote_id, basis) = contextual_matches[0]
+            return self._resolved_quotation_record(quote_id, section, basis)
+        return None
+
+    def _strongest_quotation_match(
+        self,
+        text: str,
+    ) -> tuple[tuple[str, str] | None, bool]:
+        """Return a unique strongest match and whether the result was ambiguous."""
+        matches = self._quotation_matches(text)
+        if not matches:
+            return None, False
+        strongest = max(score for score, _quote_id, _basis in matches)
+        strongest_matches = {
+            (quote_id, basis)
+            for score, quote_id, basis in matches
+            if score == strongest
+        }
+        quote_ids = {quote_id for quote_id, _basis in strongest_matches}
+        if len(quote_ids) != 1:
+            return None, True
+        quote_id = next(iter(quote_ids))
+        basis = sorted(
+            basis for candidate_id, basis in strongest_matches if candidate_id == quote_id
+        )[0]
+        return (quote_id, basis), False
+
+    def _resolved_quotation_record(
+        self,
+        quote_id: str,
+        section: str,
+        basis: str,
+    ) -> dict[str, Any]:
+        """Build the source-bound resolved quotation record used by the pipeline."""
+        packet = self.packets[quote_id]
+        primary = select_primary_source(packet) or {}
+        fields = {
+            field: packet.get(field)
+            for field in RESOLVED_QUOTATION_FIELDS
+        }
+        record = {
+            "quote_id": quote_id,
+            "matched_context_section": section,
+            "match_basis": basis,
+            **fields,
+            "primary_source": {
+                "title": str(primary.get("title") or ""),
+                "url": str(primary.get("url") or ""),
+            },
+            "evidence_ids": [
+                passage.evidence_id
+                for passage in sorted(
+                    self._passages_by_quote.get(quote_id, []),
+                    key=lambda passage: (passage.field, passage.evidence_id),
+                )
+            ],
+        }
+        record["resolved_context_hash"] = value_hash(record)
+        return record
+
+    def _quotation_matches(self, text: str) -> list[tuple[int, str, str]]:
+        """Return unique full or substantial exact-word quotation matches."""
+        source_words = normalise_words(text)
+        if not source_words:
+            return []
+        source_windows = {
+            source_words[index:index + 12]
+            for index in range(max(0, len(source_words) - 11))
+        }
+        matches: list[tuple[int, str, str]] = []
+        for quote_id, candidates in self._quote_match_texts.items():
+            best: tuple[int, str] | None = None
+            for _field, candidate_words in candidates:
+                if source_words == candidate_words:
+                    candidate = (3, "exact_text")
+                elif _contains_words(source_words, candidate_words):
+                    candidate = (2, "full_text")
+                elif len(candidate_words) >= 12 and any(
+                    candidate_words[index:index + 12] in source_windows
+                    for index in range(len(candidate_words) - 11)
+                ):
+                    candidate = (1, "unique_contiguous_excerpt")
+                else:
+                    continue
+                if best is None or candidate[0] > best[0]:
+                    best = candidate
+            if best is not None:
+                matches.append((best[0], quote_id, best[1]))
+        return matches
 
     def validate_reference(self, evidence_id: str, exact_passage: str) -> EvidencePassage:
         """Resolve an evidence reference only when its saved passage is exact."""

@@ -27,10 +27,11 @@ from reply_evidence import EvidencePassage, EvidenceRepository, value_hash
 
 
 STRATEGY_VERSION = "ai-first-reply-v3"
-DRAFT_SCHEMA_VERSION = 3
-PROPOSER_PROMPT_VERSION = "ai-first-proposer-v6"
-EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v4"
-REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v3"
+DRAFT_SCHEMA_VERSION = 9
+PROPOSER_PROMPT_VERSION = "ai-first-proposer-v13"
+EVIDENCE_PROMPT_VERSION = "claim-evidence-entailment-v6"
+REVIEWER_PROMPT_VERSION = "independent-reply-reviewer-v11"
+CLAIM_AUDITOR_PROMPT_VERSION = "claim-inventory-auditor-v5"
 LEGACY_DRAFT_AUDIT_SCHEMA_VERSION = 1
 
 MODES = {
@@ -40,11 +41,63 @@ MODES = {
     "courtesy",
     "no_reply",
 }
+CLAIM_AUDITED_MODES = {"opinion_or_principle", "light_humour"}
 TONES = {"firm", "dry", "wry", "warm", "neutral", "light", "none"}
 CONFIDENCE_LEVELS = {"low": 1, "medium": 2, "high": 3}
 EVIDENCE_VERDICTS = {"supports", "contradicts", "insufficient"}
 REVIEWER_VERDICTS = {"approve", "reject", "revise"}
 LANES = {"mention", "hot_post_reply", "quote_tweet"}
+ANSWER_TYPES = {
+    "none",
+    "actor",
+    "action",
+    "location",
+    "time",
+    "choice",
+    "ownership",
+    "quantity",
+    "duration",
+    "yes_no",
+    "meaning",
+    "source_or_attribution",
+    "other",
+}
+SENTENCE_CLASSIFICATIONS = {
+    "factual_claim",
+    "checkable_generalisation",
+    "mixed_factual_and_opinion",
+    "opinion_or_value_judgement",
+    "humour",
+    "courtesy",
+    "other_non_factual",
+}
+FACTUAL_SENTENCE_CLASSIFICATIONS = {
+    "factual_claim",
+    "checkable_generalisation",
+    "mixed_factual_and_opinion",
+}
+NON_FACTUAL_BASES = {
+    "none",
+    "normative_judgement",
+    "recommendation",
+    "courtesy",
+    "rhetorical_question",
+    "humour_without_world_claim",
+}
+NON_FACTUAL_BASES_BY_CLASSIFICATION = {
+    "opinion_or_value_judgement": {"normative_judgement", "recommendation"},
+    "humour": {"humour_without_world_claim"},
+    "courtesy": {"courtesy"},
+    "other_non_factual": {"rhetorical_question"},
+}
+WORLD_CLAIM_CHECK_FIELDS = (
+    "asserts_actor_state_or_action",
+    "asserts_causal_or_predictive_relation",
+    "asserts_comparison_or_outcome",
+    "asserts_historical_date_or_quantity",
+    "asserts_meaning_or_attribution",
+    "purely_non_factual",
+)
 
 URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
 DOMAIN_RE = re.compile(
@@ -67,7 +120,11 @@ BLOCKED_REPLY_PATTERNS = (
     re.compile(r"\b(?:go|should|deserves? to)\s+(?:die|hang)\b", re.IGNORECASE),
     re.compile(r"\btraitor should\b", re.IGNORECASE),
     re.compile(r"\bi am margaret thatcher\b", re.IGNORECASE),
-    re.compile(r"\bas margaret thatcher\b", re.IGNORECASE),
+    re.compile(r"^\s*as\s+margaret\s+thatcher\s*[,;:]", re.IGNORECASE),
+    re.compile(
+        r"\b(?:speaking|writing|replying|responding)\s+as\s+margaret\s+thatcher\b",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -79,8 +136,12 @@ class ModelCallLimitError(ReplyPipelineError):
     """The configured per-candidate model-call ceiling was reached."""
 
 
+class NonRetryableReviewerResponseError(ValueError):
+    """A received reviewer response contains a substantive safety conflict."""
+
+
 class AIReply(str):
-    """A reviewer-approved reply carrying its immutable V3 draft record."""
+    """A reviewer-approved reply carrying its immutable draft record."""
 
     draft_record: dict[str, Any]
     pipeline_metadata: dict[str, Any]
@@ -192,6 +253,9 @@ def proposer_schema(maximum_reply_length: int, maximum_claims: int) -> dict[str,
         "mode": {"type": "string", "enum": sorted(MODES)},
         "interpretation": {"type": "string", "minLength": 1, "maxLength": 800},
         "proposed_reply": {"type": "string", "maxLength": maximum_reply_length},
+        "direct_factual_question_present": {"type": "boolean"},
+        "requested_answer_type": {"type": "string", "enum": sorted(ANSWER_TYPES)},
+        "direct_answer_text": {"type": "string", "maxLength": maximum_reply_length},
         "factual_claims": {
             "type": "array",
             "items": claim_schema(),
@@ -241,16 +305,87 @@ def evidence_schema(maximum_claims: int, maximum_references: int) -> dict[str, A
     )
 
 
+def world_claim_checks_schema() -> dict[str, Any]:
+    """Return redundant per-sentence checks for externally testable claims."""
+    return _strict_object(
+        {field: {"type": "boolean"} for field in WORLD_CLAIM_CHECK_FIELDS},
+        list(WORLD_CLAIM_CHECK_FIELDS),
+    )
+
+
+def claim_auditor_schema(maximum_claims: int) -> dict[str, Any]:
+    """Return the strict schema for the fresh claim-inventory audit."""
+    sentence_assessment = _strict_object(
+        {
+            "sentence_text": {"type": "string", "minLength": 1, "maxLength": 500},
+            "factual_claims": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "maxLength": 500},
+                "maxItems": maximum_claims,
+            },
+            "world_claim_checks": world_claim_checks_schema(),
+        },
+        ["sentence_text", "factual_claims", "world_claim_checks"],
+    )
+    return _strict_object(
+        {
+            "actual_factual_claims": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "maxLength": 500},
+                "maxItems": maximum_claims,
+            },
+            "sentence_assessments": {
+                "type": "array",
+                "items": sentence_assessment,
+                "minItems": 1,
+                "maxItems": 3,
+            },
+        },
+        ["actual_factual_claims", "sentence_assessments"],
+    )
+
+
 def reviewer_schema(maximum_claims: int) -> dict[str, Any]:
     """Return the strict structured-output schema for independent review."""
+    sentence_assessment = _strict_object(
+        {
+            "sentence_text": {"type": "string", "minLength": 1, "maxLength": 500},
+            "classification": {
+                "type": "string",
+                "enum": sorted(SENTENCE_CLASSIFICATIONS),
+            },
+            "factual_claims": {
+                "type": "array",
+                "items": {"type": "string", "minLength": 1, "maxLength": 500},
+                "maxItems": maximum_claims,
+            },
+            "non_factual_basis": {
+                "type": "string",
+                "enum": sorted(NON_FACTUAL_BASES),
+            },
+            "world_claim_checks": world_claim_checks_schema(),
+        },
+        [
+            "sentence_text", "classification", "factual_claims",
+            "non_factual_basis", "world_claim_checks",
+        ],
+    )
     properties = {
         "verdict": {"type": "string", "enum": sorted(REVIEWER_VERDICTS)},
         "summary": {"type": "string", "maxLength": 800},
         "reasons": {"type": "array", "items": {"type": "string", "maxLength": 300}, "maxItems": 12},
         "actual_factual_claims": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": maximum_claims},
         "unsupported_factual_claims": {"type": "array", "items": {"type": "string", "maxLength": 500}, "maxItems": maximum_claims},
-        "direct_question_present": {"type": "boolean"},
-        "answers_direct_question_first_sentence": {"type": "boolean"},
+        "sentence_assessments": {
+            "type": "array",
+            "items": sentence_assessment,
+            "minItems": 1,
+            "maxItems": 3,
+        },
+        "direct_factual_question_present": {"type": "boolean"},
+        "requested_answer_type": {"type": "string", "enum": sorted(ANSWER_TYPES)},
+        "direct_answer_complete": {"type": "boolean"},
+        "direct_answer_text": {"type": "string", "maxLength": 500},
         "topically_relevant": {"type": "boolean"},
         "endorses_unsupported_allegation": {"type": "boolean"},
         "contains_unsupported_factual_claims": {"type": "boolean"},
@@ -421,6 +556,8 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
     item = _parse_object(value, "proposer")
     expected = {
         "mode", "interpretation", "proposed_reply", "factual_claims",
+        "direct_factual_question_present", "requested_answer_type",
+        "direct_answer_text",
         "exact_thatcher_wording_used", "exact_thatcher_wording", "tone",
         "confidence", "no_reply_reason",
     }
@@ -431,6 +568,7 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
         raise ValueError("proposer confidence is invalid")
     for field, maximum in (
         ("interpretation", 800), ("proposed_reply", maximum_reply_length),
+        ("direct_answer_text", maximum_reply_length),
         ("exact_thatcher_wording", maximum_reply_length), ("no_reply_reason", 500),
     ):
         if not isinstance(item.get(field), str) or len(item[field]) > maximum:
@@ -439,6 +577,17 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
         raise ValueError("proposer interpretation is invalid")
     if type(item.get("exact_thatcher_wording_used")) is not bool:
         raise ValueError("proposer exact_thatcher_wording_used must be boolean")
+    if type(item.get("direct_factual_question_present")) is not bool:
+        raise ValueError("proposer direct_factual_question_present must be boolean")
+    if item.get("requested_answer_type") not in ANSWER_TYPES:
+        raise ValueError("proposer requested_answer_type is invalid")
+    if not isinstance(item.get("direct_answer_text"), str):
+        raise ValueError("proposer direct_answer_text is invalid")
+    if item["direct_factual_question_present"]:
+        if item["requested_answer_type"] == "none":
+            raise ValueError("direct factual question requires an answer type")
+    elif item["requested_answer_type"] != "none" or item["direct_answer_text"]:
+        raise ValueError("non-direct contribution cannot declare a direct answer")
     claims = item.get("factual_claims")
     if not isinstance(claims, list) or len(claims) > maximum_claims:
         raise ValueError("proposer factual_claims is invalid")
@@ -453,6 +602,10 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
             raise ValueError("proposer claim IDs must be sequential")
         if validated["requires_evidence"] is not True:
             raise ValueError("every factual claim must require evidence")
+        compact_reply = " ".join(str(item.get("proposed_reply") or "").split())
+        compact_claim = " ".join(validated["claim_text"].split())
+        if compact_claim not in compact_reply:
+            raise ValueError("proposer factual claim must occur verbatim in the reply")
         normalised_claim = " ".join(validated["claim_text"].casefold().split())
         if normalised_claim in claim_texts:
             raise ValueError("proposer factual claims must be unique")
@@ -462,6 +615,8 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
             raise ValueError("no_reply must not contain a draft or factual claims")
         if item["exact_thatcher_wording"] or not item["no_reply_reason"].strip():
             raise ValueError("no_reply requires a reason and no quotation wording")
+        if item["direct_answer_text"]:
+            raise ValueError("no_reply cannot contain a direct answer")
     else:
         if not item["proposed_reply"].strip() or item["no_reply_reason"]:
             raise ValueError("a proposed reply requires text and an empty no_reply_reason")
@@ -469,6 +624,12 @@ def validate_proposer(value: object, *, maximum_reply_length: int, maximum_claim
             raise ValueError("a proposed reply requires at least medium proposer confidence")
         if item["mode"] == "direct_factual_answer" and not claims:
             raise ValueError("direct_factual_answer requires at least one factual claim")
+        if item["direct_factual_question_present"] != (item["mode"] == "direct_factual_answer"):
+            raise ValueError("direct factual question and mode contradict each other")
+        if item["mode"] == "direct_factual_answer":
+            sentences = split_reply_sentences(item["proposed_reply"])
+            if not sentences or item["direct_answer_text"] != sentences[0]:
+                raise ValueError("direct factual answer must bind its complete first sentence")
     if item["exact_thatcher_wording_used"] != bool(item["exact_thatcher_wording"].strip()):
         raise ValueError("exact Thatcher wording fields contradict each other")
     return item
@@ -598,13 +759,119 @@ def validate_evidence_response(
     return [enriched_by_claim[claim["claim_id"]] for claim in claims]
 
 
-def validate_reviewer(value: object, *, maximum_claims: int) -> dict[str, Any]:
+def _validate_world_claim_checks(
+    value: object,
+    *,
+    has_factual_claims: bool,
+    label: str,
+) -> None:
+    """Validate redundant world-claim flags against the declared inventory."""
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(WORLD_CLAIM_CHECK_FIELDS)
+        or any(type(value[field]) is not bool for field in WORLD_CLAIM_CHECK_FIELDS)
+    ):
+        raise ValueError(f"{label} world-claim checks are invalid")
+    has_world_claim = any(
+        value[field]
+        for field in WORLD_CLAIM_CHECK_FIELDS
+        if field != "purely_non_factual"
+    )
+    if value["purely_non_factual"] == has_world_claim:
+        raise NonRetryableReviewerResponseError(
+            f"{label} world-claim checks contradict each other"
+        )
+    if has_world_claim != has_factual_claims:
+        raise NonRetryableReviewerResponseError(
+            f"{label} world-claim checks contradict its claim inventory"
+        )
+
+
+def validate_claim_auditor(
+    value: object,
+    *,
+    maximum_claims: int,
+    proposed_reply: str,
+) -> dict[str, Any]:
+    """Validate a fresh claim audit against every exact reply sentence."""
+    item = _parse_object(value, "claim auditor")
+    _validate_exact_keys(
+        item,
+        {"actual_factual_claims", "sentence_assessments"},
+        "claim auditor",
+    )
+    actual_claims = item.get("actual_factual_claims")
+    assessments = item.get("sentence_assessments")
+    if (
+        not isinstance(actual_claims, list)
+        or len(actual_claims) > maximum_claims
+        or any(
+            not isinstance(claim_text, str)
+            or not claim_text.strip()
+            or len(claim_text) > 500
+            for claim_text in actual_claims
+        )
+    ):
+        raise ValueError("claim auditor factual claims are invalid")
+    if not isinstance(assessments, list) or not 1 <= len(assessments) <= 3:
+        raise ValueError("claim auditor sentence assessments are invalid")
+    assessed_sentences: list[str] = []
+    assessed_claims: list[str] = []
+    for assessment in assessments:
+        if not isinstance(assessment, dict):
+            raise ValueError("claim auditor sentence assessment must be an object")
+        _validate_exact_keys(
+            assessment,
+            {"sentence_text", "factual_claims", "world_claim_checks"},
+            "claim auditor sentence assessment",
+        )
+        sentence_text = assessment.get("sentence_text")
+        sentence_claims = assessment.get("factual_claims")
+        if not isinstance(sentence_text, str) or not sentence_text.strip() or len(sentence_text) > 500:
+            raise ValueError("claim auditor sentence text is invalid")
+        if (
+            not isinstance(sentence_claims, list)
+            or len(sentence_claims) > maximum_claims
+            or any(
+                not isinstance(claim_text, str)
+                or not claim_text.strip()
+                or len(claim_text) > 500
+                for claim_text in sentence_claims
+            )
+        ):
+            raise ValueError("claim auditor sentence claims are invalid")
+        compact_sentence = " ".join(sentence_text.split())
+        if any(" ".join(claim_text.split()) not in compact_sentence for claim_text in sentence_claims):
+            raise ValueError("claim auditor factual claim is not a verbatim sentence clause")
+        _validate_world_claim_checks(
+            assessment.get("world_claim_checks"),
+            has_factual_claims=bool(sentence_claims),
+            label="claim auditor sentence",
+        )
+        assessed_sentences.append(sentence_text)
+        assessed_claims.extend(sentence_claims)
+    if assessed_sentences != split_reply_sentences(proposed_reply):
+        raise ValueError("claim auditor does not cover the exact reply")
+    if assessed_claims != actual_claims:
+        raise NonRetryableReviewerResponseError(
+            "claim auditor sentence inventory is incomplete or out of order"
+        )
+    return item
+
+
+def validate_reviewer(
+    value: object,
+    *,
+    maximum_claims: int,
+    proposed_reply: str | None = None,
+) -> dict[str, Any]:
     """Validate an independent reviewer response and its internal consistency."""
     item = _parse_object(value, "reviewer")
     expected = {
         "verdict", "summary", "reasons", "actual_factual_claims",
-        "unsupported_factual_claims", "direct_question_present",
-        "answers_direct_question_first_sentence", "topically_relevant",
+        "unsupported_factual_claims", "sentence_assessments",
+        "direct_factual_question_present", "requested_answer_type",
+        "direct_answer_complete", "direct_answer_text", "topically_relevant",
         "endorses_unsupported_allegation", "contains_unsupported_factual_claims",
         "actor_action_relationship_correct", "direction_polarity_correct",
         "dates_quantities_correct", "quotation_attribution_correct",
@@ -633,20 +900,123 @@ def validate_reviewer(value: object, *, maximum_claims: int) -> dict[str, Any]:
             )
         ):
             raise ValueError(f"reviewer {field} is invalid")
+    assessments = item.get("sentence_assessments")
+    if not isinstance(assessments, list) or not 1 <= len(assessments) <= 3:
+        raise ValueError("reviewer sentence_assessments is invalid")
+    assessed_claims: list[str] = []
+    assessed_sentences: list[str] = []
+    for assessment in assessments:
+        if not isinstance(assessment, dict):
+            raise ValueError("reviewer sentence assessment must be an object")
+        _validate_exact_keys(
+            assessment,
+            {
+                "sentence_text", "classification", "factual_claims",
+                "non_factual_basis", "world_claim_checks",
+            },
+            "reviewer sentence assessment",
+        )
+        sentence_text = assessment.get("sentence_text")
+        classification = assessment.get("classification")
+        sentence_claims = assessment.get("factual_claims")
+        non_factual_basis = assessment.get("non_factual_basis")
+        world_claim_checks = assessment.get("world_claim_checks")
+        if not isinstance(sentence_text, str) or not sentence_text.strip() or len(sentence_text) > 500:
+            raise ValueError("reviewer assessed sentence text is invalid")
+        if classification not in SENTENCE_CLASSIFICATIONS:
+            raise ValueError("reviewer sentence classification is invalid")
+        if (
+            not isinstance(sentence_claims, list)
+            or len(sentence_claims) > maximum_claims
+            or any(
+                not isinstance(claim_text, str)
+                or not claim_text.strip()
+                or len(claim_text) > 500
+                for claim_text in sentence_claims
+            )
+        ):
+            raise ValueError("reviewer sentence factual claims are invalid")
+        compact_sentence = " ".join(sentence_text.split())
+        if any(" ".join(claim_text.split()) not in compact_sentence for claim_text in sentence_claims):
+            raise ValueError("reviewer factual claim is not a verbatim clause of its sentence")
+        is_factual = classification in FACTUAL_SENTENCE_CLASSIFICATIONS
+        if is_factual != bool(sentence_claims):
+            raise NonRetryableReviewerResponseError(
+                "reviewer sentence classification contradicts its factual claims"
+            )
+        _validate_world_claim_checks(
+            world_claim_checks,
+            has_factual_claims=is_factual,
+            label="reviewer sentence",
+        )
+        expected_bases = (
+            {"none"}
+            if is_factual
+            else NON_FACTUAL_BASES_BY_CLASSIFICATION.get(str(classification), set())
+        )
+        if non_factual_basis not in expected_bases:
+            raise NonRetryableReviewerResponseError(
+                "reviewer sentence classification contradicts its non-factual basis"
+            )
+        assessed_sentences.append(sentence_text)
+        assessed_claims.extend(sentence_claims)
+    if assessed_claims != item["actual_factual_claims"]:
+        raise NonRetryableReviewerResponseError(
+            "reviewer sentence claim inventory is incomplete or out of order"
+        )
+    if proposed_reply is not None and assessed_sentences != split_reply_sentences(proposed_reply):
+        raise ValueError("reviewer sentence assessment does not cover the exact reply")
+    if item.get("requested_answer_type") not in ANSWER_TYPES:
+        raise ValueError("reviewer requested_answer_type is invalid")
+    if not isinstance(item.get("direct_answer_text"), str) or len(item["direct_answer_text"]) > 500:
+        raise ValueError("reviewer direct_answer_text is invalid")
+    if item.get("direct_factual_question_present"):
+        if item["requested_answer_type"] == "none":
+            raise ValueError("reviewer direct factual question requires an answer type")
+        if proposed_reply is not None:
+            sentences = split_reply_sentences(proposed_reply)
+            if item["direct_answer_complete"] and (
+                not sentences or item["direct_answer_text"] != sentences[0]
+            ):
+                raise ValueError("reviewer must bind the complete first sentence")
+            if not item["direct_answer_complete"] and item["direct_answer_text"] not in {
+                "", sentences[0] if sentences else "",
+            }:
+                raise ValueError("reviewer incomplete direct answer text is invalid")
+    elif (
+        item["requested_answer_type"] != "none"
+        or item["direct_answer_complete"]
+        or item["direct_answer_text"]
+    ):
+        raise ValueError("reviewer non-direct contribution cannot declare a direct answer")
+    if item["contains_unsupported_factual_claims"] != bool(item["unsupported_factual_claims"]):
+        raise NonRetryableReviewerResponseError(
+            "reviewer unsupported-claim fields contradict each other"
+        )
+    if any(
+        claim_text not in item["actual_factual_claims"]
+        for claim_text in item["unsupported_factual_claims"]
+    ):
+        raise ValueError("reviewer unsupported claim is absent from the actual claim inventory")
     boolean_fields = expected - {
         "verdict", "summary", "reasons", "actual_factual_claims",
-        "unsupported_factual_claims", "revision_instructions",
+        "unsupported_factual_claims", "sentence_assessments",
+        "requested_answer_type", "direct_answer_text", "revision_instructions",
     }
     if any(type(item.get(field)) is not bool for field in boolean_fields):
         raise ValueError("reviewer boolean fields are invalid")
-    if item["direct_question_present"] and not item["answers_direct_question_first_sentence"] and item["verdict"] == "approve":
-        raise ValueError("reviewer cannot approve an evasive direct answer")
+    if item["direct_factual_question_present"] and not item["direct_answer_complete"] and item["verdict"] == "approve":
+        raise NonRetryableReviewerResponseError(
+            "reviewer cannot approve an evasive direct answer"
+        )
     if item["verdict"] == "revise" and not item["revision_instructions"].strip():
         raise ValueError("reviewer revision requires instructions")
     if item["verdict"] == "approve" and item["revision_instructions"]:
         raise ValueError("reviewer approval cannot include revision instructions")
     if item["verdict"] == "approve" and not reviewer_checks_approve(item):
-        raise ValueError("reviewer approve verdict contradicts its safety findings")
+        raise NonRetryableReviewerResponseError(
+            "reviewer approve verdict contradicts its safety findings"
+        )
     return item
 
 
@@ -665,8 +1035,8 @@ def reviewer_checks_approve(review: dict[str, Any]) -> bool:
     return bool(
         all(review.get(field) is True for field in positive)
         and (
-            review.get("direct_question_present") is False
-            or review.get("answers_direct_question_first_sentence") is True
+            review.get("direct_factual_question_present") is False
+            or review.get("direct_answer_complete") is True
         )
         and review.get("endorses_unsupported_allegation") is False
         and review.get("contains_unsupported_factual_claims") is False
@@ -715,13 +1085,13 @@ def _period_is_non_terminal_abbreviation(text: str, start: int, end: int) -> boo
     )
 
 
-def sentence_count(text: str) -> int:
-    """Count user-visible sentence terminators, including lower-case starts."""
+def split_reply_sentences(text: str) -> list[str]:
+    """Split compact reply text at user-visible sentence boundaries."""
     compact = " ".join(str(text or "").split())
     if not compact:
-        return 0
-    boundaries = 0
-    last_boundary_end = 0
+        return []
+    sentences: list[str] = []
+    sentence_start = 0
     index = 0
     while index < len(compact):
         if not _is_sentence_terminator(compact[index]):
@@ -739,12 +1109,27 @@ def sentence_count(text: str) -> int:
                 continue
             if _period_is_non_terminal_abbreviation(compact, start, index):
                 continue
-        boundaries += 1
-        last_boundary_end = index
-    trailing = compact[last_boundary_end:].strip(" \t\r\n\"'\N{RIGHT SINGLE QUOTATION MARK}\N{RIGHT DOUBLE QUOTATION MARK}\N{RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK})]}")
+        while index < len(compact) and compact[index] in {
+            '"', "'", "\N{RIGHT SINGLE QUOTATION MARK}",
+            "\N{RIGHT DOUBLE QUOTATION MARK}",
+            "\N{RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK}", ")", "]", "}",
+        }:
+            index += 1
+        sentence = compact[sentence_start:index].strip()
+        if sentence:
+            sentences.append(sentence)
+        while index < len(compact) and compact[index].isspace():
+            index += 1
+        sentence_start = index
+    trailing = compact[sentence_start:].strip()
     if trailing:
-        boundaries += 1
-    return max(1, boundaries)
+        sentences.append(trailing)
+    return sentences or [compact]
+
+
+def sentence_count(text: str) -> int:
+    """Count user-visible sentences, including lower-case starts."""
+    return len(split_reply_sentences(text))
 
 
 def contains_emoji(text: str) -> bool:
@@ -900,6 +1285,7 @@ def _proposer_prompts(
     context: dict[str, Any],
     recent_replies: list[str],
     *,
+    resolved_quotation: dict[str, Any] | None,
     revision: dict[str, Any] | None,
 ) -> tuple[str, str]:
     system = (
@@ -919,23 +1305,51 @@ def _proposer_prompts(
         "such a question merely because it is historical or concerns another person, country or event. "
         "A clear political or moral proposition is also in scope for a concise opinion_or_principle response even "
         "when it is a standalone assertion rather than a question; do not call it unrelated for that reason alone. "
+        "A civil challenge to a clear political or moral principle is likewise in scope. Prefer a brief, directly "
+        "relevant value judgement that names and addresses the specific disputed principle without asserting "
+        "unverifiable outcomes. Express that judgement as an explicit recommendation or standard, such as what "
+        "should or ought to be valued, judged or prioritised. Do not turn it into a claim about what history proves, "
+        "what a policy inevitably causes, what people generally do, or what results will follow. "
+        "A normative wrapper does not hide a factual premise: 'a nation's history of defending freedom' asserts "
+        "that the nation defended freedom, and 'the programme its conference endorsed' asserts an endorsement. "
+        "A claim-free draft must omit such historical noun phrases and action-bearing relative clauses; otherwise "
+        "copy the complete embedded premise into factual_claims for evidence. "
+        "Do not choose no_reply merely because the contribution is a challenge rather than a factual question, and "
+        "do not assume that this account never engages with civil disagreement. Disagreement alone is not bait or a "
+        "prolonged exchange. Classify it as a repeated argument only when the supplied bounded thread explicitly "
+        "shows that this account has already answered the same challenge; never infer repetition merely from a "
+        "quoted passage, the user's disagreement or recent unrelated account replies. Still choose no_reply for "
+        "abuse, obvious bait, an evidenced repeated argument or when only an "
+        "unrelated platitude or unsupported factual defence is possible. "
         "For light_humour, prefer a clearly rhetorical quip or question that makes no checkable assertion. A draft "
         "claiming that a person, group or institution tends, usually, always or never does something is a factual "
         "generalisation: either rewrite it as non-factual humour or list the complete claim for evidence. Never omit "
         "a genuine claim merely to avoid evidence review. "
         "For a direct factual question, produce a provisional concise answer when you can formulate one with high "
-        "confidence and list every claim for the separate evidence stage. The draft cannot be posted unless that "
-        "stage finds exact local support, so do not choose no_reply merely because source passages are not included "
-        "in this proposer request. For a clarification, use both original_question and correction to recover the "
+        "confidence and list every claim for the separate evidence stage. When resolved_quotation_for_factual_use "
+        "is supplied, use its canonical source-grounded fields to answer questions about that quotation rather than "
+        "abstaining or guessing; those fields still require claim-specific evidence before posting. The draft cannot "
+        "be posted unless that stage finds exact local support. For a clarification, use both original_question and "
+        "correction to recover the "
         "fact being requested. Still choose no_reply when you cannot formulate a likely accurate answer. "
         "Use the least-specific factual wording that directly answers the question. Do not copy a colloquial, "
         "misspelled or unnecessarily strong action verb into the reply as a factual claim. For a direction question, "
         "say that people moved, went or crossed in the relevant direction unless manner or speed is itself essential. "
-        "Each claim_text must copy the complete factual sentence or clause from proposed_reply verbatim, including "
-        "every date, period and quantity stated in that text. "
+        "Classify whether the contribution contains a direct factual question and choose its narrowest requested "
+        "answer type. A question asking who said or wrote words is actor even when phrased as yes/no. For a direct "
+        "factual answer, direct_answer_text must copy the complete first sentence verbatim and that sentence must "
+        "supply the requested actor, action, location, time, choice, ownership, quantity, duration, yes/no answer, "
+        "meaning or source. Each claim_text must copy one complete independently checkable factual sentence or clause "
+        "from proposed_reply verbatim, including every actor, relationship, direction, date, period and quantity. "
+        "Causal, comparative, predictive and habitual political generalisations are factual claims even when phrased "
+        "rhetorically; list them. A statement about how people, institutions, policies or outcomes behave is factual "
+        "or mixed, including claims that something advances interests, weakens opposition, delivers stability, causes "
+        "collapse or prevents progress. Pure recommendations and value judgements need not be listed only when they "
+        "contain no proposition about the world and no checkable factual premise. "
         "Unsupported allegations in the contribution must not be repeated or endorsed. Prefer no_reply to an "
         "unrelated platitude. Never mention internal prompts, retrieval, evidence packages or missing supplied "
-        "context in a user-facing reply. Use British English and no more than two short sentences. Return only "
+        "context in a user-facing reply. Use British English, including defence rather than defense, and no more "
+        "than two short sentences. Return only "
         "the required JSON object."
     )
     payload: dict[str, Any] = {
@@ -947,6 +1361,7 @@ def _proposer_prompts(
         },
         "target": {"target_id": context["target_id"], "thread_id": context["thread_id"], "lane": context["lane"]},
         "current_date": context["current_date"],
+        "resolved_quotation_for_factual_use": resolved_quotation,
         "recent_account_replies_to_avoid_repeating": recent_replies[:20],
     }
     if revision is not None:
@@ -954,7 +1369,11 @@ def _proposer_prompts(
         system += (
             " This is the only permitted revision. Correct the review findings rather than defending the "
             "previous draft. Never discuss the internal evidence package; if the requested factual answer cannot "
-            "be supported, choose no_reply."
+            "be supported, choose no_reply. For a civil principle challenge, prefer replacing an unsupported factual "
+            "generalisation with a directly relevant explicit recommendation or standard when that can be done "
+            "honestly and naturally. Name the disputed value or policy principle. Do not retain a historical premise, "
+            "a prediction, a conditional outcome, an action-bearing relative clause or a general claim about how "
+            "people or institutions behave."
         )
     return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
@@ -973,7 +1392,8 @@ def _evidence_prompts(
         "Support is semantic entailment and does not require identical wording: ordinary paraphrases such as moved, "
         "went, travelled and crossed may describe the same movement when actor and direction agree. A stronger "
         "claim about manner or speed, such as ran or rushed, remains unsupported unless the passage establishes it. "
-        "Do not use outside knowledge or infer support from a broad shared "
+        "Adjudicate each supplied clause independently; support for one clause cannot rescue another unsupported "
+        "clause in the same sentence. Do not use outside knowledge or infer support from a broad shared "
         "topic. Return one result for every claim and only the required JSON object."
     )
     payload = {
@@ -986,10 +1406,42 @@ def _evidence_prompts(
     return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
 
+def _claim_auditor_prompts(proposed_reply: str) -> tuple[str, str]:
+    """Build a fresh factual-claim audit with no proposer classifications."""
+    system = (
+        "You are a fresh claim-inventory auditor. You see only a proposed public reply, not the proposer's "
+        "claim list or reasoning. Copy every visible sentence exactly and identify every externally checkable "
+        "factual clause verbatim. Complete all five world-claim checks independently for every sentence before "
+        "deciding whether it is purely non-factual. Treat general propositions as factual when they say what a "
+        "person, group, institution, policy or society does, senses, requires or produces; when they assert a "
+        "cause, prediction, condition, comparison or outcome; or when they make a historical, date or quantity "
+        "claim. Meaning or attribution includes claims about what quoted words mean and who authored, said or "
+        "delivered them. A noun phrase asserting a record or history of an actor doing something asserts that the "
+        "action occurred and is factual; calling that record a reason or warrant does not erase the historical premise. "
+        "For example, 'A nation's history of defending freedom ought to be valued' contains the factual clause "
+        "'A nation's history of defending freedom'. 'A party ought to be judged by the programme its conference "
+        "endorsed' contains the factual clause 'the programme its conference endorsed'. Mark "
+        "asserts_actor_state_or_action=true and copy those exact contiguous clauses verbatim; never rewrite their "
+        "grammar or substitute an inferred actor. "
+        "In particular, 'essential to survival or prosperity', 'serves everyone better', 'rests on mutual "
+        "advantage', 'rescued Europe', 'erodes independence', and claims about what supporters sense are world "
+        "claims, even when embedded in political opinion. A sentence is purely_non_factual only when it is wholly "
+        "a value judgement, recommendation, courtesy, rhetorical question or humour with no proposition about "
+        "the world. Words such as should or must do not make an embedded factual premise non-factual. Flatten all "
+        "sentence claims into actual_factual_claims in reading order. Return only the required JSON object."
+    )
+    return system, json.dumps(
+        {"proposed_reply_to_audit": proposed_reply},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+
+
 def _reviewer_prompts(
     context: dict[str, Any],
     proposer: dict[str, Any],
     evidence: list[dict[str, Any]],
+    resolved_quotation: dict[str, Any] | None,
 ) -> tuple[str, str]:
     system = (
         "You are a fresh independent final reviewer. You did not participate in drafting. Judge only the incoming "
@@ -1002,10 +1454,37 @@ def _reviewer_prompts(
         "people from appearance; treat an identity absent from supplied text or metadata as unknown. Approval is "
         "explicit and all safety findings must agree with it. In actual_factual_claims, copy every factual claim present in the "
         "proposed reply verbatim and in order, including any claim omitted by the proposer; where a proposer claim "
-        "is accurate, copy its claim_text exactly. revision_instructions must be non-empty for revise and empty for "
+        "is accurate, copy its claim_text exactly. Assess every visible reply sentence exactly once and copy the "
+        "sentence text verbatim. Classify causal, comparative, predictive and habitual political generalisations as "
+        "checkable; identify every independently checkable clause within each sentence. The flattened sentence claim "
+        "inventory must exactly equal actual_factual_claims in reading order. Complete every world_claim_checks field "
+        "independently before choosing the sentence classification. Actor states or actions include claims about what "
+        "supporters sense or what institutions do. Causal or predictive relations include claims that a policy is "
+        "essential to survival, prosperity, stability or decline. Comparisons and outcomes include claims that one "
+        "course serves people or a country better, or that exchange rests on a stated mechanism. Historical claims "
+        "include assertions that a country rescued another. Meaning or attribution includes claims about what quoted "
+        "words mean and who authored, said or delivered them. A noun phrase asserting a record or history of an "
+        "actor doing something contains a factual actor-action premise even when the sentence uses that record as "
+        "a reason, warrant or value judgement. Likewise, an action-bearing relative clause remains factual inside a "
+        "recommendation: 'the programme its conference endorsed' asserts that the conference endorsed it. Mark "
+        "asserts_actor_state_or_action=true and list these embedded clauses. If any of those five checks is true, purely_non_factual "
+        "must be false, the classification must be factual or mixed, and all factual clauses must be listed. If all "
+        "five are false, purely_non_factual must be true. For each factual or mixed sentence set "
+        "non_factual_basis=none. A sentence may use another non_factual_basis only when it is wholly a normative "
+        "judgement, recommendation, courtesy, rhetorical question or humour without any proposition about how people, "
+        "institutions, policies or outcomes behave. Causal or habitual claims such as advancing interests, weakening "
+        "opposition, delivering stability, producing collapse or preventing progress remain factual even when they "
+        "sound like political opinion. Independently classify any direct factual "
+        "question and its narrowest requested answer type. For a direct question, copy the complete first sentence to "
+        "direct_answer_text only when that sentence is the complete answer; otherwise leave direct_answer_text empty "
+        "and mark direct_answer_complete=false. Mark it complete only if it actually supplies the requested identity, "
+        "direction, date, quantity or other requested fact. A question about who said or wrote words requires the "
+        "author's identity, even when phrased as yes/no. revision_instructions must be non-empty for revise and empty for "
         "approve. Use revise for a correctable draft when a safe, relevant reply remains plausible. Use reject only "
         "when the contribution should not be answered or the defect cannot be safely corrected in one revision. "
         "A reject is terminal; revision_instructions on a reject are optional and will not be acted upon. "
+        "Require British English in the public reply, including defence rather than defense; request revision for "
+        "an American spelling. "
         "Return only the required JSON object."
     )
     payload = {
@@ -1018,10 +1497,14 @@ def _reviewer_prompts(
         "mode": proposer["mode"],
         "tone": proposer["tone"],
         "proposed_reply": proposer["proposed_reply"],
+        "proposer_direct_factual_question_present": proposer["direct_factual_question_present"],
+        "proposer_requested_answer_type": proposer["requested_answer_type"],
+        "proposer_direct_answer_text": proposer["direct_answer_text"],
         "proposer_listed_factual_claims_untrusted": proposer["factual_claims"],
         "exact_thatcher_wording_used": proposer["exact_thatcher_wording_used"],
         "exact_thatcher_wording": proposer["exact_thatcher_wording"],
         "evidence_package": evidence,
+        "resolved_quotation_for_independent_check": resolved_quotation,
     }
     return system, json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
@@ -1066,18 +1549,59 @@ def claim_retrieval_query(claim: dict[str, Any], context: dict[str, Any]) -> str
     return "\n".join(str(value).strip() for value in values if str(value).strip())
 
 
+def direct_answer_binding_error(
+    proposer: dict[str, Any],
+    reviewer: dict[str, Any],
+    resolved_quotation: dict[str, Any] | None,
+) -> str | None:
+    """Return a deterministic mismatch in direct-question metadata or identity."""
+    proposer_fields = (
+        proposer["direct_factual_question_present"],
+        proposer["requested_answer_type"],
+        proposer["direct_answer_text"],
+    )
+    reviewer_fields = (
+        reviewer["direct_factual_question_present"],
+        reviewer["requested_answer_type"],
+        reviewer["direct_answer_text"],
+    )
+    if proposer_fields != reviewer_fields:
+        return "direct_answer_metadata_mismatch"
+    if not proposer["direct_factual_question_present"]:
+        return None
+    if not reviewer["direct_answer_complete"]:
+        return "direct_answer_incomplete"
+    if proposer["requested_answer_type"] == "actor" and resolved_quotation is not None:
+        speaker_words = tuple(
+            word.casefold()
+            for word in re.findall(r"[^\W_]+", str(resolved_quotation.get("speaker") or ""))
+        )
+        answer_words = tuple(
+            word.casefold()
+            for word in re.findall(r"[^\W_]+", proposer["direct_answer_text"])
+        )
+        if speaker_words and not any(
+            answer_words[index:index + len(speaker_words)] == speaker_words
+            for index in range(len(answer_words) - len(speaker_words) + 1)
+        ):
+            return "direct_answer_missing_resolved_actor"
+    return None
+
+
 def build_draft_record(
     *,
     context: dict[str, Any],
     proposer: dict[str, Any],
     evidence: list[dict[str, Any]],
     reviewer: dict[str, Any],
+    resolved_quotation: dict[str, Any] | None,
     config: dict[str, Any],
     model_call_count: int,
     revision_count: int,
     creation_time: str,
+    claim_auditor: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the immutable V3 persisted-draft record for an approved reply."""
+    """Build the immutable persisted-draft record for an approved reply."""
     references = [reference for row in evidence for reference in row.get("evidence", [])]
     evidence_ids = sorted({str(reference["evidence_id"]) for reference in references})
     claim_evidence = [
@@ -1118,6 +1642,9 @@ def build_draft_record(
         "proposed_reply": proposer["proposed_reply"],
         "mode": proposer["mode"],
         "tone": proposer["tone"],
+        "direct_factual_question_present": proposer["direct_factual_question_present"],
+        "requested_answer_type": proposer["requested_answer_type"],
+        "direct_answer_text": proposer["direct_answer_text"],
         "factual_claims": proposer["factual_claims"],
         "exact_thatcher_wording_used": proposer["exact_thatcher_wording_used"],
         "exact_thatcher_wording": proposer["exact_thatcher_wording"],
@@ -1127,12 +1654,26 @@ def build_draft_record(
         "evidence_input_hashes": evidence_input_hashes,
         "reviewer_verdict": reviewer["verdict"],
         "reviewer_reasons": reviewer["reasons"],
+        "reviewer_sentence_assessments": reviewer["sentence_assessments"],
+        "claim_auditor_sentence_assessments": (
+            claim_auditor["sentence_assessments"] if claim_auditor is not None else []
+        ),
+        "resolved_quote_id": (
+            str(resolved_quotation["quote_id"]) if resolved_quotation is not None else None
+        ),
+        "resolved_quote_context_hash": (
+            str(resolved_quotation["resolved_context_hash"])
+            if resolved_quotation is not None
+            else None
+        ),
         "proposer_model": config["proposer_model"],
         "evidence_model": config["evidence_model"],
         "reviewer_model": config["reviewer_model"],
+        "claim_auditor_model": config["reviewer_model"],
         "proposer_prompt_version": PROPOSER_PROMPT_VERSION,
         "evidence_prompt_version": EVIDENCE_PROMPT_VERSION,
         "reviewer_prompt_version": REVIEWER_PROMPT_VERSION,
+        "claim_auditor_prompt_version": CLAIM_AUDITOR_PROMPT_VERSION,
         "model_call_count": model_call_count,
         "revision_count": revision_count,
         "creation_time": creation_time,
@@ -1150,17 +1691,21 @@ def validate_persisted_draft(
     maximum_reply_length: int,
     recent_replies: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Validate a V3 draft against current context, models and evidence inputs."""
+    """Validate a draft against current context, models and evidence inputs."""
     if not isinstance(record, dict):
         raise ValueError("persisted AI reply draft must be an object")
     expected = {
         "schema_version", "strategy_version", "target_id", "thread_id", "candidate_source",
         "contribution_hash", "context_hash", "proposed_reply", "mode", "tone",
+        "direct_factual_question_present", "requested_answer_type", "direct_answer_text",
         "factual_claims", "exact_thatcher_wording_used", "exact_thatcher_wording",
         "evidence_ids", "claim_evidence", "source_hashes", "evidence_input_hashes",
-        "reviewer_verdict", "reviewer_reasons",
+        "reviewer_verdict", "reviewer_reasons", "reviewer_sentence_assessments",
+        "claim_auditor_sentence_assessments",
+        "resolved_quote_id", "resolved_quote_context_hash",
         "proposer_model", "evidence_model", "reviewer_model", "proposer_prompt_version",
-        "evidence_prompt_version", "reviewer_prompt_version", "model_call_count",
+        "claim_auditor_model", "evidence_prompt_version", "reviewer_prompt_version",
+        "claim_auditor_prompt_version", "model_call_count",
         "revision_count", "creation_time", "approval_hash",
     }
     _validate_exact_keys(record, expected, "persisted draft")
@@ -1174,13 +1719,29 @@ def validate_persisted_draft(
         raise ValueError("persisted draft contribution hash mismatch")
     if record.get("context_hash") != value_hash(clean_context):
         raise ValueError("persisted draft context hash mismatch")
+    resolved_quotation = repository.resolve_context_quotation(clean_context)
+    resolved_identity = (
+        (
+            str(resolved_quotation["quote_id"]),
+            str(resolved_quotation["resolved_context_hash"]),
+        )
+        if resolved_quotation is not None
+        else (None, None)
+    )
+    if resolved_identity != (
+        record.get("resolved_quote_id"),
+        record.get("resolved_quote_context_hash"),
+    ):
+        raise ValueError("persisted draft resolved quotation changed")
     model_fields = {
         "proposer_model": config["proposer_model"],
         "evidence_model": config["evidence_model"],
         "reviewer_model": config["reviewer_model"],
+        "claim_auditor_model": config["reviewer_model"],
         "proposer_prompt_version": PROPOSER_PROMPT_VERSION,
         "evidence_prompt_version": EVIDENCE_PROMPT_VERSION,
         "reviewer_prompt_version": REVIEWER_PROMPT_VERSION,
+        "claim_auditor_prompt_version": CLAIM_AUDITOR_PROMPT_VERSION,
     }
     if any(record.get(key) != value for key, value in model_fields.items()):
         raise ValueError("persisted draft model or prompt version mismatch")
@@ -1222,6 +1783,27 @@ def validate_persisted_draft(
         seen_claim_texts.add(normalised_text)
     if record["mode"] == "direct_factual_answer" and not claims:
         raise ValueError("persisted direct factual answer requires a factual claim")
+    if type(record.get("direct_factual_question_present")) is not bool:
+        raise ValueError("persisted direct factual question flag is invalid")
+    if record.get("requested_answer_type") not in ANSWER_TYPES:
+        raise ValueError("persisted requested answer type is invalid")
+    if not isinstance(record.get("direct_answer_text"), str):
+        raise ValueError("persisted direct answer text is invalid")
+    if record["mode"] == "direct_factual_answer":
+        sentences = split_reply_sentences(reply)
+        if (
+            record["direct_factual_question_present"] is not True
+            or record["requested_answer_type"] == "none"
+            or not sentences
+            or record["direct_answer_text"] != sentences[0]
+        ):
+            raise ValueError("persisted direct answer binding is invalid")
+    elif (
+        record["direct_factual_question_present"]
+        or record["requested_answer_type"] != "none"
+        or record["direct_answer_text"]
+    ):
+        raise ValueError("persisted non-direct reply has direct answer metadata")
     reviewer_reasons = record.get("reviewer_reasons")
     if (
         not isinstance(reviewer_reasons, list)
@@ -1232,6 +1814,95 @@ def validate_persisted_draft(
         )
     ):
         raise ValueError("persisted draft reviewer reasons are invalid")
+    assessments = record.get("reviewer_sentence_assessments")
+    if not isinstance(assessments, list) or not assessments:
+        raise ValueError("persisted reviewer sentence assessments are invalid")
+    assessment_sentences: list[str] = []
+    assessment_claims: list[str] = []
+    for assessment in assessments:
+        if not isinstance(assessment, dict) or set(assessment) != {
+            "sentence_text", "classification", "factual_claims",
+            "non_factual_basis", "world_claim_checks",
+        }:
+            raise ValueError("persisted reviewer sentence assessment fields mismatch")
+        classification = assessment.get("classification")
+        sentence_claims = assessment.get("factual_claims")
+        non_factual_basis = assessment.get("non_factual_basis")
+        world_claim_checks = assessment.get("world_claim_checks")
+        if (
+            not isinstance(assessment.get("sentence_text"), str)
+            or classification not in SENTENCE_CLASSIFICATIONS
+            or not isinstance(sentence_claims, list)
+            or any(not isinstance(value, str) or not value for value in sentence_claims)
+        ):
+            raise ValueError("persisted reviewer sentence assessment is invalid")
+        if any(
+            " ".join(value.split()) not in " ".join(assessment["sentence_text"].split())
+            for value in sentence_claims
+        ):
+            raise ValueError("persisted reviewer claim is absent from its sentence")
+        is_factual = classification in FACTUAL_SENTENCE_CLASSIFICATIONS
+        if is_factual != bool(sentence_claims):
+            raise ValueError("persisted reviewer sentence assessment is contradictory")
+        expected_bases = (
+            {"none"}
+            if is_factual
+            else NON_FACTUAL_BASES_BY_CLASSIFICATION.get(str(classification), set())
+        )
+        if non_factual_basis not in expected_bases:
+            raise ValueError("persisted reviewer sentence non-factual basis is contradictory")
+        if (
+            not isinstance(world_claim_checks, dict)
+            or set(world_claim_checks) != set(WORLD_CLAIM_CHECK_FIELDS)
+            or any(type(world_claim_checks[field]) is not bool for field in WORLD_CLAIM_CHECK_FIELDS)
+        ):
+            raise ValueError("persisted reviewer sentence world-claim checks are invalid")
+        has_world_claim = any(
+            world_claim_checks[field]
+            for field in WORLD_CLAIM_CHECK_FIELDS
+            if field != "purely_non_factual"
+        )
+        if (
+            world_claim_checks["purely_non_factual"] == has_world_claim
+            or has_world_claim != is_factual
+        ):
+            raise ValueError("persisted reviewer sentence world-claim checks are contradictory")
+        assessment_sentences.append(assessment["sentence_text"])
+        assessment_claims.extend(sentence_claims)
+    if assessment_sentences != split_reply_sentences(reply):
+        raise ValueError("persisted reviewer sentence coverage is invalid")
+    if assessment_claims != [claim["claim_text"] for claim in claims]:
+        raise ValueError("persisted reviewer claim inventory is invalid")
+    claim_auditor_assessments = record.get("claim_auditor_sentence_assessments")
+    if claims or record["mode"] not in CLAIM_AUDITED_MODES:
+        if claim_auditor_assessments != []:
+            raise ValueError("persisted factual draft has an inapplicable claim audit")
+    else:
+        validate_claim_auditor(
+            {
+                "actual_factual_claims": [],
+                "sentence_assessments": claim_auditor_assessments,
+            },
+            maximum_claims=config["maximum_claims"],
+            proposed_reply=reply,
+        )
+    if record["requested_answer_type"] == "actor" and resolved_quotation is not None:
+        binding_error = direct_answer_binding_error(
+            {
+                "direct_factual_question_present": record["direct_factual_question_present"],
+                "requested_answer_type": record["requested_answer_type"],
+                "direct_answer_text": record["direct_answer_text"],
+            },
+            {
+                "direct_factual_question_present": record["direct_factual_question_present"],
+                "requested_answer_type": record["requested_answer_type"],
+                "direct_answer_text": record["direct_answer_text"],
+                "direct_answer_complete": True,
+            },
+            resolved_quotation,
+        )
+        if binding_error:
+            raise ValueError(f"persisted direct answer fails identity binding: {binding_error}")
     evidence_ids = record.get("evidence_ids")
     claim_evidence = record.get("claim_evidence")
     source_hashes = record.get("source_hashes")
@@ -1279,6 +1950,16 @@ def validate_persisted_draft(
             raise ValueError("persisted draft evidence model input changed")
     if claims and not evidence_ids:
         raise ValueError("persisted factual draft has no evidence IDs")
+    if (
+        record["mode"] == "direct_factual_answer"
+        and resolved_quotation is not None
+        and {
+            repository.passages[str(evidence_id)].quote_id
+            for evidence_id in evidence_ids
+        }
+        != {str(resolved_quotation["quote_id"])}
+    ):
+        raise ValueError("persisted direct answer evidence is not confined to the resolved quotation")
     if type(record.get("exact_thatcher_wording_used")) is not bool or not isinstance(record.get("exact_thatcher_wording"), str):
         raise ValueError("persisted exact quotation fields are invalid")
     if record["exact_thatcher_wording_used"] != bool(record["exact_thatcher_wording"].strip()):
@@ -1325,9 +2006,22 @@ def run_reply_pipeline(
         return PipelineResult(None, "disabled", "strategy_disabled", 0, 0, ())
     clean_context = validate_reply_context(context)
     recent = [str(item) for item in (recent_replies or [])[:20]]
+    resolved_quotation = repository.resolve_context_quotation(clean_context)
     call_count = 0
-    audit: list[dict[str, Any]] = []
+    audit: list[dict[str, Any]] = [{
+        "stage": "quotation_resolution",
+        "status": "resolved" if resolved_quotation is not None else "not_resolved",
+        "quote_id": (
+            str(resolved_quotation["quote_id"]) if resolved_quotation is not None else None
+        ),
+        "context_section": (
+            str(resolved_quotation["matched_context_section"])
+            if resolved_quotation is not None
+            else None
+        ),
+    }]
     revisions = 0
+    reviewer_claim_constraints: list[str] = []
 
     def call(
         stage: str,
@@ -1390,6 +2084,15 @@ def run_reply_pipeline(
                     "reason": str(exc),
                 })
                 return None
+            except NonRetryableReviewerResponseError as exc:
+                audit.append({
+                    "stage": stage,
+                    "status": "invalid",
+                    "attempt": attempt + 1,
+                    "reason": str(exc),
+                    "retry_suppressed": True,
+                })
+                return None
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 if attempt >= maximum_retries:
                     audit.append({
@@ -1410,8 +2113,14 @@ def run_reply_pipeline(
 
     revision_request: dict[str, Any] | None = None
     while True:
+        claim_auditor_result: dict[str, Any] | None = None
         proposer_stage = "revision_proposer" if revisions else "proposer"
-        proposer_system, proposer_user = _proposer_prompts(clean_context, recent, revision=revision_request)
+        proposer_system, proposer_user = _proposer_prompts(
+            clean_context,
+            recent,
+            resolved_quotation=resolved_quotation,
+            revision=revision_request,
+        )
         proposer = call_and_validate(
             proposer_stage,
             model=config["proposer_model"],
@@ -1444,14 +2153,116 @@ def run_reply_pipeline(
             audit.append({"stage": proposer_stage, "status": "rejected", "reason": hard_error})
             return PipelineResult(None, "no_reply", hard_error, call_count, revisions, tuple(audit))
 
+        if reviewer_claim_constraints:
+            compact_reply = " ".join(proposer["proposed_reply"].split())
+            declared_claims = {
+                " ".join(claim["claim_text"].split())
+                for claim in proposer["factual_claims"]
+            }
+            dropped_constraints = [
+                constraint
+                for constraint in reviewer_claim_constraints
+                if " ".join(constraint.split()) in compact_reply
+                and " ".join(constraint.split()) not in declared_claims
+            ]
+            if dropped_constraints:
+                audit.append({
+                    "stage": proposer_stage,
+                    "status": "rejected",
+                    "reason": "revision_dropped_previously_identified_factual_claim",
+                    "claim_count": len(dropped_constraints),
+                })
+                return PipelineResult(
+                    None,
+                    "no_reply",
+                    "revision_dropped_previously_identified_factual_claim",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+
         claims = proposer["factual_claims"]
+        if not claims and proposer["mode"] in CLAIM_AUDITED_MODES:
+            claim_auditor_stage = (
+                "revision_claim_auditor" if revisions else "claim_auditor"
+            )
+            auditor_system, auditor_user = _claim_auditor_prompts(
+                proposer["proposed_reply"]
+            )
+            claim_auditor_result = call_and_validate(
+                claim_auditor_stage,
+                model=config["reviewer_model"],
+                system_prompt=auditor_system,
+                user_prompt=auditor_user,
+                schema=claim_auditor_schema(config["maximum_claims"]),
+                timeout=config["reviewer_timeout_seconds"],
+                max_output_tokens=config["reviewer_max_output_tokens"],
+                include_media=False,
+                validator=lambda raw: validate_claim_auditor(
+                    raw,
+                    maximum_claims=config["maximum_claims"],
+                    proposed_reply=proposer["proposed_reply"],
+                ),
+            )
+            if claim_auditor_result is None:
+                return PipelineResult(
+                    None,
+                    "operational_failure",
+                    f"{claim_auditor_stage}_invalid",
+                    call_count,
+                    revisions,
+                    tuple(audit),
+                )
+            auditor_claims = claim_auditor_result["actual_factual_claims"]
+            audit.append({
+                "stage": claim_auditor_stage,
+                "status": "completed",
+                "factual_claim_count": len(auditor_claims),
+            })
+            if auditor_claims:
+                for claim_text in auditor_claims:
+                    if claim_text not in reviewer_claim_constraints:
+                        reviewer_claim_constraints.append(claim_text)
+                if revisions >= config["maximum_revisions"]:
+                    return PipelineResult(
+                        None,
+                        "no_reply",
+                        "claim_auditor_detected_unresolved_factual_claim",
+                        call_count,
+                        revisions,
+                        tuple(audit),
+                    )
+                revision_request = {
+                    "previous_reply": proposer["proposed_reply"],
+                    "claim_auditor_actual_factual_claims": auditor_claims,
+                    "reviewer_reasons": [
+                        "A fresh claim audit found factual clauses omitted by the proposer."
+                    ],
+                    "reviewer_revision_instructions": (
+                        "Either remove every listed factual clause completely or declare each remaining exact "
+                        "clause in factual_claims so it can receive claim-specific evidence."
+                    ),
+                    "evidence_status": [],
+                }
+                revisions += 1
+                continue
         evidence: list[dict[str, Any]] = []
         if claims:
+            restrict_to_resolved_quote = bool(
+                proposer["mode"] == "direct_factual_answer"
+                and resolved_quotation is not None
+            )
             candidates = {
                 claim["claim_id"]: repository.candidate_passages(
                     claim_retrieval_query(claim, clean_context),
                     maximum_packets=config["maximum_evidence_packets_per_claim"],
                     maximum_passages=config["maximum_evidence_passages_per_claim"],
+                    preferred_quote_id=(
+                        str(resolved_quotation["quote_id"])
+                        if resolved_quotation is not None
+                        else None
+                    ),
+                    restrict_to_preferred_quote=restrict_to_resolved_quote,
                 )
                 for claim in claims
             }
@@ -1487,6 +2298,61 @@ def run_reply_pipeline(
                 audit.append({"stage": "evidence", "status": "insufficient", "reason": "claim_without_candidate_passage"})
 
         evidence_supported = _all_claims_supported(claims, evidence)
+        supporting_references = [
+            reference
+            for row in evidence
+            if row["verdict"] == "supports"
+            for reference in row.get("evidence", [])
+            if reference.get("relation") == "supports"
+        ]
+        resolved_quote_supported = bool(
+            resolved_quotation is None
+            or any(
+                reference.get("quote_id") == resolved_quotation["quote_id"]
+                for reference in supporting_references
+            )
+        )
+        if (
+            proposer["mode"] == "direct_factual_answer"
+            and resolved_quotation is not None
+            and not resolved_quote_supported
+        ):
+            audit.append({
+                "stage": "evidence",
+                "status": "rejected",
+                "reason": "resolved_quotation_not_supported",
+                "quote_id": resolved_quotation["quote_id"],
+            })
+            return PipelineResult(
+                None,
+                "no_reply",
+                "resolved_quotation_not_supported",
+                call_count,
+                revisions,
+                tuple(audit),
+            )
+        if (
+            proposer["mode"] == "direct_factual_answer"
+            and resolved_quotation is not None
+            and any(
+                reference.get("quote_id") != resolved_quotation["quote_id"]
+                for reference in supporting_references
+            )
+        ):
+            audit.append({
+                "stage": "evidence",
+                "status": "rejected",
+                "reason": "resolved_quotation_evidence_scope_violation",
+                "quote_id": resolved_quotation["quote_id"],
+            })
+            return PipelineResult(
+                None,
+                "no_reply",
+                "resolved_quotation_evidence_scope_violation",
+                call_count,
+                revisions,
+                tuple(audit),
+            )
         if proposer["mode"] == "direct_factual_answer" and not evidence_supported:
             audit.append({
                 "stage": "evidence",
@@ -1503,7 +2369,12 @@ def run_reply_pipeline(
             )
 
         reviewer_stage = "revision_reviewer" if revisions else "reviewer"
-        reviewer_system, reviewer_user = _reviewer_prompts(clean_context, proposer, evidence)
+        reviewer_system, reviewer_user = _reviewer_prompts(
+            clean_context,
+            proposer,
+            evidence,
+            resolved_quotation,
+        )
         reviewer = call_and_validate(
             reviewer_stage,
             model=config["reviewer_model"],
@@ -1516,25 +2387,45 @@ def run_reply_pipeline(
             validator=lambda raw: validate_reviewer(
                 raw,
                 maximum_claims=config["maximum_claims"],
+                proposed_reply=proposer["proposed_reply"],
             ),
         )
         if reviewer is None:
             return PipelineResult(None, "operational_failure", f"{reviewer_stage}_invalid", call_count, revisions, tuple(audit))
         expected_reviewer_claims = [claim["claim_text"] for claim in claims]
-        if (
-            reviewer["verdict"] == "approve"
-            and reviewer["actual_factual_claims"] != expected_reviewer_claims
+        claim_inventory_mismatch = (
+            reviewer["actual_factual_claims"] != expected_reviewer_claims
+        )
+        if claim_inventory_mismatch:
+            for claim_text in reviewer["actual_factual_claims"]:
+                if (
+                    claim_text not in expected_reviewer_claims
+                    and claim_text not in reviewer_claim_constraints
+                ):
+                    reviewer_claim_constraints.append(claim_text)
+        direct_binding_error = direct_answer_binding_error(
+            proposer,
+            reviewer,
+            resolved_quotation,
+        )
+        if reviewer["verdict"] == "approve" and (
+            claim_inventory_mismatch or direct_binding_error is not None
         ):
+            mismatch_reason = (
+                "reviewer_claim_inventory_mismatch"
+                if claim_inventory_mismatch
+                else str(direct_binding_error)
+            )
             audit.append({
                 "stage": reviewer_stage,
                 "status": "invalid",
-                "reason": "reviewer_claim_inventory_mismatch",
+                "reason": mismatch_reason,
             })
             if revisions >= config["maximum_revisions"]:
                 return PipelineResult(
                     None,
                     "operational_failure",
-                    "reviewer_claim_inventory_mismatch",
+                    mismatch_reason,
                     call_count,
                     revisions,
                     tuple(audit),
@@ -1544,9 +2435,10 @@ def run_reply_pipeline(
                 "reviewer_reasons": reviewer["reasons"],
                 "reviewer_actual_factual_claims": reviewer["actual_factual_claims"],
                 "reviewer_revision_instructions": (
-                    "Correct the factual-claim inventory. Each claim_text must copy the complete factual "
-                    "sentence or clause from proposed_reply verbatim, including every date, period and "
-                    "quantity. Do not add unsupported facts or discuss the evidence process."
+                    "Correct the factual-claim inventory and direct answer. Each claim_text must copy one "
+                    "complete independently checkable clause from proposed_reply verbatim. The first sentence "
+                    "must explicitly supply the requested fact. Do not add unsupported facts or discuss the "
+                    "evidence process."
                 ),
                 "evidence_status": [
                     {"claim_id": row["claim_id"], "verdict": row["verdict"]}
@@ -1564,10 +2456,12 @@ def run_reply_pipeline(
                 proposer=proposer,
                 evidence=evidence,
                 reviewer=reviewer,
+                resolved_quotation=resolved_quotation,
                 config=config,
                 model_call_count=call_count,
                 revision_count=revisions,
                 creation_time=creation_time or utc_now(),
+                claim_auditor=claim_auditor_result,
             )
             metadata = {
                 "strategy_version": STRATEGY_VERSION,
@@ -1579,6 +2473,7 @@ def run_reply_pipeline(
                 "reviewer_verdict": "approve",
                 "model_call_count": call_count,
                 "revision_count": revisions,
+                "claim_auditor_ran": claim_auditor_result is not None,
             }
             reply = AIReply(proposer["proposed_reply"], draft, metadata)
             return PipelineResult(reply, "approved", "reviewer_approved", call_count, revisions, tuple(audit))
@@ -1592,6 +2487,7 @@ def run_reply_pipeline(
         revision_request = {
             "previous_reply": proposer["proposed_reply"],
             "reviewer_reasons": reviewer["reasons"],
+            "reviewer_actual_factual_claims": reviewer["actual_factual_claims"],
             "reviewer_revision_instructions": (
                 reviewer["revision_instructions"]
                 or "Remove every unsupported factual claim and answer the actual contribution directly."

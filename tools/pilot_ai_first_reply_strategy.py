@@ -37,13 +37,14 @@ from reply_strategy import (
     _reviewer_prompts,
     reviewer_schema,
     run_reply_pipeline,
+    split_reply_sentences,
     validate_proposer,
     validate_reviewer,
 )
 
 
 SCHEMA_VERSION = 2
-PILOT_VERSION = "ai-first-provider-pilot-v8"
+PILOT_VERSION = "ai-first-provider-pilot-v13"
 FIXTURE_CURRENT_DATE = "2026-07-20"
 USD_TICKS_PER_DOLLAR = 10_000_000_000
 XAI_HOST = "api.x.ai"
@@ -67,6 +68,18 @@ class PilotError(RuntimeError):
 
 class CostLimitReached(PilotError):
     """The next request would exceed the confirmed pilot ceiling."""
+
+
+class RateLimitReached(PilotError):
+    """The bounded rate-limit retry allowance was exhausted."""
+
+
+class ServerErrorReached(PilotError):
+    """The bounded provider-server-error retry allowance was exhausted."""
+
+
+class DefiniteHTTPError(PilotError):
+    """The provider returned a definite non-retryable HTTP error response."""
 
 
 def utc_now() -> str:
@@ -244,17 +257,28 @@ def fetch_model_metadata(
 class PilotLedger:
     """Persist billed operations and conservative ambiguous exposure."""
 
-    def __init__(self, path: Path, *, model: str, hard_limit_usd: float) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        model: str,
+        hard_limit_usd: float,
+        run_version: str = PILOT_VERSION,
+    ) -> None:
         """Open or create the identity-bound cost ledger."""
         self.path = path
         if path.exists():
             self.data = read_json(path)
-            if self.data.get("model") != model or self.data.get("hard_limit_usd") != hard_limit_usd:
-                raise PilotError("existing pilot ledger model or cost limit differs")
+            if (
+                self.data.get("model") != model
+                or self.data.get("hard_limit_usd") != hard_limit_usd
+                or self.data.get("pilot_version") != run_version
+            ):
+                raise PilotError("existing pilot ledger model, cost limit or run version differs")
         else:
             self.data = {
                 "schema_version": SCHEMA_VERSION,
-                "pilot_version": PILOT_VERSION,
+                "pilot_version": run_version,
                 "model": model,
                 "hard_limit_usd": hard_limit_usd,
                 "usd_ticks_per_dollar": USD_TICKS_PER_DOLLAR,
@@ -353,6 +377,88 @@ class PilotLedger:
         row.update({"status": "sending", "sending_at": utc_now()})
         self._save()
 
+    def rate_limited(
+        self,
+        row: dict[str, Any],
+        *,
+        retry_after_seconds: float,
+        response_hash: str,
+    ) -> None:
+        """Record a definite provider rate-limit refusal without blocking resume."""
+        events = row.setdefault("rate_limit_events", [])
+        events.append({
+            "attempt_number": row["attempt_number"],
+            "retry_after_seconds": retry_after_seconds,
+            "response_hash": response_hash,
+            "timestamp": utc_now(),
+        })
+        row.update({
+            "status": "rate_limited",
+            "last_rate_limited_at": utc_now(),
+        })
+        self._save()
+
+    def retry_rate_limited(self, row: dict[str, Any]) -> None:
+        """Prepare the same logical request for another post-429 attempt."""
+        if row.get("status") != "rate_limited":
+            raise PilotError("only a rate-limited operation can be retried")
+        row.update({
+            "status": "prepared",
+            "attempt_number": int(row.get("attempt_number") or 1) + 1,
+            "prepared_at": utc_now(),
+        })
+        self._save()
+
+    def server_error(
+        self,
+        row: dict[str, Any],
+        *,
+        status_code: int,
+        retry_after_seconds: float,
+        response_hash: str,
+    ) -> None:
+        """Record a definite 5xx response without treating billing as ambiguous."""
+        events = row.setdefault("server_error_events", [])
+        events.append({
+            "attempt_number": row["attempt_number"],
+            "status_code": status_code,
+            "retry_after_seconds": retry_after_seconds,
+            "response_hash": response_hash,
+            "timestamp": utc_now(),
+        })
+        row.update({
+            "status": "server_error",
+            "last_server_error_at": utc_now(),
+        })
+        self._save()
+
+    def retry_server_error(self, row: dict[str, Any]) -> None:
+        """Prepare the same logical request for another post-5xx attempt."""
+        if row.get("status") != "server_error":
+            raise PilotError("only a server-error operation can be retried")
+        row.update({
+            "status": "prepared",
+            "attempt_number": int(row.get("attempt_number") or 1) + 1,
+            "prepared_at": utc_now(),
+        })
+        self._save()
+
+    def definite_http_error(
+        self,
+        row: dict[str, Any],
+        *,
+        status_code: int,
+        response_hash: str,
+    ) -> None:
+        """Record a definite non-retryable HTTP rejection."""
+        row.update({
+            "status": "http_error",
+            "http_status_code": status_code,
+            "http_response_hash": response_hash,
+            "http_error_at": utc_now(),
+        })
+        self._save()
+
     def complete(
         self,
         row: dict[str, Any],
@@ -410,6 +516,9 @@ class PilotTransport:
         ledger: PilotLedger,
         response_dir: Path,
         post: Callable[..., Any] = requests.post,
+        sleep: Callable[[float], None] = time.sleep,
+        maximum_rate_limit_retries: int = 0,
+        maximum_server_error_retries: int = 0,
     ) -> None:
         """Initialise an allowlisted provider transport over one durable ledger."""
         self.api_key = api_key
@@ -418,6 +527,13 @@ class PilotTransport:
         self.ledger = ledger
         self.response_dir = response_dir
         self.post = post
+        self.sleep = sleep
+        if type(maximum_rate_limit_retries) is not int or not 0 <= maximum_rate_limit_retries <= 8:
+            raise PilotError("maximum rate-limit retries must be an integer from zero to eight")
+        if type(maximum_server_error_retries) is not int or not 0 <= maximum_server_error_retries <= 4:
+            raise PilotError("maximum server-error retries must be an integer from zero to four")
+        self.maximum_rate_limit_retries = maximum_rate_limit_retries
+        self.maximum_server_error_retries = maximum_server_error_retries
         self.case_id = ""
         self.sequence = 0
 
@@ -495,6 +611,20 @@ class PilotTransport:
             error = PilotError(f"logical call transmission outcome is ambiguous: {logical_call_id}")
             self.ledger.ambiguous(prior, error)
             raise error
+        if prior is not None and prior.get("status") == "rate_limited":
+            if self.maximum_rate_limit_retries == 0:
+                raise RateLimitReached(f"logical call remains rate limited: {logical_call_id}")
+            events = prior.get("rate_limit_events") or []
+            retry_after = float(events[-1].get("retry_after_seconds") or 1) if events else 1.0
+            self.sleep(min(60.0, max(0.0, retry_after)))
+            self.ledger.retry_rate_limited(prior)
+        if prior is not None and prior.get("status") == "server_error":
+            if self.maximum_server_error_retries == 0:
+                raise ServerErrorReached(f"logical call remains on provider server error: {logical_call_id}")
+            events = prior.get("server_error_events") or []
+            retry_after = float(events[-1].get("retry_after_seconds") or 1) if events else 1.0
+            self.sleep(min(60.0, max(0.0, retry_after)))
+            self.ledger.retry_server_error(prior)
         if prior is not None and prior.get("status") != "prepared":
             raise PilotError(f"logical call has unsupported prior status: {logical_call_id}")
 
@@ -512,40 +642,97 @@ class PilotTransport:
             prompt_hash=prompt_hash,
             maximum_possible_cost_ticks=maximum_ticks,
         )
-        self.ledger.sending(row)
-        started = time.monotonic()
-        try:
-            response = self.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=timeout_seconds,
-            )
-            latency = time.monotonic() - started
-            raw = response.json()
-            if response.status_code >= 400:
-                raise PilotError(f"xAI returned HTTP {response.status_code}")
-            if not isinstance(raw, dict):
-                raise PilotError("xAI response must be an object")
-            atomic_json(cache_path, {
-                "logical_call_id": logical_call_id,
-                "request_hash": request_hash,
-                "received_at": utc_now(),
-                "latency_seconds": latency,
-                "raw": raw,
-            })
-            self.ledger.complete(row, raw=raw, latency_seconds=latency)
-            content = raw.get("choices", [{}])[0].get("message", {}).get("content")
-            if not isinstance(content, (str, dict)):
-                raise PilotError("xAI response lacks structured content")
-            return content
-        except BaseException as exc:
-            if row.get("status") != "completed":
-                self.ledger.ambiguous(row, exc)
-            raise
+        rate_limits_this_invocation = 0
+        server_errors_this_invocation = 0
+        while True:
+            self.ledger.sending(row)
+            started = time.monotonic()
+            try:
+                response = self.post(
+                    f"{self.base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                    timeout=timeout_seconds,
+                )
+                latency = time.monotonic() - started
+                raw = response.json()
+                response_hash = sha256_bytes(
+                    json.dumps(raw, ensure_ascii=False, sort_keys=True).encode("utf-8")
+                )
+                if response.status_code == 429:
+                    headers = getattr(response, "headers", {}) or {}
+                    retry_header = headers.get("Retry-After") if hasattr(headers, "get") else None
+                    try:
+                        retry_after = float(retry_header)
+                    except (TypeError, ValueError):
+                        retry_after = min(60.0, 5.0 * (2 ** rate_limits_this_invocation))
+                    retry_after = min(60.0, max(0.0, retry_after))
+                    self.ledger.rate_limited(
+                        row,
+                        retry_after_seconds=retry_after,
+                        response_hash=response_hash,
+                    )
+                    rate_limits_this_invocation += 1
+                    if rate_limits_this_invocation > self.maximum_rate_limit_retries:
+                        raise RateLimitReached(
+                            f"xAI remained rate limited after {rate_limits_this_invocation} response(s)"
+                        )
+                    self.sleep(retry_after)
+                    self.ledger.retry_rate_limited(row)
+                    continue
+                if 500 <= response.status_code <= 599:
+                    headers = getattr(response, "headers", {}) or {}
+                    retry_header = headers.get("Retry-After") if hasattr(headers, "get") else None
+                    try:
+                        retry_after = float(retry_header)
+                    except (TypeError, ValueError):
+                        retry_after = min(60.0, 5.0 * (2 ** server_errors_this_invocation))
+                    retry_after = min(60.0, max(0.0, retry_after))
+                    self.ledger.server_error(
+                        row,
+                        status_code=response.status_code,
+                        retry_after_seconds=retry_after,
+                        response_hash=response_hash,
+                    )
+                    server_errors_this_invocation += 1
+                    if server_errors_this_invocation > self.maximum_server_error_retries:
+                        raise ServerErrorReached(
+                            "xAI continued returning server errors after "
+                            f"{server_errors_this_invocation} response(s)"
+                        )
+                    self.sleep(retry_after)
+                    self.ledger.retry_server_error(row)
+                    continue
+                if response.status_code >= 400:
+                    self.ledger.definite_http_error(
+                        row,
+                        status_code=response.status_code,
+                        response_hash=response_hash,
+                    )
+                    raise DefiniteHTTPError(f"xAI returned HTTP {response.status_code}")
+                if not isinstance(raw, dict):
+                    raise PilotError("xAI response must be an object")
+                atomic_json(cache_path, {
+                    "logical_call_id": logical_call_id,
+                    "request_hash": request_hash,
+                    "received_at": utc_now(),
+                    "latency_seconds": latency,
+                    "raw": raw,
+                })
+                self.ledger.complete(row, raw=raw, latency_seconds=latency)
+                content = raw.get("choices", [{}])[0].get("message", {}).get("content")
+                if not isinstance(content, (str, dict)):
+                    raise PilotError("xAI response lacks structured content")
+                return content
+            except (DefiniteHTTPError, RateLimitReached, ServerErrorReached):
+                raise
+            except BaseException as exc:
+                if row.get("status") != "completed":
+                    self.ledger.ambiguous(row, exc)
+                raise
 
 
 class InjectedInitialProposerTransport:
@@ -637,10 +824,15 @@ def reviewer_proposer(case: dict[str, Any]) -> dict[str, Any]:
     """Represent an intentionally unsafe draft as untrusted proposer output."""
     contribution = str(case["contribution"])
     question = "?" in contribution
+    proposed_reply = str(case["bad_reply"])
+    first_sentence = split_reply_sentences(proposed_reply)
     return {
         "mode": "direct_factual_answer" if question else "opinion_or_principle",
         "interpretation": "Adversarial reviewer challenge",
-        "proposed_reply": str(case["bad_reply"]),
+        "proposed_reply": proposed_reply,
+        "direct_factual_question_present": question,
+        "requested_answer_type": "other" if question else "none",
+        "direct_answer_text": first_sentence[0] if question and first_sentence else "",
         "factual_claims": [],
         "exact_thatcher_wording_used": False,
         "exact_thatcher_wording": "",
@@ -825,7 +1017,7 @@ def run_pilot(
         case_started = time.monotonic()
         context = context_for_case(case)
         proposer = reviewer_proposer(case)
-        system_prompt, user_prompt = _reviewer_prompts(context, proposer, [])
+        system_prompt, user_prompt = _reviewer_prompts(context, proposer, [], None)
         try:
             review, invalid_response_retries = bounded_validate_response(
                 lambda: transport(
@@ -841,6 +1033,7 @@ def run_pilot(
                 lambda raw: validate_reviewer(
                     raw,
                     maximum_claims=config["maximum_claims"],
+                    proposed_reply=proposer["proposed_reply"],
                 ),
                 maximum_invalid_retries=config["maximum_invalid_response_retries"],
             )

@@ -1,0 +1,17 @@
+{
+  "basis": "conservative empirical per-case allowance above the reviewed 2026-07-20 provider pilot",
+  "expected_case_cost_usd": 0.012,
+  "expected_expansion_cost_usd": 1.2,
+  "expected_headroom_after_initial_and_expansion_usd": 9.08,
+  "expected_initial_cost_usd": 9.72,
+  "guard": "Every request is reserved individually before transmission; known cost plus conservative ambiguous exposure may never exceed the hard limit. The run stops rather than exceeding it.",
+  "hard_limit_usd": 20.0,
+  "maximum_expansion_cases": 100,
+  "planned_case_count": 810,
+  "prior_pilot_calls": 39,
+  "prior_pilot_cases": 20,
+  "prior_pilot_known_cost_usd": 0.13764915,
+  "prior_pilot_results_sha256": "ee3c6093e8c74fb8c281ca879a5643e27fe9d546a5868f006b1e3d57024bd270",
+  "run_version": "ai-first-quote-matrix-v5",
+  "schema_version": 1
+}

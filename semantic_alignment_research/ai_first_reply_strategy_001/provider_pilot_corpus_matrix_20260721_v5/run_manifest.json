@@ -1,0 +1,33 @@
+{
+  "created_at": "2026-07-21T02:14:01.415535Z",
+  "endpoint": "https://api.x.ai/v1",
+  "fixture_count": 6100,
+  "fixture_version": "ai-first-quote-scenarios-v1",
+  "fixtures_sha256": "09fce7bc7b59dce891fed875fc23e1efd03f94a51fcd26d4ecc367b1ecf0f406",
+  "hard_limit_usd": 20.0,
+  "media_transmitted": false,
+  "model": "grok-4.3",
+  "network_allowlist": [
+    "api.x.ai"
+  ],
+  "output_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_corpus_matrix_20260721_v5",
+  "paid_sample_count": 810,
+  "paid_sample_sha256": "566ebde03136b202a74796f3cc58ab268899e191933e31002a9a6968dffcb227",
+  "posting_enabled": false,
+  "project_dir": "/disks/disk1/etc/mrsMThatcher",
+  "run_version": "ai-first-quote-matrix-v5",
+  "schema_version": 1,
+  "source_hashes": {
+    "historical_context_formatter.py": "0948e0dba9755af63a92e376b83335656b88047ea68aaaff09993f0be2b284db",
+    "reply_evidence.py": "57f6c6fa7830baab6965e75a0aa349ed5dde51960c186ce98872df2e945ef0f4",
+    "reply_factual_evidence.json": "56e5e121b3ed089b0c9e095292d47432e1dc2e7ff9625e6fb0ec59fa1010b069",
+    "reply_strategy.py": "5dfab3f98b39a7875bd76563e541e02910118d6febfcb944faabc777e2dee463",
+    "semantic_alignment/quote_research_schema.py": "032206958da4b55073fc2f0a9345d1ca73de915d41448c987f5e372ab4bb68c4",
+    "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "tools/evaluate_ai_first_reply_quote_matrix.py": "c653ceb8739c8df6ab9ad076bee59a9a1dd6d29d17250bfcf67cdfe57565b723",
+    "tools/pilot_ai_first_reply_strategy.py": "c5c77eb6d81558ea93c9d66b1b7f2695e06bc5a7d9549f2836ecedfbb9156d1d"
+  },
+  "targeted_per_scenario": 20
+}

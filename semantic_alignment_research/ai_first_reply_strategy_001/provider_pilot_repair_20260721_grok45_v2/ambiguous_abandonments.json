@@ -1,0 +1,76 @@
+{
+  "events": [
+    {
+      "abandoned_at": "2026-07-21T08:10:12.783190Z",
+      "case_id": "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155-direct_context_question",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "82029110b0ac11e09a929dd9ab2da16eb6cec846f3fd2d24668d415b58a84a51",
+      "logical_call_id": "matrix-f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155-direct_context_question:2:evidence",
+      "maximum_possible_cost_usd": 0.210584,
+      "stage": "evidence"
+    },
+    {
+      "abandoned_at": "2026-07-21T08:30:58.609624Z",
+      "case_id": "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf-direct_meaning_question",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "ac56db74cd1c4fbfbc0ff4a3a4152b85f591cd1d34e4a1a7fd842325a7a6e826",
+      "logical_call_id": "matrix-fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf-direct_meaning_question:4:reviewer",
+      "maximum_possible_cost_usd": 0.119534,
+      "stage": "reviewer"
+    },
+    {
+      "abandoned_at": "2026-07-21T08:48:49.594288Z",
+      "case_id": "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2-quotation_verification",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "9725615542c9d5dbce04f4dfa44a11e3d374ebeb49eb60b4bb838e4dcf79142b",
+      "logical_call_id": "matrix-2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2-quotation_verification:2:evidence",
+      "maximum_possible_cost_usd": 0.249934,
+      "stage": "evidence"
+    },
+    {
+      "abandoned_at": "2026-07-21T08:52:14.319361Z",
+      "case_id": "de520cbe8c9d2b854073a3eb6c0dea4c5259da702dfbbf90e61e20516823d8ac-quotation_verification",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "aa872027f18ffaca5dae651d6ef321255c967e23f44d3db2528a501d2ea186be",
+      "logical_call_id": "matrix-de520cbe8c9d2b854073a3eb6c0dea4c5259da702dfbbf90e61e20516823d8ac-quotation_verification:2:evidence",
+      "maximum_possible_cost_usd": 0.253714,
+      "stage": "evidence"
+    },
+    {
+      "abandoned_at": "2026-07-21T08:53:59.525217Z",
+      "case_id": "2153109c0460218da977cc16beb058c75a1975ed7d674d303c4cccbf0a1df651-quotation_verification",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "6d169cc8a70cb26f65e55f3ea86778281b990d54b858fba8e48c92510f34586f",
+      "logical_call_id": "matrix-2153109c0460218da977cc16beb058c75a1975ed7d674d303c4cccbf0a1df651-quotation_verification:2:evidence",
+      "maximum_possible_cost_usd": 0.247978,
+      "stage": "evidence"
+    },
+    {
+      "abandoned_at": "2026-07-21T08:55:57.536853Z",
+      "case_id": "cfe7448552ce1f14db2382ac4a56e86220db74742a887e06242f8b8acb48c2f7-quotation_verification",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "caa8af8585c0310548465deafdb7f04f2e05fe5b425adc4a6cba6aa1aadd2372",
+      "logical_call_id": "matrix-cfe7448552ce1f14db2382ac4a56e86220db74742a887e06242f8b8acb48c2f7-quotation_verification:2:evidence",
+      "maximum_possible_cost_usd": 0.250626,
+      "stage": "evidence"
+    },
+    {
+      "abandoned_at": "2026-07-21T09:08:01.418187Z",
+      "case_id": "f9f4251f60bf1f7ea5fb270975e8b5904f308504200a18e1b5b371fc38a57445-quotation_verification",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "a8c8ea057f467770fb9760cd6baf2b3ade306438972dc2603cf3e019263337df",
+      "logical_call_id": "matrix-f9f4251f60bf1f7ea5fb270975e8b5904f308504200a18e1b5b371fc38a57445-quotation_verification:2:evidence",
+      "maximum_possible_cost_usd": 0.252616,
+      "stage": "evidence"
+    }
+  ],
+  "run_version": "ai-first-quote-matrix-v5",
+  "schema_version": 1
+}

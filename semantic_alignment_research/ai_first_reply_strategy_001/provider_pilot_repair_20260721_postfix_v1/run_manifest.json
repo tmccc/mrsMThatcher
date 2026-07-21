@@ -1,0 +1,34 @@
+{
+  "created_at": "2026-07-21T09:24:10.937692Z",
+  "endpoint": "https://api.x.ai/v1",
+  "fixtures_sha256": "1886e5d2955b71ea205ce807f89fddc6610dd8de9b7393b0c5469f729c96113a",
+  "hard_limit_usd": 3.0,
+  "media_transmitted": false,
+  "model": "grok-4.3",
+  "network_allowlist": [
+    "api.x.ai"
+  ],
+  "output_dir": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_repair_20260721_postfix_v1",
+  "paid_sample_count": 120,
+  "paid_sample_sha256": "4cfd59be26cafc938557ccbf2f3215fb38970511bbd3c692959eb1b07ece1529",
+  "pilot_profile": "target-confined-evidence-and-world-claim-accounting-v2",
+  "posting_enabled": false,
+  "prior_run": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_corpus_matrix_20260721_v5",
+  "project_dir": "/disks/disk1/etc/mrsMThatcher",
+  "run_version": "ai-first-quote-matrix-v6",
+  "schema_version": 1,
+  "source_hashes": {
+    "historical_context_formatter.py": "0948e0dba9755af63a92e376b83335656b88047ea68aaaff09993f0be2b284db",
+    "reply_evidence.py": "eb3c173a8352972099d2ff006de4adcf41bcf561900c3af79439bfbf02848091",
+    "reply_factual_evidence.json": "56e5e121b3ed089b0c9e095292d47432e1dc2e7ff9625e6fb0ec59fa1010b069",
+    "reply_strategy.py": "1c245c13801bef062931780c0ba624325b930fb85f44674d8ba4121d99a3adf3",
+    "semantic_alignment/quote_research_schema.py": "032206958da4b55073fc2f0a9345d1ca73de915d41448c987f5e372ab4bb68c4",
+    "semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_corpus_matrix_20260721_v5/evaluation_results.json": "d0fd218904935bc93c5ea08a34bcc201a96c5cb7b00df600885f65a146eca442",
+    "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    "tools/evaluate_ai_first_reply_quote_matrix.py": "4ba189ece3d319471b874140073f1d835919ba4682654c3ee029ffb6d2737867",
+    "tools/pilot_ai_first_reply_strategy.py": "4ce46171940ec32974764acd6601d99bb110cd6d9f18d8ab77deaddbe98a514e",
+    "tools/run_ai_first_reply_repair_pilot.py": "8704ad435d0d705ff49998e4c935b44df55989ba1719390f48d8dd4fd9d340f3"
+  }
+}

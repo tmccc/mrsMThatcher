@@ -1,0 +1,10 @@
+{
+  "expected_case_cost_usd": 0.018,
+  "expected_cost_usd": 1.44,
+  "guard": "Every request is reserved before transmission; ambiguous calls are never retried.",
+  "hard_limit_usd": 2.5,
+  "model": "grok-4.3",
+  "pilot_profile": "repeated-principle-world-claim-qualification-v7",
+  "planned_case_count": 80,
+  "schema_version": 1
+}

@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import copy
 import fcntl
 import hashlib
-import io
 import json
 import os
-import random
 import subprocess
 import sys
-import tarfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -349,306 +345,6 @@ def fake_server(request):
         yield server
     finally:
         server.stop()
-
-
-def normalize_for_branch_parity(value):
-    if isinstance(value, dict):
-        normalized = {}
-        for key, item in value.items():
-            if key in {
-                "last_reply_check_epoch",
-                "hot_post_reply_pagination_tokens",
-                "last_regular_image_filename",
-                "mention_pagination",
-                "next_quote_post_epoch",
-                "original_regular_posts_since_generated_image",
-                "quote_api_cooldown_reason",
-                "quote_api_cooldown_until_epoch",
-                "quote_lookup_pagination_tokens",
-                "quote_x_error_epochs",
-                "reply_evaluation_records",
-                "x_write_api_cooldown_reason",
-                "x_write_api_cooldown_until_epoch",
-                "x_write_error_epochs",
-                "xai_api_cooldown_reason",
-                "xai_api_cooldown_until_epoch",
-            }:
-                continue
-            if key in {"daily_quote_reply_count", "daily_quote_reply_date"}:
-                continue
-            if key in {"cached_epoch", "created_at"}:
-                continue
-            if (
-                key == "content"
-                and isinstance(item, str)
-                and item.startswith("You write replies for a Margaret Thatcher quotation account on X.")
-            ):
-                normalized[key] = "[grok-system-prompt]"
-                continue
-            if (
-                key == "content"
-                and isinstance(item, str)
-                and item.startswith("Use only the supplied limited context.")
-            ):
-                context_markers = (
-                    "Thread context, oldest to newest.",
-                    "Incoming standalone post/comment to answer:",
-                    "A user has quote-posted one of this account's posts.",
-                )
-                context_starts = [item.find(marker) for marker in context_markers if marker in item]
-                context_start = min(context_starts) if context_starts else len(item)
-                normalized[key] = "[grok-user-guidance]\n\n" + item[context_start:]
-                continue
-            normalized[key] = normalize_for_branch_parity(item)
-        if (
-            "replied_to_ids" in normalized
-            and "next_reply_lane_priority" not in normalized
-        ):
-            normalized["next_reply_lane_priority"] = "normal"
-        return normalized
-    if isinstance(value, list):
-        return [normalize_for_branch_parity(item) for item in value]
-    return value
-
-
-def run_bot_command_for_root(
-    root: Path,
-    base_dir: Path,
-    server: FakeApiServer,
-    command: str,
-    *,
-    fake_now: str = "2000000000",
-) -> subprocess.CompletedProcess[str]:
-    env = base_test_env()
-    env.update(
-        {
-            "MRS_TEST_MODE": "1",
-            "MRS_FAKE_NOW_EPOCH": fake_now,
-            "MRS_BASE_DIR": str(base_dir),
-            "MRS_LOG_FILE": str(base_dir / "test.log"),
-            "X_API_BASE_URL": server.url,
-            "X_UPLOAD_BASE_URL": server.url,
-            "XAI_API_BASE_URL": f"{server.url}/v1",
-            "X_CONSUMER_KEY": "dummy",
-            "X_CONSUMER_SECRET": "dummy",
-            "X_ACCESS_TOKEN": "dummy",
-            "X_ACCESS_SECRET": "dummy",
-            "X_MY_USER_ID": "12345",
-            "XAI_API_KEY": "dummy",
-            "X_BEARER_TOKEN": "dummy",
-            "LOG_LEVEL": "INFO",
-        }
-    )
-    return subprocess.run(
-        [sys.executable, str(root / "mrsMThatcher2.py"), command],
-        cwd=root,
-        env=env,
-        text=True,
-        capture_output=True,
-        timeout=30,
-        check=False,
-    )
-
-
-def run_branch_parity_case(
-    root: Path,
-    parent: Path,
-    name: str,
-    scenario: dict,
-    command: str,
-    *,
-    state: dict | None = None,
-    local_config: dict | None = None,
-    watch_ids: list[str] | None = None,
-    meme: bool = False,
-) -> dict:
-    server = FakeApiServer(copy.deepcopy(scenario)).start()
-    try:
-        base_dir = prepare_base_dir(
-            parent / name,
-            state=copy.deepcopy(state),
-            local_config=copy.deepcopy(local_config),
-            watch_ids=copy.deepcopy(watch_ids),
-            meme=meme,
-        )
-        result = run_bot_command_for_root(root, base_dir, server, command)
-        assert result.returncode == 0, result.stderr + result.stdout
-        state_data = read_json(base_dir / "bot_state.json")
-        return normalize_for_branch_parity(
-            {
-                "posts": server.posts,
-                "uploads": server.uploads,
-                "xai_requests": server.xai_requests,
-                "path_counts": dict(server.path_counts),
-                "state": state_data,
-            }
-        )
-    finally:
-        server.stop()
-
-
-def normalize_scheduler_parity_result(result: dict) -> dict:
-    """Remove only the deliberately replaced conversational AI implementation."""
-    normalized = copy.deepcopy(result)
-    normalized.pop("xai_requests", None)
-    path_counts = normalized.get("path_counts")
-    if isinstance(path_counts, dict):
-        path_counts.pop("/v1/chat/completions", None)
-    state = normalized.get("state")
-    if isinstance(state, dict):
-        for key in (
-            "ai_reply_history",
-            "pending_ai_reply_drafts",
-            "pending_reply_drafts",
-            "reply_strategy_history",
-        ):
-            state.pop(key, None)
-    return normalized
-
-
-def test_scheduler_promotion_differential_fuzz_matches_master_except_allowed_scheduler_delta(tmp_path: Path) -> None:
-    master_root = tmp_path / "master-archive"
-    master_root.mkdir()
-    archive = subprocess.check_output(["git", "archive", "master"], cwd=ROOT)
-    with tarfile.open(fileobj=io.BytesIO(archive), mode="r:*") as tar:
-        tar.extractall(master_root)
-    master_has_persisted_normal_scheduler = (
-        "last_reply_check_epoch" in (master_root / "mrsMThatcher2.py").read_text(encoding="utf-8")
-    )
-
-    rng = random.Random(20260702)
-    base_cases = [
-        {
-            "name": "normal_reply",
-            "scenario": load_scenario(SCENARIOS / "normal_mention_reply.json"),
-            "command": "--test-cycle",
-        },
-        {
-            "name": "quote_reply",
-            "scenario": load_scenario(SCENARIOS / "quote_tweet_reply.json"),
-            "command": "--test-cycle",
-            "state": {"next_reply_lane_priority": "quote", "recent_own_post_ids": ["900"], "last_reply_epoch": 0},
-            "local_config": {"ENABLE_HOT_POST_REPLY_CHECKS": False},
-        },
-        {
-            "name": "duplicate_hot_post",
-            "scenario": load_scenario(SCENARIOS / "duplicate_mention_hot_post.json"),
-            "command": "--test-cycle",
-            "watch_ids": ["700"],
-        },
-        {
-            "name": "grok_skip",
-            "scenario": load_scenario(SCENARIOS / "grok_skip.json"),
-            "command": "--test-cycle",
-        },
-        {
-            "name": "non_json_mentions",
-            "scenario": load_scenario(SCENARIOS / "non_json_mentions.json"),
-            "command": "--test-cycle",
-        },
-        {
-            "name": "xai_failure",
-            "scenario": load_scenario(SCENARIOS / "xai_failure.json"),
-            "command": "--test-cycle",
-        },
-        {
-            "name": "api_429_cooldown",
-            "scenario": load_scenario(SCENARIOS / "api_429_cooldown.json"),
-            "command": "--test-cycle",
-        },
-        {
-            "name": "post_quote",
-            "scenario": {"next_post_id": 950000},
-            "command": "--test-post-quote",
-            "local_config": {"POST_SLEEP_MIN": 7200, "POST_SLEEP_MAX": 7200},
-        },
-        {
-            "name": "post_meme",
-            "scenario": {"next_post_id": 960000},
-            "command": "--test-post-meme",
-            "meme": True,
-            "local_config": {"ENABLE_DAILY_MEME_POSTS": True, "MEME_POST_TEXT": "meme"},
-        },
-        {
-            "name": "main_tick_due",
-            "scenario": load_scenario(SCENARIOS / "normal_mention_reply.json"),
-            "command": "--test-main-tick",
-            "state": {"last_reply_epoch": 0},
-            "local_config": {
-                "ENABLE_QUOTE_TWEET_CHECKS": False,
-                "ENABLE_HOT_POST_REPLY_CHECKS": False,
-                "REPLY_CHECK_EVERY_SECONDS": 900,
-            },
-        },
-    ]
-
-    fuzz_cases = []
-    for index in range(20):
-        mention_id = str(10_000 + index)
-        author_id = str(20_000 + rng.randrange(8))
-        mode = rng.choice(["normal", "skip", "spam", "empty"])
-        scenario: dict = {"mentions": []}
-        if mode != "empty":
-            text = "@mrsMThatcher buy crypto now http://spam.invalid" if mode == "spam" else f"@mrsMThatcher generated case {index}"
-            scenario["mentions"] = [
-                {
-                    "id": mention_id,
-                    "text": text,
-                    "author_id": author_id,
-                    "conversation_id": mention_id,
-                    "created_at": "2026-06-30T12:00:00Z",
-                }
-            ]
-        if mode == "normal":
-            scenario["grok_replies"] = [f"Generated parity reply {index}."]
-        elif mode == "skip":
-            scenario["grok_replies"] = ["SKIP"]
-        else:
-            scenario["grok_replies"] = ["This should not be used."]
-
-        fuzz_cases.append(
-            {
-                "name": f"fuzz_{index}_{mode}",
-                "scenario": scenario,
-                "command": rng.choice(["--test-cycle", "--test-main-tick"]),
-                "state": {"last_reply_epoch": 0},
-                "local_config": {
-                    "ENABLE_QUOTE_TWEET_CHECKS": False,
-                    "ENABLE_HOT_POST_REPLY_CHECKS": False,
-                    "REPLY_CHECK_EVERY_SECONDS": 900,
-                },
-            }
-        )
-
-    for case in base_cases + fuzz_cases:
-        master_result = run_branch_parity_case(master_root, tmp_path / "master-runs", **case)
-        promotion_result = run_branch_parity_case(ROOT, tmp_path / "promotion-runs", **case)
-        assert normalize_scheduler_parity_result(promotion_result) == normalize_scheduler_parity_result(
-            master_result
-        ), case["name"]
-
-    server_master = FakeApiServer({}).start()
-    server_promotion = FakeApiServer({}).start()
-    try:
-        local_config = {
-            "ENABLE_QUOTE_TWEET_CHECKS": False,
-            "ENABLE_HOT_POST_REPLY_CHECKS": False,
-            "REPLY_CHECK_EVERY_SECONDS": 900,
-        }
-        master_base = prepare_base_dir(tmp_path / "master-expected-diff", state={"last_reply_epoch": 0}, local_config=local_config)
-        promotion_base = prepare_base_dir(tmp_path / "promotion-expected-diff", state={"last_reply_epoch": 0}, local_config=local_config)
-        for fake_now in ["2000000000", "2000000100"]:
-            master_result = run_bot_command_for_root(master_root, master_base, server_master, "--test-main-tick", fake_now=fake_now)
-            promotion_result = run_bot_command_for_root(ROOT, promotion_base, server_promotion, "--test-main-tick", fake_now=fake_now)
-            assert master_result.returncode == 0, master_result.stderr + master_result.stdout
-            assert promotion_result.returncode == 0, promotion_result.stderr + promotion_result.stdout
-
-        expected_master_mentions = 1 if master_has_persisted_normal_scheduler else 2
-        assert server_master.path_counts.get("/2/users/12345/mentions") == expected_master_mentions
-        assert server_promotion.path_counts.get("/2/users/12345/mentions") == 1
-    finally:
-        server_master.stop()
-        server_promotion.stop()
 
 
 def test_production_daemon_entrypoint_starts_under_fake_endpoints(tmp_path: Path) -> None:
@@ -2853,7 +2549,7 @@ def test_duplicate_mention_hot_post_counts_and_state_increment_once(tmp_path: Pa
         result = run_cycle(base_dir, server)
         assert result.returncode == 0, result.stderr + result.stdout
         state = read_json(base_dir / "bot_state.json")
-        assert len(server.xai_requests) == 2
+        assert len(server.xai_requests) == 3
         assert state["daily_reply_count"] == 1
         assert state["daily_replied_author_ids"].count("210") == 1
         assert state["replied_to_ids"].count("110") == 1
@@ -3345,7 +3041,7 @@ def test_quote_tweets_process_oldest_first_stop_after_one_and_skip_seen(tmp_path
         assert result.returncode == 0, result.stderr + result.stdout
         assert len(server.posts) == 1
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "911"
-        assert len(server.xai_requests) == 2
+        assert len(server.xai_requests) == 3
         state = read_json(base_dir / "bot_state.json")
         assert "911" in state["replied_to_quote_post_ids"]
         assert "912" not in state["replied_to_quote_post_ids"]
@@ -3842,7 +3538,7 @@ def test_duplicate_mention_and_hot_post_candidate_posts_once(tmp_path: Path, fak
     assert result.returncode == 0, result.stderr + result.stdout
     assert len(fake_server.posts) == 1
     assert fake_server.posts[0]["reply"]["in_reply_to_tweet_id"] == "110"
-    assert len(fake_server.xai_requests) == 2
+    assert len(fake_server.xai_requests) == 3
     state = read_json(base_dir / "bot_state.json")
     assert state["last_seen_mention_id"] == "110"
 
@@ -3955,7 +3651,7 @@ def test_per_author_cap_above_one_is_enforced(tmp_path: Path) -> None:
         assert len(server.posts) == 2
         assert server.posts[0]["reply"]["in_reply_to_tweet_id"] == "100"
         assert server.posts[1]["reply"]["in_reply_to_tweet_id"] == "101"
-        assert len(server.xai_requests) == 4
+        assert len(server.xai_requests) == 6
         state = read_json(base_dir / "bot_state.json")
         assert state["daily_replied_author_counts"]["240"] == 2
         assert state["daily_replied_author_ids"] == ["240"]

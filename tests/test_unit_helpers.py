@@ -51,15 +51,17 @@ from tests.fake_api_server import FakeApiServer, load_scenario  # noqa: E402
 from reply_evidence import EvidencePassage  # noqa: E402
 from reply_strategy import (  # noqa: E402
     AIReply,
+    CLAIM_AUDITED_MODES,
     STRATEGY_VERSION,
     build_draft_record,
+    split_reply_sentences,
 )
 
 SCENARIOS = Path(__file__).resolve().parent / "fixtures" / "scenarios"
 
 
 class UnitReplyEvidenceRepository:
-    """Exact local evidence fixture accepted by V3 draft revalidation."""
+    """Exact local evidence fixture accepted by draft revalidation."""
 
     def __init__(self) -> None:
         passage = EvidencePassage(
@@ -89,6 +91,9 @@ class UnitReplyEvidenceRepository:
 
     def exact_quote_is_authorised(self, _text: str) -> bool:
         return False
+
+    def resolve_context_quotation(self, _context: dict[str, object]) -> None:
+        return None
 
 
 UNIT_REPLY_REPOSITORY = UnitReplyEvidenceRepository()
@@ -123,39 +128,45 @@ def unit_approved_reply(
 ) -> AIReply:
     claims: list[dict[str, object]] = []
     evidence: list[dict[str, object]] = []
+    sentences = split_reply_sentences(text)
     if factual:
-        claims = [{
-            "claim_id": "claim-1",
-            "claim_text": "People moved from East Germany towards West Germany in November 1989.",
-            "requires_evidence": True,
-            "actor": "people in East Germany",
-            "action_or_relationship": "moved",
-            "direction_or_polarity": "East to West",
-            "date_or_period": "November 1989",
-            "quantity": "",
-        }]
-        evidence = [{
-            "claim_id": "claim-1",
-            "claim_text": claims[0]["claim_text"],
-            "verdict": "supports",
-            "evidence": [{
-                "evidence_id": UNIT_REPLY_REPOSITORY.passage.evidence_id,
-                "exact_supporting_passage": UNIT_REPLY_REPOSITORY.passage.passage,
-                "relation": "supports",
-                "source_hash": UNIT_REPLY_REPOSITORY.passage.source_hash,
-                "evidence_input_hash": UNIT_REPLY_REPOSITORY.passage.model_input_hash(),
-            }],
-            "actor": claims[0]["actor"],
-            "action_or_relationship": claims[0]["action_or_relationship"],
-            "direction_or_polarity": claims[0]["direction_or_polarity"],
-            "date_or_period": claims[0]["date_or_period"],
-            "quantity": "",
-            "explanation": "Exact unit evidence supports the claim.",
-        }]
+        for index, sentence in enumerate(sentences, start=1):
+            claim_record = {
+                "claim_id": f"claim-{index}",
+                "claim_text": sentence,
+                "requires_evidence": True,
+                "actor": "people in East Germany",
+                "action_or_relationship": "moved",
+                "direction_or_polarity": "East to West",
+                "date_or_period": "November 1989",
+                "quantity": "",
+            }
+            claims.append(claim_record)
+            evidence.append({
+                "claim_id": claim_record["claim_id"],
+                "claim_text": sentence,
+                "verdict": "supports",
+                "evidence": [{
+                    "evidence_id": UNIT_REPLY_REPOSITORY.passage.evidence_id,
+                    "exact_supporting_passage": UNIT_REPLY_REPOSITORY.passage.passage,
+                    "relation": "supports",
+                    "source_hash": UNIT_REPLY_REPOSITORY.passage.source_hash,
+                    "evidence_input_hash": UNIT_REPLY_REPOSITORY.passage.model_input_hash(),
+                }],
+                "actor": claim_record["actor"],
+                "action_or_relationship": claim_record["action_or_relationship"],
+                "direction_or_polarity": claim_record["direction_or_polarity"],
+                "date_or_period": claim_record["date_or_period"],
+                "quantity": "",
+                "explanation": "Exact unit evidence supports the claim.",
+            })
     proposal = {
         "mode": mode,
         "interpretation": "Unit-test interpretation.",
         "proposed_reply": text,
+        "direct_factual_question_present": mode == "direct_factual_answer",
+        "requested_answer_type": "action" if mode == "direct_factual_answer" else "none",
+        "direct_answer_text": sentences[0] if mode == "direct_factual_answer" else "",
         "factual_claims": claims,
         "exact_thatcher_wording_used": False,
         "exact_thatcher_wording": "",
@@ -166,14 +177,47 @@ def unit_approved_reply(
     review = {
         "verdict": "approve",
         "reasons": [],
+        "sentence_assessments": [{
+            "sentence_text": sentence,
+            "classification": "factual_claim" if factual else "other_non_factual",
+            "factual_claims": [sentence] if factual else [],
+            "non_factual_basis": "none" if factual else "rhetorical_question",
+            "world_claim_checks": {
+                "asserts_actor_state_or_action": factual,
+                "asserts_causal_or_predictive_relation": False,
+                "asserts_comparison_or_outcome": False,
+                "asserts_historical_date_or_quantity": False,
+                "asserts_meaning_or_attribution": False,
+                "purely_non_factual": not factual,
+            },
+        } for sentence in sentences],
     }
+    claim_audit = None
+    if not factual and mode in CLAIM_AUDITED_MODES:
+        claim_audit = {
+            "actual_factual_claims": [],
+            "sentence_assessments": [{
+                "sentence_text": sentence,
+                "factual_claims": [],
+                "world_claim_checks": {
+                    "asserts_actor_state_or_action": False,
+                    "asserts_causal_or_predictive_relation": False,
+                    "asserts_comparison_or_outcome": False,
+                    "asserts_historical_date_or_quantity": False,
+                    "asserts_meaning_or_attribution": False,
+                    "purely_non_factual": True,
+                },
+            } for sentence in sentences],
+        }
     draft = build_draft_record(
         context=context,
         proposer=proposal,
         evidence=evidence,
         reviewer=review,
+        claim_auditor=claim_audit,
+        resolved_quotation=None,
         config=bot.ai_first_reply_strategy,
-        model_call_count=3 if factual else 2,
+        model_call_count=3 if factual or claim_audit is not None else 2,
         revision_count=0,
         creation_time="2026-07-20T12:00:00Z",
     )

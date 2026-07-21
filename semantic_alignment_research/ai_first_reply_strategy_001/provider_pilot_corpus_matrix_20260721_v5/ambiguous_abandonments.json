@@ -1,0 +1,16 @@
+{
+  "events": [
+    {
+      "abandoned_at": "2026-07-21T02:37:34.376725Z",
+      "case_id": "a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd-unsupported_allegation",
+      "classification": "ambiguous_transmission_abandoned_no_retry",
+      "error": "ReadTimeout: HTTPSConnectionPool(host='api.x.ai', port=443): Read timed out. (read timeout=60)",
+      "ledger_sha256_before": "69ace67dc4ac4a66caf7eaff5607592c39026ac1a7a221c258a1cab3f5f3fde7",
+      "logical_call_id": "matrix-a49cdc77db5c8a3c2253709ae3dec945d7b5a89ab99eb87b5268ae96349667bd-unsupported_allegation:1:proposer",
+      "maximum_possible_cost_usd": 0.04377375,
+      "stage": "proposer"
+    }
+  ],
+  "run_version": "ai-first-quote-matrix-v5",
+  "schema_version": 1
+}

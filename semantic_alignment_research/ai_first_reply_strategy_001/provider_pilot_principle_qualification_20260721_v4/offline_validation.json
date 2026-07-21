@@ -1,0 +1,22 @@
+{
+  "correct_quote_resolution_count": 80,
+  "eligible_quote_count": 610,
+  "errors": [],
+  "fixture_count": 6100,
+  "fixtures_sha256": "16d1ee62d79551918df0f11d8ee4111dbf2cc0da8fbb34a0dbd9af49a427df6e",
+  "paid_sample_count": 80,
+  "paid_sample_scenario_counts": {
+    "direct_meaning_question": 5,
+    "principle_agreement": 30,
+    "principle_challenge": 30,
+    "quoted_context_distraction": 5,
+    "unsupported_allegation": 5,
+    "wrong_speaker_question": 5
+  },
+  "paid_sample_sha256": "d0e63854d1a9fe2d91612304bde1ee2b51b6e645b5f73bd008d542cb5093b2c8",
+  "passed": true,
+  "pilot_profile": "repeated-principle-world-claim-qualification-v7",
+  "run_version": "ai-first-quote-matrix-v13",
+  "scenario_count": 10,
+  "schema_version": 1
+}
