@@ -1,0 +1,1067 @@
+{
+  "approximate_match_count": 9,
+  "items": {
+    "115dbeced19ddfc4662eaf8cf249b02862ab4db94d193c6640da084a7a7c50c4": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+      "decision": "keep",
+      "exact_supporting_passage": "364 economists who claimed that it was madness to think you could get economic growth by cutting government borrowing were proved wrong: I’m told they were never the same again",
+      "exact_supporting_passage_sha256": "64ea9079cf413ddf88917ff7fdd78b08cf4b42f9d314234449646f59f76e595b",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108353",
+      "http_status": 200,
+      "page_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "dd42d60607acfbbc9755ee3195b73064fc287017d82f5cdb6d20597828eeae56",
+      "quote_id": "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
+      "quote_text_sha256": "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "44b976ceb8fbd07e28ca9deb9e648920b2647b6aad473d9312e48a41482624c5",
+      "source_id": "115dbeced19ddfc4662eaf8cf249b02862ab4db94d193c6640da084a7a7c50c4",
+      "source_url": "https://www.margaretthatcher.org/document/108353",
+      "stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353"
+    },
+    "14038d823cb25688288968299bb400e2cadfbd645cd773bce9b198d27eb68640": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "5ab1abe3759ec1d6074b77185f872031ac0bb5d9e20ac60d95d5005d4bf98b68",
+      "decision": "keep",
+      "exact_supporting_passage": "there are times when I get home at night, and everything has got on top of me, when I shed a few tears silently, alone",
+      "exact_supporting_passage_sha256": "66b3c273df9ea5a8d2b5c6702774a850756225f32a4bfd9e5addcd1018107df9",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://time.com/archive/6850530/a-tory-wind-of-change/",
+      "http_status": 200,
+      "page_title": "A Tory Wind of Change",
+      "provider_fetched_body_sha256": "635d20079a3eb812776c57a23b728c19c24ef6cdd154f2f8f1968eea375cafc2",
+      "quote_id": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "quote_text_sha256": "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "8a1cdd91ded003af9e65881920d3cc7b20d71b69406d2f8cd2984900114849f1",
+      "source_id": "14038d823cb25688288968299bb400e2cadfbd645cd773bce9b198d27eb68640",
+      "source_url": "https://time.com/archive/6850530/a-tory-wind-of-change/",
+      "stable_locator": "A Tory Wind of Change — https://time.com/archive/6850530/a-tory-wind-of-change/"
+    },
+    "16f281ce54b201d3f671b81b367e1d7ba3d74dac50a34fd7f629e66ab9494666": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "805f2e4c5f6eb43463dc9e51412303d4c09b4af400223c300c1433305b3457c6",
+      "decision": "keep",
+      "exact_supporting_passage": "The Labour Party hasn't moved forward since Karl Marx 's ideas, that's why it's totally morally and spiritually bankrupt",
+      "exact_supporting_passage_sha256": "618cd39e4f3fd077bdf1f2d1e730f1ae55583661254a39e7e0e2a58df6ca0723",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/105096",
+      "http_status": 200,
+      "page_title": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "16535c7bd06308c7d766047c6a12c51c27dc63198a1cdc7b1b64e19332fb87eb",
+      "quote_id": "8f7f5440bd005d8059bdc7d715d19e9313792812d7602be8b4c193f38d8ac848",
+      "quote_text_sha256": "8f7f5440bd005d8059bdc7d715d19e9313792812d7602be8b4c193f38d8ac848",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "1fabae2e549cb2a84a97e927db17fbff5943c0580e5af564befb5cf94e599ee2",
+      "source_id": "16f281ce54b201d3f671b81b367e1d7ba3d74dac50a34fd7f629e66ab9494666",
+      "source_url": "https://www.margaretthatcher.org/document/105096",
+      "stable_locator": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105096"
+    },
+    "16fa874acf56f5b115662d89a6b98226398071d291bb4c112509f76601350b45": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "0239164f9aa2e9c5662ec4dbda4c0db60debaf5dc0717ed5e678d6cac81024fd",
+      "decision": "keep",
+      "exact_supporting_passage": "In politics, if you want anything said ask a man, if you want anything done ask a woman",
+      "exact_supporting_passage_sha256": "b2f169796263643c115fb452fa859ae1ffd2c0f0b24e5a97db2802ddb3d6c1b2",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/101374",
+      "http_status": 200,
+      "page_title": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "b3bfad2cb6aefdf5b53c251626a8cb44110949abc6b17de93e1dba776200733e",
+      "quote_id": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "quote_text_sha256": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "3b8c61d8cf6f5396c979ece6efb4260c839edd80dc338c7d797620262d631ee5",
+      "source_id": "16fa874acf56f5b115662d89a6b98226398071d291bb4c112509f76601350b45",
+      "source_url": "https://www.margaretthatcher.org/document/101374",
+      "stable_locator": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/101374"
+    },
+    "17fab80394c11d3d896f4fd4946898c5617aa6eec9700fa490ed90159b9f3114": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+      "decision": "keep",
+      "exact_supporting_passage": "But the distinctive mark of every Labour policy, from health to education, from privatised utilities to the labour market, is more government interference",
+      "exact_supporting_passage_sha256": "fa8916fa079fc55b0185d9c0408494aa1bd186cc6ed69a761f8ea1a46b14f6b9",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108353",
+      "http_status": 200,
+      "page_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "a12d4ad094650a329f541973050c4de5d225b13a56b71d18dbf6ec7a1027ce05",
+      "quote_id": "1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d",
+      "quote_text_sha256": "1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "822f1727b66277dbd74d3647a52e36daac7bd9d5b1e550ae8fda66ec8d154648",
+      "source_id": "17fab80394c11d3d896f4fd4946898c5617aa6eec9700fa490ed90159b9f3114",
+      "source_url": "https://www.margaretthatcher.org/document/108353",
+      "stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353"
+    },
+    "1997f550f04a521cbe1b4a6f450fe1a68e5bb793f4e995147e58a3f57f5613fc": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f32426dda6fe5d68ba825b0440cc0579f99efb9d4f42560394bd86d1de5546d1",
+      "decision": "keep",
+      "exact_supporting_passage": "the use of quotas applying to the appointment or promotion of individuals because of their collective identity or background is an unacceptable incursion on freedom, however well-intentioned the motives",
+      "exact_supporting_passage_sha256": "156e4ee1c7f1b62ad8554e28e23464eb1629d3b7510ba92d512996aa592f64ae",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
+      "http_status": 200,
+      "page_title": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament",
+      "provider_fetched_body_sha256": "7061202faa331ec9c6382b254017be913d2bafba7299a4262226c46a0709914d",
+      "quote_id": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "quote_text_sha256": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "5c15f93bdaa2939baeca7c5d3bdf187ef7e62d63ea0ce84a8fc9b12ed4245fb7",
+      "source_id": "1997f550f04a521cbe1b4a6f450fe1a68e5bb793f4e995147e58a3f57f5613fc",
+      "source_url": "https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
+      "stable_locator": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill"
+    },
+    "227e53f652720fefe010f07e1e9e7d48549faca69e90919d3000fe5caaad7aac": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "Ampersands, punctuation and an applause marker differ; actors and proposition do not.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "970d5193c84dfa2d16f8ceaa8e49a7ab5b287589756b91ac147d99f509c91808",
+      "decision": "keep",
+      "exact_supporting_passage": "To young people, I say: “when you visit Eastern Europe, learn from them about the socialist past that didn't work, and tell them about the Conservative future that will. (Applause). And then, come home and tell your friends of the excitement of people who are tasting freedom for the first time",
+      "exact_supporting_passage_sha256": "0ea89fbb2e6fd65fde6596ea5d7e05a16f67300a9710209b1b21a81a19f13ca8",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108051",
+      "http_status": 200,
+      "page_title": "Speech to Conservative Central Council | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "b5d467de5e89beb3c63be6b1b50add2dc37737fada807acb97db03ba093ea584",
+      "quote_id": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "quote_text_sha256": "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "61097983504f77450f00999364fb21e41ed8e53de7042ad8bfef21c033ed95b6",
+      "source_id": "227e53f652720fefe010f07e1e9e7d48549faca69e90919d3000fe5caaad7aac",
+      "source_url": "https://www.margaretthatcher.org/document/108051",
+      "stable_locator": "Speech to Conservative Central Council | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108051"
+    },
+    "3741616d1bc5ffba5b1676b4b631fe7e1b6581dd6c9e478e02fe12466a428287": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "The only inserted text is an archive page-break marker.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "6fc54a8bdcbd73c3bab3842cf7603c9a5b9f972e146de34e77bd05e70e5909b1",
+      "decision": "keep",
+      "exact_supporting_passage": "Not one single measure produced by any Socialist Government has extended power to the people. [end p3] They have given much more power to bureaucrats, much more power to extremists, much more power to Socialist Ministers",
+      "exact_supporting_passage_sha256": "4a087ca20c9b1b29982ca7a3243f7427bf320829ff25e7f1cd7ba3adc4e9592e",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/102728",
+      "http_status": 200,
+      "page_title": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "b99708ee6d54affccc832e88f2aeffdbf7ea583b5ab40887c5720554fb820114",
+      "quote_id": "5e5c7e9155b845150fe903c5f9951af17530a54d930af8706a438ca49b2f2fc1",
+      "quote_text_sha256": "5e5c7e9155b845150fe903c5f9951af17530a54d930af8706a438ca49b2f2fc1",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "17d830bd45666a729bf815002f560c4927df9827a20195f3b153414cce5a3e6c",
+      "source_id": "3741616d1bc5ffba5b1676b4b631fe7e1b6581dd6c9e478e02fe12466a428287",
+      "source_url": "https://www.margaretthatcher.org/document/102728",
+      "stable_locator": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/102728"
+    },
+    "4585540959f1bd41ad50d5b7c607c3efc7765183e2ce983c2cf99bbafae896cb": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "Minor omissions and normalisations preserve 1989, 1979, actors, direction and positive polarity.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "c24cded256a3cbb3378edf2f092f8c8b27ec86423e221a92b953e969765a5f03",
+      "decision": "keep",
+      "exact_supporting_passage": "1989 will be remembered for decades to come as the year when half the people of half our continent began to throw off their chains. [end p2] The messages on our banners in 1979—freedom, opportunity, family, enterprise, ownership—are now inscribed on the banners in Leipzig, Warsaw, Budapest and even Moscow",
+      "exact_supporting_passage_sha256": "c81f13d7494a951cd31f08b4c8b95e5338ce851d6c1076d5066524e041b1a97b",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/107789",
+      "http_status": 200,
+      "page_title": "Speech to Conservative Party Conference | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "ac2d15d73efbb60f34bb21abf9026a0bd2f505d3dc22d7c7d9dae3bd651d0acb",
+      "quote_id": "741960f5326f4c8ff102c4572f1624facdfaf123a476a66b15ebbca3bb888a06",
+      "quote_text_sha256": "741960f5326f4c8ff102c4572f1624facdfaf123a476a66b15ebbca3bb888a06",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "870f6f82562124cfda727e1fa5d832f36ef6ba85d7f027595cbeec4bbbc77799",
+      "source_id": "4585540959f1bd41ad50d5b7c607c3efc7765183e2ce983c2cf99bbafae896cb",
+      "source_url": "https://www.margaretthatcher.org/document/107789",
+      "stable_locator": "Speech to Conservative Party Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/107789"
+    },
+    "4b7416e71ce98a16d4932f7a993632cc4370c835d9a218e169a81c2a045750c9": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "e784688b3f12fa7126d2c7fdd5089a91808f56a5aed62456d5728c0799c388ac",
+      "decision": "keep",
+      "exact_supporting_passage": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy",
+      "exact_supporting_passage_sha256": "90c4146b0cb3fba03926edfe0eb8917f8e11461387fb55e364d4fc48b6db81f3",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+      "http_status": 200,
+      "page_title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
+      "provider_fetched_body_sha256": "97fefb7601033a88322e2f44e92c25ee17009593a5d4337ef994cc9073b2e4bf",
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "7f0244c87e42c61ce229873ccfcaa20688fe051b753dd452daaede2c5a7f194f",
+      "source_id": "4b7416e71ce98a16d4932f7a993632cc4370c835d9a218e169a81c2a045750c9",
+      "source_url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+      "stable_locator": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+    },
+    "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "056eae9392268946dc7da8d9a3acb7e30f747db3c38da5b7bea2a64ea8244738",
+      "decision": "reject",
+      "exact_supporting_passage": "In politics if you want anything said, ask a man. If you want anything done, ask a woman",
+      "exact_supporting_passage_sha256": "6d0eb7100a5e1ed2f463874dce51ae4010f775c20c077a356a2bf7f2ba895d5d",
+      "final_action": "remove_from_rendered_output",
+      "final_assigned_roles": [
+        "discovery_only"
+      ],
+      "final_claims_supported": [],
+      "final_source_quality_class": "circular_attribution",
+      "final_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
+      "http_status": 200,
+      "page_title": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog",
+      "provider_fetched_body_sha256": "5343fbc2e4f66390b72312af656bf9f021cbecf9f6bbf0909fc87c2505129314",
+      "quote_id": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "quote_text_sha256": "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+      "rationale": "The OUP blog is an unsourced quotation round-up. It documents later circulation but does not independently verify Thatcher's wording.",
+      "researched_source_sha256": "aaf63106fde0a846aa1a7beafe0e15934ffd2c7c130dd7ddd14ea552c36fb927",
+      "source_id": "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80",
+      "source_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
+      "stable_locator": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog — https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/"
+    },
+    "5e56df7af5b67f7a11e9a2b5d9a659855ef4ff8938a32867502b42e58ffb0c3c": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+      "decision": "keep",
+      "exact_supporting_passage": "The cause of limited government — in which the State is servant not master, custodian not collaborator, umpire not player — is the one beneath whose standard Keith Joseph and I gathered all those years ago",
+      "exact_supporting_passage_sha256": "ed63de3ff07b13162d112c41ee11cc5e1360b22c9ad3bb6ab7d51f25b44e2134",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108353",
+      "http_status": 200,
+      "page_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "40dc68bb6e20191bf61dd57074ed5f8b94c67c78c1309ef44bded83639117d2c",
+      "quote_id": "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+      "quote_text_sha256": "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "76eb0d575ff7d7e6a5a4ba98573fcfa676f9909f5fd35fc2a6f37a2048fe38eb",
+      "source_id": "5e56df7af5b67f7a11e9a2b5d9a659855ef4ff8938a32867502b42e58ffb0c3c",
+      "source_url": "https://www.margaretthatcher.org/document/108353",
+      "stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353"
+    },
+    "63baba4fe352ef619e80410c420eb4b788d79a3cc137419ee8d87235a35e2ba7": {
+      "approximate_match_review": {
+        "actor_preserved": false,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": false,
+        "meaning_preserved": true,
+        "notes": "The paraphrase borrows Ted Short's wording and combines it with Thatcher's reply.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+      "decision": "downgrade",
+      "exact_supporting_passage": "So I totally reject the view of a former deputy leader of the Labour Party, who said: “It is not our job to go about telling everybody to obey the law” . (Ted Short) It is our job to do just that, and that is precisely what the Conservative Party will do",
+      "exact_supporting_passage_sha256": "02ef132cdb0f9bbf3ffe90aba8fe1084e19ae3595a27bf57e58fef095998a0cd",
+      "final_action": "downgrade",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/103684",
+      "http_status": 200,
+      "page_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "3767940ff72b1dcd215b9146274b341f19854c50e3d11e8d39e1e428f250b035",
+      "quote_id": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text_sha256": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "rationale": "The packet paraphrase combines Ted Short's wording with Thatcher's reply; the page supports the attribution and meaning, not exact wording.",
+      "researched_source_sha256": "b3855be99bfae1f6fa658984b88bd6e457e5baf7d825b73d2221a5b74f8b950d",
+      "source_id": "63baba4fe352ef619e80410c420eb4b788d79a3cc137419ee8d87235a35e2ba7",
+      "source_url": "https://www.margaretthatcher.org/document/103684",
+      "stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684"
+    },
+    "683845a778f62dd6198f802b22afff3599ba1b021b56c03bca0e8c4f742d73bd": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "dc749bce80091f499839ed37fd673e974fb9ab196f5b68b847cc67b0a366dec9",
+      "decision": "keep",
+      "exact_supporting_passage": "Creating the practical circumstances in which freedom can flourish requires more than the mere parroting of empty phrases like “human rights",
+      "exact_supporting_passage_sha256": "05a55ae20ceca2c233a4164d8e826bb8ea90d0bbf0811b3af0c1777cb0dc5354",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108386",
+      "http_status": 200,
+      "page_title": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "c501ecdaf4732a7aac921c046fb7bcd9191cfc50e235ae1bc81815c35e8f3c74",
+      "quote_id": "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+      "quote_text_sha256": "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "c244d25211a5ba37ea066746f2d6649997fa68cc7322976af58c6a8004692597",
+      "source_id": "683845a778f62dd6198f802b22afff3599ba1b021b56c03bca0e8c4f742d73bd",
+      "source_url": "https://www.margaretthatcher.org/document/108386",
+      "stable_locator": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108386"
+    },
+    "68c5abee1bf5947abf731a57d7cca17da3c507c6eb9fba524bf18867ab85d0ee": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+      "decision": "keep",
+      "exact_supporting_passage": "If you denigrate profits, we shall lack investment",
+      "exact_supporting_passage_sha256": "c21ad585315e8837ae009264086e40da1d9cb34ea32e9ddf4d3fffcc9ab763aa",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/103684",
+      "http_status": 200,
+      "page_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "6326ba306174b9e8c0a8ff8436f8e6cc344c1dae51bee6a3189c876a00c7759e",
+      "quote_id": "8b75093bc5c6bd6fad5d0b9bdd6e51a78c46c262eaee6bfae19c11e1fcc9f03c",
+      "quote_text_sha256": "8b75093bc5c6bd6fad5d0b9bdd6e51a78c46c262eaee6bfae19c11e1fcc9f03c",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "bc38f2f7f68745630f8ee076cc7ad2f028f62b686f8c31fe1d946b6e9ba4e112",
+      "source_id": "68c5abee1bf5947abf731a57d7cca17da3c507c6eb9fba524bf18867ab85d0ee",
+      "source_url": "https://www.margaretthatcher.org/document/103684",
+      "stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684"
+    },
+    "75eea1bcef197d534846e475ea86aec7b3c46727c6f329241b8e645054c5ecd2": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "00859d60e7ebe1671831fba32ac1388dd26f2a7a1c5f868ad661cc98e47889bc",
+      "decision": "keep",
+      "exact_supporting_passage": "It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty",
+      "exact_supporting_passage_sha256": "6a887d7fa6b3ad7a553c361620c312f6650f1a84a9965913d23f2ed908a9e76d",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+      "http_status": 200,
+      "page_title": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald",
+      "provider_fetched_body_sha256": "47403da35c950ac7262f90ad9e1ad4deab8acf0b40437ad18ceb28a06895fec7",
+      "quote_id": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "quote_text_sha256": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "56b87fdb4de2175253499922b164a5a069bce1d704b98a7317bbd8026c11f205",
+      "source_id": "75eea1bcef197d534846e475ea86aec7b3c46727c6f329241b8e645054c5ecd2",
+      "source_url": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+      "stable_locator": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald — https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/"
+    },
+    "76d2e80e2c9792c007e39b7a480d629a9d15ce9e60b3cbcf646edf782326eccb": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "b36849db09f45c451b3a29dcd4a5ec4d6e38dcb8434aaa5784659d5c7acd0d37",
+      "decision": "keep",
+      "exact_supporting_passage": "What strikes me is the shameless appeal to voters to accept our national decline as inevitable, and simply to make the best of it. Labour's campaign slogan should be: “ Coast downhill with Labour",
+      "exact_supporting_passage_sha256": "eadaad0cc6e9e895ff09de8411c634f1bfc14c29da2ccdaa651bfa752555bb60",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/104032",
+      "http_status": 200,
+      "page_title": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "d675bb539412f21bb070ad19d8e4ef5a1737f23d555fc57e7096d9b868edfaa9",
+      "quote_id": "c2c09852800ada888e6e618e70a1316b813e4e462fef5db17ff6e71037e5349f",
+      "quote_text_sha256": "c2c09852800ada888e6e618e70a1316b813e4e462fef5db17ff6e71037e5349f",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "eee7a7faf71f2ec27dcbea6d8c4e9d749b2a6e3f11b8c477f8a30e71a351a22e",
+      "source_id": "76d2e80e2c9792c007e39b7a480d629a9d15ce9e60b3cbcf646edf782326eccb",
+      "source_url": "https://www.margaretthatcher.org/document/104032",
+      "stable_locator": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/104032"
+    },
+    "7a86f9a96233744bdbf597fef63b0f4e6c33e1c19475a9c123eca947abb2d9c8": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "e4eded3b3cdba3eee1e8e166c353c85e4886df72054992a751eff886cf5296a4",
+      "decision": "keep",
+      "exact_supporting_passage": "The Communist Party is like a monstrous parasite which consumes the flesh of its host and leaves behind a shell, which is designed to conceal the change by which the Party has itself become the State",
+      "exact_supporting_passage_sha256": "908dfae416f682c2d66af2db50120114b9348d9e4547f4962000a9824837d47a",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108284",
+      "http_status": 200,
+      "page_title": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "84012b41c46dc5f2c0ad4f6ab745433bf34c22d979f9d8a5ab1eabee751ea96e",
+      "quote_id": "5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4",
+      "quote_text_sha256": "5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "4be29473f9f17f67c5bc2d17c448721836bf93340d7ce57414e7ae2d351a9b10",
+      "source_id": "7a86f9a96233744bdbf597fef63b0f4e6c33e1c19475a9c123eca947abb2d9c8",
+      "source_url": "https://www.margaretthatcher.org/document/108284",
+      "stable_locator": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108284"
+    },
+    "7b2c51a92899baf0a06431342ca9d17086e4a9a2af42bb4b17e45cfdc9bcb3fd": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "The corpus omits the article 'a'; the source is a 1950 Dartford report, not the packet's later book occasion.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "fb982bbb4e7ac4cdb913e1d3a2666149c7b130b9544ac30d7f96179c0ec8b50b",
+      "decision": "keep",
+      "exact_supporting_passage": "You cannot build a great nation or a brotherhood of man by spreading envy or hatred",
+      "exact_supporting_passage_sha256": "aca8f5d45681a6347c34a6694c1cc2638cecb2ad78e5ae09b2dc6280049832e4",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/100857",
+      "http_status": 200,
+      "page_title": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "51c81f9f52c10973282e39078491429f110e97cc26fdfe898b2e1b50e98b85df",
+      "quote_id": "e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316",
+      "quote_text_sha256": "e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "98135676460c64052c45f24a42073f60406002682588875e1744e3e591cfc4f2",
+      "source_id": "7b2c51a92899baf0a06431342ca9d17086e4a9a2af42bb4b17e45cfdc9bcb3fd",
+      "source_url": "https://www.margaretthatcher.org/document/100857",
+      "stable_locator": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/100857"
+    },
+    "7cf5cbd0212dd1c2887f4d970287769a4df78cf009e05c67e3d7222009282cd8": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f9a5cde850584c9ccddf4e4a489d8e7925c7bf73584bdf5537cb4f8b6e84ce8f",
+      "decision": "keep",
+      "exact_supporting_passage": "we cannot conceivably accept that a country can simply march into a neighbour, which is an independent country and a full member of the UN, and annex it",
+      "exact_supporting_passage_sha256": "697e2286fe359d318197d4bc94ae59b7f8b662ea251c73f46f0c40252a128da4",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108183",
+      "http_status": 200,
+      "page_title": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "75a4f6af8c826fd246835402bae580b93c032c35dab3e0056bfdce5558de6fbf",
+      "quote_id": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+      "quote_text_sha256": "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "475743e2cf2777d51e3d21ef953343d3467fdee80d2a0d1457a773011fa6bd75",
+      "source_id": "7cf5cbd0212dd1c2887f4d970287769a4df78cf009e05c67e3d7222009282cd8",
+      "source_url": "https://www.margaretthatcher.org/document/108183",
+      "stable_locator": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108183"
+    },
+    "7ddc1f02b2b8f620262375aa91dd1867b12babb44d6cb3b286cde838feed6df4": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "The source says 'We have' rather than 'We shall have'; the warning and direction are unchanged.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "eeb5e47bd9a77ed199eeee273f5e82315a50f18889809053937cd1c44f9f275b",
+      "decision": "keep",
+      "exact_supporting_passage": "We have to learn again to be one nation, or one day we shall be no nation",
+      "exact_supporting_passage_sha256": "8957cbbdc0d1230373d3b3efbf2081e371736ec2c1a0af7de27281bf4e065e23",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/103926",
+      "http_status": 200,
+      "page_title": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "e22fc583cbbc86cb5bf2593957884f76c84d58708cf668422431fc14cc4e416e",
+      "quote_id": "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+      "quote_text_sha256": "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "33cacf44ca5ff90a01032fa59b50fd539e159de31c8076cbcde23630b1426506",
+      "source_id": "7ddc1f02b2b8f620262375aa91dd1867b12babb44d6cb3b286cde838feed6df4",
+      "source_url": "https://www.margaretthatcher.org/document/103926",
+      "stable_locator": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103926"
+    },
+    "81942922ff3fba67706d97453ca057414ca6a1682e90f42e90b113d9004efb66": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "The difference is an archive page-break marker; the attributed proposition is unchanged.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "af01de5c073508f32f395babb429c5baec11f1f9b35abf9ed2f1b42f075790c7",
+      "decision": "keep",
+      "exact_supporting_passage": "No matter how hard they try, totalitarian countries can never extinguish the flame of freedom. Again and again, we see the evidence that if only [end p8] the nations of Eastern Europe were allowed to choose, they would choose democracy and freedom",
+      "exact_supporting_passage_sha256": "d1133fed9c9197c3e266e6a37df7e3de51bb55225cd52f37343af8b46c5ca041",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/105407",
+      "http_status": 200,
+      "page_title": "Speech to the International Democrat Union | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "778c54acac01812b12d41327316fa75cf23206e81b01c09c6c34b3121a3dfacb",
+      "quote_id": "4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98",
+      "quote_text_sha256": "4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "cda00643622b9edd03b47af0dde9ecf554fd5134c2561d013531521e70c91b70",
+      "source_id": "81942922ff3fba67706d97453ca057414ca6a1682e90f42e90b113d9004efb66",
+      "source_url": "https://www.margaretthatcher.org/document/105407",
+      "stable_locator": "Speech to the International Democrat Union | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105407"
+    },
+    "81ef36c17145552bb53e6058035c232096a9da023c6a0a4317e6307b1b16d2c9": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+      "decision": "keep",
+      "exact_supporting_passage": "And certainly anyone who believes that salvation is to be found further away from the basic Conservative principles which prevailed in the 1980s — small government, a property-owning democracy, tax cuts, deregulation and national sovereignty — is profoundly mistaken",
+      "exact_supporting_passage_sha256": "d49ca4f955eba48a52be6fea2a4129013a9738d2675a18d456e226d4034d6967",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108353",
+      "http_status": 200,
+      "page_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "198073e8b00038d9fbb05eab6d2ff65f403fdf1076535b03684aeec6c92cd7d5",
+      "quote_id": "da6727d2a7d9173dc1086e98aa04142e4e9488ac0d7243f7b5ba8a17d29a9ccc",
+      "quote_text_sha256": "da6727d2a7d9173dc1086e98aa04142e4e9488ac0d7243f7b5ba8a17d29a9ccc",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "4c9164135f7680c99b58d165fd1bc1dde18f2dac87df49b732d91c0f36f28f79",
+      "source_id": "81ef36c17145552bb53e6058035c232096a9da023c6a0a4317e6307b1b16d2c9",
+      "source_url": "https://www.margaretthatcher.org/document/108353",
+      "stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353"
+    },
+    "8225f29c9299a9de77c3dec06bbfdb7bd797dfbcb193c56e97ec1494091db6c1": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+      "decision": "keep",
+      "exact_supporting_passage": "Because you see, it is not as if you are judged wholly on what you say. You are up against people who deliberately set out to twist what you say to make it mean other things, and that I am afraid is part of the job, part of the world in which one lives",
+      "exact_supporting_passage_sha256": "070ddf8edf5d05a5e5a0ae1456079b7b4319c1e8ee4d3458693874a195d7e721",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/106228",
+      "http_status": 200,
+      "page_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "575213a23e9c491fa8e96e824438e6c043e3661868327710221eb270ab8c4b69",
+      "quote_id": "93fa5a4803e47bf57ecf8f718cbed055e6de30ecb6d14ef9a47abaefe2db05c8",
+      "quote_text_sha256": "93fa5a4803e47bf57ecf8f718cbed055e6de30ecb6d14ef9a47abaefe2db05c8",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "2ab46678691903382cdedbd16b368a0483a2a360cc6197e974354c88e12ff7cc",
+      "source_id": "8225f29c9299a9de77c3dec06bbfdb7bd797dfbcb193c56e97ec1494091db6c1",
+      "source_url": "https://www.margaretthatcher.org/document/106228",
+      "stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228"
+    },
+    "825ab7405ec0907948c94590e1aa95bc3c896aa7e0a6cf05b0495c61cc3eca83": {
+      "approximate_match_review": {
+        "actor_preserved": false,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": false,
+        "meaning_preserved": true,
+        "notes": "The question belongs to the interviewer; only the following answer is Thatcher's wording.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+      "decision": "downgrade",
+      "exact_supporting_passage": "success. Prime Minister I think it is a mixture of having a flair for the thing that you are doing; knowing that is not enough, that you have got to have hard work and a certain sense of purpose",
+      "exact_supporting_passage_sha256": "ceeb0b02a7a76392296a2fcca94d575ce1071204ce24145db2a4d6315f10aacd",
+      "final_action": "downgrade",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/106228",
+      "http_status": 200,
+      "page_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "c9165f3b989379b84799667b8461a5c0a43419c54827ebba84fb3154c6decd7f",
+      "quote_id": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "quote_text_sha256": "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+      "rationale": "The transcript supports Thatcher's answer, but 'What is success?' is an interviewer question paraphrased by the archive.",
+      "researched_source_sha256": "5c8e91f3972a84cef6bfeaed94732dd7b9fbf563af614c9d00ef49842d03ea5f",
+      "source_id": "825ab7405ec0907948c94590e1aa95bc3c896aa7e0a6cf05b0495c61cc3eca83",
+      "source_url": "https://www.margaretthatcher.org/document/106228",
+      "stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228"
+    },
+    "ba78525ef5a28dea8317065811aa0eaef5d0e30869c3428c3a860668115b63b1": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+      "decision": "keep",
+      "exact_supporting_passage": "Inflation is not only a monetary phenomenon. It arises because some politicians lead the people to believe that they can consume more—much more—than they produce",
+      "exact_supporting_passage_sha256": "47bacb5aeef8b16e2fc12b9693e91b59de1042a449ff0e562fb5426c991106ed",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/103684",
+      "http_status": 200,
+      "page_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "de572b7af164c491aece2d6fee000f722762f167ce736c8f35932dd3fcc2ca2f",
+      "quote_id": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text_sha256": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "d4175466deb17f5fb0d5f2765ad36974683516add3219754ea5c674724eb78b4",
+      "source_id": "ba78525ef5a28dea8317065811aa0eaef5d0e30869c3428c3a860668115b63b1",
+      "source_url": "https://www.margaretthatcher.org/document/103684",
+      "stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684"
+    },
+    "c640389c343c2511d3d345d4c16b68995e3acf16379cebecf4b3aaaa5181782f": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "4ee5606d4df9d4ddf36d6d3861be4e81f6bc392224d63f1cadba783c63dcda2a",
+      "decision": "keep",
+      "exact_supporting_passage": "am I alone in suspecting that those in the West, in whose hearts lurked some sympathy with the system the other side of the Berlin Wall, have since been trying to re-write the history of those years",
+      "exact_supporting_passage_sha256": "25db6f031d5c7b7394763f56bda7633bd56f26528790e2b227e1a7ceb8477735",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108380",
+      "http_status": 200,
+      "page_title": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "5ef7219639863e37f55a2f6e90c29bb51327d152815eb6bc6993ad59815df772",
+      "quote_id": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+      "quote_text_sha256": "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "d7c8e20b4a5d588072a9e50c485cd9fd68e74d847f3b20258c63034645bf97b5",
+      "source_id": "c640389c343c2511d3d345d4c16b68995e3acf16379cebecf4b3aaaa5181782f",
+      "source_url": "https://www.margaretthatcher.org/document/108380",
+      "stable_locator": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108380"
+    },
+    "d2e8deb89c0345cb954b26e1a8795d42adab36432360d3ebba1684a3330e557d": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "6246712ff548089653fffbd6b8b4d5d53aea3656bacb693eabfb4e26dc04a8a6",
+      "decision": "keep",
+      "exact_supporting_passage": "The two totalitarian systems which we in Britain had to fight–Nazism and Communism–two socialist tyrannies, let's remember–represented one single model",
+      "exact_supporting_passage_sha256": "369260642f1fa50458db0212a8a162b156803327e10b6b45f7a2c8ef1fabf7da",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/108368",
+      "http_status": 200,
+      "page_title": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "5f239144aefdef3c3bfdca1de5cd31eb6ed73712101c1dbbccd65ccbb98bd159",
+      "quote_id": "80f94e530bec27ef15ea0049892cc3a5b26f80c378c6c2f8bb566aa221f1ec59",
+      "quote_text_sha256": "80f94e530bec27ef15ea0049892cc3a5b26f80c378c6c2f8bb566aa221f1ec59",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "239e756d5a37b904c0cad2725e1afad2e93d73df00ee69be12bb71b7ed1f01cb",
+      "source_id": "d2e8deb89c0345cb954b26e1a8795d42adab36432360d3ebba1684a3330e557d",
+      "source_url": "https://www.margaretthatcher.org/document/108368",
+      "stable_locator": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108368"
+    },
+    "d646da849ddc7b00bb3cef8ce3d3e3e4bcfa582ff15013bb74daea86694047b8": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "2788a278c06ee18811d9982118fdbdd62818ac1eb367532696f7c72c9bb13e6a",
+      "decision": "keep",
+      "exact_supporting_passage": "Being democratic is not enough, a majority cannot turn what is wrong into right. In order to be considered truly free, countries must also have a deep love of liberty and an abiding respect for the rule of law",
+      "exact_supporting_passage_sha256": "2b031f2bd61b229a715c1d0dc3582b004cb894b93b6c0a1118c5840f66862dfb",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
+      "http_status": 200,
+      "page_title": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament",
+      "provider_fetched_body_sha256": "c9251eca68bc36da97e42cae8753ec0ad19e32fe1cab429cc57c15ed6d8af24d",
+      "quote_id": "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+      "quote_text_sha256": "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "3260b2f37636eb13a0b2c0343d37f9d9e85ae0a7a33b0389b47cad84a158bba1",
+      "source_id": "d646da849ddc7b00bb3cef8ce3d3e3e4bcfa582ff15013bb74daea86694047b8",
+      "source_url": "https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
+      "stable_locator": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw"
+    },
+    "ddeba47e4ff6b4385afb6f2972b7db7f15092639ce12265a83ec5ecfbe0aa474": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "74e8ab3b8ba5bee11af7f8e93bec24c725cdef657b3a3ae435f9113526718e4b",
+      "decision": "keep",
+      "exact_supporting_passage": "The real difference between the Conservative Party and our socialist political opponents is that we believe that government should act to enlarge the freedom of the individual to live his own life whilst they believe the government should diminish it",
+      "exact_supporting_passage_sha256": "912f157ca2bcde257c79cf6ebf7b92ed95803c0933f04b0b426b357da70956e1",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/103101",
+      "http_status": 200,
+      "page_title": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "34e63c59fd356138778828e655443493c1a2c00ba33f01d12b875e6bc09f743a",
+      "quote_id": "1dde0bb1ec4fa393163170fa18ed57b08981e3f4f5fe36d343021331a85be8fe",
+      "quote_text_sha256": "1dde0bb1ec4fa393163170fa18ed57b08981e3f4f5fe36d343021331a85be8fe",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "64fadd06a36a6aec85098cc95eb212f7ae9be2aecd688e426b7660db3b3f291a",
+      "source_id": "ddeba47e4ff6b4385afb6f2972b7db7f15092639ce12265a83ec5ecfbe0aa474",
+      "source_url": "https://www.margaretthatcher.org/document/103101",
+      "stable_locator": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103101"
+    },
+    "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "409e14360313366c89c14c1f869a2fbdf742c567654be3caa5bcc0885c7b8e67",
+      "decision": "keep",
+      "exact_supporting_passage": "The larger the slice taken by government, the smaller the cake available for everyone",
+      "exact_supporting_passage_sha256": "ce5d8acf1963584405d2effb93b1ec16067e130316677538b3eee06e8ed1ebc5",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "reliable_secondary_evidence",
+      "final_url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+      "http_status": 200,
+      "page_title": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004)",
+      "provider_fetched_body_sha256": "ae97cc8ebc70c5c1ea0349588a95889e970d6ebc4e56839d0f63499db2d8d917",
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
+      "researched_source_sha256": "7cee185a58627fc2de537f997ee58f235237ed16937af4cab7ef37f8ea982186",
+      "source_id": "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd",
+      "source_url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+      "stable_locator": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004) — https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+    },
+    "f18732a954612c89abbac021ad981b99b9204676c0a308b9bec1dd7bb04bda34": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "ecab1f2b88fe2d0858b7f21627332ea8cf663258d7a20300e69366d0f5dd94dc",
+      "decision": "keep",
+      "exact_supporting_passage": "In today's world, monopoly trade unions have immense potential for destruction and can inflict severe damage and hardship on their fellow workers—indeed on their fellow trade unionists",
+      "exact_supporting_passage_sha256": "0a3f2be7a8ef4da19fbec3b8eab861064fed1fec37eafb39dacb718955cba5cb",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/105724",
+      "http_status": 200,
+      "page_title": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "a55220715cc1c03d3fa1112938d7507bee798ae71714e0cc928b8f26503188c3",
+      "quote_id": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "quote_text_sha256": "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "af0cb7db4ae23116fd7509fa3178eaca7242097ad8ca8c4321e464dd4c4cc42b",
+      "source_id": "f18732a954612c89abbac021ad981b99b9204676c0a308b9bec1dd7bb04bda34",
+      "source_url": "https://www.margaretthatcher.org/document/105724",
+      "stable_locator": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105724"
+    },
+    "f569d184ec62b1a4468bc0707578ea9567c7eb7387e300d9b6e8803b18e49cc9": {
+      "approximate_match_review": {
+        "actor_preserved": true,
+        "dates_preserved": true,
+        "direction_preserved": true,
+        "exact_wording_verified": false,
+        "historically_defensible": true,
+        "meaning_preserved": true,
+        "notes": "The only inserted text is an archive page-break marker.",
+        "numbers_preserved": true,
+        "polarity_preserved": true
+      },
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "829475b88ed542bdcd3eca9a73c3d976bf3144fb50a2580b13e70b441627baf6",
+      "decision": "keep",
+      "exact_supporting_passage": "Never believe that big government is necessarily strong government. The opposite is true. [end p14] Once Ministers meddle in everything, government has neither the time nor the means to do those things which only government can do",
+      "exact_supporting_passage_sha256": "0c12be1e76e55f8545a6ff76b67091d553f7aabfc5327b5dabc5511043ad7fc2",
+      "final_action": "keep",
+      "final_assigned_roles": [
+        "attribution_support"
+      ],
+      "final_claims_supported": [
+        "attribution"
+      ],
+      "final_source_quality_class": "strong_primary_evidence",
+      "final_url": "https://www.margaretthatcher.org/document/105472",
+      "http_status": 200,
+      "page_title": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation",
+      "provider_fetched_body_sha256": "54e2c0666a5371273d095323bd42398b500321082fb66b778ce072fe49084869",
+      "quote_id": "5ed720b08c8e355b93cb25a06c458e68423c873678883cccb2aa3874d5d13017",
+      "quote_text_sha256": "5ed720b08c8e355b93cb25a06c458e68423c873678883cccb2aa3874d5d13017",
+      "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
+      "researched_source_sha256": "833d5c1f0b361a3f20fa39e44d4667bcfac0e155b85469000d351b2247ca2611",
+      "source_id": "f569d184ec62b1a4468bc0707578ea9567c7eb7387e300d9b6e8803b18e49cc9",
+      "source_url": "https://www.margaretthatcher.org/document/105472",
+      "stable_locator": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105472"
+    },
+    "f89fca2576eab8c81cc3184dda1acfe1a687c1d1319b7c72a9ae82276dccfdf9": {
+      "approximate_match_review": null,
+      "checked_at": "2026-07-21",
+      "current_page_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+      "decision": "relabel",
+      "exact_supporting_passage": "The feminists hate me don’t they? And I don’t blame them. For I hate feminism. It is poison",
+      "exact_supporting_passage_sha256": "9e30471980e50c15b69d3bf035e92768bcd57d361a6d209761a25a008fce0ee7",
+      "final_action": "relabel",
+      "final_assigned_roles": [
+        "wording_verification",
+        "attribution_support",
+        "secondary_recollection"
+      ],
+      "final_claims_supported": [
+        "wording",
+        "attribution"
+      ],
+      "final_source_quality_class": "secondary_recollection",
+      "final_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
+      "http_status": 200,
+      "page_title": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent",
+      "provider_fetched_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+      "quote_id": "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b",
+      "quote_text_sha256": "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b",
+      "rationale": "The page repeats Paul Johnson's later account of a private 1982 conversation. It is recollection evidence, not a primary transcript.",
+      "researched_source_sha256": "324292f757822e278cfb9e8a743b0c5fefa2e255052c173bcbf92ef17876acec",
+      "source_id": "f89fca2576eab8c81cc3184dda1acfe1a687c1d1319b7c72a9ae82276dccfdf9",
+      "source_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
+      "stable_locator": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent — https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html"
+    }
+  },
+  "policy_version": "historical-context-ai-source-independent-review-v1",
+  "reviewed_at": "2026-07-21",
+  "reviewed_source_count": 34,
+  "schema_version": 1,
+  "unique_page_count": 28
+}

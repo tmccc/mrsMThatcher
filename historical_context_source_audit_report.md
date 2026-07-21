@@ -40,17 +40,36 @@ The source-role sidecar now prevents provider redirects, search machinery, quota
 - OpenAI-located, locally verified sources: **33**
 - Guarded approximate source matches: **9**
 - Precise Thatcher-authored book locators: **5**
-- Primary sources: **617**
-- Secondary sources: **19**
-- Recollections: **0**
+
+### Mutually exclusive headline totals
+
+- Observed source records: **3097** (physical 2017; recovered citations 256; model leads 790; independently reviewed AI-located 34).
+- Accepted observed evidence: **635**
+- Discovery-only or insufficient observed records: **2089**
+- Rejected or non-verifying observed records: **373**
+- Additional canonical virtual-locator records: **278**
+- All evidentiary records including virtual locators: **3375**
+
+The provenance and disposition groups above are mutually exclusive and each observed-source partition sums to the same total. Quality counts below are mutually exclusive per evidentiary record and include virtual locators. Role counts overlap because one source may support several claims.
+
+### Detailed quality and role counts
+- Primary sources: **873**
+- Secondary sources: **36**
+- Recollections: **4**
 - Discovery-only sources: **1036**
-- Circular attribution sources: **245**
+- Circular attribution sources: **246**
 - Rejected irrelevant sources: **38**
 - Broken or non-verifying urls: **89**
 - Insufficiently located evidence: **1053**
+- Role `attribution_support`: **872**
+- Role `discovery_only`: **2335**
+- Role `rejected_irrelevant`: **127**
+- Role `secondary_recollection`: **4**
+- Role `source_event_support`: **226**
+- Role `wording_verification`: **821**
 - Packets with no reliable renderable source: **108**
 - Packets with material public-output corrections: **484**
-- Packets requiring further historical research: **221**
+- Packets requiring further historical research: **220**
 
 ## Bounded provider research
 
@@ -572,7 +591,7 @@ The source-role sidecar now prevents provider redirects, search machinery, quota
 | `fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01` | The undermining of our traditional education systems, which in the New Age of political correctness seems to have gone into over-drive, is… | discovery-only source suppressed; verification wording made source-conservative |
 | `fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361` | I have spoken of the need to understand history. We might have avoided the worst atrocities of Nazism had we learned the lessons of the Fir… | discovery-only source suppressed |
 | `fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919` | My friends, every generation has to fight anew the battle for liberty. In my generation, Nazism and then Communism were the enemy, and they… | discovery-only source suppressed |
-| `fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1` | A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A t… | discovery-only source suppressed; verification wording made source-conservative |
+| `fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1` | A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A t… | discovery-only source suppressed |
 
 ## Further research required
 
@@ -645,8 +664,8 @@ These records remain in the 610-quotation posting population. This list concerns
 | `4e92014dc14fd9cce562099b03ccfdf480fd5909414483edf4a3e28dc6e85c80` | The Labour Party has now been taken over by extremists. The Labour Party is now committed to a programme which is frankly and unashamedly M… | composite | high | medium |
 | `4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80` | Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The… | variant | unknown | unknown |
 | `5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d` | If... many influential people have failed to understand, or have just forgotten, what we were up against in the Cold War and how we overcam… | unverified | unknown | unknown |
-| `52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351` | There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it. | variant | medium | medium |
-| `53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215` | What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have g… | unverified | high | medium |
+| `52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351` | There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it. | variant | low | low |
+| `53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215` | What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have g… | unverified | high | unknown |
 | `5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4` | The Communist Party is like a monstrous parasite which consumes the flesh of its host and leaves behind a shell, which is designed to conce… | exact | high | medium |
 | `5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483` | Europe is not based on a common language, culture and values... Europe is a result of plans. It is, in fact, a classic utopian project, a m… | variant | unknown | unknown |
 | `56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c` | Look at a day when you are supremely satisfied at the end. It's not a day when you lounge around doing nothing; it's when you've had everyt… | unverified | unknown | unknown |
@@ -660,7 +679,7 @@ These records remain in the 610-quotation posting population. This list concerns
 | `5e5c7e9155b845150fe903c5f9951af17530a54d930af8706a438ca49b2f2fc1` | Not one single measure produced by any Socialist Government has extended power to the people. They have given much more power to bureaucrat… | exact | high | unknown |
 | `5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a` | I have enormous admiration for the Jewish people, inside or outside Israel. There have always been Jewish members of my staff and indeed my… | normalised | unknown | unknown |
 | `5ed720b08c8e355b93cb25a06c458e68423c873678883cccb2aa3874d5d13017` | Never believe that big government is necessarily strong government. The opposite is true. Once Ministers meddle in everything, government h… | exact | high | unknown |
-| `5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5` | It is our job to go about telling everybody to obey the law. | paraphrase | high | medium |
+| `5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5` | It is our job to go about telling everybody to obey the law. | paraphrase | high | unknown |
 | `5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679` | We have not successfully rolled back the frontiers of the State in Britain only to see them reimposed at European level, with a European su… | exact | medium | medium |
 | `5ff1169a7688823bd091284eaafe66348fc0d2fde67146ff2b20738b14a6663c` | If you were to ask me - and people often do - what I believe in, I could answer you in one simple word: Freedom. In particular, freedom to… | normalised | high | medium |
 | `674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113` | I do not know anyone who has got to the top without hard work. That is the recipe. It will not always get you to the top, but should get yo… | variant | high | medium |
@@ -777,7 +796,7 @@ These records remain in the 610-quotation posting population. This list concerns
 | `e61f14550883eef5e138633ec95c5dcfe63a5834732fa31807ea33a7e936a2f2` | We should learn the lesson that as long as a free political system, a free society and a free economy are maintained, the ingenuity of mank… | unverified | unknown | unknown |
 | `e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa` | Islamic extremism today, like Bolshevism in the past, is an armed doctrine. It is an aggressive ideology promoted by fanatical, well-armed… | normalised | medium | medium |
 | `e7555410185c8198a1bcc5388545d622df4dfcd1fc2009ecb15c6dffcb32180c` | I've no idea why people keep attacking me. I don't deserve it at all. | variant | medium | medium |
-| `e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b` | The feminists hate me, don't they? And I don't blame them. For I hate feminism. It is poison. | unverified | medium | medium |
+| `e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b` | The feminists hate me, don't they? And I don't blame them. For I hate feminism. It is poison. | unverified | low | low |
 | `e87e2815cb5136fe8d5b0ae9db6114478ea34ae7c7acd30090eb96f2b7aca918` | Our freedoms depended on our having independence, independence in the wage packet, and independence of the Government. If you rely always o… | composite | unknown | unknown |
 | `e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316` | You cannot build a great nation or brotherhood of man by spreading envy or hatred. | exact | high | unknown |
 | `eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4` | If my critics saw me walking over the Thames they would say it was because I couldn't swim. | unverified | unknown | unknown |
@@ -800,12 +819,11 @@ These records remain in the 610-quotation posting population. This list concerns
 | `fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e` | The only way we can achieve great things for Britain is by asking great things of Britain. We will not disguise our purpose, nor betray our… | exact | unknown | unknown |
 | `fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521` | My job is to stop Britain going red. | exact | medium | medium |
 | `fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01` | The undermining of our traditional education systems, which in the New Age of political correctness seems to have gone into over-drive, is… | excerpt | high | medium |
-| `fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1` | A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A t… | exact | high | medium |
 
 ## Migration and preservation
 
 - Audit sidecar: `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
-- Audit SHA-256: `41b9c6817a9ed561ec8102e3db2691b9831e7cd83d2cd764238015b86d8d3fe0`
+- Audit SHA-256: `ebab8591365d341b9968a6964d3b33b98d9de5a51eab1c29268d6206eb5dfa5c`
 - Eligible-ID set SHA-256 before: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Eligible-ID set SHA-256 after: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Raw `research_packets.json`, `grounding_sources.json`, manifest and provider history were not rewritten.

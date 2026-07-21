@@ -1,7 +1,7 @@
 # Attribution-cleaned v3 shadow manifest
 
 - Result: **PASS**
-- Manifest SHA-256: `1a6d12564eff550aac1a8d6700bbcb6363d3d01b6a4f8d1b8c6519935663a00f`
+- Manifest SHA-256: `55f571255e2570ec9584a77204ac23d6062873171da384c3079df36eea2e9b75`
 - Quotations: 610
 - Images: 91
 - Pairs: 22066 (21938 allow, 128 veto)

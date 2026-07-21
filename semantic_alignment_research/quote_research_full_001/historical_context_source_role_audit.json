@@ -1,4 +1,5 @@
 {
+  "all_evidentiary_source_record_count": 3375,
   "attribution_eligible_quote_count": 610,
   "attribution_eligible_quote_ids_sha256": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
   "audit_date": "2026-07-21",
@@ -14776,6 +14777,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -14794,10 +14796,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "7061202faa331ec9c6382b254017be913d2bafba7299a4262226c46a0709914d",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f32426dda6fe5d68ba825b0440cc0579f99efb9d4f42560394bd86d1de5546d1",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -14828,6 +14836,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -14846,10 +14855,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "7061202faa331ec9c6382b254017be913d2bafba7299a4262226c46a0709914d",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f32426dda6fe5d68ba825b0440cc0579f99efb9d4f42560394bd86d1de5546d1",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Equality and Diversity (Reform) Bill - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/commons/2011-10-21/debates/11102146000003/EqualityAndDiversity%28Reform%29Bill",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -16476,6 +16491,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -16494,10 +16510,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "a12d4ad094650a329f541973050c4de5d225b13a56b71d18dbf6ec7a1027ce05",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -16528,6 +16550,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -16546,10 +16569,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "a12d4ad094650a329f541973050c4de5d225b13a56b71d18dbf6ec7a1027ce05",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -21723,6 +21752,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -21741,10 +21771,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "34e63c59fd356138778828e655443493c1a2c00ba33f01d12b875e6bc09f743a",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "74e8ab3b8ba5bee11af7f8e93bec24c725cdef657b3a3ae435f9113526718e4b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103101",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103101",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -21775,6 +21811,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -21793,10 +21830,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "34e63c59fd356138778828e655443493c1a2c00ba33f01d12b875e6bc09f743a",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "74e8ab3b8ba5bee11af7f8e93bec24c725cdef657b3a3ae435f9113526718e4b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103101",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Liberal Federal Council in Canberra | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103101",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -32630,6 +32673,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -32649,9 +32693,15 @@
           "confidence_before": "high",
           "fetched_body_sha256": "47403da35c950ac7262f90ad9e1ad4deab8acf0b40437ad18ceb28a06895fec7",
           "gemini_researched_source": true,
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "00859d60e7ebe1671831fba32ac1388dd26f2a7a1c5f868ad661cc98e47889bc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald — https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+          "independently_reviewed": true,
           "public_title": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald",
           "public_url": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
-          "rationale": "A bounded gemini search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gemini-3.1-pro-preview",
           "research_provider": "gemini",
           "researched_source": true,
@@ -32682,6 +32732,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -32701,9 +32752,15 @@
           "confidence_before": "high",
           "fetched_body_sha256": "47403da35c950ac7262f90ad9e1ad4deab8acf0b40437ad18ceb28a06895fec7",
           "gemini_researched_source": true,
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "00859d60e7ebe1671831fba32ac1388dd26f2a7a1c5f868ad661cc98e47889bc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald — https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+          "independently_reviewed": true,
           "public_title": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald",
           "public_url": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
-          "rationale": "A bounded gemini search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gemini-3.1-pro-preview",
           "research_provider": "gemini",
           "researched_source": true,
@@ -39628,6 +39685,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -39646,10 +39704,16 @@
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "a55220715cc1c03d3fa1112938d7507bee798ae71714e0cc928b8f26503188c3",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "ecab1f2b88fe2d0858b7f21627332ea8cf663258d7a20300e69366d0f5dd94dc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105724",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105724",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -39680,6 +39744,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -39698,10 +39763,16 @@
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "a55220715cc1c03d3fa1112938d7507bee798ae71714e0cc928b8f26503188c3",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "ecab1f2b88fe2d0858b7f21627332ea8cf663258d7a20300e69366d0f5dd94dc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105724",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Remarks visiting Finchley (miners' and dockers' strikes) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105724",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -43432,6 +43503,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -43450,10 +43522,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b3bfad2cb6aefdf5b53c251626a8cb44110949abc6b17de93e1dba776200733e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "0239164f9aa2e9c5662ec4dbda4c0db60debaf5dc0717ed5e678d6cac81024fd",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/101374",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/101374",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -43470,51 +43548,6 @@
               "kind": "fetched_verbatim_public_page_passage",
               "sha256": "b2f169796263643c115fb452fa859ae1ffd2c0f0b24e5a97db2802ddb3d6c1b2",
               "text": "In politics, if you want anything said ask a man, if you want anything done ask a woman"
-            }
-          ],
-          "wording_match_kind": "exact_token_sequence",
-          "wording_similarity": 1.0
-        },
-        {
-          "action": "keep",
-          "assigned_roles": [
-            "wording_verification",
-            "attribution_support"
-          ],
-          "claim_coverage": {
-            "wording": "normalised"
-          },
-          "claims_not_supported": [
-            "source_event",
-            "date",
-            "historical_context"
-          ],
-          "claims_supported": [
-            "wording",
-            "attribution"
-          ],
-          "confidence_before": "high",
-          "fetched_body_sha256": "5343fbc2e4f66390b72312af656bf9f021cbecf9f6bbf0909fc87c2505129314",
-          "openai_researched_source": true,
-          "public_title": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog",
-          "public_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
-          "research_model": "gpt-5.4-mini-2026-03-17",
-          "research_provider": "openai",
-          "researched_source": true,
-          "source_fingerprint": "aaf63106fde0a846aa1a7beafe0e15934ffd2c7c130dd7ddd14ea552c36fb927",
-          "source_id": "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80",
-          "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
-          "source_title": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog",
-          "source_type": "openai_researched_fetched_source",
-          "source_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
-          "source_validation_policy_version": "fetched-page-wording-attribution-v3-guarded-approximate-80",
-          "supporting_passages": [
-            {
-              "kind": "fetched_verbatim_public_page_passage",
-              "sha256": "6d0eb7100a5e1ed2f463874dce51ae4010f775c20c077a356a2bf7f2ba895d5d",
-              "text": "In politics if you want anything said, ask a man. If you want anything done, ask a woman"
             }
           ],
           "wording_match_kind": "exact_token_sequence",
@@ -43529,6 +43562,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -43547,10 +43581,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b3bfad2cb6aefdf5b53c251626a8cb44110949abc6b17de93e1dba776200733e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "0239164f9aa2e9c5662ec4dbda4c0db60debaf5dc0717ed5e678d6cac81024fd",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/101374",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to National Union of Townswomen's Guilds Conference (\"In politics, if you want anything said ask a man, if you want anything done ask a woman\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/101374",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -43573,36 +43613,39 @@
           "wording_similarity": 1.0
         },
         {
-          "action": "keep",
+          "action": "remove_from_rendered_output",
+          "approximate_match_review": null,
           "assigned_roles": [
-            "wording_verification",
-            "attribution_support"
+            "discovery_only"
           ],
-          "claim_coverage": {
-            "wording": "normalised"
-          },
+          "claim_coverage": {},
           "claims_not_supported": [
+            "wording",
+            "attribution",
             "source_event",
             "date",
             "historical_context"
           ],
-          "claims_supported": [
-            "wording",
-            "attribution"
-          ],
+          "claims_supported": [],
           "confidence_before": "high",
           "fetched_body_sha256": "5343fbc2e4f66390b72312af656bf9f021cbecf9f6bbf0909fc87c2505129314",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "056eae9392268946dc7da8d9a3acb7e30f747db3c38da5b7bea2a64ea8244738",
+          "independent_review_decision": "reject",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog — https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
+          "independently_reviewed": true,
           "openai_researched_source": true,
-          "public_title": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog",
-          "public_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "public_title": null,
+          "public_url": null,
+          "rationale": "The OUP blog is an unsourced quotation round-up. It documents later circulation but does not independently verify Thatcher's wording.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
           "source_fingerprint": "aaf63106fde0a846aa1a7beafe0e15934ffd2c7c130dd7ddd14ea552c36fb927",
           "source_id": "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80",
           "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
+          "source_quality_class": "circular_attribution",
           "source_title": "‘If you want anything said, ask Mrs Thatcher’ | OUPblog",
           "source_type": "openai_researched_fetched_source",
           "source_url": "https://blog.oup.com/2012/05/famous-quotes-of-margaret-thatcher/",
@@ -44571,6 +44614,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -44589,10 +44633,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "635d20079a3eb812776c57a23b728c19c24ef6cdd154f2f8f1968eea375cafc2",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "5ab1abe3759ec1d6074b77185f872031ac0bb5d9e20ac60d95d5005d4bf98b68",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "A Tory Wind of Change — https://time.com/archive/6850530/a-tory-wind-of-change/",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "A Tory Wind of Change",
           "public_url": "https://time.com/archive/6850530/a-tory-wind-of-change/",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -44623,6 +44673,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -44641,10 +44692,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "635d20079a3eb812776c57a23b728c19c24ef6cdd154f2f8f1968eea375cafc2",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "5ab1abe3759ec1d6074b77185f872031ac0bb5d9e20ac60d95d5005d4bf98b68",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "A Tory Wind of Change — https://time.com/archive/6850530/a-tory-wind-of-change/",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "A Tory Wind of Change",
           "public_url": "https://time.com/archive/6850530/a-tory-wind-of-change/",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -51827,6 +51884,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The source says 'We have' rather than 'We shall have'; the warning and direction are unchanged.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -51842,10 +51910,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "e22fc583cbbc86cb5bf2593957884f76c84d58708cf668422431fc14cc4e416e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "eeb5e47bd9a77ed199eeee273f5e82315a50f18889809053937cd1c44f9f275b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103926",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103926",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -51876,6 +51950,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The source says 'We have' rather than 'We shall have'; the warning and direction are unchanged.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -51891,10 +51976,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "e22fc583cbbc86cb5bf2593957884f76c84d58708cf668422431fc14cc4e416e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "eeb5e47bd9a77ed199eeee273f5e82315a50f18889809053937cd1c44f9f275b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103926",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Conservative Party Political Broadcast (Winter of Discontent) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103926",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -52437,6 +52528,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The difference is an archive page-break marker; the attributed proposition is unchanged.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -52452,10 +52554,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "778c54acac01812b12d41327316fa75cf23206e81b01c09c6c34b3121a3dfacb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "af01de5c073508f32f395babb429c5baec11f1f9b35abf9ed2f1b42f075790c7",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to the International Democrat Union | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105407",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to the International Democrat Union | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105407",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -52486,6 +52594,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The difference is an archive page-break marker; the attributed proposition is unchanged.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -52501,10 +52620,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "778c54acac01812b12d41327316fa75cf23206e81b01c09c6c34b3121a3dfacb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "af01de5c073508f32f395babb429c5baec11f1f9b35abf9ed2f1b42f075790c7",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to the International Democrat Union | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105407",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to the International Democrat Union | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105407",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -57792,12 +57917,12 @@
       "attribution_eligible": true,
       "bounded_research_outcomes": {},
       "confidence_after": {
-        "attribution": "medium",
+        "attribution": "low",
         "date": "unknown",
         "historical_context": "unknown",
         "interpretation": "high",
         "source_event": "unknown",
-        "wording": "medium"
+        "wording": "low"
       },
       "confidence_before": "high",
       "current_wording_status": "variant",
@@ -57873,7 +57998,7 @@
         "discovery-only source suppressed",
         "verification wording made source-conservative"
       ],
-      "public_verification_wording": "Reported wording; no primary Thatcher transcript located",
+      "public_verification_wording": "Reported in Hugo Young, 'One of Us' (1989), p. 193; no primary Thatcher transcript located",
       "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
       "quote_text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it.",
       "quote_text_sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
@@ -57884,7 +58009,8 @@
           "action": "keep",
           "assigned_roles": [
             "wording_verification",
-            "attribution_support"
+            "attribution_support",
+            "secondary_recollection"
           ],
           "claims_not_supported": [
             "source_event",
@@ -57902,7 +58028,7 @@
           "source_fingerprint": "636645de217c5e98d0bace8cdb482019ebe6efeec2f64cf652edf49d21774284",
           "source_id": "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9",
           "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
+          "source_quality_class": "secondary_recollection",
           "source_title": "Hugo Young, 'One of Us' (1989), p. 193",
           "source_type": "canonical_stable_locator",
           "source_url": "",
@@ -57931,7 +58057,7 @@
           ],
           "claims_supported": [],
           "confidence_before": "high",
-          "indicates_secondary_recollection": false,
+          "indicates_secondary_recollection": true,
           "public_title": null,
           "public_url": null,
           "rationale": "The source is useful only as a research lead and is not authoritative evidence.",
@@ -57974,7 +58100,7 @@
           ],
           "claims_supported": [],
           "confidence_before": "high",
-          "indicates_secondary_recollection": false,
+          "indicates_secondary_recollection": true,
           "public_title": null,
           "public_url": null,
           "rationale": "The opaque provider record is not independently tied to a matching, claim-bearing public locator.",
@@ -58003,6 +58129,7 @@
       "stable_locator": "Hugo Young, 'One of Us' (1989), p. 193",
       "supported_public_roles": [
         "attribution_support",
+        "secondary_recollection",
         "wording_verification"
       ],
       "virtual_locator_sources": [
@@ -58010,7 +58137,8 @@
           "action": "keep",
           "assigned_roles": [
             "wording_verification",
-            "attribution_support"
+            "attribution_support",
+            "secondary_recollection"
           ],
           "claims_not_supported": [
             "source_event",
@@ -58028,7 +58156,7 @@
           "source_fingerprint": "636645de217c5e98d0bace8cdb482019ebe6efeec2f64cf652edf49d21774284",
           "source_id": "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9",
           "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
+          "source_quality_class": "secondary_recollection",
           "source_title": "Hugo Young, 'One of Us' (1989), p. 193",
           "source_type": "canonical_stable_locator",
           "source_url": "",
@@ -58342,7 +58470,7 @@
         "historical_context": "unknown",
         "interpretation": "low",
         "source_event": "unknown",
-        "wording": "medium"
+        "wording": "unknown"
       },
       "confidence_before": "low",
       "current_wording_status": "unverified",
@@ -58396,29 +58524,43 @@
       "recovered_sources": [],
       "renderable_sources": [
         {
-          "action": "keep",
+          "action": "downgrade",
+          "approximate_match_review": {
+            "actor_preserved": false,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": false,
+            "meaning_preserved": true,
+            "notes": "The question belongs to the interviewer; only the following answer is Thatcher's wording.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
-            "wording_verification",
             "attribution_support"
           ],
-          "claim_coverage": {
-            "wording": "partial"
-          },
+          "claim_coverage": {},
           "claims_not_supported": [
+            "wording",
             "source_event",
             "date",
             "historical_context"
           ],
           "claims_supported": [
-            "wording",
             "attribution"
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "c9165f3b989379b84799667b8461a5c0a43419c54827ebba84fb3154c6decd7f",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+          "independent_review_decision": "downgrade",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/106228",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The transcript supports Thatcher's answer, but 'What is success?' is an interviewer question paraphrased by the archive.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -58448,29 +58590,43 @@
       },
       "researched_sources": [
         {
-          "action": "keep",
+          "action": "downgrade",
+          "approximate_match_review": {
+            "actor_preserved": false,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": false,
+            "meaning_preserved": true,
+            "notes": "The question belongs to the interviewer; only the following answer is Thatcher's wording.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
-            "wording_verification",
             "attribution_support"
           ],
-          "claim_coverage": {
-            "wording": "partial"
-          },
+          "claim_coverage": {},
           "claims_not_supported": [
+            "wording",
             "source_event",
             "date",
             "historical_context"
           ],
           "claims_supported": [
-            "wording",
             "attribution"
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "c9165f3b989379b84799667b8461a5c0a43419c54827ebba84fb3154c6decd7f",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+          "independent_review_decision": "downgrade",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/106228",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The transcript supports Thatcher's answer, but 'What is success?' is an interviewer question paraphrased by the archive.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -58576,8 +58732,7 @@
       "speaker": "Margaret Thatcher (attributed)",
       "stable_locator": "Unknown",
       "supported_public_roles": [
-        "attribution_support",
-        "wording_verification"
+        "attribution_support"
       ],
       "virtual_locator_sources": [],
       "wording_status_after": "unverified"
@@ -58678,6 +58833,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -58696,10 +58852,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "84012b41c46dc5f2c0ad4f6ab745433bf34c22d979f9d8a5ab1eabee751ea96e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "e4eded3b3cdba3eee1e8e166c353c85e4886df72054992a751eff886cf5296a4",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108284",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108284",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -58730,6 +58892,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -58748,10 +58911,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "84012b41c46dc5f2c0ad4f6ab745433bf34c22d979f9d8a5ab1eabee751ea96e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "e4eded3b3cdba3eee1e8e166c353c85e4886df72054992a751eff886cf5296a4",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108284",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at Jagiellonian University in Krakow | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108284",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -61208,7 +61377,7 @@
           ],
           "claims_supported": [],
           "confidence_before": "high",
-          "indicates_secondary_recollection": false,
+          "indicates_secondary_recollection": true,
           "public_title": null,
           "public_url": null,
           "rationale": "The opaque provider record is not independently tied to a matching, claim-bearing public locator.",
@@ -61279,7 +61448,7 @@
           ],
           "claims_supported": [],
           "confidence_before": "high",
-          "indicates_secondary_recollection": false,
+          "indicates_secondary_recollection": true,
           "public_title": null,
           "public_url": null,
           "rationale": "The opaque provider record is not independently tied to a matching, claim-bearing public locator.",
@@ -65454,6 +65623,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The only inserted text is an archive page-break marker.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -65469,10 +65649,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b99708ee6d54affccc832e88f2aeffdbf7ea583b5ab40887c5720554fb820114",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6fc54a8bdcbd73c3bab3842cf7603c9a5b9f972e146de34e77bd05e70e5909b1",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/102728",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/102728",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -65503,6 +65689,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The only inserted text is an archive page-break marker.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -65518,10 +65715,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b99708ee6d54affccc832e88f2aeffdbf7ea583b5ab40887c5720554fb820114",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6fc54a8bdcbd73c3bab3842cf7603c9a5b9f972e146de34e77bd05e70e5909b1",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/102728",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech launching \"Free Enterprise Week\" | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/102728",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -66830,6 +67033,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The only inserted text is an archive page-break marker.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -66845,10 +67059,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "54e2c0666a5371273d095323bd42398b500321082fb66b778ce072fe49084869",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "829475b88ed542bdcd3eca9a73c3d976bf3144fb50a2580b13e70b441627baf6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105472",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105472",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -66879,6 +67099,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The only inserted text is an archive page-break marker.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -66894,10 +67125,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "54e2c0666a5371273d095323bd42398b500321082fb66b778ce072fe49084869",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "829475b88ed542bdcd3eca9a73c3d976bf3144fb50a2580b13e70b441627baf6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105472",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at Lord Mayor's Banquet | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105472",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -67029,6 +67266,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -67047,10 +67285,16 @@
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "75a4f6af8c826fd246835402bae580b93c032c35dab3e0056bfdce5558de6fbf",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f9a5cde850584c9ccddf4e4a489d8e7925c7bf73584bdf5537cb4f8b6e84ce8f",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108183",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108183",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -67081,6 +67325,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -67099,10 +67344,16 @@
           ],
           "confidence_before": "low",
           "fetched_body_sha256": "75a4f6af8c826fd246835402bae580b93c032c35dab3e0056bfdce5558de6fbf",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f9a5cde850584c9ccddf4e4a489d8e7925c7bf73584bdf5537cb4f8b6e84ce8f",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108183",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to European Democrat Union Conference | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108183",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -67452,7 +67703,7 @@
         "historical_context": "unknown",
         "interpretation": "high",
         "source_event": "unknown",
-        "wording": "medium"
+        "wording": "unknown"
       },
       "confidence_before": "high",
       "current_wording_status": "paraphrase",
@@ -67476,29 +67727,43 @@
       "recovered_sources": [],
       "renderable_sources": [
         {
-          "action": "keep",
+          "action": "downgrade",
+          "approximate_match_review": {
+            "actor_preserved": false,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": false,
+            "meaning_preserved": true,
+            "notes": "The paraphrase borrows Ted Short's wording and combines it with Thatcher's reply.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
-            "wording_verification",
             "attribution_support"
           ],
-          "claim_coverage": {
-            "wording": "partial"
-          },
+          "claim_coverage": {},
           "claims_not_supported": [
+            "wording",
             "source_event",
             "date",
             "historical_context"
           ],
           "claims_supported": [
-            "wording",
             "attribution"
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "3767940ff72b1dcd215b9146274b341f19854c50e3d11e8d39e1e428f250b035",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "downgrade",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The packet paraphrase combines Ted Short's wording with Thatcher's reply; the page supports the attribution and meaning, not exact wording.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -67528,29 +67793,43 @@
       },
       "researched_sources": [
         {
-          "action": "keep",
+          "action": "downgrade",
+          "approximate_match_review": {
+            "actor_preserved": false,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": false,
+            "meaning_preserved": true,
+            "notes": "The paraphrase borrows Ted Short's wording and combines it with Thatcher's reply.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
-            "wording_verification",
             "attribution_support"
           ],
-          "claim_coverage": {
-            "wording": "partial"
-          },
+          "claim_coverage": {},
           "claims_not_supported": [
+            "wording",
             "source_event",
             "date",
             "historical_context"
           ],
           "claims_supported": [
-            "wording",
             "attribution"
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "3767940ff72b1dcd215b9146274b341f19854c50e3d11e8d39e1e428f250b035",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "downgrade",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The packet paraphrase combines Ted Short's wording with Thatcher's reply; the page supports the attribution and meaning, not exact wording.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -67610,8 +67889,7 @@
       "speaker": "Margaret Thatcher",
       "stable_locator": "Margaret Thatcher Foundation Archive",
       "supported_public_roles": [
-        "attribution_support",
-        "wording_verification"
+        "attribution_support"
       ],
       "virtual_locator_sources": [],
       "wording_status_after": "paraphrase"
@@ -82422,6 +82700,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "Minor omissions and normalisations preserve 1989, 1979, actors, direction and positive polarity.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -82440,10 +82729,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "ac2d15d73efbb60f34bb21abf9026a0bd2f505d3dc22d7c7d9dae3bd651d0acb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "c24cded256a3cbb3378edf2f092f8c8b27ec86423e221a92b953e969765a5f03",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Conservative Party Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/107789",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Conservative Party Conference | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/107789",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -82474,6 +82769,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "Minor omissions and normalisations preserve 1989, 1979, actors, direction and positive polarity.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -82492,10 +82798,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "ac2d15d73efbb60f34bb21abf9026a0bd2f505d3dc22d7c7d9dae3bd651d0acb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "c24cded256a3cbb3378edf2f092f8c8b27ec86423e221a92b953e969765a5f03",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Conservative Party Conference | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/107789",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Conservative Party Conference | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/107789",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -85542,6 +85854,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -85560,10 +85873,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "de572b7af164c491aece2d6fee000f722762f167ce736c8f35932dd3fcc2ca2f",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -85594,6 +85913,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -85612,10 +85932,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "de572b7af164c491aece2d6fee000f722762f167ce736c8f35932dd3fcc2ca2f",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -88531,6 +88857,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -88549,10 +88876,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "c501ecdaf4732a7aac921c046fb7bcd9191cfc50e235ae1bc81815c35e8f3c74",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "dc749bce80091f499839ed37fd673e974fb9ab196f5b68b847cc67b0a366dec9",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108386",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108386",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -88583,6 +88916,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -88601,10 +88935,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "c501ecdaf4732a7aac921c046fb7bcd9191cfc50e235ae1bc81815c35e8f3c74",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "dc749bce80091f499839ed37fd673e974fb9ab196f5b68b847cc67b0a366dec9",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108386",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to the English-Speaking Union in New York (\"The Language of Liberty\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108386",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -93900,6 +94240,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -93918,10 +94259,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "5f239144aefdef3c3bfdca1de5cd31eb6ed73712101c1dbbccd65ccbb98bd159",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6246712ff548089653fffbd6b8b4d5d53aea3656bacb693eabfb4e26dc04a8a6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108368",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108368",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -93952,6 +94299,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -93970,10 +94318,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "5f239144aefdef3c3bfdca1de5cd31eb6ed73712101c1dbbccd65ccbb98bd159",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6246712ff548089653fffbd6b8b4d5d53aea3656bacb693eabfb4e26dc04a8a6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108368",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Nicholas Ridley Memorial Lecture | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108368",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -100811,6 +101165,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -100829,10 +101184,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "6326ba306174b9e8c0a8ff8436f8e6cc344c1dae51bee6a3189c876a00c7759e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -100863,6 +101224,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -100881,10 +101243,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "6326ba306174b9e8c0a8ff8436f8e6cc344c1dae51bee6a3189c876a00c7759e",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "a32eb87f443fb70110bccf68a9be095f8250f3b08202d2b6a0ffb202535e95cc",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/103684",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Scottish Conservative Party Conference (\"Onwards to Victory\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/103684",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -103607,6 +103975,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -103625,10 +103994,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "40dc68bb6e20191bf61dd57074ed5f8b94c67c78c1309ef44bded83639117d2c",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -103659,6 +104034,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -103677,10 +104053,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "40dc68bb6e20191bf61dd57074ed5f8b94c67c78c1309ef44bded83639117d2c",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -103921,6 +104303,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -103939,10 +104322,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "16535c7bd06308c7d766047c6a12c51c27dc63198a1cdc7b1b64e19332fb87eb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "805f2e4c5f6eb43463dc9e51412303d4c09b4af400223c300c1433305b3457c6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105096",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105096",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -103973,6 +104362,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -103991,10 +104381,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "16535c7bd06308c7d766047c6a12c51c27dc63198a1cdc7b1b64e19332fb87eb",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "805f2e4c5f6eb43463dc9e51412303d4c09b4af400223c300c1433305b3457c6",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/105096",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "TV Interview for Granada TV (visiting Manchester) | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/105096",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -108878,6 +109274,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -108896,10 +109293,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "575213a23e9c491fa8e96e824438e6c043e3661868327710221eb270ab8c4b69",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/106228",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -108930,6 +109333,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -108948,10 +109352,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "575213a23e9c491fa8e96e824438e6c043e3661868327710221eb270ab8c4b69",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "6063822bec714f1715704e238d698304a96c5f49a04eb9d76ec782cb29108c51",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Interview for Parade magazine | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/106228",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Interview for Parade magazine | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/106228",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -123609,6 +124019,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -123627,10 +124038,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "ae97cc8ebc70c5c1ea0349588a95889e970d6ebc4e56839d0f63499db2d8d917",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "409e14360313366c89c14c1f869a2fbdf742c567654be3caa5bcc0885c7b8e67",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004) — https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004)",
           "public_url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -123661,6 +124078,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -123679,10 +124097,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "ae97cc8ebc70c5c1ea0349588a95889e970d6ebc4e56839d0f63499db2d8d917",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "409e14360313366c89c14c1f869a2fbdf742c567654be3caa5bcc0885c7b8e67",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004) — https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004)",
           "public_url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -124161,6 +124585,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "Ampersands, punctuation and an applause marker differ; actors and proposition do not.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -124176,10 +124611,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b5d467de5e89beb3c63be6b1b50add2dc37737fada807acb97db03ba093ea584",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "970d5193c84dfa2d16f8ceaa8e49a7ab5b287589756b91ac147d99f509c91808",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Conservative Central Council | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108051",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Conservative Central Council | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108051",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -124210,6 +124651,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "Ampersands, punctuation and an applause marker differ; actors and proposition do not.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -124225,10 +124677,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "b5d467de5e89beb3c63be6b1b50add2dc37737fada807acb97db03ba093ea584",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "970d5193c84dfa2d16f8ceaa8e49a7ab5b287589756b91ac147d99f509c91808",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech to Conservative Central Council | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108051",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech to Conservative Central Council | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108051",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -137179,6 +137637,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -137197,10 +137656,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "d675bb539412f21bb070ad19d8e4ef5a1737f23d555fc57e7096d9b868edfaa9",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "b36849db09f45c451b3a29dcd4a5ec4d6e38dcb8434aaa5784659d5c7acd0d37",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/104032",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/104032",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -137231,6 +137696,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -137249,10 +137715,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "d675bb539412f21bb070ad19d8e4ef5a1737f23d555fc57e7096d9b868edfaa9",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "b36849db09f45c451b3a29dcd4a5ec4d6e38dcb8434aaa5784659d5c7acd0d37",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/104032",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Article for Sunday Express (\"We shall reward the workers and declare war on the wreckers\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/104032",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -149459,6 +149931,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -149477,10 +149950,16 @@
           ],
           "confidence_before": "medium",
           "fetched_body_sha256": "c9251eca68bc36da97e42cae8753ec0ad19e32fe1cab429cc57c15ed6d8af24d",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "2788a278c06ee18811d9982118fdbdd62818ac1eb367532696f7c72c9bb13e6a",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -149511,6 +149990,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -149529,10 +150009,16 @@
           ],
           "confidence_before": "medium",
           "fetched_body_sha256": "c9251eca68bc36da97e42cae8753ec0ad19e32fe1cab429cc57c15ed6d8af24d",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "2788a278c06ee18811d9982118fdbdd62818ac1eb367532696f7c72c9bb13e6a",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament — https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Lord Chancellor’s Oath and the Rule of Law - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/commons/2020-10-14/debates/4C3BBF1D-0A58-4A99-9667-A867B4BC1E54/LordChancellor%E2%80%99SOathAndTheRuleOfLaw",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -156236,6 +156722,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -156254,10 +156741,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "198073e8b00038d9fbb05eab6d2ff65f403fdf1076535b03684aeec6c92cd7d5",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -156288,6 +156781,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -156306,10 +156800,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "198073e8b00038d9fbb05eab6d2ff65f403fdf1076535b03684aeec6c92cd7d5",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -165283,12 +165783,12 @@
         "openai": "reliable_sources_found"
       },
       "confidence_after": {
-        "attribution": "medium",
+        "attribution": "low",
         "date": "unknown",
         "historical_context": "unknown",
         "interpretation": "medium",
         "source_event": "unknown",
-        "wording": "medium"
+        "wording": "low"
       },
       "confidence_before": "medium",
       "current_wording_status": "unverified",
@@ -165371,10 +165871,12 @@
       "recovered_sources": [],
       "renderable_sources": [
         {
-          "action": "keep",
+          "action": "relabel",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
-            "attribution_support"
+            "attribution_support",
+            "secondary_recollection"
           ],
           "claim_coverage": {
             "wording": "normalised"
@@ -165390,17 +165892,23 @@
           ],
           "confidence_before": "medium",
           "fetched_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+          "independent_review_decision": "relabel",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent — https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent",
           "public_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The page repeats Paul Johnson's later account of a private 1982 conversation. It is recollection evidence, not a primary transcript.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
           "source_fingerprint": "324292f757822e278cfb9e8a743b0c5fefa2e255052c173bcbf92ef17876acec",
           "source_id": "f89fca2576eab8c81cc3184dda1acfe1a687c1d1319b7c72a9ae82276dccfdf9",
           "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
+          "source_quality_class": "secondary_recollection",
           "source_title": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent",
           "source_type": "openai_researched_fetched_source",
           "source_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
@@ -165423,10 +165931,12 @@
       },
       "researched_sources": [
         {
-          "action": "keep",
+          "action": "relabel",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
-            "attribution_support"
+            "attribution_support",
+            "secondary_recollection"
           ],
           "claim_coverage": {
             "wording": "normalised"
@@ -165442,17 +165952,23 @@
           ],
           "confidence_before": "medium",
           "fetched_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "8d6c380fde64be809de2f5b8884c27c178fb2d18046c7aa9025025827867be5c",
+          "independent_review_decision": "relabel",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent — https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent",
           "public_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The page repeats Paul Johnson's later account of a private 1982 conversation. It is recollection evidence, not a primary transcript.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
           "source_fingerprint": "324292f757822e278cfb9e8a743b0c5fefa2e255052c173bcbf92ef17876acec",
           "source_id": "f89fca2576eab8c81cc3184dda1acfe1a687c1d1319b7c72a9ae82276dccfdf9",
           "source_index": null,
-          "source_quality_class": "reliable_secondary_evidence",
+          "source_quality_class": "secondary_recollection",
           "source_title": "‘Suffragette’ shows feminism’s success – and its flaws | The Independent | The Independent",
           "source_type": "openai_researched_fetched_source",
           "source_url": "https://www.independent.co.uk/voices/suffragette-shows-feminism-s-success-and-its-flaws-a6689971.html",
@@ -165620,6 +166136,7 @@
       "stable_locator": "Paul Johnson, 'Failure of the feminists', The Spectator, March 12, 2011",
       "supported_public_roles": [
         "attribution_support",
+        "secondary_recollection",
         "wording_verification"
       ],
       "virtual_locator_sources": [],
@@ -166924,6 +167441,17 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The corpus omits the article 'a'; the source is a 1950 Dartford report, not the packet's later book occasion.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -166939,10 +167467,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "51c81f9f52c10973282e39078491429f110e97cc26fdfe898b2e1b50e98b85df",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "fb982bbb4e7ac4cdb913e1d3a2666149c7b130b9544ac30d7f96179c0ec8b50b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/100857",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/100857",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -166973,6 +167507,17 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": {
+            "actor_preserved": true,
+            "dates_preserved": true,
+            "direction_preserved": true,
+            "exact_wording_verified": false,
+            "historically_defensible": true,
+            "meaning_preserved": true,
+            "notes": "The corpus omits the article 'a'; the source is a 1950 Dartford report, not the packet's later book occasion.",
+            "numbers_preserved": true,
+            "polarity_preserved": true
+          },
           "assigned_roles": [
             "attribution_support"
           ],
@@ -166988,10 +167533,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "51c81f9f52c10973282e39078491429f110e97cc26fdfe898b2e1b50e98b85df",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "fb982bbb4e7ac4cdb913e1d3a2666149c7b130b9544ac30d7f96179c0ec8b50b",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/100857",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at adoption meeting in Dartford | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/100857",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -172690,6 +173241,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -172708,10 +173260,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "5ef7219639863e37f55a2f6e90c29bb51327d152815eb6bc6993ad59815df772",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "4ee5606d4df9d4ddf36d6d3861be4e81f6bc392224d63f1cadba783c63dcda2a",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108380",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108380",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -172742,6 +173300,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -172760,10 +173319,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "5ef7219639863e37f55a2f6e90c29bb51327d152815eb6bc6993ad59815df772",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "4ee5606d4df9d4ddf36d6d3861be4e81f6bc392224d63f1cadba783c63dcda2a",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108380",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Speech at the 33rd Churchill Memorial Concert at Blenheim Palace | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108380",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -172934,6 +173499,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -172952,10 +173518,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "dd42d60607acfbbc9755ee3195b73064fc287017d82f5cdb6d20597828eeae56",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -172986,6 +173558,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -173004,10 +173577,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "dd42d60607acfbbc9755ee3195b73064fc287017d82f5cdb6d20597828eeae56",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "f27301b289cc4787cfa3fec8e261d618e5e6195bc2ca27ae5309f8c26d3c0d16",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation — https://www.margaretthatcher.org/document/108353",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") | Margaret Thatcher Foundation",
           "public_url": "https://www.margaretthatcher.org/document/108353",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The archive page identifies the speech, interview or article, records its source metadata and contains the supporting passage.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -175084,6 +175663,7 @@
       "renderable_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -175102,10 +175682,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "97fefb7601033a88322e2f44e92c25ee17009593a5d4337ef994cc9073b2e4bf",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "e784688b3f12fa7126d2c7fdd5089a91808f56a5aed62456d5728c0799c388ac",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -175136,6 +175722,7 @@
       "researched_sources": [
         {
           "action": "keep",
+          "approximate_match_review": null,
           "assigned_roles": [
             "wording_verification",
             "attribution_support"
@@ -175154,10 +175741,16 @@
           ],
           "confidence_before": "high",
           "fetched_body_sha256": "97fefb7601033a88322e2f44e92c25ee17009593a5d4337ef994cc9073b2e4bf",
+          "independent_review_checked_at": "2026-07-21",
+          "independent_review_current_page_body_sha256": "e784688b3f12fa7126d2c7fdd5089a91808f56a5aed62456d5728c0799c388ac",
+          "independent_review_decision": "keep",
+          "independent_review_policy_version": "historical-context-ai-source-independent-review-v1",
+          "independent_review_stable_locator": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament — https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+          "independently_reviewed": true,
           "openai_researched_source": true,
           "public_title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
           "public_url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
-          "rationale": "A bounded openai search located this source; deterministic retrieval confirmed that the exact supporting passage occurs on the public page.",
+          "rationale": "The named publication explicitly attributes and reproduces the recorded passage; it is retained only as secondary evidence.",
           "research_model": "gpt-5.4-mini-2026-03-17",
           "research_provider": "openai",
           "researched_source": true,
@@ -186864,11 +187457,11 @@
       "bounded_research_outcomes": {},
       "confidence_after": {
         "attribution": "high",
-        "date": "low",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "low",
-        "wording": "medium"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "current_wording_status": "exact",
@@ -186944,10 +187537,9 @@
         "date"
       ],
       "public_output_changes": [
-        "discovery-only source suppressed",
-        "verification wording made source-conservative"
+        "discovery-only source suppressed"
       ],
-      "public_verification_wording": "Reported in Margaret Thatcher Foundation Archive, Speech of February 17, 1978; no primary Thatcher transcript located",
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1",
       "quote_text": "A country's top rate of tax is a symbol. Very little revenue is collected from people in this country who pay tax at the highest rates. A top rate of 83 per cent is not much of a revenue raiser, it is the symbol of British socialism - the symbol of envy. (1978 speech)",
       "quote_text_sha256": "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1",
@@ -187148,8 +187740,7 @@
           "assigned_roles": [
             "wording_verification",
             "attribution_support",
-            "source_event_support",
-            "secondary_recollection"
+            "source_event_support"
           ],
           "claims_not_supported": [
             "historical_context"
@@ -187167,7 +187758,7 @@
           "source_fingerprint": "23d0ef77df067b4875243646b7f1462ee6d1869322dd5514e69121e88d21e560",
           "source_id": "bd7ebeb9256ae4620de474f6d76366ff6b9c4b0df744e8c542781d3a05b0372a",
           "source_index": null,
-          "source_quality_class": "secondary_recollection",
+          "source_quality_class": "strong_primary_evidence",
           "source_title": "Margaret Thatcher Foundation Archive, Speech of February 17, 1978",
           "source_type": "canonical_stable_locator",
           "source_url": "",
@@ -187175,7 +187766,7 @@
           "virtual_locator_record": true
         }
       ],
-      "requires_further_research": true,
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
@@ -187234,7 +187825,7 @@
           ],
           "claims_supported": [],
           "confidence_before": "high",
-          "indicates_secondary_recollection": true,
+          "indicates_secondary_recollection": false,
           "public_title": null,
           "public_url": null,
           "rationale": "The opaque provider record is not independently tied to a matching, claim-bearing public locator.",
@@ -187263,7 +187854,6 @@
       "stable_locator": "Margaret Thatcher Foundation Archive, Speech of February 17, 1978",
       "supported_public_roles": [
         "attribution_support",
-        "secondary_recollection",
         "source_event_support",
         "wording_verification"
       ],
@@ -187273,8 +187863,7 @@
           "assigned_roles": [
             "wording_verification",
             "attribution_support",
-            "source_event_support",
-            "secondary_recollection"
+            "source_event_support"
           ],
           "claims_not_supported": [
             "historical_context"
@@ -187292,7 +187881,7 @@
           "source_fingerprint": "23d0ef77df067b4875243646b7f1462ee6d1869322dd5514e69121e88d21e560",
           "source_id": "bd7ebeb9256ae4620de474f6d76366ff6b9c4b0df744e8c542781d3a05b0372a",
           "source_index": null,
-          "source_quality_class": "secondary_recollection",
+          "source_quality_class": "strong_primary_evidence",
           "source_title": "Margaret Thatcher Foundation Archive, Speech of February 17, 1978",
           "source_type": "canonical_stable_locator",
           "source_url": "",
@@ -187306,15 +187895,16 @@
   "model_proposed_source_lead_count": 790,
   "openai_researched_source_count": 33,
   "packet_count": 626,
-  "policy_version": "historical-context-source-roles-v4-multi-provider-guarded-approximate-80",
+  "policy_version": "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
   "recovered_citation_source_count": 256,
   "researched_source_count": 34,
-  "schema_version": 3,
+  "schema_version": 4,
   "source_count": 2017,
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
     "grounding_sources.json": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
+    "historical_context_source_independent_review.json": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
     "historical_context_source_openai_research.json": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
     "historical_context_source_recovery.json": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
     "historical_context_source_research.json": "9fee2a3686b763411ea733c8e94489ecc89c3d25056e072dd30fad4bfae30af3",
@@ -187322,6 +187912,27 @@
     "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
   },
   "summary": {
+    "additional_virtual_locator_source_count": 278,
+    "all_evidentiary_source_quality_counts": {
+      "broken_or_non_verifying_url": 89,
+      "circular_attribution": 246,
+      "discovery_lead_only": 1036,
+      "insufficiently_located_evidence": 1053,
+      "irrelevant_or_corrupt": 38,
+      "reliable_secondary_evidence": 36,
+      "secondary_recollection": 4,
+      "strong_primary_evidence": 873
+    },
+    "all_evidentiary_source_record_count": 3375,
+    "all_evidentiary_source_role_assignment_count": 4385,
+    "all_evidentiary_source_role_counts": {
+      "attribution_support": 872,
+      "discovery_only": 2335,
+      "rejected_irrelevant": 127,
+      "secondary_recollection": 4,
+      "source_event_support": 226,
+      "wording_verification": 821
+    },
     "changed_quote_ids": [
       "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
       "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
@@ -187808,8 +188419,29 @@
       "fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919",
       "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1"
     ],
+    "count_semantics": {
+      "all_evidentiary_source_quality_counts": "One mutually exclusive quality class per observed or canonical virtual-locator evidence record.",
+      "all_evidentiary_source_role_counts": "Overlapping claim roles across observed and canonical virtual-locator evidence records.",
+      "headline_observed_source_disposition_counts": "Mutually exclusive accepted, discovery/insufficient and rejected dispositions for observed source records.",
+      "headline_observed_source_provenance_counts": "Mutually exclusive provenance categories for physical, recovered, model-lead and independently reviewed AI-located records.",
+      "source_quality_counts": "One mutually exclusive quality class per observed source record; canonical virtual locator records are excluded.",
+      "source_role_counts": "Overlapping claim roles for observed source records; one source may contribute more than one role assignment."
+    },
     "gemini_researched_source_quality_counts": {
       "reliable_secondary_evidence": 1
+    },
+    "headline_observed_source_disposition_counts": {
+      "accepted_evidence": 635,
+      "discovery_or_insufficient": 2089,
+      "rejected_or_non_verifying": 373,
+      "total": 3097
+    },
+    "headline_observed_source_provenance_counts": {
+      "ai_located_independently_reviewed_sources": 34,
+      "model_proposed_source_leads": 790,
+      "physical_packet_sources": 2017,
+      "recovered_citation_sources": 256,
+      "total": 3097
     },
     "model_proposed_lead_quality_counts": {
       "discovery_lead_only": 789,
@@ -187926,10 +188558,12 @@
       "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e"
     ],
     "openai_researched_source_quality_counts": {
-      "reliable_secondary_evidence": 7,
+      "circular_attribution": 1,
+      "reliable_secondary_evidence": 5,
+      "secondary_recollection": 1,
       "strong_primary_evidence": 26
     },
-    "packets_requiring_new_historical_research": 221,
+    "packets_requiring_new_historical_research": 220,
     "packets_whose_public_output_changes": 484,
     "packets_with_no_reliable_source": 108,
     "physical_source_quality_counts": {
@@ -188167,24 +188801,26 @@
       "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
       "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e",
       "fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521",
-      "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01",
-      "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1"
+      "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01"
     ],
     "source_quality_counts": {
       "broken_or_non_verifying_url": 89,
-      "circular_attribution": 245,
+      "circular_attribution": 246,
       "discovery_lead_only": 1036,
       "insufficiently_located_evidence": 1053,
       "irrelevant_or_corrupt": 38,
-      "reliable_secondary_evidence": 19,
+      "reliable_secondary_evidence": 17,
+      "secondary_recollection": 1,
       "strong_primary_evidence": 617
     },
+    "source_role_assignment_count": 3679,
     "source_role_counts": {
-      "attribution_support": 595,
-      "discovery_only": 2334,
+      "attribution_support": 594,
+      "discovery_only": 2335,
       "rejected_irrelevant": 127,
+      "secondary_recollection": 1,
       "source_event_support": 69,
-      "wording_verification": 556
+      "wording_verification": 553
     }
   },
   "unresolved_quote_count": 6,
@@ -188195,5 +188831,6 @@
     "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
     "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
     "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
-  ]
+  ],
+  "virtual_locator_source_count": 278
 }

@@ -65,6 +65,7 @@ _FORMATTER_METADATA_KEYS_V3 = _FORMATTER_METADATA_KEYS_V2 | {
 _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
     "historical-context-source-roles-v1",
     "historical-context-source-roles-v2-recovered-citations",
+    "historical-context-source-roles-v4-multi-provider-guarded-approximate-80",
 })
 _MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
 THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"

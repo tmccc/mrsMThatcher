@@ -1,7 +1,9 @@
 """Regression coverage for historical-context evidence roles and recovery."""
 from __future__ import annotations
 
+import copy
 import json
+import hashlib
 from pathlib import Path
 
 import httpx
@@ -39,6 +41,10 @@ from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
     validate_openai_research_manifest,
 )
+from historical_context_source_independent_review import (
+    REVIEW_FILENAME,
+    validate_independent_review,
+)
 from historical_context_source_recovery import validate_recovery
 from historical_context_source_research_manifest import validate_research_manifest
 from historical_context_source_resolution import validate_resolution
@@ -53,6 +59,10 @@ from historical_context_source_roles import (
 RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001")
 THAMES_ID = "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4"
 PRIOR_ID = "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4"
+HUGO_YOUNG_ID = "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
+WOODROW_WYATT_ID = "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407"
+PAUL_JOHNSON_ID = "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b"
+OUP_SOURCE_ID = "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80"
 MANDATORY_GOOGLE_IDS = {
     "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
     "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
@@ -69,6 +79,192 @@ def corpus():
 @pytest.fixture(scope="module")
 def audit():
     return json.loads((RESEARCH_DIR / AUDIT_FILENAME).read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def independent_review():
+    return json.loads((RESEARCH_DIR / REVIEW_FILENAME).read_text(encoding="utf-8"))
+
+
+def test_all_ai_located_sources_have_frozen_independent_page_review(
+    audit, independent_review
+):
+    assert independent_review["reviewed_source_count"] == 34
+    assert independent_review["unique_page_count"] == 28
+    assert independent_review["approximate_match_count"] == 9
+    reviewed = independent_review["items"]
+    audited = {
+        row["source_id"]: row
+        for item in audit["items"].values()
+        for row in item["researched_sources"]
+    }
+    assert set(reviewed) == set(audited)
+    for source_id, review in reviewed.items():
+        assert review["http_status"] == 200
+        assert review["final_url"].startswith("https://")
+        assert review["stable_locator"]
+        assert review["page_title"]
+        assert hashlib.sha256(
+            review["exact_supporting_passage"].encode()
+        ).hexdigest() == review["exact_supporting_passage_sha256"]
+        assert audited[source_id]["independently_reviewed"] is True
+        assert audited[source_id]["independent_review_decision"] == review["decision"]
+
+
+def test_independent_review_fails_closed_on_missing_or_promoted_approximate_source(
+    corpus, independent_review
+):
+    gemini = json.loads(
+        (RESEARCH_DIR / "historical_context_source_research.json").read_text()
+    )
+    openai = json.loads(
+        (RESEARCH_DIR / "historical_context_source_openai_research.json").read_text()
+    )
+    missing = copy.deepcopy(independent_review)
+    missing["items"].pop(next(iter(missing["items"])))
+    missing["reviewed_source_count"] -= 1
+    with pytest.raises(RuntimeError, match="coverage differs"):
+        validate_independent_review(missing, corpus[0], gemini, openai)
+
+    promoted = copy.deepcopy(independent_review)
+    approximate = next(
+        item for item in promoted["items"].values()
+        if item["approximate_match_review"] is not None
+    )
+    approximate["approximate_match_review"]["exact_wording_verified"] = True
+    with pytest.raises(RuntimeError, match="invalid approximate source review"):
+        validate_independent_review(promoted, corpus[0], gemini, openai)
+
+
+def test_unsourced_oup_quotation_roundup_is_rejected_not_public(audit):
+    item = audit["items"][
+        "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f"
+    ]
+    source = next(row for row in item["researched_sources"]
+                  if row["source_id"] == OUP_SOURCE_ID)
+    assert source["source_quality_class"] == "circular_attribution"
+    assert source["assigned_roles"] == ["discovery_only"]
+    assert source["claims_supported"] == []
+    assert source["public_url"] is None
+    assert all("blog.oup.com" not in str(row.get("public_url") or "")
+               for row in item["renderable_sources"])
+    assert any(str(row.get("public_url") or "").endswith(
+                   "margaretthatcher.org/document/101374")
+               for row in item["renderable_sources"])
+
+
+def test_nine_approximate_matches_are_semantically_reviewed_and_never_exact(
+    audit, independent_review
+):
+    approximate = [
+        item for item in independent_review["items"].values()
+        if item["approximate_match_review"] is not None
+    ]
+    assert len(approximate) == 9
+    assert sum(
+        item["approximate_match_review"]["historically_defensible"]
+        for item in approximate
+    ) == 7
+    assert all(
+        item["approximate_match_review"]["exact_wording_verified"] is False
+        for item in approximate
+    )
+    for review in approximate:
+        item = audit["items"][review["quote_id"]]
+        assert item["public_verification_wording"] != "Exact wording verified"
+        row = next(source for source in item["researched_sources"]
+                   if source["source_id"] == review["source_id"])
+        if not review["approximate_match_review"]["historically_defensible"]:
+            assert "wording" not in row["claims_supported"]
+            assert "wording_verification" not in row["assigned_roles"]
+
+
+def test_recollections_are_counted_and_never_promoted_to_primary(corpus, audit):
+    for quote_id in (HUGO_YOUNG_ID, PRIOR_ID, PAUL_JOHNSON_ID):
+        item = audit["items"][quote_id]
+        recollections = [
+            row for row in item["renderable_sources"]
+            if row["source_quality_class"] == "secondary_recollection"
+        ]
+        assert recollections
+        assert all("secondary_recollection" in row["assigned_roles"]
+                   for row in recollections)
+        formatted = format_context_reply_v2(
+            corpus[0][quote_id], maximum_length=25_000
+        )
+        assert formatted is not None
+        assert "Secondary recollection" in formatted["text"]
+        assert "Verification — Exact wording verified" not in formatted["text"]
+
+    woodrow = audit["items"][WOODROW_WYATT_ID]
+    assert woodrow["locator_audit"]["precise"] is False
+    assert not woodrow["renderable_sources"]
+    assert woodrow["requires_further_research"] is True
+    assert "Exact wording verified" not in woodrow["public_verification_wording"]
+    assert audit["summary"]["all_evidentiary_source_quality_counts"][
+        "secondary_recollection"
+    ] == 4
+
+
+def test_headline_source_counts_are_mutually_exclusive_and_balanced(audit):
+    summary = audit["summary"]
+    provenance = summary["headline_observed_source_provenance_counts"]
+    dispositions = summary["headline_observed_source_disposition_counts"]
+    assert sum(value for key, value in provenance.items() if key != "total") == provenance["total"]
+    assert sum(value for key, value in dispositions.items() if key != "total") == dispositions["total"]
+    assert provenance["total"] == dispositions["total"] == audit["audited_source_record_count"]
+    assert sum(summary["all_evidentiary_source_quality_counts"].values()) == audit[
+        "all_evidentiary_source_record_count"
+    ]
+    assert sum(summary["all_evidentiary_source_role_counts"].values()) == summary[
+        "all_evidentiary_source_role_assignment_count"
+    ]
+    assert summary["all_evidentiary_source_role_assignment_count"] > audit[
+        "all_evidentiary_source_record_count"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("quote_id", "required", "forbidden"),
+    [
+        (
+            "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+            "Verification — Exact wording verified",
+            "No reliable source located",
+        ),
+        (
+            "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+            "The Downing Street Years, p. 513",
+            "No reliable source located",
+        ),
+        (
+            "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015",
+            "Verification — Historically verified variant",
+            "Exact wording verified",
+        ),
+        (HUGO_YOUNG_ID, "Secondary recollection", "Exact wording verified"),
+        (THAMES_ID, "Source — No reliable source located", "nps.gov"),
+        (
+            "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
+            "Source (attribution, source event, date)",
+            "Verification — Exact wording verified",
+        ),
+        (
+            "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
+            "Source — No reliable source located",
+            "http",
+        ),
+    ],
+)
+def test_representative_public_outputs_are_role_accurate(
+    corpus, quote_id, required, forbidden
+):
+    formatted = format_context_reply_v2(
+        corpus[0][quote_id], maximum_length=25_000
+    )
+    assert formatted is not None
+    assert required in formatted["text"]
+    assert forbidden not in formatted["text"]
 
 
 def test_complete_audit_preserves_all_quote_identities_and_eligibility(corpus, audit):

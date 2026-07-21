@@ -1,5 +1,26 @@
 {
-  "audit_sha256": "41b9c6817a9ed561ec8102e3db2691b9831e7cd83d2cd764238015b86d8d3fe0",
+  "additional_virtual_locator_source_count": 278,
+  "all_evidentiary_source_quality_counts": {
+    "broken_or_non_verifying_url": 89,
+    "circular_attribution": 246,
+    "discovery_lead_only": 1036,
+    "insufficiently_located_evidence": 1053,
+    "irrelevant_or_corrupt": 38,
+    "reliable_secondary_evidence": 36,
+    "secondary_recollection": 4,
+    "strong_primary_evidence": 873
+  },
+  "all_evidentiary_source_record_count": 3375,
+  "all_evidentiary_source_role_assignment_count": 4385,
+  "all_evidentiary_source_role_counts": {
+    "attribution_support": 872,
+    "discovery_only": 2335,
+    "rejected_irrelevant": 127,
+    "secondary_recollection": 4,
+    "source_event_support": 226,
+    "wording_verification": 821
+  },
+  "audit_sha256": "ebab8591365d341b9968a6964d3b33b98d9de5a51eab1c29268d6206eb5dfa5c",
   "audited_source_record_count": 3097,
   "changed_quote_ids": [
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
@@ -487,10 +508,31 @@
     "fee24becc17ea4e5cba2bb45a1fd9e0868a64864667a11ba4a79c95e7053d919",
     "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1"
   ],
+  "count_semantics": {
+    "all_evidentiary_source_quality_counts": "One mutually exclusive quality class per observed or canonical virtual-locator evidence record.",
+    "all_evidentiary_source_role_counts": "Overlapping claim roles across observed and canonical virtual-locator evidence records.",
+    "headline_observed_source_disposition_counts": "Mutually exclusive accepted, discovery/insufficient and rejected dispositions for observed source records.",
+    "headline_observed_source_provenance_counts": "Mutually exclusive provenance categories for physical, recovered, model-lead and independently reviewed AI-located records.",
+    "source_quality_counts": "One mutually exclusive quality class per observed source record; canonical virtual locator records are excluded.",
+    "source_role_counts": "Overlapping claim roles for observed source records; one source may contribute more than one role assignment."
+  },
   "eligible_quote_count": 610,
   "gemini_researched_source_count": 1,
   "gemini_researched_source_quality_counts": {
     "reliable_secondary_evidence": 1
+  },
+  "headline_observed_source_disposition_counts": {
+    "accepted_evidence": 635,
+    "discovery_or_insufficient": 2089,
+    "rejected_or_non_verifying": 373,
+    "total": 3097
+  },
+  "headline_observed_source_provenance_counts": {
+    "ai_located_independently_reviewed_sources": 34,
+    "model_proposed_source_leads": 790,
+    "physical_packet_sources": 2017,
+    "recovered_citation_sources": 256,
+    "total": 3097
   },
   "model_proposed_lead_quality_counts": {
     "discovery_lead_only": 789,
@@ -609,11 +651,13 @@
   ],
   "openai_researched_source_count": 33,
   "openai_researched_source_quality_counts": {
-    "reliable_secondary_evidence": 7,
+    "circular_attribution": 1,
+    "reliable_secondary_evidence": 5,
+    "secondary_recollection": 1,
     "strong_primary_evidence": 26
   },
   "packet_count": 626,
-  "packets_requiring_new_historical_research": 221,
+  "packets_requiring_new_historical_research": 220,
   "packets_whose_public_output_changes": 484,
   "packets_with_no_reliable_source": 108,
   "physical_source_quality_counts": {
@@ -852,27 +896,30 @@
     "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
     "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e",
     "fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521",
-    "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01",
-    "fefc492c45dc2265d37922700e7699addc2ce16f74d4f03f44a281e36c9228c1"
+    "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01"
   ],
   "researched_source_count": 34,
   "schema_version": 1,
   "source_count": 2017,
   "source_quality_counts": {
     "broken_or_non_verifying_url": 89,
-    "circular_attribution": 245,
+    "circular_attribution": 246,
     "discovery_lead_only": 1036,
     "insufficiently_located_evidence": 1053,
     "irrelevant_or_corrupt": 38,
-    "reliable_secondary_evidence": 19,
+    "reliable_secondary_evidence": 17,
+    "secondary_recollection": 1,
     "strong_primary_evidence": 617
   },
+  "source_role_assignment_count": 3679,
   "source_role_counts": {
-    "attribution_support": 595,
-    "discovery_only": 2334,
+    "attribution_support": 594,
+    "discovery_only": 2335,
     "rejected_irrelevant": 127,
+    "secondary_recollection": 1,
     "source_event_support": 69,
-    "wording_verification": 556
+    "wording_verification": 553
   },
-  "unresolved_quote_count": 6
+  "unresolved_quote_count": 6,
+  "virtual_locator_source_count": 278
 }

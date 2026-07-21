@@ -40,6 +40,10 @@ from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
     validate_openai_research_manifest,
 )
+from historical_context_source_independent_review import (
+    REVIEW_FILENAME,
+    validate_independent_review,
+)
 from semantic_alignment.io import atomic_write_text
 
 
@@ -175,6 +179,20 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
     if openai_research_path.exists():
         openai_researched = _load_json(openai_research_path)
         validate_openai_research_manifest(openai_researched, packets)
+    independent_review_path = research_dir / REVIEW_FILENAME
+    independent_review = None
+    if researched is not None or openai_researched is not None:
+        if not independent_review_path.exists():
+            raise RuntimeError(
+                "AI-located historical-context sources lack independent review"
+            )
+        independent_review = _load_json(independent_review_path)
+        validate_independent_review(
+            independent_review,
+            packets,
+            researched,
+            openai_researched,
+        )
     audit = build_audit(
         packets,
         unresolved,
@@ -184,6 +202,7 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         source_resolution=resolution,
         researched_evidence=researched,
         openai_researched_evidence=openai_researched,
+        independent_review=independent_review,
     )
     audit_path = research_dir / AUDIT_FILENAME
     atomic_write_json(audit_path, audit)
@@ -216,6 +235,8 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         source_files.append(research_path)
     if openai_researched is not None:
         source_files.append(openai_research_path)
+    if independent_review is not None:
+        source_files.append(independent_review_path)
     snapshot = {
         "schema_version": 1,
         "audit_path": str(audit_path),
@@ -254,6 +275,10 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         "openai_researched_source_count": audit["openai_researched_source_count"],
         "researched_source_count": audit["researched_source_count"],
         "audited_source_record_count": audit["audited_source_record_count"],
+        "virtual_locator_source_count": audit["virtual_locator_source_count"],
+        "all_evidentiary_source_record_count": audit[
+            "all_evidentiary_source_record_count"
+        ],
         "eligible_quote_count": len(after_eligible),
         "unresolved_quote_count": len(unresolved),
         **audit["summary"],
@@ -276,7 +301,7 @@ def _preview(value: Any, maximum: int = 140) -> str:
 
 
 def _source_summary(audit: dict[str, Any]) -> dict[str, int]:
-    counts = audit["summary"]["source_quality_counts"]
+    counts = audit["summary"]["all_evidentiary_source_quality_counts"]
     return {
         "primary sources": counts.get("strong_primary_evidence", 0),
         "secondary sources": counts.get("reliable_secondary_evidence", 0),
@@ -305,6 +330,8 @@ def render_report(
     )
     quality = _source_summary(audit)
     summary = audit["summary"]
+    provenance = summary["headline_observed_source_provenance_counts"]
+    dispositions = summary["headline_observed_source_disposition_counts"]
     approximate_source_count = sum(
         row.get("wording_match_kind") == "approximate_semantic_guarded"
         for item in audit["items"].values()
@@ -364,8 +391,31 @@ def render_report(
         f"- OpenAI-located, locally verified sources: **{audit['openai_researched_source_count']}**",
         f"- Guarded approximate source matches: **{approximate_source_count}**",
         f"- Precise Thatcher-authored book locators: **{authored_book_locator_count}**",
+        "",
+        "### Mutually exclusive headline totals",
+        "",
+        f"- Observed source records: **{provenance['total']}** "
+        f"(physical {provenance['physical_packet_sources']}; recovered citations "
+        f"{provenance['recovered_citation_sources']}; model leads "
+        f"{provenance['model_proposed_source_leads']}; independently reviewed AI-located "
+        f"{provenance['ai_located_independently_reviewed_sources']}).",
+        f"- Accepted observed evidence: **{dispositions['accepted_evidence']}**",
+        f"- Discovery-only or insufficient observed records: **{dispositions['discovery_or_insufficient']}**",
+        f"- Rejected or non-verifying observed records: **{dispositions['rejected_or_non_verifying']}**",
+        f"- Additional canonical virtual-locator records: **{audit['virtual_locator_source_count']}**",
+        f"- All evidentiary records including virtual locators: **{audit['all_evidentiary_source_record_count']}**",
+        "",
+        "The provenance and disposition groups above are mutually exclusive and each observed-source "
+        "partition sums to the same total. Quality counts below are mutually exclusive per evidentiary "
+        "record and include virtual locators. Role counts overlap because one source may support several claims.",
+        "",
+        "### Detailed quality and role counts",
     ]
     lines.extend(f"- {name.capitalize()}: **{count}**" for name, count in quality.items())
+    lines.extend(
+        f"- Role `{name}`: **{count}**"
+        for name, count in summary["all_evidentiary_source_role_counts"].items()
+    )
     lines.extend([
         f"- Packets with no reliable renderable source: **{summary['packets_with_no_reliable_source']}**",
         f"- Packets with material public-output corrections: **{summary['packets_whose_public_output_changes']}**",

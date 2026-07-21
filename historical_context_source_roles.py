@@ -31,11 +31,16 @@ from historical_context_source_openai_manifest import (
     OPENAI_RESEARCH_FILENAME,
     validate_openai_research_manifest,
 )
+from historical_context_source_independent_review import (
+    REVIEW_FILENAME,
+    REVIEW_POLICY_VERSION,
+    validate_independent_review,
+)
 
 
-AUDIT_SCHEMA_VERSION = 3
+AUDIT_SCHEMA_VERSION = 4
 POLICY_VERSION = (
-    "historical-context-source-roles-v4-multi-provider-guarded-approximate-80"
+    "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
 )
 AUDIT_FILENAME = "historical_context_source_role_audit.json"
 
@@ -110,6 +115,11 @@ _THATCHER_BOOKS = (
     "the path to power",
     "statecraft",
     "margaret thatcher: the autobiography",
+)
+_KNOWN_RECOLLECTION_TITLES = (
+    "a balance of power",
+    "one of us",
+    "journals of woodrow wyatt",
 )
 _QUOTATION_COMPILATION_MARKERS = (
     "book of quotations",
@@ -288,16 +298,25 @@ def _source_matches_locator(
 
 
 def _is_recollection(packet: dict[str, Any], source: dict[str, Any] | None = None) -> bool:
+    """Identify explicitly reported recollections without scanning model prose."""
     text = " ".join(
-        _clean(packet.get(field))
-        for field in ("stable_locator", "source_event", "text_variation_notes")
+        _clean(packet.get(field)) for field in ("stable_locator", "source_event")
     )
     if source:
-        text += " " + " ".join(_clean(value) for value in source.get("supports", []))
+        text += " " + " ".join(
+            _clean(source.get(field)) for field in ("title", "source_type")
+        )
     text = text.casefold()
     if any(book in text for book in _THATCHER_BOOKS):
         return False
-    return bool(re.search(r"\b(?:memoir|recollect(?:ion|ed)?|recalled|reported by|diary|journals?)\b", text))
+    return bool(
+        any(title in text for title in _KNOWN_RECOLLECTION_TITLES)
+        or re.search(
+            r"\b(?:memoir|recollect(?:ion|ed)?|recalled|reported by|"
+            r"diary|journals?|private conversation)\b",
+            text,
+        )
+    )
 
 
 def precise_locator_kind(locator: Any) -> str | None:
@@ -829,12 +848,23 @@ def audit_model_source_lead(
 def audit_researched_source(
     packet: dict[str, Any],
     source: dict[str, Any],
+    independent_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert a fetched and passage-verified research result into a public row."""
     provider = _clean(source.get("research_provider")) or "gemini"
     model = _clean(source.get("research_model")) or "gemini-3.1-pro-preview"
-    roles = list(dict.fromkeys(source["assigned_roles"]))
-    claims = set(source["claims_supported"])
+    roles = list(dict.fromkeys(
+        (independent_review or {}).get(
+            "final_assigned_roles", source["assigned_roles"]
+        )
+    ))
+    claims = set((independent_review or {}).get(
+        "final_claims_supported", source["claims_supported"]
+    ))
+    quality = (independent_review or {}).get(
+        "final_source_quality_class", source["source_quality_class"]
+    )
+    action = (independent_review or {}).get("final_action", "keep")
     passage = source["exact_supporting_passage"]
     coverage = _wording_coverage(packet, passage) if "wording" in claims else "none"
     if (
@@ -846,7 +876,12 @@ def audit_researched_source(
         raise RuntimeError(
             f"researched wording passage does not match quotation: {packet['quote_id']}"
         )
-    return {
+    renderable = quality in {
+        "strong_primary_evidence",
+        "reliable_secondary_evidence",
+        "secondary_recollection",
+    } and bool(claims)
+    row = {
         "source_id": source["source_id"],
         "source_index": None,
         "source_fingerprint": sha256_bytes(canonical_json(source)),
@@ -854,22 +889,23 @@ def audit_researched_source(
         "source_url": _clean(source["url"]),
         "source_type": f"{provider}_researched_fetched_source",
         "assigned_roles": roles,
-        "source_quality_class": source["source_quality_class"],
+        "source_quality_class": quality,
         "claims_supported": [field for field in CLAIM_FIELDS if field in claims],
         "claims_not_supported": [field for field in CLAIM_FIELDS if field not in claims],
         "claim_coverage": {"wording": coverage} if coverage != "none" else {},
-        "action": "keep",
+        "action": action,
         "confidence_before": _clean(packet.get("research_confidence")),
         "supporting_passages": [{
             "kind": "fetched_verbatim_public_page_passage",
             "text": passage,
             "sha256": source["exact_supporting_passage_sha256"],
         }],
-        "public_title": _clean(source["title"]),
-        "public_url": _clean(source["url"]),
-        "rationale": (
-            f"A bounded {provider} search located this source; deterministic retrieval confirmed "
-            "that the exact supporting passage occurs on the public page."
+        "public_title": _clean(source["title"]) if renderable else None,
+        "public_url": _clean(source["url"]) if renderable else None,
+        "rationale": (independent_review or {}).get(
+            "rationale",
+            f"A bounded {provider} search located this source; deterministic retrieval "
+            "confirmed that the exact supporting passage occurs on the public page.",
         ),
         "researched_source": True,
         "research_provider": provider,
@@ -882,6 +918,23 @@ def audit_researched_source(
         f"{provider}_researched_source": True,
         "fetched_body_sha256": source["fetched_body_sha256"],
     }
+    if independent_review is not None:
+        row.update({
+            "independently_reviewed": True,
+            "independent_review_policy_version": REVIEW_POLICY_VERSION,
+            "independent_review_decision": independent_review["decision"],
+            "independent_review_checked_at": independent_review["checked_at"],
+            "independent_review_current_page_body_sha256": independent_review[
+                "current_page_body_sha256"
+            ],
+            "independent_review_stable_locator": independent_review[
+                "stable_locator"
+            ],
+            "approximate_match_review": independent_review.get(
+                "approximate_match_review"
+            ),
+        })
+    return row
 
 
 def _public_verification(packet: dict[str, Any], sources: list[dict[str, Any]]) -> str:
@@ -979,6 +1032,7 @@ def audit_packet(
     source_resolution: dict[str, Any] | None = None,
     research_item: dict[str, Any] | None = None,
     openai_research_item: dict[str, Any] | None = None,
+    independent_review_items: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Audit every source and confidence dimension for one packet."""
     locator_kind = precise_locator_kind(packet.get("stable_locator"))
@@ -1004,7 +1058,11 @@ def audit_packet(
         for lead in recovery_item.get("model_proposed_source_leads", [])
     ]
     researched_rows = [
-        audit_researched_source(packet, source)
+        audit_researched_source(
+            packet,
+            source,
+            (independent_review_items or {}).get(source["source_id"]),
+        )
         for item in (research_item, openai_research_item)
         for source in (item or {}).get("validated_sources", [])
     ]
@@ -1131,6 +1189,7 @@ def build_audit(
     source_resolution: dict[str, Any] | None = None,
     researched_evidence: dict[str, Any] | None = None,
     openai_researched_evidence: dict[str, Any] | None = None,
+    independent_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the complete deterministic source-role sidecar."""
     if recovered_evidence is not None:
@@ -1141,6 +1200,22 @@ def build_audit(
         validate_research_manifest(researched_evidence, packets)
     if openai_researched_evidence is not None:
         validate_openai_research_manifest(openai_researched_evidence, packets)
+    researched_source_total = sum(
+        len(item.get("validated_sources", []))
+        for manifest in (researched_evidence, openai_researched_evidence)
+        for item in (manifest or {}).get("items", {}).values()
+    )
+    if researched_source_total and independent_review is None:
+        raise RuntimeError(
+            "independent review is required for every AI-located source"
+        )
+    if independent_review is not None:
+        validate_independent_review(
+            independent_review,
+            packets,
+            researched_evidence,
+            openai_researched_evidence,
+        )
     items = {
         quote_id: audit_packet(
             packet,
@@ -1151,6 +1226,7 @@ def build_audit(
             openai_research_item=(openai_researched_evidence or {}).get(
                 "items", {}
             ).get(quote_id),
+            independent_review_items=(independent_review or {}).get("items", {}),
         )
         for quote_id, packet in sorted(packets.items())
     }
@@ -1164,9 +1240,23 @@ def build_audit(
     researched_sources = [
         source for item in items.values() for source in item["researched_sources"]
     ]
+    virtual_locator_sources = [
+        source
+        for item in items.values()
+        for source in item["virtual_locator_sources"]
+    ]
     all_sources = physical_sources + recovered_sources + lead_sources + researched_sources
+    all_evidentiary_sources = all_sources + virtual_locator_sources
     quality_counts = Counter(source["source_quality_class"] for source in all_sources)
     role_counts = Counter(role for source in all_sources for role in source["assigned_roles"])
+    evidentiary_quality_counts = Counter(
+        source["source_quality_class"] for source in all_evidentiary_sources
+    )
+    evidentiary_role_counts = Counter(
+        role
+        for source in all_evidentiary_sources
+        for role in source["assigned_roles"]
+    )
     changed = [quote_id for quote_id, item in items.items() if item["public_output_changes"]]
     needs_research = [quote_id for quote_id, item in items.items() if item["requires_further_research"]]
     no_reliable = [quote_id for quote_id, item in items.items() if not item["renderable_sources"]]
@@ -1189,6 +1279,10 @@ def build_audit(
         source_file_hashes[OPENAI_RESEARCH_FILENAME] = file_sha256(
             research_dir / OPENAI_RESEARCH_FILENAME
         )
+    if independent_review is not None:
+        source_file_hashes[REVIEW_FILENAME] = file_sha256(
+            research_dir / REVIEW_FILENAME
+        )
     gemini_researched_sources = [
         source for source in researched_sources
         if source.get("research_provider") == "gemini"
@@ -1197,6 +1291,43 @@ def build_audit(
         source for source in researched_sources
         if source.get("research_provider") == "openai"
     ]
+    accepted_qualities = {
+        "strong_primary_evidence",
+        "reliable_secondary_evidence",
+        "secondary_recollection",
+    }
+    discovery_qualities = {
+        "discovery_lead_only",
+        "insufficiently_located_evidence",
+    }
+    rejected_qualities = {
+        "irrelevant_or_corrupt",
+        "circular_attribution",
+        "broken_or_non_verifying_url",
+    }
+    headline_dispositions = {
+        "accepted_evidence": sum(
+            source["source_quality_class"] in accepted_qualities
+            for source in all_sources
+        ),
+        "discovery_or_insufficient": sum(
+            source["source_quality_class"] in discovery_qualities
+            for source in all_sources
+        ),
+        "rejected_or_non_verifying": sum(
+            source["source_quality_class"] in rejected_qualities
+            for source in all_sources
+        ),
+        "total": len(all_sources),
+    }
+    if sum(
+        headline_dispositions[key]
+        for key in (
+            "accepted_evidence", "discovery_or_insufficient",
+            "rejected_or_non_verifying",
+        )
+    ) != headline_dispositions["total"]:
+        raise RuntimeError("exclusive source disposition counts do not balance")
     return {
         "schema_version": AUDIT_SCHEMA_VERSION,
         "policy_version": POLICY_VERSION,
@@ -1210,13 +1341,61 @@ def build_audit(
         "openai_researched_source_count": len(openai_researched_sources),
         "researched_source_count": len(researched_sources),
         "audited_source_record_count": len(all_sources),
+        "virtual_locator_source_count": len(virtual_locator_sources),
+        "all_evidentiary_source_record_count": len(all_evidentiary_sources),
         "unresolved_quote_count": len(unresolved),
         "unresolved_quote_ids": sorted(unresolved),
         "attribution_eligible_quote_count": len(attribution_eligible_ids),
         "attribution_eligible_quote_ids_sha256": quote_set_hash(attribution_eligible_ids),
         "summary": {
+            "count_semantics": {
+                "headline_observed_source_provenance_counts": (
+                    "Mutually exclusive provenance categories for physical, recovered, "
+                    "model-lead and independently reviewed AI-located records."
+                ),
+                "headline_observed_source_disposition_counts": (
+                    "Mutually exclusive accepted, discovery/insufficient and rejected "
+                    "dispositions for observed source records."
+                ),
+                "source_quality_counts": (
+                    "One mutually exclusive quality class per observed source record; "
+                    "canonical virtual locator records are excluded."
+                ),
+                "source_role_counts": (
+                    "Overlapping claim roles for observed source records; one source may "
+                    "contribute more than one role assignment."
+                ),
+                "all_evidentiary_source_quality_counts": (
+                    "One mutually exclusive quality class per observed or canonical "
+                    "virtual-locator evidence record."
+                ),
+                "all_evidentiary_source_role_counts": (
+                    "Overlapping claim roles across observed and canonical virtual-locator "
+                    "evidence records."
+                ),
+            },
+            "headline_observed_source_provenance_counts": {
+                "physical_packet_sources": len(physical_sources),
+                "recovered_citation_sources": len(recovered_sources),
+                "model_proposed_source_leads": len(lead_sources),
+                "ai_located_independently_reviewed_sources": len(researched_sources),
+                "total": len(all_sources),
+            },
+            "headline_observed_source_disposition_counts": headline_dispositions,
+            "additional_virtual_locator_source_count": len(virtual_locator_sources),
+            "all_evidentiary_source_record_count": len(all_evidentiary_sources),
             "source_quality_counts": dict(sorted(quality_counts.items())),
             "source_role_counts": dict(sorted(role_counts.items())),
+            "all_evidentiary_source_quality_counts": dict(
+                sorted(evidentiary_quality_counts.items())
+            ),
+            "all_evidentiary_source_role_counts": dict(
+                sorted(evidentiary_role_counts.items())
+            ),
+            "source_role_assignment_count": sum(role_counts.values()),
+            "all_evidentiary_source_role_assignment_count": sum(
+                evidentiary_role_counts.values()
+            ),
             "physical_source_quality_counts": dict(sorted(Counter(
                 source["source_quality_class"] for source in physical_sources
             ).items())),
@@ -1320,6 +1499,28 @@ def validate_and_attach_audit(
             raise RuntimeError(
                 "historical-context source-role audit is stale for OpenAI evidence"
             )
+    independent_review = None
+    if REVIEW_FILENAME in audit.get("source_file_hashes", {}):
+        review_path = research_dir / REVIEW_FILENAME
+        if not review_path.exists():
+            raise RuntimeError(
+                f"historical-context independent source review is missing: {review_path}"
+            )
+        independent_review = json.loads(review_path.read_text(encoding="utf-8"))
+        validate_independent_review(
+            independent_review,
+            packets,
+            researched,
+            openai_researched,
+        )
+        if audit["source_file_hashes"][REVIEW_FILENAME] != file_sha256(review_path):
+            raise RuntimeError(
+                "historical-context source-role audit is stale for independent review"
+            )
+    elif researched is not None or openai_researched is not None:
+        raise RuntimeError(
+            "historical-context AI-located sources lack independent review"
+        )
     expected = build_audit(
         packets,
         unresolved,
@@ -1329,6 +1530,7 @@ def validate_and_attach_audit(
         source_resolution=resolution,
         researched_evidence=researched,
         openai_researched_evidence=openai_researched,
+        independent_review=independent_review,
     )
     if canonical_json(audit) != canonical_json(expected):
         raise RuntimeError("historical-context source-role audit differs from deterministic policy output")
