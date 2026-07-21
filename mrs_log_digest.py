@@ -1928,6 +1928,96 @@ def _count_optional(events: List[Dict[str, Any]], field: str, values: tuple[str,
     return dict(sorted(counts.items()))
 
 
+_HISTORICAL_CONTEXT_VERIFICATION_LABELS = (
+    # Formatter v4 public labels.
+    "Exact wording verified",
+    "Historically verified variant",
+    "Verified excerpt",
+    "Attributed, but exact wording not independently verified",
+    "Exact wording not independently verified",
+    "Research incomplete",
+    # Audited internal-rendering label retained by formatter v4.
+    "Normalised wording verified",
+    # Source-role audit labels emitted by formatter v3 internal metadata.
+    "Paraphrase; exact wording not verified",
+    "Composite wording assembled from related material",
+    "Historically misattributed; not Thatcher wording",
+    "Reported wording; no primary Thatcher transcript located",
+    "Secondary recollection; no primary Thatcher transcript located",
+    "Wording partially supported by a retained source citation; exact wording not independently verified",
+    "Historical variant not independently verified by the retained evidence",
+    "Exact wording not independently verified by the retained evidence",
+    # Frozen labels retained for older structured logs.
+    "Exact wording",
+    "Normalised wording",
+    "Historical paraphrase",
+    "Composite wording",
+    "Commonly misattributed wording",
+    "Exact wording not verified",
+    "unavailable",
+)
+_HISTORICAL_CONTEXT_FORMATTER_VERSIONS = (
+    "historical_context_reply_schema_v1",
+    "historical_context_reply_schema_v2",
+    "historical_context_reply_schema_v3",
+    "historical_context_reply_schema_v4",
+    "unavailable",
+)
+_HISTORICAL_CONTEXT_SOURCE_ROLE_AUDIT_VERSIONS = (
+    "historical-context-source-roles-v2-recovered-citations",
+    "historical-context-source-roles-v3",
+    "historical-context-source-roles-v4",
+    "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
+    "unavailable",
+)
+_HISTORICAL_CONTEXT_CONFIDENCE_DIMENSIONS = (
+    "attribution",
+    "wording",
+    "source_event",
+    "date",
+    "historical_context",
+    "interpretation",
+)
+_HISTORICAL_CONTEXT_CONFIDENCE_VALUES = ("high", "medium", "low", "unknown", "unavailable")
+
+
+def _historical_context_verification_counts(
+    events: List[Dict[str, Any]],
+) -> Dict[str, int]:
+    """Count controlled labels, grouping source-specific recollection wording."""
+    counts = Counter({value: 0 for value in _HISTORICAL_CONTEXT_VERIFICATION_LABELS})
+    for event in events:
+        value = event.get("verification_label")
+        if (
+            isinstance(value, str)
+            and value.startswith("Reported in ")
+            and value.endswith("; no primary Thatcher transcript located")
+        ):
+            key = "Secondary recollection; no primary Thatcher transcript located"
+        elif isinstance(value, str) and value in counts:
+            key = value
+        else:
+            key = "unavailable"
+        counts[key] += 1
+    return dict(sorted(counts.items()))
+
+
+def _historical_context_confidence_dimension_counts(
+    events: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, int]]:
+    """Count validated v3/v4 confidence dimensions without flattening them."""
+    result: Dict[str, Dict[str, int]] = {}
+    for field in _HISTORICAL_CONTEXT_CONFIDENCE_DIMENSIONS:
+        counts = Counter({value: 0 for value in _HISTORICAL_CONTEXT_CONFIDENCE_VALUES})
+        for event in events:
+            dimensions = event.get("confidence_dimensions")
+            value = dimensions.get(field) if isinstance(dimensions, dict) else None
+            key = value if isinstance(value, str) and value in counts else "unavailable"
+            counts[key] += 1
+        result[field] = dict(sorted(counts.items()))
+    return result
+
+
 def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Return the historical context quality summary."""
     items = [event for event in events if event.get("kind") == "historical_context_reply"]
@@ -1952,17 +2042,29 @@ def historical_context_quality_summary(events: List[Dict[str, Any]]) -> Dict[str
         "attempted_count": attempted,
         "status_counts": dict(sorted(statuses.items())),
         "skip_reason_counts": dict(skip_reasons.most_common()),
-        "verification_counts": _count_optional(rendered_items, "verification_label", (
-            "Exact wording", "Normalised wording", "Verified excerpt", "Historically verified variant",
-            "Historical paraphrase", "Composite wording", "Commonly misattributed wording",
-            "Exact wording not verified", "unavailable",
-        )),
+        "verification_counts": _historical_context_verification_counts(rendered_items),
         "source_class_counts": _count_optional(rendered_items, "source_class", (
             "Margaret Thatcher Foundation", "Hansard", "original speech transcript",
             "Thatcher-authored publication", "contemporary interview", "official Conservative publication",
             "other authoritative source", "canonical locator only", "no public URL", "unavailable",
         )),
         "confidence_counts": _count_optional(rendered_items, "historical_confidence", ("high", "medium", "low", "unavailable")),
+        "formatter_version_counts": _count_optional(
+            rendered_items,
+            "formatter_version",
+            _HISTORICAL_CONTEXT_FORMATTER_VERSIONS,
+        ),
+        "rendering_mode_counts": _count_optional(
+            rendered_items,
+            "rendering_mode",
+            ("public", "internal", "unavailable"),
+        ),
+        "source_role_audit_version_counts": _count_optional(
+            rendered_items,
+            "source_role_audit_version",
+            _HISTORICAL_CONTEXT_SOURCE_ROLE_AUDIT_VERSIONS,
+        ),
+        "confidence_dimension_counts": _historical_context_confidence_dimension_counts(rendered_items),
         "average_raw_characters": (sum(raw) / len(raw)) if raw else None,
         "average_weighted_characters": (sum(weighted) / len(weighted)) if weighted else None,
         "raw_length_observation_count": len(raw),
@@ -2736,6 +2838,7 @@ def analyse(
                 pending_semantic_veto_ts = r.ts
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
+                confidence_dimensions = event_obj.get("confidence_dimensions")
                 add_event(
                     "historical_context_reply",
                     r.ts,
@@ -2748,6 +2851,14 @@ def analyse(
                     verification_label=event_obj.get("verification_label") or "unavailable",
                     source_class=event_obj.get("source_class") or "unavailable",
                     historical_confidence=event_obj.get("historical_confidence") or "unavailable",
+                    formatter_version=event_obj.get("formatter_version") or "unavailable",
+                    rendering_mode=event_obj.get("rendering_mode") or "unavailable",
+                    confidence_dimensions=(
+                        confidence_dimensions if isinstance(confidence_dimensions, dict) else None
+                    ),
+                    source_role_audit_version=(
+                        event_obj.get("source_role_audit_version") or "unavailable"
+                    ),
                     shortening_applied=event_obj.get("shortening_applied"),
                     meaning_omitted=event_obj.get("meaning_omitted"),
                     source_omitted=event_obj.get("source_omitted"),
@@ -4948,10 +5059,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"verification omitted: **{context_quality.get('verification_omitted_count', 0)}** "
         f"(metadata unavailable: {context_quality.get('verification_omitted_metadata_unavailable_count', 0)})."
     )
-    for label, key in (("Verification labels", "verification_counts"), ("Source classes", "source_class_counts"),
-                       ("Historical confidence", "confidence_counts")):
+    for label, key in (
+        ("Verification labels", "verification_counts"),
+        ("Source classes", "source_class_counts"),
+        ("Historical confidence", "confidence_counts"),
+        ("Formatter versions", "formatter_version_counts"),
+        ("Rendering modes", "rendering_mode_counts"),
+        ("Source-role audit versions", "source_role_audit_version_counts"),
+    ):
         values = context_quality.get(key) or {}
         out.append(f"{label}: {compact_counts(values)}")
+    for field, values in (context_quality.get("confidence_dimension_counts") or {}).items():
+        out.append(
+            f"Confidence {field.replace('_', ' ')}: {compact_counts(values)}"
+        )
     if context_quality.get("skip_reason_counts"):
         out.append("Skip reasons:")
         out.append(md_table_row(["reason", "count"]))
@@ -5240,7 +5361,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section(
         "historical_context_reply",
         "Historical context replies",
-        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "shortening_applied", "reason"]
+        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "formatter_version", "rendering_mode", "shortening_applied", "reason"]
         + (["reply_preview"] if report.get("verbose_replies") else []),
     )
     section(
