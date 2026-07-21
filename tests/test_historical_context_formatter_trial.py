@@ -35,7 +35,9 @@ V1_GOLDEN_OUTPUTS = {
 
 @pytest.fixture(scope="module")
 def corpus():
-    return v1.load_and_validate_corpus(RESEARCH)
+    # Frozen formatter-trial fixtures predate the source-role audit. Keep this
+    # corpus audit-free so the byte-parity assertions continue to exercise V2.
+    return v1.load_and_validate_corpus(RESEARCH, load_source_role_audit=False)
 
 
 @pytest.fixture(scope="module")

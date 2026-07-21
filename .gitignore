@@ -100,6 +100,12 @@ semantic_alignment_research/ai_first_reply_strategy_001/activation_candidate/
 semantic_alignment_research/ai_first_reply_strategy_001/offline_evaluation.json
 semantic_alignment_research/ai_first_reply_strategy_001/offline_evaluation.md
 
+# Historical-context source research keeps canonical role, recovery and
+# resolution artefacts in quote_research_full_001. Provider attempt state and
+# superseded transport pilots remain local.
+semantic_alignment_research/historical_context_source_audit_001/gemini_research*/
+semantic_alignment_research/historical_context_source_audit_001/openai_forced_search*/
+
 # Superseded AI-first corpus and repair runs remain local. Authoritative
 # aggregate runs are selectively versioned alongside their source hashes.
 semantic_alignment_research/ai_first_reply_strategy_001/provider_pilot_corpus_matrix_20260721_v1/

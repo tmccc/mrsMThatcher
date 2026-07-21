@@ -5,6 +5,19 @@
     "character_count": {"minimum": 1, "type": "integer"},
     "maximum_length": {"minimum": 120, "maximum": 25000, "type": "integer"},
     "historical_confidence": {"enum": ["high", "medium", "low", "unavailable"]},
+    "confidence_dimensions": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution": {"enum": ["high", "medium", "low", "unknown"]},
+        "wording": {"enum": ["high", "medium", "low", "unknown"]},
+        "source_event": {"enum": ["high", "medium", "low", "unknown"]},
+        "date": {"enum": ["high", "medium", "low", "unknown"]},
+        "historical_context": {"enum": ["high", "medium", "low", "unknown"]},
+        "interpretation": {"enum": ["high", "medium", "low", "unknown"]}
+      },
+      "required": ["attribution", "wording", "source_event", "date", "historical_context", "interpretation"],
+      "type": "object"
+    },
     "formatter_version": {"pattern": "^historical_context_reply_schema_v[0-9]+$", "type": "string"},
     "meaning_included": {"type": "boolean"},
     "meaning_decision_reason": {"minLength": 1, "type": "string"},
@@ -29,6 +42,24 @@
       ]
     },
     "source_class": {"type": "string"},
+    "source_role_audit_version": {"type": ["string", "null"]},
+    "sources": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "claims_supported": {"items": {"type": "string"}, "type": "array"},
+          "roles": {"items": {"type": "string"}, "type": "array"},
+          "secondary_recollection": {"type": "boolean"},
+          "source_type": {"type": "string"},
+          "title": {"minLength": 1, "type": "string"},
+          "url": {"pattern": "^(https?://.*)?$", "type": "string"}
+        },
+        "required": ["title", "url", "source_type", "roles", "claims_supported", "secondary_recollection"],
+        "type": "object"
+      },
+      "maxItems": 2,
+      "type": "array"
+    },
     "source_omitted": {"type": "boolean"},
     "template_variant": {"minLength": 1, "type": "string"},
     "text": {"minLength": 1, "type": "string"},

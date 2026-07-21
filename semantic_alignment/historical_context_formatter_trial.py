@@ -422,7 +422,10 @@ def _overlap_band(value: float) -> str:
 
 def render_complete_corpus(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str]]:
     """Render complete corpus."""
-    packets, unresolved = load_and_validate_corpus(research_run)
+    packets, unresolved = load_and_validate_corpus(
+        research_run,
+        load_source_role_audit=False,
+    )
     rows: dict[str, dict[str, Any]] = {}
     for quote_id in sorted(packets):
         packet = packets[quote_id]
@@ -613,7 +616,10 @@ def _distribution(rows: list[dict[str, Any]], key: str) -> dict[str, int]:
 def prepare_trial(research_run: Path, output: Path, sample_count: int = 50) -> dict[str, Any]:
     """Prepare trial."""
     rows, unresolved = render_complete_corpus(research_run)
-    packets, _ = load_and_validate_corpus(research_run)
+    packets, _ = load_and_validate_corpus(
+        research_run,
+        load_source_role_audit=False,
+    )
     parity = provenance_parity(rows, packets)
     if not parity["passed"]:
         raise RuntimeError(f"blocking provenance regressions: {parity['blocking_regression_count']}")
@@ -724,7 +730,10 @@ def strict_audit(trial_dir: Path) -> dict[str, Any]:
     research_run = Path(manifest.get("research_run", "")) if manifest else Path()
     try:
         current_rows, current_unresolved = render_complete_corpus(research_run)
-        current_packets, _ = load_and_validate_corpus(research_run)
+        current_packets, _ = load_and_validate_corpus(
+            research_run,
+            load_source_role_audit=False,
+        )
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         errors.append(f"current corpus render failed:{exc}")
         current_rows, current_unresolved, current_packets = {}, set(), {}

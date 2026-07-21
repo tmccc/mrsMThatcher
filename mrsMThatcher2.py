@@ -1011,7 +1011,10 @@ def production_bootstrap(
     load_runtime_resources = not (SELF_TEST_REQUESTED or INITIALISE_REQUESTED)
     if load_runtime_resources and historical_context_reply["enabled"]:
         from historical_context_formatter import load_and_validate_corpus
-        load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
+        load_and_validate_corpus(
+            HISTORICAL_CONTEXT_RESEARCH_DIR,
+            require_source_role_audit=True,
+        )
     if load_runtime_resources:
         initialise_quote_image_semantic_veto_shadow()
     else:
@@ -5146,7 +5149,10 @@ def maybe_post_historical_context_reply(
             x_weighted_length,
         )
 
-        packets, unresolved = load_and_validate_corpus(HISTORICAL_CONTEXT_RESEARCH_DIR)
+        packets, unresolved = load_and_validate_corpus(
+            HISTORICAL_CONTEXT_RESEARCH_DIR,
+            require_source_role_audit=True,
+        )
         packet = packet_for_posted_quote(packets, unresolved, quote_hash, quote_text)
         if packet is None:
             log.warning("No completed canonical research packet for quote_hash=%s; context reply skipped", quote_hash)
@@ -5191,6 +5197,8 @@ def maybe_post_historical_context_reply(
             "verification_label": formatted["verification_label"],
             "source_class": formatted["source_class"],
             "historical_confidence": formatted["historical_confidence"],
+            "confidence_dimensions": formatted["confidence_dimensions"],
+            "source_role_audit_version": formatted["source_role_audit_version"],
             "shortening_applied": formatted["shortening_applied"],
         }
         result = store.post(
@@ -5233,6 +5241,8 @@ def maybe_post_historical_context_reply(
             verification_label=event_metadata["verification_label"],
             source_class=event_metadata["source_class"],
             historical_confidence=event_metadata["historical_confidence"],
+            confidence_dimensions=event_metadata.get("confidence_dimensions"),
+            source_role_audit_version=event_metadata.get("source_role_audit_version"),
             shortening_applied=event_metadata["shortening_applied"],
             meaning_omitted=not event_metadata["meaning_included"],
             meaning_included=event_metadata["meaning_included"],

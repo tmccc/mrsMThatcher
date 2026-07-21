@@ -1,0 +1,46 @@
+{
+  "commands": [
+    {
+      "command": "python3 -m pytest -q tests/test_historical_context_reply.py tests/test_historical_context_formatter_trial.py tests/test_historical_context_source_roles.py",
+      "result": "139 passed"
+    },
+    {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q (initial diagnostic run)",
+      "result": "2046 passed, 1 skipped, 4 failed; all four failures repaired and rerun"
+    },
+    {
+      "command": "python3 -m pytest -q <four repaired regressions>",
+      "result": "4 passed"
+    },
+    {
+      "command": "PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m pytest -q (final)",
+      "result": "2050 passed, 1 skipped"
+    },
+    {
+      "command": "python3 -m py_compile historical_context_source_audit.py historical_context_source_gemini.py historical_context_source_openai.py historical_context_source_openai_manifest.py historical_context_source_recovery.py historical_context_source_research_manifest.py historical_context_source_resolution.py historical_context_source_roles.py historical_context_formatter.py mrsMThatcher2.py semantic_alignment/historical_context_formatter_trial.py",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "eligible_ids_unchanged": true,
+  "passed": true,
+  "provider_processes_remaining": 0,
+  "quote_identity_unchanged": true,
+  "schema_version": 1,
+  "service_after": {
+    "child_pid": 3936955,
+    "restart_count": 0,
+    "start_time": "Tue 2026-07-21 14:40:36 BST",
+    "wrapper_pid": 3936954
+  },
+  "service_before": {
+    "child_pid": 3936955,
+    "restart_count": 0,
+    "start_time": "Tue 2026-07-21 14:40:36 BST",
+    "wrapper_pid": 3936954
+  },
+  "service_untouched": true
+}

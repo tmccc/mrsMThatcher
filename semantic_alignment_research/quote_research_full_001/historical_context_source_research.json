@@ -1,0 +1,298 @@
+{
+  "ambiguous_exposure_usd": 0.0,
+  "completed_quote_count": 2,
+  "developer_api_version": "v1beta",
+  "developer_grounding_failure_count": 2,
+  "developer_grounding_unavailable": false,
+  "developer_unavailable": false,
+  "failure_count": 1,
+  "failures": {
+    "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82": {
+      "outcome": "ungrounded",
+      "recorded_at": "2026-07-21T15:45:34.717165Z"
+    }
+  },
+  "items": {
+    "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a": {
+      "carried_forward_from_run": "gemini_research_v13_current_result_structured_pilot_archived",
+      "completed_at": "2026-07-21T15:14:53.310444Z",
+      "final_outcome": "reliable_sources_found",
+      "grounding_recovered_at": "2026-07-21T15:26:52.554306Z",
+      "model": "gemini-3.1-pro-preview",
+      "model_outcome": "reliable_sources_found",
+      "prompt_version": "historical-context-source-gap-research-v3-grounding-capability-fallback",
+      "quote_id": "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+      "quote_text": "It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty.",
+      "rejected_grounding_sources": [],
+      "rejected_sources": [
+        {
+          "reason": "unrecognised_source_authority",
+          "source": {
+            "assigned_roles": [
+              "wording_verification",
+              "attribution_support",
+              "source_event_support",
+              "historical_context_support"
+            ],
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "historical_context"
+            ],
+            "exact_supporting_passage": "Lady Thatcher wrote in her letter: ``It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty. It is therefore all the more important that your Foundation should continue its activities.``",
+            "publisher": "The Herald (Scotland)",
+            "source_quality_class": "reliable_secondary_evidence",
+            "stable_locator": "Article published June 13, 1996",
+            "support_explanation": "This contemporaneous newspaper report quotes a June 1996 letter from Margaret Thatcher to a Eurosceptic foundation, verifying the exact phrasing, the attribution to Thatcher, the source event, and the historical context regarding funding disparities.",
+            "title": "Funding pledge angers Major Thatcher stirs the Euro row",
+            "url": "https://www.heraldscotland.com"
+          }
+        }
+      ],
+      "research_note": "A Google Search query identified a contemporaneous June 13, 1996, article from The Herald (Scotland) quoting a letter by Margaret Thatcher. The letter was written to offer financial support to a Eurosceptic foundation (likely the European Foundation, whose funding was recently cut by Sir James Goldsmith). This resolves the prompt's question about whether the phrasing originated from a think tank: the quote is verifiably from Thatcher herself in correspondence with such a foundation.",
+      "response_hash": "338a357ecb02fcecc56375b20bcdc9a76c5b105022e82bdb52994f6ec4fa0481",
+      "search_query_count": 1,
+      "transport": "developer_api",
+      "validated_sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "exact_supporting_passage": "It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British sovereignty",
+          "exact_supporting_passage_sha256": "6a887d7fa6b3ad7a553c361620c312f6650f1a84a9965913d23f2ed908a9e76d",
+          "fetched_body_sha256": "47403da35c950ac7262f90ad9e1ad4deab8acf0b40437ad18ceb28a06895fec7",
+          "grounding_result_url_sha256": "e2332aeac1cb4644e985446c3114b40d80355cf9f42f9b765c67dd560b02a8ee",
+          "page_title": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald",
+          "publisher": "heraldscotland.com",
+          "source_id": "75eea1bcef197d534846e475ea86aec7b3c46727c6f329241b8e645054c5ecd2",
+          "source_quality_class": "reliable_secondary_evidence",
+          "stable_locator": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+          "support_explanation": "The provider-grounded page contains the quotation wording and identifies Margaret Thatcher in the surrounding page context.",
+          "title": "Funding pledge angers Major Thatcher stirs the Euro row | The Herald",
+          "url": "https://www.heraldscotland.com/news/12116286.funding-pledge-angers-major-thatcher-stirs-the-euro-row/",
+          "verified_at": "2026-07-21T15:26:52.554026Z"
+        }
+      ]
+    },
+    "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4": {
+      "carried_forward_from_run": "gemini_research_v13_current_result_structured_pilot_archived",
+      "completed_at": "2026-07-21T15:12:30.981485Z",
+      "final_outcome": "no_reliable_source_located",
+      "grounding_recovered_at": "2026-07-21T15:26:59.708293Z",
+      "model": "gemini-3.1-pro-preview",
+      "model_outcome": "no_reliable_source_located",
+      "prompt_version": "historical-context-source-gap-research-v3-grounding-capability-fallback",
+      "quote_id": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "quote_text": "If my critics saw me walking over the Thames they would say it was because I couldn't swim.",
+      "rejected_grounding_sources": [
+        {
+          "reason": "quotation_wording_not_found",
+          "source": {
+            "index": 0,
+            "supports": [
+              "{\n  \"quote_id\": \"eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4\",\n  \"quote_text\": \"If my critics saw me walking over the Thames they would say it was because I couldn't swim.\",\n  \"outcome\": \"no_reliable_source_located\",\n  \"sources\": [],\n  \"research_note\": \"A comprehensive search across the Margaret Thatcher Foundation archives (margaretthatcher.org), the UK Parliament Hansard, and reliable biographical texts found no evidence that Margaret Thatcher ever uttered this phrase"
+            ],
+            "title": "margaretthatcher.org",
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGtKGUEWsKmjMXb9OQhoKcxm-g-o0f_Sbl5RFTSt6e9L80CYyotc-g6HscOflcxZUIZQuFE6uBqA5rodn4IYJ2was9CoTfe9J1-yKFyZ8jL2DY6JLvkHfUfjnNaIJyTPchj6Leh7C7YKIMmetPkTGs3DxrKHxjCrJBLLzULceUQe6qZB34O"
+          }
+        },
+        {
+          "reason": "rejected_source_class",
+          "source": {
+            "index": 1,
+            "supports": [
+              "Johnson, who supposedly quipped that if he walked on top of the Potomac River, the headline would read 'President Can't Swim'"
+            ],
+            "title": "reddit.com",
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGu28N7aUvCLxfoFGkjYj1B-fMwlMTq4y2JyqRRttTllVD7JKwXTHGDrzEiX2y20jAM4e8bonBhWTb0sxRfwPQvC0mOOo_5sVWXi8anbCIcbFvJrcitglfgclPyZrBxWyqejEHRU1FPqvDH--AL8UFmVIOkMsp658ZH5S8QJG08yWNSvXOcrsd-Bh4egfPnkVKLfGRGPDQ_rg=="
+          }
+        },
+        {
+          "reason": "unrecognised_source_authority",
+          "source": {
+            "index": 2,
+            "supports": [
+              "While the 'Thames' variation is frequently attributed to Thatcher by modern quotation aggregators and editorial columnists"
+            ],
+            "title": "robinpou.com",
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9ZHFS1F2K9d9EC5ey5p3V3iWIfdgHVOHtF_EDuX-ViNQ7wiIczpuoySayS6IcOwVnw8TRTHn18Y1a5E-Vnb0Xb0nbQ14oRF0NqEqx031T37LG5bY2CuM6QZysUbUP7w=="
+          }
+        },
+        {
+          "reason": "unrecognised_source_authority",
+          "source": {
+            "index": 3,
+            "supports": [
+              "While the 'Thames' variation is frequently attributed to Thatcher by modern quotation aggregators and editorial columnists"
+            ],
+            "title": "theargus.co.uk",
+            "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGTDqhH-pmUSBbJe60GKM9En6OZRjEe5M00hEwbqnmgvfPqic-jXb3eJwm80SPQAgQn4G2JluH2VjKPhHEfjxMV0RoqG3FzdmY84yBhm6Z_Lf1iRrg47ULcPXXDQnkXiCQosiDTgr3GEvVtTnxMYua-6YQyl1wyEsOXEskYnBavWr-M0GOrsJGPCXmiBqJtp_E="
+          }
+        }
+      ],
+      "rejected_sources": [],
+      "research_note": "A comprehensive search across the Margaret Thatcher Foundation archives (margaretthatcher.org), the UK Parliament Hansard, and reliable biographical texts found no evidence that Margaret Thatcher ever uttered this phrase. The quotation is an adaptation of a famous mid-20th century political joke most commonly attributed to US President Lyndon B. Johnson, who supposedly quipped that if he walked on top of the Potomac River, the headline would read 'President Can't Swim'. While the 'Thames' variation is frequently attributed to Thatcher by modern quotation aggregators and editorial columnists, no definitive primary or scholarly secondary source establishes that she actually used the localized joke herself.",
+      "response_hash": "fd5ab3c1f78f8866d86ab73d379776498fdc34b82d36d1f55608457695bd64b6",
+      "search_query_count": 4,
+      "transport": "developer_api",
+      "validated_sources": []
+    }
+  },
+  "known_spend_usd": 1.0564138,
+  "model": "gemini-3.1-pro-preview",
+  "policy_version": "source-role-research-v2-grounding-and-fetched-passage-required",
+  "prior_known_spend_usd": 1.0520138,
+  "prompt_version": "historical-context-source-gap-search-v12-unstructured-grounding-pilot",
+  "queue_quote_ids": [
+    "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+    "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
+    "5f14e6e600773cf394a3f3a3ae21aef10f108691eef50093002571765a5a4a82",
+    "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
+    "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
+    "0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a",
+    "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+    "08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa",
+    "0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c",
+    "0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc",
+    "13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f",
+    "15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712",
+    "184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13",
+    "1dde0bb1ec4fa393163170fa18ed57b08981e3f4f5fe36d343021331a85be8fe",
+    "2b935f336a0ed0b0d81ccb926e8182284987f1379885988c6c3fe61bfd5ccc93",
+    "3dd04269c7014b5ab25d7fc9d7b2ea5195ed1e8a2b2c44278ed5cad73486a2d5",
+    "4229308295bc2b967b2ef17596473f6dec8d9f1ae5c12bf9a80e75a522b38ae7",
+    "44272f7a446dab5829fffc29addddf2b4de19217d6f541b15c92b38a3891d190",
+    "456fc17b3dd9d2fea708f67ee16f70d10ea092484c43403006087beca8e71c62",
+    "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+    "4c9b5b2d2dd30ba5dc20d850646ca3e897d782d8d27634866f85e63cb06b8d98",
+    "5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4",
+    "5d2584695aac1654d9f19e9ff1fded6121c7079dabf6aa65dda4d2b58485fc67",
+    "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
+    "5e5c7e9155b845150fe903c5f9951af17530a54d930af8706a438ca49b2f2fc1",
+    "5ed720b08c8e355b93cb25a06c458e68423c873678883cccb2aa3874d5d13017",
+    "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
+    "7514859e06c16389eab799267fdd69dfa29ef15be82abf4127561661d176cd2b",
+    "7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226",
+    "80f94e530bec27ef15ea0049892cc3a5b26f80c378c6c2f8bb566aa221f1ec59",
+    "824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af",
+    "8801edc3bfe1b10de36f91a999f8228b1f9640ec9fc18bbd0a6244c5bfad3906",
+    "8b75093bc5c6bd6fad5d0b9bdd6e51a78c46c262eaee6bfae19c11e1fcc9f03c",
+    "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+    "9050c36cd4f17dc30def88df507b39eaf60e3a7b5fd22a0034230685733f93db",
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+    "93fa5a4803e47bf57ecf8f718cbed055e6de30ecb6d14ef9a47abaefe2db05c8",
+    "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4",
+    "9dc5ca4835ccbf852c20cfa4f12b1bbc0bca099cec991cf44704f69208ff7d9e",
+    "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+    "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
+    "ae1ce8a812279c8dd97b71cfcd5efc578ba06dea161ef2de4a2091205eba279e",
+    "b5fa3f26b28013136d5f8f590096eb78f0e0c7f8960c1c15868491059feb0c1a",
+    "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
+    "c5d53bc0acdfd5d99f34fcaa9963cf742d3f2c67a49fe49259cb3afb17e41956",
+    "c657fe54330c41e625adb0a38f1b9a2b0069e1f10394b7e3488121fce123050b",
+    "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+    "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "d116b04e74175d66ec440a8cb9c207a3f2d93f5f8cc55115ba00d25fcd3da08f",
+    "d2b235b5393d164dae7e25b5e88449473531324dda1162fc0cfcdba22b2c9859",
+    "d771b1b3e3d67068e8b884fbcd2d8bbe4a06da942868023caae49a45957e3d44",
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+    "e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316",
+    "ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1",
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+    "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
+    "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
+    "fad63c5f0311459165f2573117d6f78eb9a102991eb9ba0576efe3b6bd1f216e",
+    "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
+    "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
+    "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
+    "1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d",
+    "1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55",
+    "3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f",
+    "4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b",
+    "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+    "78fac4018710af853f7eac01666370afad7551c24b604d19df3b5a710f7c5682",
+    "8584b7bae61545528f8d5b37452944aeca9cc8016d3e99df67e6231bcae69172",
+    "d778f363342e4b00d83cbd40464b23f565c4e6fa58f12966771532b64963c1ce",
+    "d86c2c2eed058a7d24742cbd0d1e3c9284da25d7e99b6f58097bdaa8c4c49ad0",
+    "da6727d2a7d9173dc1086e98aa04142e4e9488ac0d7243f7b5ba8a17d29a9ccc",
+    "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
+    "08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82",
+    "141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5",
+    "2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9",
+    "3f9b818c85efdf923c422517ba06b46ee280258c68b74cebb02f68a54851b40a",
+    "41278618713255420e6676088c07312c0d90d6e688f7c1f58d9dfd33ec3c494f",
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+    "5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483",
+    "741960f5326f4c8ff102c4572f1624facdfaf123a476a66b15ebbca3bb888a06",
+    "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
+    "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407",
+    "bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be",
+    "c2c09852800ada888e6e618e70a1316b813e4e462fef5db17ff6e71037e5349f",
+    "ec0799ceb8ea89c6b4472e2aba48ea71de7bf44fcb1fae6edfba90c42e3a7369",
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+    "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
+    "f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74",
+    "063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7",
+    "1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc",
+    "1085ff6a77a0bf02ea5c2621cc8d546e47637f2e363979687c62ba73f16504fa",
+    "25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9",
+    "272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996",
+    "2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2",
+    "3ba6cfba4bbf0673ce1cf563fb9de4821aded8422c64cbcd4218bf8da951f24d",
+    "3ec9ed7c0f35b414ee6570182d1e65874cc7f5c659cdb31ecdbf8fe3ee492319",
+    "3fac1e07a8d368ebe49544c6b1e580b549da46a05d7a0649421bae0af7377b47",
+    "5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d",
+    "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
+    "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
+    "5d1b1cb2460a02dd8fb0b61823926b330716189913eeea2c75c03d5d0ada5cf2",
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+    "6abe034f1de82a057490eb8b4b3e8a8900c7064a80bddcc7be2a742404f078e2",
+    "738f5f6c9aa58ebc32cdae4adbbf725cdb1fd2178d4ac3f8af725776c67a04c9",
+    "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+    "876bdb8ea63e16f1f17fa2e85a46a2bdee820cc80713b98bda78fa49c2a4d6eb",
+    "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b",
+    "8f7f5440bd005d8059bdc7d715d19e9313792812d7602be8b4c193f38d8ac848",
+    "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
+    "92bc2b135f748c17b8df4653ec385e5f072ca5b99b4cee0988933eccbd13839f",
+    "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+    "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
+    "bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f",
+    "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
+    "cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e",
+    "cfe7448552ce1f14db2382ac4a56e86220db74742a887e06242f8b8acb48c2f7",
+    "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+    "d9acc52446c0e8c7b1ba16c04ffd21a9cf2329f8b64078f531aa132547445dba",
+    "e61f14550883eef5e138633ec95c5dcfe63a5834732fa31807ea33a7e936a2f2",
+    "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
+    "f900baf560999c350070e4600757cfa22f640c82e510e2f9f5e2c35059263155",
+    "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+    "de520cbe8c9d2b854073a3eb6c0dea4c5259da702dfbbf90e61e20516823d8ac",
+    "e87e2815cb5136fe8d5b0ae9db6114478ea34ae7c7acd30090eb96f2b7aca918",
+    "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
+    "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
+    "ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da",
+    "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
+    "26706085134c745c4f3819322184e57689d7aef652a5011e734adcd86ff77dc7",
+    "2c199e4d003a077c147b447efa9eb68941bf1291a7f4dd3653a7562414950d9a",
+    "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
+    "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
+    "b593a0ec642d5ab87e1bacd8d0f5d26f6ee48d48c41b0fd410e02c68e062c7df",
+    "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e"
+  ],
+  "response_schema_version": 1,
+  "schema_version": 1,
+  "sdk_version": "2.11.0",
+  "temperature": 1,
+  "thinking_budget": null,
+  "thinking_level": "LOW",
+  "vertex_api_version": "v1"
+}

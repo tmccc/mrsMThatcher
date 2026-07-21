@@ -429,7 +429,7 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
     }]
 
 
-def test_formatter_v2_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
+def test_formatter_v3_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
     packet = next(iter(corpus[0].values()))
     formatted = format_context_reply_v2(packet)
     assert formatted is not None
@@ -444,6 +444,8 @@ def test_formatter_v2_metadata_is_durable_and_prevents_duplicate_after_restart(t
         "source_class": formatted["source_class"],
         "historical_confidence": formatted["historical_confidence"],
         "shortening_applied": formatted["shortening_applied"],
+        "confidence_dimensions": formatted["confidence_dimensions"],
+        "source_role_audit_version": formatted["source_role_audit_version"],
     }
     calls = []
     store = HistoricalContextReplyStore(tmp_path / "history.json", tmp_path / "receipt.json")
@@ -469,6 +471,59 @@ def test_formatter_v2_metadata_is_durable_and_prevents_duplicate_after_restart(t
     )
     assert duplicate["status"] == "already_completed"
     assert len(calls) == 1
+
+
+def test_legacy_v2_formatter_metadata_remains_valid_for_existing_receipts():
+    metadata = {
+        "formatter_version": "historical_context_reply_schema_v2",
+        "template_variant": "compact_without_redundant_meaning",
+        "meaning_included": False,
+        "meaning_decision_reason": "The quotation is already self-contained.",
+        "raw_character_count": 240,
+        "weighted_character_count": 240,
+        "verification_label": "Exact wording",
+        "source_class": "primary_archive",
+        "historical_confidence": "high",
+        "shortening_applied": False,
+    }
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
+
+
+def test_v3_formatter_metadata_rejects_unknown_source_role_policy(corpus):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata = {
+        key: formatted[key]
+        for key in (
+            "formatter_version", "template_variant", "meaning_included",
+            "meaning_decision_reason", "raw_character_count",
+            "weighted_character_count", "verification_label", "source_class",
+            "historical_confidence", "shortening_applied",
+            "confidence_dimensions", "source_role_audit_version",
+        )
+    }
+    metadata["source_role_audit_version"] = "historical-context-source-roles-v999"
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
+
+
+def test_v3_formatter_metadata_accepts_previous_source_role_policy(corpus):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata = {
+        key: formatted[key]
+        for key in (
+            "formatter_version", "template_variant", "meaning_included",
+            "meaning_decision_reason", "raw_character_count",
+            "weighted_character_count", "verification_label", "source_class",
+            "historical_confidence", "shortening_applied",
+            "confidence_dimensions", "source_role_audit_version",
+        )
+    }
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v2-recovered-citations"
+    )
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
 
 
 @pytest.mark.parametrize(

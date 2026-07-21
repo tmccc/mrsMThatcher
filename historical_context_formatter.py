@@ -40,6 +40,7 @@ QUOTATION_AGGREGATORS = (
 URL_WEIGHT = 23
 UNKNOWN_VALUES = {"", "n/a", "n.a.", "none", "not available", "unknown", "unavailable"}
 HISTORICAL_CONTEXT_FORMATTER_V2 = "historical_context_reply_schema_v2"
+HISTORICAL_CONTEXT_FORMATTER_V3 = "historical_context_reply_schema_v3"
 _V2_UNCERTAIN_STATUSES = {"paraphrase", "composite", "misattributed", "unverified"}
 _V2_STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "for", "from",
@@ -53,11 +54,18 @@ _V2_MONTHS = {
     "may": "May", "june": "June", "july": "July", "august": "August",
     "september": "September", "october": "October", "november": "November", "december": "December",
 }
-_FORMATTER_METADATA_KEYS = {
+_FORMATTER_METADATA_KEYS_V2 = {
     "formatter_version", "template_variant", "meaning_included", "meaning_decision_reason",
     "raw_character_count", "weighted_character_count", "verification_label", "source_class",
     "historical_confidence", "shortening_applied",
 }
+_FORMATTER_METADATA_KEYS_V3 = _FORMATTER_METADATA_KEYS_V2 | {
+    "confidence_dimensions", "source_role_audit_version",
+}
+_LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
+    "historical-context-source-roles-v1",
+    "historical-context-source-roles-v2-recovered-citations",
+})
 _MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
 THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 
@@ -116,7 +124,12 @@ def durable_unlink(path: Path) -> None:
     finally: os.close(directory)
 
 
-def load_and_validate_corpus(research_dir: Path = DEFAULT_RESEARCH_DIR) -> tuple[dict[str, Any], set[str]]:
+def load_and_validate_corpus(
+    research_dir: Path = DEFAULT_RESEARCH_DIR,
+    *,
+    require_source_role_audit: bool = False,
+    load_source_role_audit: bool = True,
+) -> tuple[dict[str, Any], set[str]]:
     """Load an immutable, internally declared research corpus partition safely."""
     from semantic_alignment.quote_research_schema import TOP_LEVEL_FIELDS, validate_packet
 
@@ -178,6 +191,22 @@ def load_and_validate_corpus(research_dir: Path = DEFAULT_RESEARCH_DIR) -> tuple
         except (KeyError, ValueError) as exc: raise RuntimeError(f"completed packet is not schema-valid: {quote_id}: {exc}") from exc
         if packet.get("verification_status") not in VERIFICATION_LABELS:
             raise RuntimeError(f"unsupported verification status: {quote_id}")
+    from historical_context_source_roles import validate_and_attach_audit
+
+    eligible_ids = {
+        quote_id for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    if load_source_role_audit:
+        packets = validate_and_attach_audit(
+            packets,
+            unresolved,
+            research_dir=research_dir,
+            attribution_eligible_ids=eligible_ids,
+            required=require_source_role_audit,
+        )
+    elif require_source_role_audit:
+        raise ValueError("required source-role audit cannot be skipped")
     return packets, unresolved
 
 
@@ -234,6 +263,34 @@ def _is_grounding_redirect(url: str) -> bool:
 
 def select_primary_source(packet: dict[str, Any]) -> dict[str, str] | None:
     """Select the strongest source record from a research packet."""
+    if isinstance(packet.get("_source_role_audit"), dict):
+        from historical_context_source_roles import public_sources
+
+        sources = public_sources(packet)
+        if not sources:
+            return {
+                "title": "No reliable source located",
+                "url": "",
+                "source_type": "unavailable",
+            }
+        role_priority = {
+            "wording_verification": 0,
+            "attribution_support": 1,
+            "source_event_support": 2,
+            "historical_context_support": 3,
+        }
+        source = min(
+            sources,
+            key=lambda row: min(
+                (role_priority.get(role, 9) for role in row.get("roles", [])),
+                default=9,
+            ),
+        )
+        return {
+            "title": source["title"],
+            "url": source["url"],
+            "source_type": source["source_type"],
+        }
     locator = " ".join(str(packet.get("stable_locator") or "").split())
     valid_locator = locator if locator.lower() not in UNKNOWN_VALUES else ""
     all_sources = [source for source in packet.get("sources", []) if isinstance(source, dict)
@@ -553,8 +610,13 @@ def _v2_meaning_decision(packet: dict[str, Any], context: str) -> dict[str, Any]
             "meaning_decision_reason": reason, "rule_outputs": rule_outputs}
 
 
-def _v2_context_sentence(packet: dict[str, Any]) -> str:
-    event = _v2_clean(packet.get("source_event"))
+def _v2_context_sentence(
+    packet: dict[str, Any],
+    supported_fields: set[str] | None = None,
+) -> str:
+    event = _v2_clean(packet.get("source_event")) if (
+        supported_fields is None or "source_event" in supported_fields
+    ) else ""
     uncertain_event = re.fullmatch(r"unknown\s*\((.+)\)", event, re.I)
     if uncertain_event:
         qualifier = uncertain_event.group(1).strip()
@@ -563,8 +625,12 @@ def _v2_context_sentence(packet: dict[str, Any]) -> str:
         remainder = re.sub(r"^unknown\s+", "", event, flags=re.I).strip()
         event = f"Attributed to a {remainder}" if remainder else ""
     event = _v2_british_dates_in_text(event).rstrip(". :;-")
-    date = _v2_british_date(packet.get("date"))
-    immediate = _v2_one_sentence(packet.get("immediate_subject")) or _v2_one_sentence(packet.get("historical_context"))
+    date = _v2_british_date(packet.get("date")) if (
+        supported_fields is None or "date" in supported_fields
+    ) else ""
+    immediate = ""
+    if supported_fields is None or "historical_context" in supported_fields:
+        immediate = _v2_one_sentence(packet.get("immediate_subject")) or _v2_one_sentence(packet.get("historical_context"))
     immediate = _v2_british_dates_in_text(immediate.rstrip("."))
     if event and immediate and date: return f"{event}, {date}: {immediate}."
     if event and immediate: return f"{event}: {immediate}."
@@ -576,32 +642,104 @@ def _v2_context_sentence(packet: dict[str, Any]) -> str:
     return "The surviving attribution does not establish an occasion, date or immediate historical issue."
 
 
+def _audited_public_sources(packet: dict[str, Any]) -> list[dict[str, Any]]:
+    if not isinstance(packet.get("_source_role_audit"), dict):
+        source = select_primary_source(packet)
+        return [] if not source else [{**source, "roles": [], "claims_supported": []}]
+    from historical_context_source_roles import public_sources
+
+    return public_sources(packet)
+
+
+def _audited_verification_label(packet: dict[str, Any]) -> str:
+    audit = packet.get("_source_role_audit")
+    if isinstance(audit, dict):
+        value = _v2_clean(audit.get("public_verification_wording"))
+        if value:
+            return value
+    return VERIFICATION_LABELS[packet["verification_status"]]
+
+
+def _audited_confidence(packet: dict[str, Any]) -> dict[str, str]:
+    audit = packet.get("_source_role_audit")
+    if isinstance(audit, dict) and isinstance(audit.get("confidence_after"), dict):
+        dimensions = audit["confidence_after"]
+        required = {
+            "attribution", "wording", "source_event", "date",
+            "historical_context", "interpretation",
+        }
+        if set(dimensions) == required and all(
+            value in {"high", "medium", "low", "unknown"}
+            for value in dimensions.values()
+        ):
+            return dict(dimensions)
+    fallback = str(packet.get("research_confidence") or "unknown")
+    if fallback not in {"high", "medium", "low"}:
+        fallback = "unknown"
+    return {field: fallback for field in (
+        "attribution", "wording", "source_event", "date",
+        "historical_context", "interpretation",
+    )}
+
+
+def _conservative_historical_confidence(dimensions: dict[str, str]) -> str:
+    ranking = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+    score = min(ranking[dimensions["attribution"]], ranking[dimensions["wording"]])
+    return {0: "low", 1: "low", 2: "medium", 3: "high"}[score]
+
+
+def _public_source_lines(sources: list[dict[str, Any]]) -> list[str]:
+    if not sources:
+        return ["Source — No reliable source located"]
+    labels = {
+        "wording": "wording",
+        "attribution": "attribution",
+        "source_event": "source event",
+        "date": "date",
+        "historical_context": "historical context",
+    }
+    lines: list[str] = []
+    for source in sources:
+        supported = [labels[field] for field in labels if field in source.get("claims_supported", [])]
+        role_label = ", ".join(supported) or "role-scoped evidence"
+        prefix = "Secondary recollection" if source.get("secondary_recollection") else "Source"
+        line = f"{prefix} ({role_label}) — {source['title']}"
+        if source.get("url"):
+            line += f"\n{source['url']}"
+        lines.append(line)
+    return lines
+
+
 def _v2_forbidden_style(text: str) -> bool:
     return bool(
         re.search(r"(?:^|\s)#[A-Za-z0-9_]", text)
         or re.search("[\U0001F000-\U0001FAFF\u2600-\u27BF]", text)
         or "vertexaisearch.cloud.google.com/grounding-api-redirect/" in text
-        or re.search(r"(?:^|[—:\s])(N/A|None|unknown|unavailable)(?:$|[.\s])", text, re.I)
+        or re.search(r"(?:^|[—:\s])(N/A|None|unavailable)(?:$|[.\s])", text, re.I)
         or re.search(r"\b(?:did you know|interesting fact|click here|learn more)\b", text, re.I)
     )
 
 
-def format_context_reply_v2(
-    packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
-    include_meaning: bool = True, include_source: bool = True,
-    include_verification: bool = True,
+def _format_context_reply_v2_legacy(
+    packet: dict[str, Any],
+    *,
+    maximum_length: int,
+    include_meaning: bool,
+    include_source: bool,
+    include_verification: bool,
 ) -> dict[str, Any] | None:
-    """Render the human-validated compact archive-entry formatter."""
-    if type(maximum_length) is not int or not 120 <= maximum_length <= MAXIMUM_SUPPORTED_LENGTH:
-        raise ValueError(f"maximum_length must be from 120 to {MAXIMUM_SUPPORTED_LENGTH}")
+    """Reproduce schema-v2 output for frozen unaudited research tooling."""
     source = select_primary_source(packet) if include_source else None
     if include_source and (not source or not _v2_clean(source.get("title"))):
         return None
     context = _v2_context_sentence(packet)
     decision = _v2_meaning_decision(packet, context)
     if not include_meaning:
-        decision = {**decision, "meaning_included": False,
-                    "meaning_decision_reason": "Meaning disabled by explicit formatter configuration."}
+        decision = {
+            **decision,
+            "meaning_included": False,
+            "meaning_decision_reason": "Meaning disabled by explicit formatter configuration.",
+        }
     verification = VERIFICATION_LABELS[packet["verification_status"]]
     sections = [f"Context — {context}"]
     if decision["meaning_included"]:
@@ -626,8 +764,11 @@ def format_context_reply_v2(
     else:
         variant = "compact_with_meaning"
     return {
-        "quote_id": packet["quote_id"], "text": text, "character_count": weighted,
-        "raw_character_count": len(text), "maximum_length": maximum_length,
+        "quote_id": packet["quote_id"],
+        "text": text,
+        "character_count": weighted,
+        "raw_character_count": len(text),
+        "maximum_length": maximum_length,
         "historical_confidence": packet.get("research_confidence") or "unavailable",
         "meaning_included": bool(decision["meaning_included"]),
         "meaning_omitted": not bool(decision["meaning_included"]),
@@ -636,8 +777,90 @@ def format_context_reply_v2(
         "shortening_applied": False,
         "verification_label": verification if include_verification else None,
         "verification_omitted": not include_verification,
-        "source": source, "source_class": classify_source(source), "source_omitted": not bool(source),
-        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V2, "template_variant": variant,
+        "source": source,
+        "source_class": classify_source(source),
+        "source_omitted": not bool(source),
+        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V2,
+        "template_variant": variant,
+        "weighted_character_count": weighted,
+    }
+
+
+def format_context_reply_v2(
+    packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
+    include_meaning: bool = True, include_source: bool = True,
+    include_verification: bool = True,
+) -> dict[str, Any] | None:
+    """Render the human-validated compact archive-entry formatter."""
+    if type(maximum_length) is not int or not 120 <= maximum_length <= MAXIMUM_SUPPORTED_LENGTH:
+        raise ValueError(f"maximum_length must be from 120 to {MAXIMUM_SUPPORTED_LENGTH}")
+    if not isinstance(packet.get("_source_role_audit"), dict):
+        return _format_context_reply_v2_legacy(
+            packet,
+            maximum_length=maximum_length,
+            include_meaning=include_meaning,
+            include_source=include_source,
+            include_verification=include_verification,
+        )
+    sources = _audited_public_sources(packet) if include_source else []
+    source = select_primary_source(packet) if include_source else None
+    audit = packet.get("_source_role_audit")
+    supported_fields = None
+    if isinstance(audit, dict):
+        supported_fields = set(audit.get("public_context_supported_fields", []))
+    context = _v2_context_sentence(packet, supported_fields)
+    decision = _v2_meaning_decision(packet, context)
+    if not include_meaning:
+        decision = {**decision, "meaning_included": False,
+                    "meaning_decision_reason": "Meaning disabled by explicit formatter configuration."}
+    verification = _audited_verification_label(packet)
+    confidence_dimensions = _audited_confidence(packet)
+    sections = [f"Context — {context}"]
+    if decision["meaning_included"]:
+        sections.append(f"Meaning — {decision['meaning']}")
+    if include_verification:
+        sections.append(f"Verification — {verification}")
+    if include_source:
+        sections.extend(_public_source_lines(sources))
+    confidence_labels = (
+        ("Attribution", "attribution"), ("wording", "wording"),
+        ("source event", "source_event"), ("date", "date"),
+        ("historical context", "historical_context"),
+        ("interpretation", "interpretation"),
+    )
+    sections.append("Confidence — " + "; ".join(
+        f"{label}: {confidence_dimensions[field]}" for label, field in confidence_labels
+    ))
+    text = "\n\n".join(sections)
+    weighted = x_weighted_length(text)
+    if weighted > maximum_length or _v2_forbidden_style(text):
+        return None
+    if packet["verification_status"] in _V2_UNCERTAIN_STATUSES:
+        variant = "compact_uncertain_wording"
+    elif not decision["meaning_included"]:
+        variant = "compact_without_redundant_meaning"
+    elif not sources or not any(row.get("url") for row in sources):
+        variant = "compact_no_public_url"
+    else:
+        variant = "compact_with_meaning"
+    return {
+        "quote_id": packet["quote_id"], "text": text, "character_count": weighted,
+        "raw_character_count": len(text), "maximum_length": maximum_length,
+        "historical_confidence": _conservative_historical_confidence(confidence_dimensions),
+        "confidence_dimensions": confidence_dimensions,
+        "meaning_included": bool(decision["meaning_included"]),
+        "meaning_omitted": not bool(decision["meaning_included"]),
+        "meaning_decision_reason": decision["meaning_decision_reason"],
+        "meaning_rule_outputs": decision["rule_outputs"],
+        "shortening_applied": False,
+        "verification_label": verification if include_verification else None,
+        "verification_omitted": not include_verification,
+        "source": source, "sources": sources,
+        "source_class": classify_source(source), "source_omitted": not include_source,
+        "source_role_audit_version": (
+            audit.get("policy_version") if isinstance(audit, dict) else None
+        ),
+        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V3, "template_variant": variant,
         "weighted_character_count": weighted,
     }
 
@@ -682,9 +905,30 @@ class HistoricalContextReplyStore:
 
     @staticmethod
     def _valid_formatter_metadata(value: Any) -> bool:
+        if not isinstance(value, dict) or frozenset(value) not in {
+            frozenset(_FORMATTER_METADATA_KEYS_V2),
+            frozenset(_FORMATTER_METADATA_KEYS_V3),
+        }:
+            return False
+        version = value.get("formatter_version")
+        if version == HISTORICAL_CONTEXT_FORMATTER_V3:
+            from historical_context_source_roles import POLICY_VERSION
+
+            dimensions = value.get("confidence_dimensions")
+            if (
+                not isinstance(dimensions, dict)
+                or set(dimensions) != {
+                    "attribution", "wording", "source_event", "date",
+                    "historical_context", "interpretation",
+                }
+                or any(item not in {"high", "medium", "low", "unknown"} for item in dimensions.values())
+                or value.get("source_role_audit_version") not in (
+                    _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS | {POLICY_VERSION}
+                )
+            ):
+                return False
         return bool(
             isinstance(value, dict)
-            and set(value) == _FORMATTER_METADATA_KEYS
             and isinstance(value.get("formatter_version"), str)
             and value["formatter_version"].startswith("historical_context_reply_schema_v")
             and isinstance(value.get("template_variant"), str)
@@ -892,7 +1136,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline historical context reply formatter")
     parser.add_argument("--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR)
     parser.add_argument("--quote-id"); parser.add_argument("--quote-text"); parser.add_argument("--maximum-length", type=int, default=DEFAULT_MAXIMUM_LENGTH)
-    args = parser.parse_args(argv); packets, unresolved = load_and_validate_corpus(args.research_dir)
+    args = parser.parse_args(argv); packets, unresolved = load_and_validate_corpus(
+        args.research_dir,
+        require_source_role_audit=True,
+    )
     quote_id = args.quote_id or (quote_text_hash(args.quote_text) if args.quote_text else None)
     if not quote_id: parser.error("--quote-id or --quote-text is required")
     packet = packets.get(quote_id) if args.quote_id else packet_for_posted_quote(packets, unresolved, quote_id, args.quote_text)
