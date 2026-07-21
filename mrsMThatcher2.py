@@ -5143,7 +5143,7 @@ def maybe_post_historical_context_reply(
     try:
         from historical_context_formatter import (
             HistoricalContextReplyStore,
-            format_context_reply_v2,
+            format_context_reply_public,
             load_and_validate_corpus,
             packet_for_posted_quote,
             x_weighted_length,
@@ -5162,7 +5162,7 @@ def maybe_post_historical_context_reply(
                 reason="no_completed_canonical_packet",
             )
             return {"status": "skipped_no_completed_packet"}
-        formatted = format_context_reply_v2(
+        formatted = format_context_reply_public(
             packet,
             maximum_length=int(historical_context_reply["maximum_length"]),
             include_meaning=bool(historical_context_reply["include_meaning"]),
@@ -5199,6 +5199,7 @@ def maybe_post_historical_context_reply(
             "historical_confidence": formatted["historical_confidence"],
             "confidence_dimensions": formatted["confidence_dimensions"],
             "source_role_audit_version": formatted["source_role_audit_version"],
+            "rendering_mode": formatted["rendering_mode"],
             "shortening_applied": formatted["shortening_applied"],
         }
         result = store.post(
@@ -5243,6 +5244,7 @@ def maybe_post_historical_context_reply(
             historical_confidence=event_metadata["historical_confidence"],
             confidence_dimensions=event_metadata.get("confidence_dimensions"),
             source_role_audit_version=event_metadata.get("source_role_audit_version"),
+            rendering_mode=event_metadata.get("rendering_mode"),
             shortening_applied=event_metadata["shortening_applied"],
             meaning_omitted=not event_metadata["meaning_included"],
             meaning_included=event_metadata["meaning_included"],

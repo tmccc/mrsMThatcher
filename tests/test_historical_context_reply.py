@@ -163,7 +163,14 @@ def test_formatter_output_matches_published_schema_with_optional_sections(corpus
     validate_json_schema(format_context_reply_v2(packet), schema)
 
 
-def test_standalone_formatter_cli_uses_production_v2(corpus, capsys):
+def test_formatter_rejects_unknown_rendering_mode(corpus):
+    packet = next(iter(corpus[0].values()))
+
+    with pytest.raises(ValueError, match="rendering_mode must be public or internal"):
+        format_context_reply_v2(packet, rendering_mode="x")
+
+
+def test_standalone_formatter_cli_distinguishes_internal_and_public_rendering(corpus, capsys):
     packet = next(iter(corpus[0].values()))
     assert context_module.main([
         "--research-dir", str(RESEARCH), "--quote-id", packet["quote_id"],
@@ -171,6 +178,15 @@ def test_standalone_formatter_cli_uses_production_v2(corpus, capsys):
     output = capsys.readouterr().out
     assert output.startswith("Context — ")
     assert "Historical context\n" not in output
+    assert "Confidence — Attribution:" in output
+
+    assert context_module.main([
+        "--research-dir", str(RESEARCH), "--quote-id", packet["quote_id"],
+        "--rendering-mode", "public",
+    ]) == 0
+    public_output = capsys.readouterr().out
+    assert public_output.startswith("Context — ")
+    assert "Confidence —" not in public_output
 
 
 def test_standalone_formatter_cli_rejects_non_thatcher_quote_id(corpus, capsys):
@@ -429,7 +445,7 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
     }]
 
 
-def test_formatter_v3_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
+def test_formatter_v4_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
     packet = next(iter(corpus[0].values()))
     formatted = format_context_reply_v2(packet)
     assert formatted is not None
@@ -446,6 +462,7 @@ def test_formatter_v3_metadata_is_durable_and_prevents_duplicate_after_restart(t
         "shortening_applied": formatted["shortening_applied"],
         "confidence_dimensions": formatted["confidence_dimensions"],
         "source_role_audit_version": formatted["source_role_audit_version"],
+        "rendering_mode": formatted["rendering_mode"],
     }
     calls = []
     store = HistoricalContextReplyStore(tmp_path / "history.json", tmp_path / "receipt.json")
@@ -490,7 +507,23 @@ def test_legacy_v2_formatter_metadata_remains_valid_for_existing_receipts():
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
 
 
-def test_v3_formatter_metadata_rejects_unknown_source_role_policy(corpus):
+def test_legacy_v3_formatter_metadata_remains_valid_for_existing_receipts(corpus):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata = {
+        key: formatted[key]
+        for key in (
+            "template_variant", "meaning_included", "meaning_decision_reason",
+            "raw_character_count", "weighted_character_count", "verification_label",
+            "source_class", "historical_confidence", "shortening_applied",
+            "confidence_dimensions", "source_role_audit_version",
+        )
+    }
+    metadata["formatter_version"] = context_module.HISTORICAL_CONTEXT_FORMATTER_V3
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
+
+
+def test_v4_formatter_metadata_rejects_unknown_source_role_policy(corpus):
     formatted = format_context_reply_v2(next(iter(corpus[0].values())))
     metadata = {
         key: formatted[key]
@@ -499,7 +532,7 @@ def test_v3_formatter_metadata_rejects_unknown_source_role_policy(corpus):
             "meaning_decision_reason", "raw_character_count",
             "weighted_character_count", "verification_label", "source_class",
             "historical_confidence", "shortening_applied",
-            "confidence_dimensions", "source_role_audit_version",
+            "confidence_dimensions", "source_role_audit_version", "rendering_mode",
         )
     }
     metadata["source_role_audit_version"] = "historical-context-source-roles-v999"
@@ -507,7 +540,7 @@ def test_v3_formatter_metadata_rejects_unknown_source_role_policy(corpus):
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
 
 
-def test_v3_formatter_metadata_accepts_previous_source_role_policy(corpus):
+def test_v4_formatter_metadata_accepts_previous_source_role_policy(corpus):
     formatted = format_context_reply_v2(next(iter(corpus[0].values())))
     metadata = {
         key: formatted[key]
@@ -516,7 +549,7 @@ def test_v3_formatter_metadata_accepts_previous_source_role_policy(corpus):
             "meaning_decision_reason", "raw_character_count",
             "weighted_character_count", "verification_label", "source_class",
             "historical_confidence", "shortening_applied",
-            "confidence_dimensions", "source_role_audit_version",
+            "confidence_dimensions", "source_role_audit_version", "rendering_mode",
         )
     }
     metadata["source_role_audit_version"] = (

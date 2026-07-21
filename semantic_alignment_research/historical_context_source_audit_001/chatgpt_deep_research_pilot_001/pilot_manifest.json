@@ -1,0 +1,24 @@
+{
+  "cohort_counts": {
+    "previously_unsearched_research_gap": 20,
+    "prior_search_no_result_negative_control": 1,
+    "prior_search_no_result_with_precise_source_lead": 4
+  },
+  "output_file_hashes": {
+    "CHATGPT_DEEP_RESEARCH_PROMPT.md": "5c697b0e44c6d11e33ddefe561fd789cbe4e44927883a472a2c7c0c107b7287d",
+    "README.md": "97467aa67bb9de1ae1b43677b81f868e54ce72f80f309b02d2f2e447376bc5a0",
+    "pilot_queue.json": "4a60df8bcd2bd8b5f7621e30a2bbacc300b9c9f3455db90a704f20604496db75",
+    "source_acceptance_policy.md": "efb5ac36da17ee2e87a43922994e97dda26c7676394f48ac230296ffb862fd85"
+  },
+  "policy_version": "historical-context-chatgpt-deep-research-pilot-v1",
+  "production_files_modified": false,
+  "record_count": 25,
+  "schema_version": 1,
+  "source_audit_date": "2026-07-21",
+  "source_file_hashes": {
+    "semantic_alignment_research/historical_context_source_audit_001/audit_summary.json": "cc12fdd4b6c6c68b8dde6135ea32e13c7d52f35d49390250d6e50221c2cc3497",
+    "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
+    "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json": "ebab8591365d341b9968a6964d3b33b98d9de5a51eab1c29268d6206eb5dfa5c",
+    "semantic_alignment_research/quote_research_full_001/research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+  }
+}

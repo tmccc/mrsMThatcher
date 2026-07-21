@@ -41,6 +41,13 @@ URL_WEIGHT = 23
 UNKNOWN_VALUES = {"", "n/a", "n.a.", "none", "not available", "unknown", "unavailable"}
 HISTORICAL_CONTEXT_FORMATTER_V2 = "historical_context_reply_schema_v2"
 HISTORICAL_CONTEXT_FORMATTER_V3 = "historical_context_reply_schema_v3"
+HISTORICAL_CONTEXT_FORMATTER_V4 = "historical_context_reply_schema_v4"
+PUBLIC_RENDERING_MODE = "public"
+INTERNAL_RENDERING_MODE = "internal"
+HISTORICAL_CONTEXT_RENDERING_MODES = frozenset({
+    PUBLIC_RENDERING_MODE,
+    INTERNAL_RENDERING_MODE,
+})
 _V2_UNCERTAIN_STATUSES = {"paraphrase", "composite", "misattributed", "unverified"}
 _V2_STOPWORDS = {
     "a", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "for", "from",
@@ -62,6 +69,7 @@ _FORMATTER_METADATA_KEYS_V2 = {
 _FORMATTER_METADATA_KEYS_V3 = _FORMATTER_METADATA_KEYS_V2 | {
     "confidence_dimensions", "source_role_audit_version",
 }
+_FORMATTER_METADATA_KEYS_V4 = _FORMATTER_METADATA_KEYS_V3 | {"rendering_mode"}
 _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
     "historical-context-source-roles-v1",
     "historical-context-source-roles-v2-recovered-citations",
@@ -661,6 +669,26 @@ def _audited_verification_label(packet: dict[str, Any]) -> str:
     return VERIFICATION_LABELS[packet["verification_status"]]
 
 
+def _public_verification_label(
+    packet: dict[str, Any], confidence_dimensions: dict[str, str],
+    sources: list[dict[str, Any]],
+) -> str:
+    """Return a concise public label without flattening the audited evidence."""
+    audited = _audited_verification_label(packet)
+    if audited == "Exact wording verified":
+        return audited
+    if audited in {"Historically verified variant", "Normalised wording verified"}:
+        return "Historically verified variant"
+    if audited == "Verified excerpt":
+        return audited
+    source_supports_attribution = any(
+        "attribution" in source.get("claims_supported", []) for source in sources
+    )
+    if source_supports_attribution or confidence_dimensions["attribution"] in {"high", "medium"}:
+        return "Attributed, but exact wording not independently verified"
+    return "Research incomplete"
+
+
 def _audited_confidence(packet: dict[str, Any]) -> dict[str, str]:
     audit = packet.get("_source_role_audit")
     if isinstance(audit, dict) and isinstance(audit.get("confidence_after"), dict):
@@ -790,11 +818,13 @@ def _format_context_reply_v2_legacy(
 def format_context_reply_v2(
     packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
     include_meaning: bool = True, include_source: bool = True,
-    include_verification: bool = True,
+    include_verification: bool = True, rendering_mode: str = PUBLIC_RENDERING_MODE,
 ) -> dict[str, Any] | None:
-    """Render the human-validated compact archive-entry formatter."""
+    """Render an audited context reply for public or internal consumption."""
     if type(maximum_length) is not int or not 120 <= maximum_length <= MAXIMUM_SUPPORTED_LENGTH:
         raise ValueError(f"maximum_length must be from 120 to {MAXIMUM_SUPPORTED_LENGTH}")
+    if rendering_mode not in HISTORICAL_CONTEXT_RENDERING_MODES:
+        raise ValueError("rendering_mode must be public or internal")
     if not isinstance(packet.get("_source_role_audit"), dict):
         return _format_context_reply_v2_legacy(
             packet,
@@ -814,8 +844,12 @@ def format_context_reply_v2(
     if not include_meaning:
         decision = {**decision, "meaning_included": False,
                     "meaning_decision_reason": "Meaning disabled by explicit formatter configuration."}
-    verification = _audited_verification_label(packet)
     confidence_dimensions = _audited_confidence(packet)
+    verification = (
+        _public_verification_label(packet, confidence_dimensions, sources)
+        if rendering_mode == PUBLIC_RENDERING_MODE
+        else _audited_verification_label(packet)
+    )
     sections = [f"Context — {context}"]
     if decision["meaning_included"]:
         sections.append(f"Meaning — {decision['meaning']}")
@@ -823,15 +857,16 @@ def format_context_reply_v2(
         sections.append(f"Verification — {verification}")
     if include_source:
         sections.extend(_public_source_lines(sources))
-    confidence_labels = (
-        ("Attribution", "attribution"), ("wording", "wording"),
-        ("source event", "source_event"), ("date", "date"),
-        ("historical context", "historical_context"),
-        ("interpretation", "interpretation"),
-    )
-    sections.append("Confidence — " + "; ".join(
-        f"{label}: {confidence_dimensions[field]}" for label, field in confidence_labels
-    ))
+    if rendering_mode == INTERNAL_RENDERING_MODE:
+        confidence_labels = (
+            ("Attribution", "attribution"), ("wording", "wording"),
+            ("source event", "source_event"), ("date", "date"),
+            ("historical context", "historical_context"),
+            ("interpretation", "interpretation"),
+        )
+        sections.append("Confidence — " + "; ".join(
+            f"{label}: {confidence_dimensions[field]}" for label, field in confidence_labels
+        ))
     text = "\n\n".join(sections)
     weighted = x_weighted_length(text)
     if weighted > maximum_length or _v2_forbidden_style(text):
@@ -861,9 +896,43 @@ def format_context_reply_v2(
         "source_role_audit_version": (
             audit.get("policy_version") if isinstance(audit, dict) else None
         ),
-        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V3, "template_variant": variant,
+        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V4,
+        "rendering_mode": rendering_mode,
+        "template_variant": variant,
         "weighted_character_count": weighted,
     }
+
+
+def format_context_reply_public(
+    packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
+    include_meaning: bool = True, include_source: bool = True,
+    include_verification: bool = True,
+) -> dict[str, Any] | None:
+    """Render the compact public reply used for X posting."""
+    return format_context_reply_v2(
+        packet,
+        maximum_length=maximum_length,
+        include_meaning=include_meaning,
+        include_source=include_source,
+        include_verification=include_verification,
+        rendering_mode=PUBLIC_RENDERING_MODE,
+    )
+
+
+def format_context_reply_internal(
+    packet: dict[str, Any], *, maximum_length: int = DEFAULT_MAXIMUM_LENGTH,
+    include_meaning: bool = True, include_source: bool = True,
+    include_verification: bool = True,
+) -> dict[str, Any] | None:
+    """Render an internal view retaining the detailed confidence breakdown."""
+    return format_context_reply_v2(
+        packet,
+        maximum_length=maximum_length,
+        include_meaning=include_meaning,
+        include_source=include_source,
+        include_verification=include_verification,
+        rendering_mode=INTERNAL_RENDERING_MODE,
+    )
 
 
 class HistoricalContextReplyStore:
@@ -906,13 +975,25 @@ class HistoricalContextReplyStore:
 
     @staticmethod
     def _valid_formatter_metadata(value: Any) -> bool:
-        if not isinstance(value, dict) or frozenset(value) not in {
+        if not isinstance(value, dict):
+            return False
+        metadata_keys = frozenset(value)
+        if metadata_keys not in {
             frozenset(_FORMATTER_METADATA_KEYS_V2),
             frozenset(_FORMATTER_METADATA_KEYS_V3),
+            frozenset(_FORMATTER_METADATA_KEYS_V4),
         }:
             return False
         version = value.get("formatter_version")
-        if version == HISTORICAL_CONTEXT_FORMATTER_V3:
+        if (
+            (metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V3))
+            != (version == HISTORICAL_CONTEXT_FORMATTER_V3)
+        ) or (
+            (metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V4))
+            != (version == HISTORICAL_CONTEXT_FORMATTER_V4)
+        ):
+            return False
+        if version in {HISTORICAL_CONTEXT_FORMATTER_V3, HISTORICAL_CONTEXT_FORMATTER_V4}:
             from historical_context_source_roles import POLICY_VERSION
 
             dimensions = value.get("confidence_dimensions")
@@ -928,6 +1009,10 @@ class HistoricalContextReplyStore:
                 )
             ):
                 return False
+        if version == HISTORICAL_CONTEXT_FORMATTER_V4 and (
+            value.get("rendering_mode") not in HISTORICAL_CONTEXT_RENDERING_MODES
+        ):
+            return False
         return bool(
             isinstance(value, dict)
             and isinstance(value.get("formatter_version"), str)
@@ -1137,6 +1222,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Offline historical context reply formatter")
     parser.add_argument("--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR)
     parser.add_argument("--quote-id"); parser.add_argument("--quote-text"); parser.add_argument("--maximum-length", type=int, default=DEFAULT_MAXIMUM_LENGTH)
+    parser.add_argument(
+        "--rendering-mode",
+        choices=sorted(HISTORICAL_CONTEXT_RENDERING_MODES),
+        default=INTERNAL_RENDERING_MODE,
+        help="internal retains confidence detail; public matches the X reply",
+    )
     args = parser.parse_args(argv); packets, unresolved = load_and_validate_corpus(
         args.research_dir,
         require_source_role_audit=True,
@@ -1150,7 +1241,11 @@ def main(argv: list[str] | None = None) -> int:
         or not packet_is_attributed_to_margaret_thatcher(packet)
     ):
         raise SystemExit("no attribution-eligible completed canonical research packet; no reply")
-    result = format_context_reply_v2(packet, maximum_length=args.maximum_length)
+    result = format_context_reply_v2(
+        packet,
+        maximum_length=args.maximum_length,
+        rendering_mode=args.rendering_mode,
+    )
     if result is None: raise SystemExit("canonical packet cannot produce a supported reply")
     print(result["text"])
     print(f"\nCharacter count: raw={result['raw_character_count']} x_weighted={result['character_count']}/{result['maximum_length']}")

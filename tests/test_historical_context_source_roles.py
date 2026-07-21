@@ -12,6 +12,8 @@ import requests
 from openai import APIStatusError
 
 from historical_context_formatter import (
+    format_context_reply_internal,
+    format_context_reply_public,
     format_context_reply_v2,
     load_and_validate_corpus,
     packet_is_attributed_to_margaret_thatcher,
@@ -59,6 +61,7 @@ from historical_context_source_roles import (
 RESEARCH_DIR = Path("semantic_alignment_research/quote_research_full_001")
 THAMES_ID = "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4"
 PRIOR_ID = "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4"
+ROLLBACK_SOCIALISM_ID = "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4"
 HUGO_YOUNG_ID = "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
 WOODROW_WYATT_ID = "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407"
 PAUL_JOHNSON_ID = "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b"
@@ -338,55 +341,121 @@ def test_secondary_recollection_is_labelled_and_cannot_claim_exact_wording(corpu
     assert any(row["source_quality_class"] == "secondary_recollection"
                for row in item["renderable_sources"])
     assert "no primary Thatcher transcript located" in item["public_verification_wording"]
-    formatted = format_context_reply_v2(packet)
+    formatted = format_context_reply_public(packet)
     assert formatted is not None
     assert "Secondary recollection" in formatted["text"]
     assert "Exact wording verified" not in formatted["text"]
+    assert formatted["verification_label"] == (
+        "Attributed, but exact wording not independently verified"
+    )
+    assert "Confidence —" not in formatted["text"]
 
 
 def test_no_reliable_source_uses_explicit_safe_wording(corpus):
     packet = corpus[0][THAMES_ID]
-    formatted = format_context_reply_v2(packet)
+    formatted = format_context_reply_public(packet)
     assert formatted is not None
-    assert "Source — No reliable source located" in formatted["text"]
+    assert formatted["text"].endswith("Source — No reliable source located")
     assert "nps.gov" not in formatted["text"]
+    assert "Confidence —" not in formatted["text"]
 
 
 def test_confidence_dimensions_remain_separate(corpus):
-    formatted = format_context_reply_v2(corpus[0][THAMES_ID])
-    assert formatted is not None
-    dimensions = formatted["confidence_dimensions"]
+    public = format_context_reply_public(corpus[0][THAMES_ID])
+    internal = format_context_reply_internal(corpus[0][THAMES_ID])
+    assert public is not None and internal is not None
+    dimensions = public["confidence_dimensions"]
     assert set(dimensions) == {
         "attribution", "wording", "source_event", "date",
         "historical_context", "interpretation",
     }
-    assert "Confidence — Attribution:" in formatted["text"]
+    assert internal["confidence_dimensions"] == dimensions
+    assert "Confidence —" not in public["text"]
+    assert "Confidence — Attribution:" in internal["text"]
+    for label in (
+        "wording:", "source event:", "date:",
+        "historical context:", "interpretation:",
+    ):
+        assert label in internal["text"]
+    assert public["rendering_mode"] == "public"
+    assert internal["rendering_mode"] == "internal"
+
+
+def test_every_eligible_public_rendering_omits_detailed_confidence(corpus):
+    packets, _ = corpus
+    eligible = [
+        packet for packet in packets.values()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    ]
+    assert len(eligible) == 610
+    allowed_labels = {
+        "Exact wording verified",
+        "Historically verified variant",
+        "Verified excerpt",
+        "Attributed, but exact wording not independently verified",
+        "Research incomplete",
+    }
+    for packet in eligible:
+        formatted = format_context_reply_public(packet)
+        assert formatted is not None
+        assert "Confidence —" not in formatted["text"]
+        assert formatted["verification_label"] in allowed_labels
+        if not formatted["sources"]:
+            assert formatted["text"].endswith("Source — No reliable source located")
+        assert set(formatted["confidence_dimensions"]) == {
+            "attribution", "wording", "source_event", "date",
+            "historical_context", "interpretation",
+        }
+
+
+def test_rolling_back_socialism_regression_uses_public_sections_without_confidence(corpus):
+    packet = corpus[0][ROLLBACK_SOCIALISM_ID]
+    assert packet["quote_text"] == (
+        "We were the first country to attempt and to succeed in rolling back the "
+        "frontiers of socialism, which is the first cousin to communism."
+    )
+
+    formatted = format_context_reply_public(packet)
+
+    assert formatted is not None
+    assert formatted["text"].startswith("Context —")
+    assert "\n\nMeaning —" in formatted["text"]
+    assert "\n\nVerification — Research incomplete" in formatted["text"]
+    assert "\n\nSource — No reliable source located" in formatted["text"]
+    assert "Confidence —" not in formatted["text"]
+    assert set(formatted["confidence_dimensions"]) == {
+        "attribution", "wording", "source_event", "date",
+        "historical_context", "interpretation",
+    }
 
 
 def test_strong_mtf_locator_still_renders_exact_wording(corpus):
     quote_id = "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae"
-    formatted = format_context_reply_v2(corpus[0][quote_id])
+    formatted = format_context_reply_public(corpus[0][quote_id])
     assert formatted is not None
     assert "Verification — Exact wording verified" in formatted["text"]
     assert "Margaret Thatcher Foundation" in formatted["text"]
+    assert "Confidence —" not in formatted["text"]
 
 
 def test_thatcher_authored_book_with_page_locator_still_renders(corpus):
     quote_id = "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12"
-    formatted = format_context_reply_v2(corpus[0][quote_id])
+    formatted = format_context_reply_public(corpus[0][quote_id])
 
     assert formatted is not None
     assert "Verification — Exact wording verified" in formatted["text"]
     assert "The Downing Street Years, p. 513" in formatted["text"]
+    assert "Confidence —" not in formatted["text"]
 
 
 def test_historically_verified_variant_still_renders_as_variant(corpus):
     quote_id = "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015"
-    formatted = format_context_reply_v2(corpus[0][quote_id])
+    formatted = format_context_reply_public(corpus[0][quote_id])
 
     assert formatted is not None
     assert "Verification — Historically verified variant" in formatted["text"]
     assert "margaretthatcher.org/document/103522" in formatted["text"]
+    assert "Confidence —" not in formatted["text"]
 
 
 def test_every_public_source_supports_at_least_one_displayed_claim(corpus):

@@ -3685,7 +3685,7 @@ def test_unpersisted_context_preparation_failure_propagates_for_main_receipt_rep
         )
 
 
-def test_main_context_reply_path_uses_role_aware_v3_and_persists_version_metadata(
+def test_main_context_reply_path_uses_public_role_aware_v4_and_persists_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3710,7 +3710,7 @@ def test_main_context_reply_path_uses_role_aware_v3_and_persists_version_metadat
         "source": {"title": "Source", "url": "", "source_type": "official"},
         "source_class": "original speech transcript",
         "source_omitted": False,
-        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V3,
+        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V4,
         "confidence_dimensions": {
             "attribution": "high",
             "wording": "high",
@@ -3720,9 +3720,11 @@ def test_main_context_reply_path_uses_role_aware_v3_and_persists_version_metadat
             "interpretation": "high",
         },
         "source_role_audit_version": "test-source-role-audit-v1",
+        "rendering_mode": "public",
         "template_variant": "compact_without_redundant_meaning",
     }
     calls = []
+    format_calls = []
     events = []
     monkeypatch.setattr(bot, "historical_context_reply", {**bot.historical_context_reply, "enabled": True})
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
@@ -3735,7 +3737,11 @@ def test_main_context_reply_path_uses_role_aware_v3_and_persists_version_metadat
     )
     monkeypatch.setattr(context_module, "packet_for_posted_quote", lambda *_args: packet)
     monkeypatch.setattr(context_module, "format_context_reply", lambda *_args, **_kwargs: pytest.fail("v1 must not be used"))
-    monkeypatch.setattr(context_module, "format_context_reply_v2", lambda *_args, **_kwargs: formatted)
+    monkeypatch.setattr(
+        context_module,
+        "format_context_reply_public",
+        lambda *args, **kwargs: format_calls.append((args, kwargs)) or formatted,
+    )
     monkeypatch.setattr(
         context_module.HistoricalContextReplyStore,
         "post",
@@ -3751,14 +3757,19 @@ def test_main_context_reply_path_uses_role_aware_v3_and_persists_version_metadat
 
     assert result["status"] == "completed"
     assert calls[0]["reply_text"] == formatted["text"]
-    assert calls[0]["formatter_metadata"]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V3
+    assert len(format_calls) == 1
+    assert format_calls[0][0] == (packet,)
+    assert "rendering_mode" not in format_calls[0][1]
+    assert calls[0]["formatter_metadata"]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V4
     assert calls[0]["formatter_metadata"]["confidence_dimensions"] == formatted["confidence_dimensions"]
     assert calls[0]["formatter_metadata"]["source_role_audit_version"] == formatted["source_role_audit_version"]
+    assert calls[0]["formatter_metadata"]["rendering_mode"] == "public"
     assert calls[0]["formatter_metadata"]["template_variant"] == formatted["template_variant"]
-    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V3
+    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V4
+    assert events[-1]["rendering_mode"] == "public"
 
 
-def test_already_completed_legacy_context_reply_is_not_relabelled_as_v3(
+def test_already_completed_legacy_context_reply_is_not_relabelled_as_v4(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3766,20 +3777,21 @@ def test_already_completed_legacy_context_reply_is_not_relabelled_as_v3(
 
     quote_id = "a" * 64
     packet = {"quote_id": quote_id, "quote_text": "Quote"}
-    v3 = {
-        "quote_id": quote_id, "text": "Context — New v3 text.", "character_count": 22,
+    v4 = {
+        "quote_id": quote_id, "text": "Context — New v4 text.", "character_count": 22,
         "weighted_character_count": 22, "raw_character_count": 22, "maximum_length": 4000,
         "historical_confidence": "high", "meaning_included": False, "meaning_omitted": True,
         "meaning_decision_reason": "Redundant.", "shortening_applied": False,
         "verification_label": "Exact wording", "verification_omitted": False,
         "source": {"title": "Source", "url": "", "source_type": "official"},
         "source_class": "original speech transcript", "source_omitted": False,
-        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V3,
+        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V4,
         "confidence_dimensions": {
             "attribution": "high", "wording": "high", "source_event": "high",
             "date": "high", "historical_context": "high", "interpretation": "high",
         },
         "source_role_audit_version": "test-source-role-audit-v1",
+        "rendering_mode": "public",
         "template_variant": "compact_without_redundant_meaning",
     }
     legacy_text = "Historical context\nOccasion: Legacy event.\n\nVerification: Exact wording\nSource: Legacy"
@@ -3792,7 +3804,7 @@ def test_already_completed_legacy_context_reply_is_not_relabelled_as_v3(
         lambda _path, **_kwargs: ({quote_id: packet}, set()),
     )
     monkeypatch.setattr(context_module, "packet_for_posted_quote", lambda *_args: packet)
-    monkeypatch.setattr(context_module, "format_context_reply_v2", lambda *_args, **_kwargs: v3)
+    monkeypatch.setattr(context_module, "format_context_reply_public", lambda *_args, **_kwargs: v4)
     monkeypatch.setattr(
         context_module.HistoricalContextReplyStore,
         "post",

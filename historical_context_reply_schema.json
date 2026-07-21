@@ -25,6 +25,7 @@
     "meaning_omitted": {"type": "boolean"},
     "quote_id": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
     "raw_character_count": {"minimum": 1, "type": "integer"},
+    "rendering_mode": {"enum": ["public", "internal"]},
     "shortening_applied": {"type": "boolean"},
     "source": {
       "anyOf": [
