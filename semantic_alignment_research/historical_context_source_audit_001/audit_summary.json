@@ -7,21 +7,21 @@
     "insufficiently_located_evidence": 1053,
     "irrelevant_or_corrupt": 38,
     "reliable_secondary_evidence": 36,
-    "secondary_recollection": 4,
+    "secondary_recollection": 5,
     "strong_primary_evidence": 873
   },
-  "all_evidentiary_source_record_count": 3375,
-  "all_evidentiary_source_role_assignment_count": 4385,
+  "all_evidentiary_source_record_count": 3376,
+  "all_evidentiary_source_role_assignment_count": 4389,
   "all_evidentiary_source_role_counts": {
-    "attribution_support": 872,
+    "attribution_support": 873,
     "discovery_only": 2335,
     "rejected_irrelevant": 127,
-    "secondary_recollection": 4,
-    "source_event_support": 226,
-    "wording_verification": 821
+    "secondary_recollection": 5,
+    "source_event_support": 227,
+    "wording_verification": 822
   },
-  "audit_sha256": "ebab8591365d341b9968a6964d3b33b98d9de5a51eab1c29268d6206eb5dfa5c",
-  "audited_source_record_count": 3097,
+  "audit_sha256": "afda5152c18774bd2e2db39a001c4b7ea2a712f829e855dbe31579c769052053",
+  "audited_source_record_count": 3098,
   "changed_quote_ids": [
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
     "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
@@ -512,9 +512,14 @@
     "all_evidentiary_source_quality_counts": "One mutually exclusive quality class per observed or canonical virtual-locator evidence record.",
     "all_evidentiary_source_role_counts": "Overlapping claim roles across observed and canonical virtual-locator evidence records.",
     "headline_observed_source_disposition_counts": "Mutually exclusive accepted, discovery/insufficient and rejected dispositions for observed source records.",
-    "headline_observed_source_provenance_counts": "Mutually exclusive provenance categories for physical, recovered, model-lead and independently reviewed AI-located records.",
+    "headline_observed_source_provenance_counts": "Mutually exclusive provenance categories for physical, recovered, model-lead, independently reviewed AI-located and curated records.",
     "source_quality_counts": "One mutually exclusive quality class per observed source record; canonical virtual locator records are excluded.",
     "source_role_counts": "Overlapping claim roles for observed source records; one source may contribute more than one role assignment."
+  },
+  "curated_source_adjudication_count": 1,
+  "curated_source_count": 1,
+  "curated_source_quality_counts": {
+    "secondary_recollection": 1
   },
   "eligible_quote_count": 610,
   "gemini_researched_source_count": 1,
@@ -522,17 +527,18 @@
     "reliable_secondary_evidence": 1
   },
   "headline_observed_source_disposition_counts": {
-    "accepted_evidence": 635,
+    "accepted_evidence": 636,
     "discovery_or_insufficient": 2089,
     "rejected_or_non_verifying": 373,
-    "total": 3097
+    "total": 3098
   },
   "headline_observed_source_provenance_counts": {
     "ai_located_independently_reviewed_sources": 34,
     "model_proposed_source_leads": 790,
+    "operator_curated_sources": 1,
     "physical_packet_sources": 2017,
     "recovered_citation_sources": 256,
-    "total": 3097
+    "total": 3098
   },
   "model_proposed_lead_quality_counts": {
     "discovery_lead_only": 789,
@@ -591,7 +597,6 @@
     "7c29b290a8e1898c86c39b0cdd23c60161ca73cc068d4a888a19f1f7f3967d0d",
     "7f75c4d086fb67b0e54d9d63dbe470dc6f9f929aee00ce4a02d01bbc9c8d4646",
     "7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2",
-    "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407",
     "824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af",
     "8584b7bae61545528f8d5b37452944aeca9cc8016d3e99df67e6231bcae69172",
     "876bdb8ea63e16f1f17fa2e85a46a2bdee820cc80713b98bda78fa49c2a4d6eb",
@@ -657,9 +662,9 @@
     "strong_primary_evidence": 26
   },
   "packet_count": 626,
-  "packets_requiring_new_historical_research": 220,
+  "packets_requiring_new_historical_research": 219,
   "packets_whose_public_output_changes": 484,
-  "packets_with_no_reliable_source": 108,
+  "packets_with_no_reliable_source": 107,
   "physical_source_quality_counts": {
     "broken_or_non_verifying_url": 89,
     "circular_attribution": 244,
@@ -835,7 +840,6 @@
     "b829e9436d9050c6fd8e99346706bd4460d3a80feeaf4041d61d3e7fd0a92c18",
     "bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be",
     "bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1",
-    "beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756",
     "bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f",
     "c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57",
     "c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247",
@@ -908,17 +912,17 @@
     "insufficiently_located_evidence": 1053,
     "irrelevant_or_corrupt": 38,
     "reliable_secondary_evidence": 17,
-    "secondary_recollection": 1,
+    "secondary_recollection": 2,
     "strong_primary_evidence": 617
   },
-  "source_role_assignment_count": 3679,
+  "source_role_assignment_count": 3683,
   "source_role_counts": {
-    "attribution_support": 594,
+    "attribution_support": 595,
     "discovery_only": 2335,
     "rejected_irrelevant": 127,
-    "secondary_recollection": 1,
-    "source_event_support": 69,
-    "wording_verification": 553
+    "secondary_recollection": 2,
+    "source_event_support": 70,
+    "wording_verification": 554
   },
   "unresolved_quote_count": 6,
   "virtual_locator_source_count": 278

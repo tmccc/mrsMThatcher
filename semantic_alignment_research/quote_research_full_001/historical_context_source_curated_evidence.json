@@ -1,0 +1,62 @@
+{
+  "created_at": "2026-07-22",
+  "items": {
+    "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407": {
+      "quote_id": "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407",
+      "quote_text": "I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no guts. They should be defending Britain against the transfer of power to Maastricht and our loss of sovereignty and our loss of identity.",
+      "quote_text_sha256": "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "secondary_recollection"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "I didn't realise how absolutely useless they [the House of Lords] are. There they are, they just go along to collect £15,000 a year... They've got no guts. They should be defending Britain against the transfer of power to Maastricht and our loss of sovereignty and our loss of identity... If they were bigger men, they would take the risk. Actually, I think they are quite useless and they ought to be abolished. They are no good at all.",
+          "exact_supporting_passage_sha256": "7d18ee0737a0d61ecd136b96753a01ebf63285f3d474d10606dd0debde865842",
+          "page_independently_inspected": false,
+          "rationale": "The operator supplied the full reported passage and a precise page citation. It is retained as evidence of Woodrow Wyatt's published recollection, not as a primary Thatcher transcript.",
+          "recorded_at": "2026-07-22",
+          "source_date": "27 January 1993",
+          "source_event": "Remarks to Woodrow Wyatt",
+          "source_id": "12abb72d64e6b2cc79a216cb3bac0adfc126c1f7052e72b3220f5940ddf3f4bb",
+          "source_quality_class": "secondary_recollection",
+          "source_type": "published_journal_secondary_recollection",
+          "stable_locator": "Woodrow Wyatt, The Journals of Woodrow Wyatt, Volume Three, ed. Sarah Curtis (2000), p. 166",
+          "title": "Woodrow Wyatt, The Journals of Woodrow Wyatt, Vol. 3, p. 166",
+          "url": "",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    }
+  },
+  "policy_version": "historical-context-curated-evidence-v2-source-adjudications",
+  "quote_count": 1,
+  "schema_version": 2,
+  "source_adjudication_count": 1,
+  "source_adjudications": [
+    {
+      "adjudication_id": "c9947f16e4a78870bc26fed0593922ec7a8fc579cfeab7488ad556443864ecd7",
+      "decision": "promote_partial_to_normalised",
+      "matched_passage_sha256": "e807e830c25f6ea14d7a490c643ef43ac123daa4fbd4914b464c8a6f6f0e9991",
+      "page_text_sha256": "5b9550d69cde9c2becad07151dc231d360c2eb6a7d49c3ba7ca8d1c1bb281594",
+      "public_url": "https://www.margaretthatcher.org/document/102777",
+      "quote_id": "beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756",
+      "quote_text_sha256": "beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756",
+      "rationale": "The saved official transcript contains every stored wording token in order; the only intervening words are the page's section heading. Independent inspection confirms this is a layout interruption, not a quotation variant.",
+      "resolution_record_sha256": "158cdeb77dc36415022076b1509433c0b42dbe3c65a89636892c6602b260080b",
+      "reviewed_at": "2026-07-22",
+      "source_id": "e667103a8f9a5f3991bdaab2b09b0465738324e3228ae8e7b871f5555e67b810",
+      "wording_coverage": "normalised"
+    }
+  ],
+  "source_count": 1
+}

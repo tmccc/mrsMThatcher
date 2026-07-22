@@ -1968,6 +1968,8 @@ _HISTORICAL_CONTEXT_SOURCE_ROLE_AUDIT_VERSIONS = (
     "historical-context-source-roles-v3",
     "historical-context-source-roles-v4",
     "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
+    "historical-context-source-roles-v6-curated-evidence",
+    "historical-context-source-roles-v7-curated-source-adjudications",
     "unavailable",
 )
 _HISTORICAL_CONTEXT_CONFIDENCE_DIMENSIONS = (

@@ -47,6 +47,10 @@ from historical_context_source_independent_review import (
     REVIEW_FILENAME,
     validate_independent_review,
 )
+from historical_context_source_curated_evidence import (
+    CURATED_EVIDENCE_FILENAME,
+    validate_curated_evidence,
+)
 from historical_context_source_recovery import validate_recovery
 from historical_context_source_research_manifest import validate_research_manifest
 from historical_context_source_resolution import validate_resolution
@@ -64,6 +68,7 @@ PRIOR_ID = "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4"
 ROLLBACK_SOCIALISM_ID = "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4"
 HUGO_YOUNG_ID = "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
 WOODROW_WYATT_ID = "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407"
+VISION_ID = "beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756"
 PAUL_JOHNSON_ID = "e7f47c3d78e910d0639668eca12491cb6406ad22191d4acc33dfb45562a5f44b"
 OUP_SOURCE_ID = "5daed0133a71b6a1cea243187f7ce47060c95362fc2375d8bbf54b8c90241e80"
 MANDATORY_GOOGLE_IDS = {
@@ -87,6 +92,13 @@ def audit():
 @pytest.fixture(scope="module")
 def independent_review():
     return json.loads((RESEARCH_DIR / REVIEW_FILENAME).read_text(encoding="utf-8"))
+
+
+@pytest.fixture(scope="module")
+def curated_evidence():
+    return json.loads(
+        (RESEARCH_DIR / CURATED_EVIDENCE_FILENAME).read_text(encoding="utf-8")
+    )
 
 
 def test_all_ai_located_sources_have_frozen_independent_page_review(
@@ -201,12 +213,79 @@ def test_recollections_are_counted_and_never_promoted_to_primary(corpus, audit):
 
     woodrow = audit["items"][WOODROW_WYATT_ID]
     assert woodrow["locator_audit"]["precise"] is False
-    assert not woodrow["renderable_sources"]
+    assert len(woodrow["curated_sources"]) == 1
+    source = woodrow["curated_sources"][0]
+    assert source["source_quality_class"] == "secondary_recollection"
+    assert source["page_independently_inspected"] is False
+    assert source["stable_locator"].endswith("p. 166")
+    assert "secondary_recollection" in source["assigned_roles"]
+    assert source in woodrow["renderable_sources"]
     assert woodrow["requires_further_research"] is True
     assert "Exact wording verified" not in woodrow["public_verification_wording"]
+    assert "no primary Thatcher transcript located" in woodrow[
+        "public_verification_wording"
+    ]
+    formatted = format_context_reply_v2(
+        corpus[0][WOODROW_WYATT_ID], maximum_length=25_000
+    )
+    assert formatted is not None
+    assert "Secondary recollection" in formatted["text"]
+    assert "Vol. 3, p. 166" in formatted["text"]
+    assert "Exact wording verified" not in formatted["text"]
     assert audit["summary"]["all_evidentiary_source_quality_counts"][
         "secondary_recollection"
-    ] == 4
+    ] == 5
+
+
+def test_transcript_heading_does_not_downgrade_complete_normalised_wording(
+    corpus, audit
+):
+    item = audit["items"][VISION_ID]
+    assert audit["curated_source_adjudication_count"] == 1
+    assert item["curated_source_count"] == 0
+    assert item["curated_source_adjudication_count"] == 1
+    source = next(
+        row for row in item["renderable_sources"]
+        if row.get("public_url")
+        == "https://www.margaretthatcher.org/document/102777"
+    )
+    assert source["source_quality_class"] == "strong_primary_evidence"
+    assert source["claim_coverage"]["wording"] == "normalised"
+    assert source["curated_source_adjudication"]["decision"] == (
+        "promote_partial_to_normalised"
+    )
+    assert item["confidence_after"]["wording"] == "high"
+    assert item["public_verification_wording"] == "Normalised wording verified"
+    assert item["requires_further_research"] is False
+    assert [
+        row["url"] for row in public_sources(corpus[0][VISION_ID])
+        if row["url"] == source["public_url"]
+    ] == [source["public_url"]]
+
+
+def test_curated_evidence_is_identity_bound_and_fails_closed(
+    corpus, curated_evidence
+):
+    packets, _ = corpus
+    validate_curated_evidence(curated_evidence, packets)
+
+    altered_passage = copy.deepcopy(curated_evidence)
+    source = altered_passage["items"][WOODROW_WYATT_ID]["sources"][0]
+    source["exact_supporting_passage"] += " altered"
+    with pytest.raises(RuntimeError, match="curated source is invalid"):
+        validate_curated_evidence(altered_passage, packets)
+
+    altered_identity = copy.deepcopy(curated_evidence)
+    altered_identity["items"][WOODROW_WYATT_ID]["quote_text"] += " altered"
+    with pytest.raises(RuntimeError, match="changed quotation identity"):
+        validate_curated_evidence(altered_identity, packets)
+
+    altered_adjudication = copy.deepcopy(curated_evidence)
+    altered_adjudication["source_adjudications"][0][
+        "resolution_record_sha256"
+    ] = "0" * 64
+    with pytest.raises(RuntimeError, match="source adjudication is invalid"):
+        validate_curated_evidence(altered_adjudication, packets)
 
 
 def test_headline_source_counts_are_mutually_exclusive_and_balanced(audit):
@@ -505,7 +584,7 @@ def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corp
     packets, _ = corpus
     queue = residual_queue(audit)
     preflight = build_preflight(packets, audit, queue)
-    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 108
+    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 107
     assert len(set(queue)) == len(queue)
     assert queue[0] == THAMES_ID
     assert "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a" not in queue

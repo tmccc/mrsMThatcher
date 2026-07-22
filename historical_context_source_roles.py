@@ -36,11 +36,15 @@ from historical_context_source_independent_review import (
     REVIEW_POLICY_VERSION,
     validate_independent_review,
 )
+from historical_context_source_curated_evidence import (
+    CURATED_EVIDENCE_FILENAME,
+    validate_curated_evidence,
+)
 
 
-AUDIT_SCHEMA_VERSION = 4
+AUDIT_SCHEMA_VERSION = 5
 POLICY_VERSION = (
-    "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
+    "historical-context-source-roles-v7-curated-source-adjudications"
 )
 AUDIT_FILENAME = "historical_context_source_role_audit.json"
 
@@ -1024,6 +1028,69 @@ def _packet_roles(packet: dict[str, Any], source_rows: list[dict[str, Any]], loc
     return source_rows + [virtual]
 
 
+def _apply_curated_source_adjudications(
+    packet: dict[str, Any],
+    source_rows: list[dict[str, Any]],
+    adjudications: list[dict[str, Any]],
+    resolution_page_text_hashes: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Apply hash-bound corrections to existing rows without adding sources."""
+    rows = [dict(row) for row in source_rows]
+    for adjudication in adjudications:
+        matches = [
+            (index, row)
+            for index, row in enumerate(rows)
+            if row.get("source_id") == adjudication["source_id"]
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(
+                "historical-context curated adjudication target differs: "
+                f"{packet['quote_id']}"
+            )
+        index, row = matches[0]
+        passage_hashes = {
+            passage.get("sha256")
+            for passage in row.get("supporting_passages", [])
+        }
+        if (
+            packet.get("verification_status") != "normalised"
+            or adjudication["decision"] != "promote_partial_to_normalised"
+            or adjudication["wording_coverage"] != "normalised"
+            or row.get("source_quality_class") != "strong_primary_evidence"
+            or row.get("claim_coverage", {}).get("wording") != "partial"
+            or row.get("resolved_redirect_record") is not True
+            or row.get("resolution_record_sha256")
+            != adjudication["resolution_record_sha256"]
+            or resolution_page_text_hashes.get(adjudication["source_id"])
+            != adjudication["page_text_sha256"]
+            or adjudication["matched_passage_sha256"] not in passage_hashes
+            or row.get("public_url") != adjudication["public_url"]
+        ):
+            raise RuntimeError(
+                "historical-context curated adjudication evidence differs: "
+                f"{packet['quote_id']}"
+            )
+        updated = {
+            **row,
+            "claim_coverage": {
+                **row.get("claim_coverage", {}),
+                "wording": adjudication["wording_coverage"],
+            },
+            "rationale": adjudication["rationale"],
+            "curated_source_adjudication": {
+                key: adjudication[key]
+                for key in (
+                    "adjudication_id",
+                    "decision",
+                    "page_text_sha256",
+                    "reviewed_at",
+                )
+            },
+        }
+        rows[index] = updated
+    return rows
+
+
 def audit_packet(
     packet: dict[str, Any],
     *,
@@ -1033,12 +1100,15 @@ def audit_packet(
     research_item: dict[str, Any] | None = None,
     openai_research_item: dict[str, Any] | None = None,
     independent_review_items: dict[str, dict[str, Any]] | None = None,
+    curated_evidence_item: dict[str, Any] | None = None,
+    curated_source_adjudications: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Audit every source and confidence dimension for one packet."""
     locator_kind = precise_locator_kind(packet.get("stable_locator"))
     locator_is_precise = locator_kind not in {None, "quotation_compilation"}
     resolution_items = (source_resolution or {}).get("items", {})
     physical_rows = []
+    resolution_page_text_hashes: dict[str, str] = {}
     for index, source in enumerate(packet.get("sources", [])):
         resolution = resolution_items.get(sha256_bytes(_clean(source.get("url")).encode()))
         if resolution is not None and packet["quote_id"] in resolution.get("quote_ids", []):
@@ -1048,6 +1118,16 @@ def audit_packet(
                 packet["quote_id"], packet, index, source, locator_kind=locator_kind
             )
         physical_rows.append(row)
+        if resolution is not None:
+            resolution_page_text_hashes[row["source_id"]] = resolution.get(
+                "page_text_sha256"
+            )
+    physical_rows = _apply_curated_source_adjudications(
+        packet,
+        physical_rows,
+        curated_source_adjudications or [],
+        resolution_page_text_hashes,
+    )
     recovery_item = recovery_item or {}
     recovered_rows = [
         audit_recovered_citation(packet["quote_id"], packet, citation)
@@ -1066,8 +1146,56 @@ def audit_packet(
         for item in (research_item, openai_research_item)
         for source in (item or {}).get("validated_sources", [])
     ]
+    curated_rows = [
+        {
+            "source_id": source["source_id"],
+            "source_index": None,
+            "source_fingerprint": source["source_id"],
+            "source_title": source["title"],
+            "source_url": source["url"],
+            "source_type": source["source_type"],
+            "source_event": source["source_event"],
+            "source_date": source["source_date"],
+            "assigned_roles": list(source["assigned_roles"]),
+            "source_quality_class": source["source_quality_class"],
+            "claims_supported": [
+                field for field in CLAIM_FIELDS
+                if field in source["claims_supported"]
+            ],
+            "claims_not_supported": [
+                field for field in CLAIM_FIELDS
+                if field not in source["claims_supported"]
+            ],
+            "claim_coverage": {
+                "wording": (
+                    "normalised"
+                    if source["wording_match_kind"] == "historical_variant"
+                    else source["wording_match_kind"]
+                )
+            },
+            "action": "keep",
+            "confidence_before": _clean(packet.get("research_confidence")),
+            "supporting_passages": [{
+                "kind": "operator_supplied_book_passage",
+                "text": source["exact_supporting_passage"],
+                "sha256": source["exact_supporting_passage_sha256"],
+            }],
+            "public_title": source["title"],
+            "public_url": source["url"],
+            "stable_locator": source["stable_locator"],
+            "rationale": source["rationale"],
+            "curated_evidence_record": True,
+            "recorded_at": source["recorded_at"],
+            "page_independently_inspected": source[
+                "page_independently_inspected"
+            ],
+        }
+        for source in (curated_evidence_item or {}).get("sources", [])
+    ]
     rows = _packet_roles(
-        packet, physical_rows + recovered_rows + researched_rows, locator_kind
+        packet,
+        physical_rows + recovered_rows + researched_rows + curated_rows,
+        locator_kind,
     )
     def claim_confidence(claim: str) -> str:
         ranking = {
@@ -1154,6 +1282,14 @@ def audit_packet(
             row["research_provider"] for row in researched_rows
         ).items())),
         "researched_sources": researched_rows,
+        "curated_source_count": len(curated_rows),
+        "curated_sources": curated_rows,
+        "curated_source_adjudication_count": len(
+            curated_source_adjudications or []
+        ),
+        "curated_source_adjudications": list(
+            curated_source_adjudications or []
+        ),
         "bounded_research_outcomes": {
             provider: item.get("final_outcome")
             for provider, item in (
@@ -1190,6 +1326,7 @@ def build_audit(
     researched_evidence: dict[str, Any] | None = None,
     openai_researched_evidence: dict[str, Any] | None = None,
     independent_review: dict[str, Any] | None = None,
+    curated_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the complete deterministic source-role sidecar."""
     if recovered_evidence is not None:
@@ -1216,6 +1353,15 @@ def build_audit(
             researched_evidence,
             openai_researched_evidence,
         )
+    if curated_evidence is not None:
+        validate_curated_evidence(curated_evidence, packets)
+    curated_adjudications_by_quote: dict[str, list[dict[str, Any]]] = {}
+    for adjudication in (curated_evidence or {}).get(
+        "source_adjudications", []
+    ):
+        curated_adjudications_by_quote.setdefault(
+            adjudication["quote_id"], []
+        ).append(adjudication)
     items = {
         quote_id: audit_packet(
             packet,
@@ -1227,6 +1373,12 @@ def build_audit(
                 "items", {}
             ).get(quote_id),
             independent_review_items=(independent_review or {}).get("items", {}),
+            curated_evidence_item=(curated_evidence or {}).get("items", {}).get(
+                quote_id
+            ),
+            curated_source_adjudications=curated_adjudications_by_quote.get(
+                quote_id, []
+            ),
         )
         for quote_id, packet in sorted(packets.items())
     }
@@ -1240,12 +1392,21 @@ def build_audit(
     researched_sources = [
         source for item in items.values() for source in item["researched_sources"]
     ]
+    curated_sources = [
+        source for item in items.values() for source in item["curated_sources"]
+    ]
+    curated_source_adjudication_count = sum(
+        item["curated_source_adjudication_count"] for item in items.values()
+    )
     virtual_locator_sources = [
         source
         for item in items.values()
         for source in item["virtual_locator_sources"]
     ]
-    all_sources = physical_sources + recovered_sources + lead_sources + researched_sources
+    all_sources = (
+        physical_sources + recovered_sources + lead_sources
+        + researched_sources + curated_sources
+    )
     all_evidentiary_sources = all_sources + virtual_locator_sources
     quality_counts = Counter(source["source_quality_class"] for source in all_sources)
     role_counts = Counter(role for source in all_sources for role in source["assigned_roles"])
@@ -1282,6 +1443,10 @@ def build_audit(
     if independent_review is not None:
         source_file_hashes[REVIEW_FILENAME] = file_sha256(
             research_dir / REVIEW_FILENAME
+        )
+    if curated_evidence is not None:
+        source_file_hashes[CURATED_EVIDENCE_FILENAME] = file_sha256(
+            research_dir / CURATED_EVIDENCE_FILENAME
         )
     gemini_researched_sources = [
         source for source in researched_sources
@@ -1331,7 +1496,7 @@ def build_audit(
     return {
         "schema_version": AUDIT_SCHEMA_VERSION,
         "policy_version": POLICY_VERSION,
-        "audit_date": "2026-07-21",
+        "audit_date": "2026-07-22",
         "source_file_hashes": source_file_hashes,
         "packet_count": len(items),
         "source_count": len(physical_sources),
@@ -1340,6 +1505,8 @@ def build_audit(
         "gemini_researched_source_count": len(gemini_researched_sources),
         "openai_researched_source_count": len(openai_researched_sources),
         "researched_source_count": len(researched_sources),
+        "curated_source_count": len(curated_sources),
+        "curated_source_adjudication_count": curated_source_adjudication_count,
         "audited_source_record_count": len(all_sources),
         "virtual_locator_source_count": len(virtual_locator_sources),
         "all_evidentiary_source_record_count": len(all_evidentiary_sources),
@@ -1351,7 +1518,7 @@ def build_audit(
             "count_semantics": {
                 "headline_observed_source_provenance_counts": (
                     "Mutually exclusive provenance categories for physical, recovered, "
-                    "model-lead and independently reviewed AI-located records."
+                    "model-lead, independently reviewed AI-located and curated records."
                 ),
                 "headline_observed_source_disposition_counts": (
                     "Mutually exclusive accepted, discovery/insufficient and rejected "
@@ -1379,6 +1546,7 @@ def build_audit(
                 "recovered_citation_sources": len(recovered_sources),
                 "model_proposed_source_leads": len(lead_sources),
                 "ai_located_independently_reviewed_sources": len(researched_sources),
+                "operator_curated_sources": len(curated_sources),
                 "total": len(all_sources),
             },
             "headline_observed_source_disposition_counts": headline_dispositions,
@@ -1411,6 +1579,12 @@ def build_audit(
             "openai_researched_source_quality_counts": dict(sorted(Counter(
                 source["source_quality_class"] for source in openai_researched_sources
             ).items())),
+            "curated_source_quality_counts": dict(sorted(Counter(
+                source["source_quality_class"] for source in curated_sources
+            ).items())),
+            "curated_source_adjudication_count": (
+                curated_source_adjudication_count
+            ),
             "packets_with_no_reliable_source": len(no_reliable),
             "packets_whose_public_output_changes": len(changed),
             "packets_requiring_new_historical_research": len(needs_research),
@@ -1521,6 +1695,22 @@ def validate_and_attach_audit(
         raise RuntimeError(
             "historical-context AI-located sources lack independent review"
         )
+    curated_evidence = None
+    if CURATED_EVIDENCE_FILENAME in audit.get("source_file_hashes", {}):
+        curated_path = research_dir / CURATED_EVIDENCE_FILENAME
+        if not curated_path.exists():
+            raise RuntimeError(
+                f"historical-context curated evidence is missing: {curated_path}"
+            )
+        curated_evidence = json.loads(curated_path.read_text(encoding="utf-8"))
+        validate_curated_evidence(curated_evidence, packets)
+        if (
+            audit["source_file_hashes"][CURATED_EVIDENCE_FILENAME]
+            != file_sha256(curated_path)
+        ):
+            raise RuntimeError(
+                "historical-context source-role audit is stale for curated evidence"
+            )
     expected = build_audit(
         packets,
         unresolved,
@@ -1531,6 +1721,7 @@ def validate_and_attach_audit(
         researched_evidence=researched,
         openai_researched_evidence=openai_researched,
         independent_review=independent_review,
+        curated_evidence=curated_evidence,
     )
     if canonical_json(audit) != canonical_json(expected):
         raise RuntimeError("historical-context source-role audit differs from deterministic policy output")
@@ -1562,6 +1753,29 @@ def validate_and_attach_audit(
         ))
         if row.get("researched_source_count") != expected_researched:
             raise RuntimeError(f"historical-context researched source coverage differs: {quote_id}")
+        expected_curated = len(
+            (curated_evidence or {}).get("items", {}).get(quote_id, {}).get(
+                "sources", []
+            )
+        )
+        if row.get("curated_source_count") != expected_curated:
+            raise RuntimeError(
+                f"historical-context curated source coverage differs: {quote_id}"
+            )
+        expected_adjudications = sum(
+            adjudication.get("quote_id") == quote_id
+            for adjudication in (curated_evidence or {}).get(
+                "source_adjudications", []
+            )
+        )
+        if (
+            row.get("curated_source_adjudication_count")
+            != expected_adjudications
+        ):
+            raise RuntimeError(
+                "historical-context curated source adjudication coverage "
+                f"differs: {quote_id}"
+            )
         attached[quote_id] = {
             **packet,
             "_source_role_audit": {**row, "policy_version": audit["policy_version"]},

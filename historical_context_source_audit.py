@@ -44,6 +44,10 @@ from historical_context_source_independent_review import (
     REVIEW_FILENAME,
     validate_independent_review,
 )
+from historical_context_source_curated_evidence import (
+    CURATED_EVIDENCE_FILENAME,
+    validate_curated_evidence,
+)
 from semantic_alignment.io import atomic_write_text
 
 
@@ -193,6 +197,11 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
             researched,
             openai_researched,
         )
+    curated_path = research_dir / CURATED_EVIDENCE_FILENAME
+    curated_evidence = None
+    if curated_path.exists():
+        curated_evidence = _load_json(curated_path)
+        validate_curated_evidence(curated_evidence, packets)
     audit = build_audit(
         packets,
         unresolved,
@@ -203,6 +212,7 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         researched_evidence=researched,
         openai_researched_evidence=openai_researched,
         independent_review=independent_review,
+        curated_evidence=curated_evidence,
     )
     audit_path = research_dir / AUDIT_FILENAME
     atomic_write_json(audit_path, audit)
@@ -237,6 +247,8 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         source_files.append(openai_research_path)
     if independent_review is not None:
         source_files.append(independent_review_path)
+    if curated_evidence is not None:
+        source_files.append(curated_path)
     snapshot = {
         "schema_version": 1,
         "audit_path": str(audit_path),
@@ -259,6 +271,9 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         "attribution_eligible_ids_sha256_after": quote_set_hash(after_eligible),
         "quote_identity_unchanged": before_identity == after_identity,
         "regular_post_eligibility_unchanged": before_eligible == after_eligible,
+        "curated_source_adjudication_count": audit[
+            "curated_source_adjudication_count"
+        ],
         "canonical_research_files_modified": False,
         "raw_source_history_preserved": True,
         "raw_response_files_modified": False,
@@ -274,6 +289,10 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         "gemini_researched_source_count": audit["gemini_researched_source_count"],
         "openai_researched_source_count": audit["openai_researched_source_count"],
         "researched_source_count": audit["researched_source_count"],
+        "curated_source_count": audit["curated_source_count"],
+        "curated_source_adjudication_count": audit[
+            "curated_source_adjudication_count"
+        ],
         "audited_source_record_count": audit["audited_source_record_count"],
         "virtual_locator_source_count": audit["virtual_locator_source_count"],
         "all_evidentiary_source_record_count": audit[
@@ -559,6 +578,7 @@ def render_report(
         f"- `{research_dir / RESOLUTION_FILENAME}`",
         f"- `{research_dir / RESEARCH_FILENAME}`",
         f"- `{research_dir / OPENAI_RESEARCH_FILENAME}`",
+        f"- `{research_dir / CURATED_EVIDENCE_FILENAME}`",
         f"- `{research_dir / AUDIT_FILENAME}`",
         f"- `{output_dir}` (cost ledgers, raw provider audit responses, and aggregate research outputs)",
         f"- `{output_dir / 'source_snapshot_manifest.json'}`",
