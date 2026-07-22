@@ -139,8 +139,11 @@ def test_historical_context_v5_public_labels_are_not_downgraded_to_unavailable()
     assert result["formatter_version_counts"]["historical_context_reply_schema_v5"] == len(labels)
 
 
-def test_current_source_role_version_is_reported():
-    version = "historical-context-source-roles-v7-curated-source-adjudications"
+def test_current_and_previous_source_role_versions_are_reported():
+    versions = (
+        "historical-context-source-roles-v7-curated-source-adjudications",
+        "historical-context-source-roles-v8-claim-specific-public-context",
+    )
     result = digest.historical_context_quality_summary([
         event(
             "historical_context_reply",
@@ -149,9 +152,13 @@ def test_current_source_role_version_is_reported():
             verification_label="Attributed, but exact wording not independently verified",
             source_role_audit_version=version,
         )
+        for version in versions
     ])
 
-    assert result["source_role_audit_version_counts"][version] == 1
+    assert all(
+        result["source_role_audit_version_counts"][version] == 1
+        for version in versions
+    )
     assert result["source_role_audit_version_counts"]["unavailable"] == 0
 
 

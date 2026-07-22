@@ -57,6 +57,7 @@ from historical_context_source_resolution import validate_resolution
 from historical_context_source_roles import (
     AUDIT_FILENAME,
     _public_verification,
+    audit_packet,
     audit_researched_source,
     public_sources,
 )
@@ -566,6 +567,87 @@ def test_every_public_source_supports_at_least_one_displayed_claim(corpus):
                 "wording", "attribution", "source_event", "date",
                 "historical_context",
             }
+
+
+def _context_admission_packet(
+    claims_supported: list[str],
+    *,
+    source_quality_class: str = "strong_primary_evidence",
+) -> dict:
+    quote_text = "A synthetic quotation used only for source-role admission tests."
+    source_roles = []
+    if set(claims_supported) & {"source_event", "date"}:
+        source_roles.append("source_event_support")
+    if "historical_context" in claims_supported:
+        source_roles.append("historical_context_support")
+    packet = {
+        "quote_id": "a" * 64,
+        "quote_text": quote_text,
+        "verified_text": quote_text,
+        "verification_status": "exact",
+        "speaker": "Margaret Thatcher",
+        "source_event": "Synthetic speech",
+        "date": "1981-05-20",
+        "historical_context": "Synthetic historical context used to test claim admission.",
+        "stable_locator": "Unknown",
+        "research_confidence": "high",
+        "sources": [],
+    }
+    curated_source = {
+        "source_id": "b" * 64,
+        "title": "Synthetic primary transcript",
+        "url": "https://example.test/archive/document/1",
+        "source_type": "primary_transcript",
+        "source_event": packet["source_event"],
+        "source_date": packet["date"],
+        "assigned_roles": source_roles,
+        "source_quality_class": source_quality_class,
+        "claims_supported": claims_supported,
+        "wording_match_kind": "exact",
+        "exact_supporting_passage": quote_text,
+        "exact_supporting_passage_sha256": hashlib.sha256(
+            quote_text.encode()
+        ).hexdigest(),
+        "stable_locator": "Synthetic document 1",
+        "rationale": "Synthetic claim-scoped evidence.",
+        "recorded_at": "2026-07-22T00:00:00Z",
+        "page_independently_inspected": True,
+    }
+    return audit_packet(
+        packet,
+        attribution_eligible=True,
+        curated_evidence_item={"sources": [curated_source]},
+    )
+
+
+@pytest.mark.parametrize(
+    ("claims_supported", "expected_fields"),
+    [
+        (["date"], ["date"]),
+        (["source_event"], ["source_event"]),
+        (
+            ["source_event", "date"],
+            ["source_event", "date"],
+        ),
+        (["historical_context"], ["historical_context"]),
+    ],
+)
+def test_public_context_admission_is_claim_specific(
+    claims_supported, expected_fields
+):
+    item = _context_admission_packet(claims_supported)
+
+    assert item["public_context_supported_fields"] == expected_fields
+
+
+def test_public_context_admission_requires_non_unknown_claim_confidence():
+    item = _context_admission_packet(
+        ["source_event"],
+        source_quality_class="insufficiently_located_evidence",
+    )
+
+    assert item["confidence_after"]["source_event"] == "unknown"
+    assert item["public_context_supported_fields"] == []
 
 
 def test_secondary_wording_requires_explicit_thatcher_attribution(audit):

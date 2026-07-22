@@ -1,11 +1,11 @@
 {
-  "all_evidentiary_source_record_count": 3376,
+  "all_evidentiary_source_record_count": 3377,
   "attribution_eligible_quote_count": 610,
   "attribution_eligible_quote_ids_sha256": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
   "audit_date": "2026-07-22",
-  "audited_source_record_count": 3098,
+  "audited_source_record_count": 3099,
   "curated_source_adjudication_count": 1,
-  "curated_source_count": 1,
+  "curated_source_count": 2,
   "gemini_researched_source_count": 1,
   "items": {
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": {
@@ -1939,7 +1939,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -3064,7 +3063,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -11389,7 +11387,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -15403,7 +15400,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -16974,7 +16970,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -20023,7 +20018,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -20297,7 +20291,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -20579,7 +20572,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -21210,7 +21202,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -21684,7 +21675,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -26526,7 +26516,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -27754,7 +27743,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -28403,7 +28391,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -31362,7 +31349,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -37268,7 +37254,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -38049,7 +38034,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -39431,7 +39415,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -40535,8 +40518,7 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
-        "date"
+        "source_event"
       ],
       "public_output_changes": [
         "discovery-only source suppressed"
@@ -40946,7 +40928,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -53428,7 +53409,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -57045,7 +57025,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -59918,7 +59897,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -62744,7 +62722,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -64647,7 +64624,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -69070,7 +69046,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -70747,7 +70722,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -71024,7 +70998,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -73787,7 +73760,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -76215,7 +76187,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -77685,7 +77656,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -79727,7 +79697,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -80626,7 +80595,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -80844,7 +80812,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -87689,7 +87656,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -91099,7 +91065,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -100608,7 +100573,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -101231,7 +101195,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -103782,7 +103745,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -105115,7 +105077,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -120472,7 +120433,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -123803,7 +123763,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -130084,8 +130043,7 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
-        "date"
+        "source_event"
       ],
       "public_output_changes": [],
       "public_verification_wording": "Historically verified variant",
@@ -130304,7 +130262,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -130968,7 +130925,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -135853,7 +135809,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -142432,7 +142387,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -143312,7 +143266,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -151679,7 +151632,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -153527,7 +153479,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -155152,7 +155103,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -158454,7 +158404,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -164554,17 +164503,62 @@
       "bounded_research_outcomes": {},
       "confidence_after": {
         "attribution": "high",
-        "date": "unknown",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
+        "source_event": "high",
         "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "public_url": "https://www.margaretthatcher.org/document/104653",
+          "rationale": "The official transcript page identifies the speech, date and Central Hall Westminster venue and contains the quoted passage. No historical-context role is assigned because the packet's immediate-subject wording about ideological continuity and state control is not directly established by this evidence.",
+          "recorded_at": "2026-07-22",
+          "source_date": "20 May 1981",
+          "source_event": "Speech to Conservative Women's Conference",
+          "source_fingerprint": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_id": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "source_type": "official_primary_transcript",
+          "source_url": "https://www.margaretthatcher.org/document/104653",
+          "stable_locator": "Margaret Thatcher Foundation document 104653",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "14bfb432e2e386c01faf3f59c4c1ba1e0544ecbbe1a7ef76fc371eba5cafac7d",
+              "text": "And never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "excerpt",
       "date": "20 May 1981",
       "locator_audit": {
@@ -164633,7 +164627,10 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
       "public_output_changes": [
         "discovery-only source suppressed"
       ],
@@ -164731,6 +164728,50 @@
         }
       ],
       "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "public_url": "https://www.margaretthatcher.org/document/104653",
+          "rationale": "The official transcript page identifies the speech, date and Central Hall Westminster venue and contains the quoted passage. No historical-context role is assigned because the packet's immediate-subject wording about ideological continuity and state control is not directly established by this evidence.",
+          "recorded_at": "2026-07-22",
+          "source_date": "20 May 1981",
+          "source_event": "Speech to Conservative Women's Conference",
+          "source_fingerprint": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_id": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "source_type": "official_primary_transcript",
+          "source_url": "https://www.margaretthatcher.org/document/104653",
+          "stable_locator": "Margaret Thatcher Foundation document 104653",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "14bfb432e2e386c01faf3f59c4c1ba1e0544ecbbe1a7ef76fc371eba5cafac7d",
+              "text": "And never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory."
+            }
+          ]
+        },
         {
           "action": "keep",
           "assigned_roles": [
@@ -164920,6 +164961,7 @@
       "stable_locator": "Margaret Thatcher Foundation document 104653",
       "supported_public_roles": [
         "attribution_support",
+        "source_event_support",
         "wording_verification"
       ],
       "virtual_locator_sources": [
@@ -165217,7 +165259,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -166361,7 +166402,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -167100,7 +167140,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -167637,7 +167676,6 @@
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -168821,7 +168859,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -170074,7 +170111,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -172127,7 +172163,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -173586,7 +173621,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -177736,7 +177770,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -183289,7 +183322,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -183592,7 +183624,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -185333,7 +185364,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -186837,7 +186867,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -187342,7 +187371,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -188232,7 +188260,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [],
@@ -189261,7 +189288,6 @@
         }
       ],
       "public_context_supported_fields": [
-        "source_event",
         "date"
       ],
       "public_output_changes": [
@@ -190526,7 +190552,7 @@
   "model_proposed_source_lead_count": 790,
   "openai_researched_source_count": 33,
   "packet_count": 626,
-  "policy_version": "historical-context-source-roles-v7-curated-source-adjudications",
+  "policy_version": "historical-context-source-roles-v8-claim-specific-public-context",
   "recovered_citation_source_count": 256,
   "researched_source_count": 34,
   "schema_version": 5,
@@ -190535,7 +190561,7 @@
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
     "grounding_sources.json": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
-    "historical_context_source_curated_evidence.json": "af669980bd364beed29128b3e12ee5667150ae4486148f47151fd6081c4029b1",
+    "historical_context_source_curated_evidence.json": "db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867",
     "historical_context_source_independent_review.json": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
     "historical_context_source_openai_research.json": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
     "historical_context_source_recovery.json": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
@@ -190553,17 +190579,17 @@
       "irrelevant_or_corrupt": 38,
       "reliable_secondary_evidence": 36,
       "secondary_recollection": 5,
-      "strong_primary_evidence": 873
+      "strong_primary_evidence": 874
     },
-    "all_evidentiary_source_record_count": 3376,
-    "all_evidentiary_source_role_assignment_count": 4389,
+    "all_evidentiary_source_record_count": 3377,
+    "all_evidentiary_source_role_assignment_count": 4392,
     "all_evidentiary_source_role_counts": {
-      "attribution_support": 873,
+      "attribution_support": 874,
       "discovery_only": 2335,
       "rejected_irrelevant": 127,
       "secondary_recollection": 5,
-      "source_event_support": 227,
-      "wording_verification": 822
+      "source_event_support": 228,
+      "wording_verification": 823
     },
     "changed_quote_ids": [
       "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
@@ -191061,24 +191087,25 @@
     },
     "curated_source_adjudication_count": 1,
     "curated_source_quality_counts": {
-      "secondary_recollection": 1
+      "secondary_recollection": 1,
+      "strong_primary_evidence": 1
     },
     "gemini_researched_source_quality_counts": {
       "reliable_secondary_evidence": 1
     },
     "headline_observed_source_disposition_counts": {
-      "accepted_evidence": 636,
+      "accepted_evidence": 637,
       "discovery_or_insufficient": 2089,
       "rejected_or_non_verifying": 373,
-      "total": 3098
+      "total": 3099
     },
     "headline_observed_source_provenance_counts": {
       "ai_located_independently_reviewed_sources": 34,
       "model_proposed_source_leads": 790,
-      "operator_curated_sources": 1,
+      "operator_curated_sources": 2,
       "physical_packet_sources": 2017,
       "recovered_citation_sources": 256,
-      "total": 3098
+      "total": 3099
     },
     "model_proposed_lead_quality_counts": {
       "discovery_lead_only": 789,
@@ -191446,16 +191473,16 @@
       "irrelevant_or_corrupt": 38,
       "reliable_secondary_evidence": 17,
       "secondary_recollection": 2,
-      "strong_primary_evidence": 617
+      "strong_primary_evidence": 618
     },
-    "source_role_assignment_count": 3683,
+    "source_role_assignment_count": 3686,
     "source_role_counts": {
-      "attribution_support": 595,
+      "attribution_support": 596,
       "discovery_only": 2335,
       "rejected_irrelevant": 127,
       "secondary_recollection": 2,
-      "source_event_support": 70,
-      "wording_verification": 554
+      "source_event_support": 71,
+      "wording_verification": 555
     }
   },
   "unresolved_quote_count": 6,

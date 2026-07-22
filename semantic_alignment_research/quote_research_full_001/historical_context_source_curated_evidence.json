@@ -36,10 +36,45 @@
           "wording_match_kind": "historical_variant"
         }
       ]
+    },
+    "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18": {
+      "quote_id": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
+      "quote_text_sha256": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "And never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
+          "exact_supporting_passage_sha256": "14bfb432e2e386c01faf3f59c4c1ba1e0544ecbbe1a7ef76fc371eba5cafac7d",
+          "page_independently_inspected": true,
+          "rationale": "The official transcript page identifies the speech, date and Central Hall Westminster venue and contains the quoted passage. No historical-context role is assigned because the packet's immediate-subject wording about ideological continuity and state control is not directly established by this evidence.",
+          "recorded_at": "2026-07-22",
+          "source_date": "20 May 1981",
+          "source_event": "Speech to Conservative Women's Conference",
+          "source_id": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 104653",
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "url": "https://www.margaretthatcher.org/document/104653",
+          "wording_match_kind": "normalised"
+        }
+      ]
     }
   },
   "policy_version": "historical-context-curated-evidence-v2-source-adjudications",
-  "quote_count": 1,
+  "quote_count": 2,
   "schema_version": 2,
   "source_adjudication_count": 1,
   "source_adjudications": [
@@ -58,5 +93,5 @@
       "wording_coverage": "normalised"
     }
   ],
-  "source_count": 1
+  "source_count": 2
 }

@@ -1,0 +1,2322 @@
+{
+  "current_render_follow_up": {
+    "already_resolved_by_current_conservative_rendering": 14,
+    "known_104653_corrected_for_future_rendering": true,
+    "published_history_modified": false,
+    "remaining_future_correction_or_research_items": 22,
+    "remaining_original_future_correction_items": 18,
+    "remaining_original_insufficient_evidence_items": 4,
+    "reviewed_non_supported_or_uncertain": 36
+  },
+  "history_policy": "Published history is immutable; every recommendation applies only to future rendering.",
+  "input_evidence": {
+    "mtf_primary_review": {
+      "failed_document_count": 0,
+      "not_found_document_count": 2,
+      "path": "historical_context_mtf_primary_review.json",
+      "sha256": "f93a27e1e5bdcb658430bf03c08ca2c5cac1c34121087bd4290fa77e5f543148",
+      "successful_document_count": 262
+    },
+    "published_history": {
+      "completed_entry_count": 77,
+      "parent_post_ids_sha256": "53aef2de9abf583914d9132a9e6069e5599e78893b8307153d69b4e378c19fa3",
+      "path": "historical_context_reply_history.json",
+      "quote_ids_sha256": "005dd9a3e97c1def90024a301fa13423b33c58f6fe8e35e314131bdedf097643",
+      "sha256": "2cb281c2c60b7067c8c0cfc05422c78544990b49f9dfdd0eabf8b548bf69497d",
+      "unique_quote_count": 77
+    },
+    "source_role_audit": {
+      "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
+      "sha256": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2"
+    },
+    "truth_audit": {
+      "path": "historical_context_evidence_truth_audit.json",
+      "sha256": "8e8d968d580a7fb9bf5cf84b3b4b607e3e73a0ffffaeca0d68a44cfb700ce1f6"
+    }
+  },
+  "manual_review_totals": {
+    "future_correction_needed": 30,
+    "insufficient_to_assess": 6,
+    "reviewed": 77,
+    "supported_as_published": 41
+  },
+  "records": [
+    {
+      "current_reply_sha256": "93e95dfbd5946d492e07115b77ae5f171c2010cc8cafbcf9064b49d0368d3b47",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "ac9df7a2b386b9d2851c3489da0fb8cab9178e0c829e8aaa1a937b0871205bfd",
+          "d5790d782ce00c6c6a3ec0a833153dba977315c7df0b732e3d977184f4d9dd56"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 0,
+      "parent_post_id": "2077121396186992800",
+      "published_reply_sha256": "054fca3a94cebe83ad5ee6ff746af25337a7503c5d39fad144095a0d6a9ae967",
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "quote_text": "Capitalism is the moral way of running an economy.",
+      "quote_text_sha256": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077121398795907462"
+    },
+    {
+      "current_reply_sha256": "d7f5ceb306b18a2d94f2a80825ba08c82871a536d3ee92d2e576e1a38fdf0b5f",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104107",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "18e27c30460580c97fd545d46693fd4d034791836fc85bda81bb3dd2d2ba8c5c"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 1,
+      "parent_post_id": "2077155108433903655",
+      "published_reply_sha256": "61c1d74bf49b1186ae09915d05fa7e84a4d7f2fedcdc257be4df3210d5807cf6",
+      "quote_id": "5f58655af3683767213b37bb561575c7e2c39f60d21a9111c1cfbfca02ef7d27",
+      "quote_text": "The moral fallacy of Socialism is to suppose that conscience can be collectivised.",
+      "quote_text_sha256": "5f58655af3683767213b37bb561575c7e2c39f60d21a9111c1cfbfca02ef7d27",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077155111084716541"
+    },
+    {
+      "current_reply_sha256": "eca1ad5050de239d9acb45f7ee25a5672e020918f641b1895e8bbfd2de50becc",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103522",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "287c333b3691ea97f54b04caa46d720081062ad49a0577d050427bb4920d99f2",
+          "8a9b0d3426a42f0d9f140f6dba50bed56a2e65789cf64a39f6597c956acbe14a"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 2,
+      "parent_post_id": "2077188139102171297",
+      "published_reply_sha256": "c9128a46a8ce4968e81bdde62e9e4e9382254a14f25334a47774c26570236be9",
+      "quote_id": "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015",
+      "quote_text": "Freedom will destroy itself if it is not exercised within some sort of moral framework, some body of shared beliefs, some spiritual heritage transmitted through the Church, the family, and the school.",
+      "quote_text_sha256": "0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077188141975293993"
+    },
+    {
+      "current_reply_sha256": "e6f7207f3ad0316e1b71b0c63d26f8ddac286dedbb37229dc505180fba9f64f2",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103336",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "519b5c4ec1dd05592899e92f903655555077d2ac1932d9c8a51651f819be4572",
+          "80c39d2b0ecb744aafcc942368fd67a487d262eefe3c2d77ea0d67359136aecf",
+          "e5317548e51fb2340872012fee38293265cf0192289bb0e9b6b45820290f1c5a",
+          "f06fd3ee377effd390567537e282b9410cd567545b3d6ffd7b132d965f0125a8"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 3,
+      "parent_post_id": "2077225711396343911",
+      "published_reply_sha256": "ca20fe28811f773a792a401cc56551759b242065d9b0b1fe812e8e099bbf63fc",
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
+      "quote_text_sha256": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "reason": "Meaning says penal taxation ultimately destroys outcomes where the source says it has adverse or harmful results.",
+      "reply_post_id": "2077225714189840452"
+    },
+    {
+      "current_reply_sha256": "8acf456e1067ba0ae35af02d78e23474bda3e3de7cd2d5fd298de9f0c4d240b3",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108332",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "3362127136dfb3a087351ce4931323fe1f27bcd200f8a5bd7580d587dd13b64f",
+          "d77828edaa840ee7f619df69bb355bcad4e5dda2f894cb4201f13d781e6a39f3"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 4,
+      "parent_post_id": "2077256477509566752",
+      "published_reply_sha256": "f6b751489e617996f0a957ff76c78aaefc21bdee67dca3725646484926d14a6e",
+      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
+      "quote_text_sha256": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "reason": "The Santiago source is document 108331; the current source set still includes the later Mexico document 108332 and renders two entries.",
+      "reply_post_id": "2077256480386842761"
+    },
+    {
+      "current_reply_sha256": "d3a5a826ba4669902a71f231c29fe06655bcf0c57665969cb98db8cb02d4186e",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "2c44f0a387939649bd1c9f1748f027fd1179b9a6209d84a2cfc8e2a26455cde8",
+          "957bb09e294c0a648e7425cd3c88f71d961ac580568dbf701e414e31ec090d1a"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 5,
+      "parent_post_id": "2077292132201636286",
+      "published_reply_sha256": "c61290c5fb58136e7d662ab9480f21e48b57332e2a42ffb015f8309992b9d989",
+      "quote_id": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "quote_text": "Islamic extremism today, like Bolshevism in the past, is an armed doctrine. It is an aggressive ideology promoted by fanatical, well-armed devotees. And, like Communism, it requires an all-embracing long-term strategy to defeat it.",
+      "quote_text_sha256": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "reason": "Published normalised-wording verification was stronger than retained secondary evidence; current output discloses attribution without independent exact-wording verification.",
+      "reply_post_id": "2077292135624180129"
+    },
+    {
+      "current_reply_sha256": "bd8fa48ba8362914b8309300ad3bdac6fb1882ee6e4b3ff34a972c696e0f4b27",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "a8a95ef2ad511ffdc3b9dc9f1249444eb43a1a43af5906255d757fd7a393e6b5",
+          "f2db79673da441502a3867bfc56bcf293143d086bc310caa496e56ad91418aa4"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 6,
+      "parent_post_id": "2077328628820418774",
+      "published_reply_sha256": "b209dea0804d5d5a77285a724fb71afb08631ba20dbc694e54efa334a83d0713",
+      "quote_id": "661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831",
+      "quote_text": "Of course, there is some poverty in capitalist societies: but there is far more poverty - as well as far less freedom - in socialist ones.",
+      "quote_text_sha256": "661b01c39a8d223df51cd0365e79ffe7e3c4f86ac81fa0af114ce95be49cb831",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077328631244668965"
+    },
+    {
+      "current_reply_sha256": "7592285cde16634497a8fd4562fafb26b26e709eca90c235b221d7e064e9ac32",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 7,
+      "parent_post_id": "2077359390932267326",
+      "published_reply_sha256": "f2b328c1142d2175f9838379cd8a672e08c269248390db4208084230eb9aaa23",
+      "quote_id": "7514859e06c16389eab799267fdd69dfa29ef15be82abf4127561661d176cd2b",
+      "quote_text": "It is one of the great weaknesses of reasonable men and women that they imagine that projects which fly in the face of commonsense are not serious or being seriously undertaken.",
+      "quote_text_sha256": "7514859e06c16389eab799267fdd69dfa29ef15be82abf4127561661d176cd2b",
+      "reason": "Retained evidence did not establish exact wording, occasion or a reliable source; current output now fails closed to Research incomplete.",
+      "reply_post_id": "2077359394153435227"
+    },
+    {
+      "current_reply_sha256": "e978c389599cb5218db9f5baec79c808732406a0d2dc044ee3a8e7febb80fa20",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104107",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "f3be3839ad4f8716c72980462b809f596fa3a5149c99459bc6e36a92e75be8aa"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 8,
+      "parent_post_id": "2077390011364757551",
+      "published_reply_sha256": "f66335744efeb94fd56dcbdcbbaf246ec7bc7d7f0b88f31c69876ba87fcfd870",
+      "quote_id": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
+      "quote_text": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity.",
+      "quote_text_sha256": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077390014078505419"
+    },
+    {
+      "current_reply_sha256": "78781a84f1076a2565665a45163c13adf328acb2849ab4e40302ec3b88c96066",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104107",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "67cbfe9b8160894720a6848c2a7d62c624b51b360095e126ae74a0fa6e5b257f",
+          "753f5aef1753cace6c4b036387100da2073f1fa25a6fe643bd38f016d7cb9d9e"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 9,
+      "parent_post_id": "2077427274274533828",
+      "published_reply_sha256": "2d03ed9d69fdc0f59acd01e36824b248d58eb95511e5da1cde14bbecf232f743",
+      "quote_id": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "quote_text": "We rejoice that Britain is still respected in all free countries as the Mother of Parliaments and the custodian of the principle of the rule of law.",
+      "quote_text_sha256": "1b536f12fed2ac7418caccc2070b34cc84c0b3bb5b4e5e3328da0a432711ed5b",
+      "reason": "Published exact verification and detailed occasion exceeded explicit source claims; current output suppresses the occasion and downgrades wording verification.",
+      "reply_post_id": "2077427277004955656"
+    },
+    {
+      "current_reply_sha256": "19b203689057254f5636999e891fd066619bd53ea5cd45f62d80675d5890f060",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104368",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "19e6126e371f51d639eba3a18c4f626678c57bbcfe93a1eb8e2ae6dca632ce47",
+          "41e589161e86f66f12df5aa80df10973ed4f3b085ccb63c43ec9747e9e1942ef",
+          "703037c735c65d033fccd812ce7b793b1f9b8524abf86d2c3aee31d6f9a3f3c0"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 10,
+      "parent_post_id": "2077504708474704163",
+      "published_reply_sha256": "1cd800a3422a9bec01ba25a33f199507e5f8007df406568dfe68bf5fd54c2495",
+      "quote_id": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3",
+      "quote_text": "There'll never be a perfectly balanced economy. There's no such thing as total security. No job, no business can be guaranteed for ever. No government can free the people from material worries. But government can make people poor. It can waste what people create. Or it can provide the conditions which favour those private efforts and endeavours that bring prosperity.",
+      "quote_text_sha256": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077504711750521172"
+    },
+    {
+      "current_reply_sha256": "86cdd1dd154a26573225839279bdae7bcf86655e55cafd08eeda462c2fd5efa8",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "61e1b30b380e13d6724ec8932f2e5f96a895c17bf3807017cc9c87b3bd9efac8",
+          "811b8c03937de2467872db90e4ca82e5139d896f1d01781d7d80c6987f116660"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 11,
+      "parent_post_id": "2077535276809765073",
+      "published_reply_sha256": "0088f4828c11407439753c4029eb00bd430330fd5f97da944f8c57dfa6a470d0",
+      "quote_id": "c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82",
+      "quote_text": "Socialism has been tried and found wanting. Socialism has failed. If we, too, let the lamps of freedom flicker and go out, who will light them again?",
+      "quote_text_sha256": "c31d50eeb3eb2280d77e236195b7583b155432e548cceed49c7b9f514a8f9b82",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077535279527665989"
+    },
+    {
+      "current_reply_sha256": "ed9c261f4d2a64cb305a87c73d83d07749240bac42eb0490d378148d00a0b22a",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "db45091f4cca78022a8b21c1d431059591712691835a469fa466b64390529286",
+          "e8d0d25aebe0833668570d5642ada470a2f87b9e7ba2144ff69bea2e38ca4d31"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 12,
+      "parent_post_id": "2077566061742874972",
+      "published_reply_sha256": "992a8da60b8ad25d5183f28e5c4eecc6f3d2862716eeadc6f4b399cad4e0d0ec",
+      "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "quote_text": "Capitalism alone can mobilise people's talents.",
+      "quote_text_sha256": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "reason": "Meaning universalises the Polish collectivist example into inevitable failure of all state-run systems.",
+      "reply_post_id": "2077566064074891424"
+    },
+    {
+      "current_reply_sha256": "011407dccc6ecf8aac2af55b81f40476e8472b0a1cbba2daa4ba384a43b0704e",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "c600e6df49a32fd72aa848e1757413110f59ea1f2b002a1f7860da67998d4966"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 13,
+      "parent_post_id": "2077602153560961463",
+      "published_reply_sha256": "d534856de4bdc771cda3af683bbf97c3eaeaba89ab0118c9c9b0d8a6d95144c2",
+      "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "quote_text": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure.",
+      "quote_text_sha256": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "reason": "Meaning adds inevitability to the source's claim that communism collapsed under the weight of failure.",
+      "reply_post_id": "2077602156006244418"
+    },
+    {
+      "current_reply_sha256": "84f9275c61e3029350e0d595a760f8808dc751a6f84bb6e4e7aaf83b9b8e96e1",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103684",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "ba78525ef5a28dea8317065811aa0eaef5d0e30869c3428c3a860668115b63b1"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 14,
+      "parent_post_id": "2077639721845399885",
+      "published_reply_sha256": "0bfcafe1098ff9f6697af0f0f4b8d54dfe3a1a595b2c8c5168182f839e697344",
+      "quote_id": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "quote_text": "Inflation arises because some politicians lead the people to believe that they can consume more - much more - than they produce.",
+      "quote_text_sha256": "7767b08facbc57e7451fc13a335bca97a41b8aa3e694b68bc0388eff23424b4d",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077639724068421755"
+    },
+    {
+      "current_reply_sha256": "01ee11952de9792d07363f9e5be6154d00edf205498f0c08c480ccc31ca632f4",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "102963",
+            "machine_status": "no_machine_detected_discrepancy"
+          },
+          {
+            "document_number": "102966",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "94e3d25c99ab4add689f60afe8e1b1326890236b1497c8e8a91614ed5922719b"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 15,
+      "parent_post_id": "2077677035971924477",
+      "published_reply_sha256": "7f264e3ca498f9f5fe86061e66a568f69ce9ce6a3ddc77149f105e4e592f05dd",
+      "quote_id": "8745cdd4765e0cb0cce3c847e3d9da7b7559e363ceaf34c8fb3ae459a551b7f4",
+      "quote_text": "Freedom can be lost more swiftly than it is gained. Even in a parliamentary democracy a Government machine can gradually and silently whittle our freedom away.",
+      "quote_text_sha256": "8745cdd4765e0cb0cce3c847e3d9da7b7559e363ceaf34c8fb3ae459a551b7f4",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077677038614302736"
+    },
+    {
+      "current_reply_sha256": "13b89e2099f9400090287ace7f0d960c4848a0d2afe81e8dd63873158c88a555",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 16,
+      "parent_post_id": "2077708840657633789",
+      "published_reply_sha256": "79a3cf37f4e3de12b6d953d5e8c6e65dd1967ad10e8b55a012a55a8504db01a3",
+      "quote_id": "aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142",
+      "quote_text": "By the end of my time as Prime Minister I was also becoming seriously concerned about the anti-capitalist arguments which the campaigners against global warming were deploying.",
+      "quote_text_sha256": "aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142",
+      "reason": "The published reply added no interpretive Meaning, and the retained bibliographic evidence disclosed no material contradiction.",
+      "reply_post_id": "2077708843102999037"
+    },
+    {
+      "current_reply_sha256": "19ccff325a0c201aeb829bbacfd7df3b4df7a2d2ff83c8ccfe6b07e5708fb3ac",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "51b93ebedb556c9b2b4d9ba66d7f3f01610084f4d7da302bb9bc2f6b539ae78d"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 17,
+      "parent_post_id": "2077740663412551932",
+      "published_reply_sha256": "9347842a20be839b9116d24a198bb2a81b9b53218876ff51481616e78ab7a0eb",
+      "quote_id": "866738ba29cb509f048a2a1a8215e8f7e729c266e88d8fcaab482dd97ab8cd4a",
+      "quote_text": "There can be no liberty unless there is economic liberty.",
+      "quote_text_sha256": "866738ba29cb509f048a2a1a8215e8f7e729c266e88d8fcaab482dd97ab8cd4a",
+      "reason": "Published exact verification exceeded retained secondary interview evidence; current output retains the supported occasion but discloses that wording was not independently verified.",
+      "reply_post_id": "2077740666260504895"
+    },
+    {
+      "current_reply_sha256": "33333cb080494efbf9e1710e772a4b1334743beb5be07389274c9899749c3a38",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "6fdb644961184244913299649f028f51bbf1e1ee552342a7f6231256cfa1a06a"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 18,
+      "parent_post_id": "2077773148930351216",
+      "published_reply_sha256": "73168b23fe8350a60aea2534e4dde9ae64c38ef734b6e3441d44231283c01845",
+      "quote_id": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "quote_text": "There are too many people who imagine that there is something sophisticated about always believing the best of those who hate your country, and the worst of those who defend it.",
+      "quote_text_sha256": "bc0fe2f571f31ab6d3bb085d27f048307afb25a864f6b5a9caaec3b3ea0661ae",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077773151769895290"
+    },
+    {
+      "current_reply_sha256": "7da985900157b4fad473d3eb5e4b8d28937dfc57cb55b0812573086454f782d0",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "107075",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "348ec43f14d1ead032c3caa1814cd6b8730c7898de04234a6c4214af78d1fa36"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 19,
+      "parent_post_id": "2077810769484292485",
+      "published_reply_sha256": "af6a081cf4f1d7a387ec34602e3907ab91ee9ad42f7fbeab993e4a91e986e766",
+      "quote_id": "f91e0364d491714d6ecea18b0e7443bc4b8ed600a6f3212df8f8c9e5f3bbad1d",
+      "quote_text": "People left Europe to get away from it and they went to America to become part of a very very great country.",
+      "quote_text_sha256": "f91e0364d491714d6ecea18b0e7443bc4b8ed600a6f3212df8f8c9e5f3bbad1d",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077810772101443922"
+    },
+    {
+      "current_reply_sha256": "02156e644ea760eabc1d1cd8d382c9f7b4b66c001be39ff1f57c5818e5f567fe",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "210253",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "b687dcb6f7053e889b5ff9baab7b8ffbee65648fff122284c46df254650189e3"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 20,
+      "parent_post_id": "2077843331371938101",
+      "published_reply_sha256": "3e220c376a7c2d6a124aed4dbe63e821a289e535764ac43576b7ff40aed3d25d",
+      "quote_id": "486ac8259439d7b2857b5accce1e57ee83bce66c0408024af831510649a4ef5e",
+      "quote_text": "No-one with a conscience can let this go on.",
+      "quote_text_sha256": "486ac8259439d7b2857b5accce1e57ee83bce66c0408024af831510649a4ef5e",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077843333997527262"
+    },
+    {
+      "current_reply_sha256": "5f6ac6f165e87825694a20edb90e62310f3c5c3b75b889637d36d551990edfc4",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "102777",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 21,
+      "parent_post_id": "2077876751586255198",
+      "published_reply_sha256": "17bfb830e4d0195948bcd20db5f1aed21686d09b9078de4901bd5f9ec04739a2",
+      "quote_id": "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+      "quote_text": "Isn't it time we spoke up for our way of life? After all, no Western nation has to build a wall round itself to keep its people in.",
+      "quote_text_sha256": "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2077876754593501466"
+    },
+    {
+      "current_reply_sha256": "e97ffda874fb6a722a59781d04591113af6d3a2b32de7dcfcd924e15d6ac4ea2",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 22,
+      "parent_post_id": "2077908806642675908",
+      "published_reply_sha256": "49879debd85c96d6259b476e0f88f4b0c00dd8b664b7cfd5f62ab81ec63bc162",
+      "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty.",
+      "quote_text_sha256": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "reason": "Meaning strengthens a threat to liberty into inevitable coercion and destruction; primary book evidence is not retained.",
+      "reply_post_id": "2077908809335345605"
+    },
+    {
+      "current_reply_sha256": "b2d2e271730afa6753262308f8e56df09ba97e26f3bc3e0ff461e432fc783dee",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "6af7fcb53f6a5c10286595d6eb4c7e52090f4d6bac1155199cf8826c71c61983"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 23,
+      "parent_post_id": "2077941629453771201",
+      "published_reply_sha256": "44c7194b684040f7692e600ad5dd6b56eeb28bf189e9ec3d3c0f72a9c8844be3",
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "quote_text": "I don't mind how much my Ministers talk, so long as they do what I say.",
+      "quote_text_sha256": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "reason": "Published exact verification and occasion exceeded the retained secondary evidence; current output limits context to the supported date and discloses wording uncertainty.",
+      "reply_post_id": "2077941632259731947"
+    },
+    {
+      "current_reply_sha256": "18a7f47172bc111af7cfe184d52385879ca06727c3b6ce94453e52bab0b2ad34",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108364",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3",
+          "a9b86ea9cb0806f391a65482228479989af995c3331b1ecb92265c2e61781d66",
+          "c5b4765e0a5f5a9ce13b2994174452332b361e98cbde77b2ba29675c1904b83e"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 24,
+      "parent_post_id": "2077974966864105711",
+      "published_reply_sha256": "df96f70994d6031df66278685e43fef13c691d905f7adbd7f463d3c59bafc4aa",
+      "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "quote_text": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them.",
+      "quote_text_sha256": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "reason": "Meaning turns a comparison with tyrants into a categorical claim about intent; document 108364 also still renders twice.",
+      "reply_post_id": "2077974969716179089"
+    },
+    {
+      "current_reply_sha256": "b150190c0ff9b791f20319dd72c6467d5ae5febdefded0b3bb2bbdf3cc5621e1",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "109284",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "157ad524d5d716f11096c3d047f4774d249c842849a59dda433b17e1c7a05d09"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 25,
+      "parent_post_id": "2078008078511775757",
+      "published_reply_sha256": "81a1256c9116737d029673a03b97a702febd51dfb13b3a306cbaa7da86870e0f",
+      "quote_id": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "quote_text": "It pays to know the enemy not least because at some time you may have the opportunity to turn him into a friend.",
+      "quote_text_sha256": "e0770fc3d6619db33fb692301a29fbf15f0e8e2306bd568064e557a108f69ec3",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078008080919310821"
+    },
+    {
+      "current_reply_sha256": "514f0284d21ba8edd2d33b75546a11af2504b5a30786130e8cbe511d4be4f6bc",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 26,
+      "parent_post_id": "2078045504991014967",
+      "published_reply_sha256": "81ed26b416772dc823e6d63098e54a9e88208c413294eadbe8d9474d1dd23311",
+      "quote_id": "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
+      "quote_text": "Disciplining yourself to do what you know is right and important, although difficult, is the highroad to pride, self-esteem, and personal satisfaction.",
+      "quote_text_sha256": "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
+      "reason": "The published reply explicitly disclosed the common misattribution and did not present the wording as verified Thatcher speech.",
+      "reply_post_id": "2078045507402842366"
+    },
+    {
+      "current_reply_sha256": "7cc88c70b85b710784f362ec6d848d22ace65bf31fffe98f66cb4ed91172cb71",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 27,
+      "parent_post_id": "2078078314409841008",
+      "published_reply_sha256": "59cec72f1634352018919d60ff12d4fc3880eddaa3c0d45d29b9abff14b195a8",
+      "quote_id": "2c199e4d003a077c147b447efa9eb68941bf1291a7f4dd3653a7562414950d9a",
+      "quote_text": "Plan your work for today and every day, then work your plan.",
+      "quote_text_sha256": "2c199e4d003a077c147b447efa9eb68941bf1291a7f4dd3653a7562414950d9a",
+      "reason": "The published reply explicitly disclosed the common misattribution and did not present the wording as verified Thatcher speech.",
+      "reply_post_id": "2078078319141044329"
+    },
+    {
+      "current_reply_sha256": "ad6cbd32c43fe98d96b69d97803c50df3295e71f984aa1b42e3ceb962805c9d0",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108374",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "0fa154c25c8c790c0edfe2aedada2fbef63c861a39c351951949df8fff7b6b18",
+          "32d52381bc8122c33064806385a8ac426c496461f7f7168c741c906239bb8203"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 28,
+      "parent_post_id": "2078114435990757787",
+      "published_reply_sha256": "06c9023db3309f39a97a56e0efb3e571233e6339fc03afff93260cbd1f9fd955",
+      "quote_id": "cf0f6b4c44d88fd3ebefd7ddbdbf9f01c2f895b774c43ad6c5f390db5c067e0c",
+      "quote_text": "We should be warned. A society only needs one generation to abandon the task of learning and transmitting its culture, for that culture to become an alien, lifeless, irrelevance. A powerful, radical left-wing clerisy is bent on destroying what every past generation would have understood to be the central purpose of education.",
+      "quote_text_sha256": "cf0f6b4c44d88fd3ebefd7ddbdbf9f01c2f895b774c43ad6c5f390db5c067e0c",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078114438792519941"
+    },
+    {
+      "current_reply_sha256": "c1bf868efa647d4848b8664b8539f793adf2002878f20fc7f9b9143d8f394bdd",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "100857",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "7b2c51a92899baf0a06431342ca9d17086e4a9a2af42bb4b17e45cfdc9bcb3fd"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 29,
+      "parent_post_id": "2078146104734912558",
+      "published_reply_sha256": "0979f70d27feabdac295b5f74aee803792bb5bbc199a98f755c96dde60358e16",
+      "quote_id": "e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316",
+      "quote_text": "You cannot build a great nation or brotherhood of man by spreading envy or hatred.",
+      "quote_text_sha256": "e9d8f7dff356e2364bd2250fe6a4f4b5aecfde205cf7e66c316e0850a20bf316",
+      "reason": "Published exact memoir verification lacked wording-support evidence; current output discloses attribution without independent exact verification.",
+      "reply_post_id": "2078146107322839256"
+    },
+    {
+      "current_reply_sha256": "466ebb819cb90ca4e11b43cb32eb6b0efc1db6ee13940f13a896046fac97a0c7",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "102728",
+            "machine_status": "manual_review_required"
+          },
+          {
+            "document_number": "102739",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "3645902d2de11fbb9d4fd3947aa51481d8fd21ee352240b877d08dd4c8aec4c1"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 30,
+      "parent_post_id": "2078180650989822077",
+      "published_reply_sha256": "a552a0d8f469b064474e5fd9a39ebd7d97354a1d746f4c4aafeaa2265d40dac4",
+      "quote_id": "d4aad379bbd7cc9d628a74001a748644653e9663de2da836733402fa824e6ba3",
+      "quote_text": "Once the customer is dependent on the State for all his needs; Once the worker can turn only to the State for work; Once there is no possibility of the promotion of the Arts except by patronage of the State; Then, not only Enterprise, but freedom itself is destroyed.",
+      "quote_text_sha256": "d4aad379bbd7cc9d628a74001a748644653e9663de2da836733402fa824e6ba3",
+      "reason": "Published exact verification exceeded retained evidence; current output suppresses the unsupported occasion and discloses wording uncertainty.",
+      "reply_post_id": "2078180653674225886"
+    },
+    {
+      "current_reply_sha256": "79107424355c59d4a3c86c07c79fd8145d483e0f73a5b50829c0f0ab49c855e8",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103126",
+            "machine_status": "manual_review_required"
+          },
+          {
+            "document_number": "103146",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "117baf972457a2aceb1aba12e0fcffc38ba6ce4da7d8a35a8db8938a3cc0aaef",
+          "6b95fc146c89317249abe22599734a3db1fbb9e966d7533c17dc0e1a3e23f30e",
+          "83945dad7b2d90b9222b949dacbdce5448dfeaddbe9a45d8aba341649e779828",
+          "b41c15fa232b918c13077cb29e5dfd37639beedfaadb351c7afa845bbd5b401b",
+          "e5ca7aad1254066705d41f004c5a52ad7237ef0778f2a8dfc92590decf04261a"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 31,
+      "parent_post_id": "2078218532991406200",
+      "published_reply_sha256": "c5ba4b80c2046c9c5ed6ee9784d44c56a08c2209a9230eaa43198519f640c642",
+      "quote_id": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty.",
+      "quote_text_sha256": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "reason": "Exact verification ignores an editorial [James Callaghan] insertion, and Meaning overstates the source as equality destroying both liberty and equality.",
+      "reply_post_id": "2078218536367825348"
+    },
+    {
+      "current_reply_sha256": "2fb09c58787c8946be35e35edd6adda21f72d974c3c3062f1b0b150355db98a2",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104052",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "551115d012ae634c474214811d61e553f5660b1474fc59b4c839e83d5b8cd5e7",
+          "630b742b5b2e0d0bea3687f5e5e062a0b10dc202d63c7fcc4c1e4f4ef46fe07c",
+          "7e153f79d7830072fdff4cac51e951304866d77d689a4b2cf493723d5bc337a6"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 32,
+      "parent_post_id": "2078254889923166437",
+      "published_reply_sha256": "ce5a33124887171b563d2efa3b8b9b589e7ff42251e717bc4998b619f6ed847f",
+      "quote_id": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "quote_text": "The primary duty of government is to maintain the absolute sovereignty of the law, always, everywhere and against any institution, however powerful.",
+      "quote_text_sha256": "c4be0811f3a80d19bb31e2359b1931af3e0aea449c46311c290d39a2cd7aba71",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078254892376801390"
+    },
+    {
+      "current_reply_sha256": "f45e7cc39d397265e084d84e1942b31d2758da8c3e895c0e0e82627e78682b49",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "fb2ae725681ef47d4264593f26bddefb8f18afbd437c848b1320798be8ba0158"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 33,
+      "parent_post_id": "2078287669252046930",
+      "published_reply_sha256": "f14e692e2d6ad5aaeeeea2a6c2b0d44315b51e62ca856e0a915e88a2861b4913",
+      "quote_id": "760a25127dfb9c39cd24af73cf86cbbb76b89d31f6ecdc1eba90b09b0923bbf2",
+      "quote_text": "The doomsters' favourite subject today is climate change. Clearly no plan to alter climate could be considered on anything but a global scale, it provides a marvellous excuse for worldwide, supra-national socialism.",
+      "quote_text_sha256": "760a25127dfb9c39cd24af73cf86cbbb76b89d31f6ecdc1eba90b09b0923bbf2",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078287671802106342"
+    },
+    {
+      "current_reply_sha256": "28d0f1a991ac9e305b955189b45ef6746271252bde22fa260eca95e76ccc4e8d",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "1997f550f04a521cbe1b4a6f450fe1a68e5bb793f4e995147e58a3f57f5613fc"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 34,
+      "parent_post_id": "2078323770003964394",
+      "published_reply_sha256": "634b24138747a464e24a4b4d038e33f402683e5f2e869a6434b94cbd141c8f5a",
+      "quote_id": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "quote_text": "The use of quotas applying to the appointment or promotion of individuals because of their collective identity or background is an unacceptable incursion on freedom, however well-intentioned the motives.",
+      "quote_text_sha256": "1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236",
+      "reason": "Published exact verification relied on secondary Statecraft evidence; current output discloses that exact wording was not independently verified.",
+      "reply_post_id": "2078323772893860012"
+    },
+    {
+      "current_reply_sha256": "62a14d699c6807f7e4528192c27e258953b7e9ad7970f392dc9d7af65a9b1714",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 35,
+      "parent_post_id": "2078358562552639754",
+      "published_reply_sha256": "57def5d35f113a800eb5f71f4ea46917db04707c9ead3c88c2d72f71f431d7bd",
+      "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+      "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
+      "quote_text_sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+      "reason": "A primary-edition locator for Statecraft is still needed before source and verification can be upgraded.",
+      "reply_post_id": "2078358564884656388"
+    },
+    {
+      "current_reply_sha256": "b03826ee0f311597fb38a4a827d9e9ad7485814a53b0e15d90ecb75c66de7bb0",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "106784",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "2482340be816b5b62fa92be1008818ca9e0535dfff0401cf36e7e4e288a41134",
+          "59552f4e13e572f5c51e87915e22618be5c1d097eacac5bd560818ad4414fcf3"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 36,
+      "parent_post_id": "2078390335579861318",
+      "published_reply_sha256": "5ec23eb357dd2fb1869494e19895f3e142dd51b916da8f7a6796d39dfaa3e403",
+      "quote_id": "faad97e5b07130a98c0531f43df62852be170f85927407334fa458f157868935",
+      "quote_text": "A world without nuclear weapons would be less stable and more dangerous for all of us.",
+      "quote_text_sha256": "faad97e5b07130a98c0531f43df62852be170f85927407334fa458f157868935",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078390338373275807"
+    },
+    {
+      "current_reply_sha256": "d60a036c07463988887b65b7be0f9cd12851926842a36a4fb56a6dfe35e009dc",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 37,
+      "parent_post_id": "2078427954539807025",
+      "published_reply_sha256": "00a24ec9512dcf97c46354f2e7405f9ead7134685b2d875cca65d6247c7cbaad",
+      "quote_id": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+      "quote_text": "To wear your heart on your sleeve isn't a very good plan; you should wear it inside, where it functions best.",
+      "quote_text_sha256": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550",
+      "reason": "Meaning adds unsupported claims about leadership, rational thought, conviction and vulnerability; no primary transcript is retained.",
+      "reply_post_id": "2078427957048033699"
+    },
+    {
+      "current_reply_sha256": "ec9948c457318879ca5b2bf212a3503e5448211309a67661b43b12f174c0cd87",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108046",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "4777005e061cf0180f225f839f267c15d24d094dc04237e7da370e26142d6776"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 38,
+      "parent_post_id": "2078460210268541167",
+      "published_reply_sha256": "5a9d8d51047352e017e070dffe0b6393878a0cb2286a08f81056960ee577b76c",
+      "quote_id": "4566b8fa144de0e512c43478beeac43f44f80ca9c90acf018506c1829c9cbfff",
+      "quote_text": "Whatever international action we agree upon to deal with environmental problems, we must enable all our economies to grow and develop because without growth you cannot generate the wealth required to pay for the protection of the environment.",
+      "quote_text_sha256": "4566b8fa144de0e512c43478beeac43f44f80ca9c90acf018506c1829c9cbfff",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078460212852240592"
+    },
+    {
+      "current_reply_sha256": "d62f46e84484069a62d3c37bf21e87f5480ca10b9bfc1b4383a8d2a85fc56949",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103926",
+            "machine_status": "manual_review_required"
+          },
+          {
+            "document_number": "103936",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "7ddc1f02b2b8f620262375aa91dd1867b12babb44d6cb3b286cde838feed6df4"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 39,
+      "parent_post_id": "2078495548777054539",
+      "published_reply_sha256": "4455c001fa412b0e0a51b413b63b54ad41024db04f7be6956370d9ab5cc699d1",
+      "quote_id": "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+      "quote_text": "We shall have to learn again to be one nation, or one day we shall be no nation.",
+      "quote_text_sha256": "4c950f10a42b15df1d14e37a5f431c0f20f99ef520033c4a152cd44e3e751621",
+      "reason": "Published exact verification and broadcast context lacked retained wording and event support; current output suppresses the event and discloses wording uncertainty.",
+      "reply_post_id": "2078495551746662688"
+    },
+    {
+      "current_reply_sha256": "1a0c2b89a83c88c2f95ca06106811cde56b5f9bba63c19af12d5a847ff690331",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 40,
+      "parent_post_id": "2078530881916977383",
+      "published_reply_sha256": "6cd94391d662767b33cce76bdf0c24070853c867c8cf5dbd66d872eef994ac73",
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin.",
+      "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "reason": "Meaning adds totalitarian and anti-democratic claims without an edition-specific primary memoir page.",
+      "reply_post_id": "2078530884492267617"
+    },
+    {
+      "current_reply_sha256": "a2fb855e09587d1959d727b76ea6921edd203cdff42fbc8bbcaa86d0d622086c",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104107",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "2d21a69352135fa46513e6c030a867ffa347a69a6ac192a7a41d51315d87570e",
+          "c437828ac0f43e7fc5d4381d28893f0f5010a460cc1d5c24b31486d8a800e83b",
+          "df21448889bd6bc912e18ddb00ffec0a2a54b72c6e4373f67310680f3f5b4efb",
+          "e70a6e9bf2b1078932abf9025225d340987ad7ecbecc6601564cd6e43ee0e0fc",
+          "f12bafd28248c37cfed3edcc17e32c58956c4c00d229266d67b8ebf56f4a9bb1"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 41,
+      "parent_post_id": "2078562405064257640",
+      "published_reply_sha256": "818f0e1fa9591472a5041564f22d05645c500f4fb1ff0a64c6f0742e073b0ddd",
+      "quote_id": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "quote_text": "If the State usurps or denies the right of the individual to make, where he is able to do so, the important decisions in his life and to provide the essentials for himself and his family, then he is demeaned and diminished as a moral being.",
+      "quote_text_sha256": "178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078562407715094824"
+    },
+    {
+      "current_reply_sha256": "a62c8c5a93a191f04010ba2fd12eddfc8438265c3a4093c19ace86285c6af5f4",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 42,
+      "parent_post_id": "2078594997121696003",
+      "published_reply_sha256": "619c4242b58c9bdb4d9d4a29e04ab681acab3bb78230c405b80ff735aecd3000",
+      "quote_id": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "quote_text": "The only way to do the best you can is to work as hard as you can.",
+      "quote_text_sha256": "74539c04c492f1b8147b584a781b2f32c7f4f68e8c2f6773ff9415ff31c1a2b3",
+      "reason": "The published reply explicitly disclosed wording uncertainty; its Meaning is a restrained explanation of the displayed wording.",
+      "reply_post_id": "2078594999776620546"
+    },
+    {
+      "current_reply_sha256": "3b21bdbf57d42bd01763f76db613b9e5448788ea73f76e0c004b4d86ce181bd8",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "105799",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "7973db2cba3b6d23631cefb3f36686e5310920b4b8bd5e68df8f4b438738ea33"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 43,
+      "parent_post_id": "2078630550701560146",
+      "published_reply_sha256": "0be0f68fb4cabdd2447a6294d6cb7013598d63ec0efefee1aa186f5ade314566",
+      "quote_id": "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+      "quote_text": "We must never give in to the oldest and least democratic trick of all - the coercion of many by the ruthless, manipulating few.",
+      "quote_text_sha256": "9f74417203f417b3b3c1527f671418d49b9fd6452d09a7a668e11d41ccb307ef",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078630553884967420"
+    },
+    {
+      "current_reply_sha256": "144493e573b0e386161532f303bde391a653998e48289abd03edc2c388666e91",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 44,
+      "parent_post_id": "2078665005155643594",
+      "published_reply_sha256": "54454a019c7b939f142e2f007b308dece5de9e0e151796707abc5ddcccdfecc4",
+      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "quote_text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect.",
+      "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "reason": "Meaning adds a causal justification for later free-market reforms without an edition-specific primary memoir page.",
+      "reply_post_id": "2078665007936532935"
+    },
+    {
+      "current_reply_sha256": "73236ef012248405c90733882a856926c17090de362b6646e643aceecddd9a22",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "101724",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "1c127bcbd961e94398b6ab0b08df6d7e366d4a83ae6f676c22f944a414290422",
+          "fdcdaef76b43f92e69df3e5be90597ae4a70314d75a80676343f9871b0f079c3"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 45,
+      "parent_post_id": "2078699545228136694",
+      "published_reply_sha256": "f5d2db993487577c584859e25850e4f2f1d98c3749a895d2c5aef61f8bbdd110",
+      "quote_id": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "quote_text": "Those who use this country's great tradition of freedom of speech should not seek to deny that same freedom to others, especially to those who, like Mr Powell, spent their war years in distinguished service in the Forces.",
+      "quote_text_sha256": "8312afd41d8a4871f7c62f21e6bab0840e48aef15d48e311fc152cc1e1d03e1d",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078699547912450423"
+    },
+    {
+      "current_reply_sha256": "01eb2b88b05a73ffcc4702337f7abdd1d16a4a7314928e768c6fc452740fc973",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108353",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "5e56df7af5b67f7a11e9a2b5d9a659855ef4ff8938a32867502b42e58ffb0c3c"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 46,
+      "parent_post_id": "2078737297487401098",
+      "published_reply_sha256": "40d337b335e2b5d73532fbe64655fa71ee5f68d9e2d560a3dd6f5022bf4de439",
+      "quote_id": "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+      "quote_text": "The cause of limited government - in which the State is servant not master, custodian not collaborator, umpire not player - is the one beneath whose standard Keith Joseph and I gathered all those years ago.",
+      "quote_text_sha256": "8ef96d03f90989bfab8874de43795820bd16986fa8b56781fe44d08b5b693201",
+      "reason": "Published exact verification exceeded medium-confidence evidence; current output suppresses unsupported occasion and date and discloses wording uncertainty.",
+      "reply_post_id": "2078737299953561868"
+    },
+    {
+      "current_reply_sha256": "892c767f313578d011f3c3b90347cf5d200feb02233ae53da22b9f83d3d73a44",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "871b4ca28ee456e88657cf7b8f7ad16297010be29b86ee124a5d12f4e9bf5431",
+          "8933de45bec5ac482839d1183e15cdc3885c8ea9b9598d6c10a2c19e709bd207"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 47,
+      "parent_post_id": "2078770830616474042",
+      "published_reply_sha256": "0dc5a39e47a1093b4c6205f4478aaaa1e69f6dad71b027dc4785a8f1b044fdcd",
+      "quote_id": "c55d29dd2d646598a88fca9e9e92a63ede1fae1d3615e94031dfc43d9c6da9c4",
+      "quote_text": "It is free, enterprising, self-reliant, responsible individuals that Britain needs. It's when we have more of them, our communities will take better care of themselves.",
+      "quote_text_sha256": "c55d29dd2d646598a88fca9e9e92a63ede1fae1d3615e94031dfc43d9c6da9c4",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078770833221169664"
+    },
+    {
+      "current_reply_sha256": "5fe66e7c3d9724db0d5d5194efc33b45ccbc029e4831c266930ada68c68c2423",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104913",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "752b886a9934425ad719768a5ab16a39767c6f83bc6ae77b5fd6123d4d069ea9",
+          "aa6614f9d13631974174a162480a07cc971bb41616284864a999d84038a90a33"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 48,
+      "parent_post_id": "2078806427544510608",
+      "published_reply_sha256": "0320c011a3460ff3461018d4a8ceb7bec26b139f9439362398e9c38404d9d395",
+      "quote_id": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "quote_text": "When you stop a dictator there are always risks, but there are great risks in not stopping a dictator. My generation learnt that long ago.",
+      "quote_text_sha256": "a479ad6da0c4a08c890f9f56f57fd14bef26eedc7c9931eb973d82d8d426dd6d",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078806430497308678"
+    },
+    {
+      "current_reply_sha256": "e74242f82f7eafc3555a63327c0a568acf4ee21d3f5b7eaddc4a907a633c054e",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 49,
+      "parent_post_id": "2078841732343419161",
+      "published_reply_sha256": "0805fad161288f34cca3ab548f4b5df947231b19c446cd0d6628ccd4b879270d",
+      "quote_id": "b5fa3f26b28013136d5f8f590096eb78f0e0c7f8960c1c15868491059feb0c1a",
+      "quote_text": "You never, never, never allow the bullet and the bomb to oust the express view of the people by ballot.",
+      "quote_text_sha256": "b5fa3f26b28013136d5f8f590096eb78f0e0c7f8960c1c15868491059feb0c1a",
+      "reason": "Published exact verification and Fraser context lacked reliable retained evidence; current output fails closed to Research incomplete.",
+      "reply_post_id": "2078841735124336789"
+    },
+    {
+      "current_reply_sha256": "dca6512b55e6c3e19f03c1ac5860d0388a5e183564003bf4f003a623d5db1b61",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "5f17cd289362d1ec4a1fd4993132af8f2ba4e779bb17f1d672a4ff450953a752",
+          "a2c7c2e6e36518c56751f5fa5cd580f2a1dfb3e6ec9910cff170876e23c0406f"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 50,
+      "parent_post_id": "2078873500689813866",
+      "published_reply_sha256": "b7d9de19720f1ae2c2a03f8a56a8e9a4a2e8dd2d558a20ef94521ba8b18c4172",
+      "quote_id": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "quote_text": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
+      "quote_text_sha256": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078873503109898599"
+    },
+    {
+      "current_reply_sha256": "6018543b75d05c2cf7ec1514c44d04e8e6c2af890ab14016db0db365faa4b2fc",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 51,
+      "parent_post_id": "2078910459059511779",
+      "published_reply_sha256": "5a48b974de64f65eb35cbae65af8396fe9059fac85c970e6eac2570047e1efbf",
+      "quote_id": "6abe034f1de82a057490eb8b4b3e8a8900c7064a80bddcc7be2a742404f078e2",
+      "quote_text": "People's greatest fear is that they will lose their national identity... we ought not to be moving towards government by a technocratic elite: that is precisely what the peoples of Eastern Europe are moving away from.",
+      "quote_text_sha256": "6abe034f1de82a057490eb8b4b3e8a8900c7064a80bddcc7be2a742404f078e2",
+      "reason": "The published reply explicitly disclosed wording uncertainty; its Meaning is a restrained explanation of the displayed wording.",
+      "reply_post_id": "2078910461903339896"
+    },
+    {
+      "current_reply_sha256": "ea54bedeeb1e567a4a58e15f3aff674e1feedbd4719e647092e033a759a93440",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "4f3fbe78b8d186b84180f0e7a3c5ef2bf3cd1ab33ff9596574dcbbe6ce5a2ce5",
+          "68003293b8af8eb00d7663f2f30d570f75edf1bb098b32305dcf0c8774b034f2"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 52,
+      "parent_post_id": "2078945002462281789",
+      "published_reply_sha256": "b7492405b715a38e7333aa8b94ea9fd1e824da226e3cf19bd8b5665d76d7dc4e",
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "quote_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member.",
+      "quote_text_sha256": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "reason": "Meaning generalises a recommendation of two Hayek books into endorsement of his philosophy and specific arguments.",
+      "reply_post_id": "2078945005507342551"
+    },
+    {
+      "current_reply_sha256": "49097e41eb5bab6128715fd1b123e062e2d26d57cfeab4e8a5ef8c0b03f9a8bb",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "2f2f86232516106ae116fa5d2c0a662bc083eb1ee4afd054b3fa2e3ed0f0004b",
+          "52e33b78bae443c8bf0594e2db5112159f2a47cbaabad749b7325f1d149eb948"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 53,
+      "parent_post_id": "2078982730470035807",
+      "published_reply_sha256": "dfbdb75a2e4cb3b1e254e3949e2e75371cc83cd93c9c13ee161b03b1250f3ce4",
+      "quote_id": "ea8ce8b92dda4ec4903e7a3a02642a938a4c69dff6dd73d7135a5b2ba75839cf",
+      "quote_text": "We Conservatives don't duck the difficult issues. We face them determined to overcome them.",
+      "quote_text_sha256": "ea8ce8b92dda4ec4903e7a3a02642a938a4c69dff6dd73d7135a5b2ba75839cf",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2078982733368332786"
+    },
+    {
+      "current_reply_sha256": "326528fb398101d6b03055cae090af82805e5376cdfb22f53da911717ee036c8",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "4b7416e71ce98a16d4932f7a993632cc4370c835d9a218e169a81c2a045750c9"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 54,
+      "parent_post_id": "2079015763638136971",
+      "published_reply_sha256": "b275ed2c3036c1f424521993571c5f5c3879aedd9b7e0aca0d932bff3d7a04ca",
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "quote_text": "European history shows that, first, there's nothing necessarily benevolent about programmes of European integration; second, desire to achieve utopian plans often poses a grave threat to freedom; and third, European unity has been tried before - the outcome was far from happy.",
+      "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "reason": "Meaning adds artificiality, coercion and national sovereignty beyond the retained secondary wording.",
+      "reply_post_id": "2079015766389580179"
+    },
+    {
+      "current_reply_sha256": "c8513ac35486e547f77b36b86c4b312687747ea5741c961308f16603de952271",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 55,
+      "parent_post_id": "2079052325818155012",
+      "published_reply_sha256": "2a025b11317b27fdf5f85a4d1bf3f8d5d9413307442bf41e06d411bf3c2c1f94",
+      "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "quote_text": "Constitutions have to be written on hearts, not just paper.",
+      "quote_text_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "reason": "Meaning adds freedom, democracy and inherence without a reliable retained source.",
+      "reply_post_id": "2079052328502542410"
+    },
+    {
+      "current_reply_sha256": "79fab48b24bb8966e83b7f34c7d15c2c90f4ecc5a899a3e59b761aa7cdde4656",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108353",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "eea4943cf485ed2d8848fc5b644e6a3bb0d928914aa3be5688999f338433525c"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 56,
+      "parent_post_id": "2079089677009555866",
+      "published_reply_sha256": "69408f533085a05fdcc2c4f3ff2c12bda4ae2c0e1c4b7cdaf259c9453ac99d6b",
+      "quote_id": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "quote_text": "In politics, integrity really lies in the conviction that it's only on the basis of truth that power should be won - or indeed can be worth winning. It lies in an unswerving belief that you have to be right.",
+      "quote_text_sha256": "8a34e3ac5cf6fdcb916ef5973463f9f4b809eaa23e16eafa68d2babfdd9a4cf8",
+      "reason": "Published exact verification and lecture context exceeded medium-confidence evidence; current output suppresses unsupported context and discloses wording uncertainty.",
+      "reply_post_id": "2079089679597535480"
+    },
+    {
+      "current_reply_sha256": "d33c4d75e97e4aa8877a52325f9f701b29d05f8561ae62594e45aac5c2725051",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108375",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "8e57ad35dc032ef43f32def44886d42f2d22222176ea28febf59ec43ec879c08"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 57,
+      "parent_post_id": "2079120692264477118",
+      "published_reply_sha256": "6c0cfe80437c5f6a1b7c0dbf1e6f0cb4da2095f135ded8eda6e805c093746298",
+      "quote_id": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+      "quote_text": "It takes courage of a high order to lay yourself open to the taunts and sneers of lesser men who try to diminish your character because they can't defeat your arguments.",
+      "quote_text_sha256": "d17e9db4a42fefe4368a5a1495f01a08c4ddd4c43fda43605a7fdc9467454bfd",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079120695146033193"
+    },
+    {
+      "current_reply_sha256": "da79315e3902baa3886154fcdf899f86f38b5e1884662147b779eb8eee357f26",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "105774",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "8ab9796dde1783d7275232a08ef6d9a13dd189514956933c8b5e0d164ac1c9fc",
+          "97960de63c603321f16862189ea26053afb0708b11a46e02965cdd1a7590e24f"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 58,
+      "parent_post_id": "2079152583285813352",
+      "published_reply_sha256": "cf0a1640080c5a1b869501a9f1f48695ffcb64baf67b0ea631057f75f3c54197",
+      "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "quote_text": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry.",
+      "quote_text_sha256": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "reason": "Document 105774 still renders twice and one entry is inaccurately described as an interview transcript; Meaning over-narrows politics to a left-wing agenda.",
+      "reply_post_id": "2079152585831858394"
+    },
+    {
+      "current_reply_sha256": "e8c730eb13c1b765fa2b009f16891478e516fb57d89d3eb5296462833f02c44d",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "105484",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "53ab1f3fb65de8dda03bd16967504d2c94d2086c031c350d32110d3f058fa4d3",
+          "80ba974c48c7be971cf7b51244a4e762dbb3b4453a76fc8feab59df36a56941d"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 59,
+      "parent_post_id": "2079185945149010272",
+      "published_reply_sha256": "2ae4d4dd0a512ea65c2e18678f83d7fd06e215d91ec37919915e8dde4e1f8bab",
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
+      "quote_text_sha256": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "reason": "The correct Lord Mayor source is document 105472, not the currently rendered unrelated document 105484; Meaning also overstates the direct claim.",
+      "reply_post_id": "2079185947762024690"
+    },
+    {
+      "current_reply_sha256": "df915527efeb9b9cec215b0ed225795a0587ee4de20449da7adef345b0e64152",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "106498",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "2e759163fb000f7167536ad90d6483506d1fd11d84bc4ec3cc43d2dbfdca26a4",
+          "cbff91870712453d944520210753a44e5251cc348ca7818f42bb6ba833864bba"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 60,
+      "parent_post_id": "2079220295857037638",
+      "published_reply_sha256": "c8e9ff9775a60a414d86dcf0b55a874b6eb78d10ab2e76cd6834bd1b4e1f1744",
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "quote_text": "Governments should not run business.",
+      "quote_text_sha256": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "reason": "Meaning adds inherent private-sector superiority; the source states that taxpayers bear state planners' mistakes.",
+      "reply_post_id": "2079220298587545750"
+    },
+    {
+      "current_reply_sha256": "85239235f253346ce2c9fc408b207406364c87df2472a8e8e0650299a314bc0a",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "105508",
+            "machine_status": "no_machine_detected_discrepancy"
+          },
+          {
+            "document_number": "105563",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "15e9ea70164bed21b9ec446b3474685c9d266ac322a678bc35ffae0b6a6698e8",
+          "221fce0278b32cea8c290be74a9a4a3a11583ffd868b1302adda5e529386bc9f",
+          "2b19ac4b05490170f439bd273380b549cb0fbe3bd63b7ae33cc13f21a96842fb",
+          "d3c7e266b5efc018a07282b58d0a8c7efc7f0873648d6805d5851ca4c6d30fe8"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 61,
+      "parent_post_id": "2079253904500384102",
+      "published_reply_sha256": "c92d5ce89883c334c9c7d226cd397483a7e76dbcf1c2d44067d91857b5e4ee3b",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+      "quote_text_sha256": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "reason": "Meaning mislabels the rival Liberal-SDP alternative as a populist distraction.",
+      "reply_post_id": "2079253907008598336"
+    },
+    {
+      "current_reply_sha256": "47c661ea8ed38286396d2259812639b24b72c937b4c32c6102e5bff22dbbaef4",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 62,
+      "parent_post_id": "2079286616233844889",
+      "published_reply_sha256": "1046d4474c182558710668c998ca0556a56281d3edc694039fb83a2da2c26381",
+      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive.",
+      "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "reason": "Meaning introduces market-clearing terminology and categorical causation without retained evidence.",
+      "reply_post_id": "2079286619106947425"
+    },
+    {
+      "current_reply_sha256": "0f7aacc1aac1fe9cfd22b25484f332f654fa047f616ae12183a5497be5879752",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 63,
+      "parent_post_id": "2079319695883165823",
+      "published_reply_sha256": "af732e31c52b7ffe481fe1261ad7ccdcfefcf3d976d6ad1b9aafbb82e0b35eec",
+      "quote_id": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "quote_text": "If my critics saw me walking over the Thames they would say it was because I couldn't swim.",
+      "quote_text_sha256": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4",
+      "reason": "Meaning implies confirmed Thatcher authorship even though attribution remains unresolved.",
+      "reply_post_id": "2079319698835902551"
+    },
+    {
+      "current_reply_sha256": "da3f39630e53a85315a7a0891c1f2e04d83219a82c06bdebbaf270b16457a44b",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "286f530b392711e8bef63c443fddf3b1ade8946c76c2c8df51534b550b7ae585",
+          "5a7cbbe5696cf8736c363ce4253f0b415cd42f2b25f08bd26d900b195f8e6eb5",
+          "c7a6e1542732aba2e4461e6f084b6b03a6da55aec26fc63a188ad9388871cccb"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 64,
+      "parent_post_id": "2079353513142804949",
+      "published_reply_sha256": "b137787d1c9aad2188894c73d6a8b4ae3114669f0c64f0352289fd683f85dc67",
+      "quote_id": "bf999e4ea585f46ca8e838864a83c3c7151590ddd28614e2f0515da14be36835",
+      "quote_text": "Europe has only been single under tyranny, not under liberty.",
+      "quote_text_sha256": "bf999e4ea585f46ca8e838864a83c3c7151590ddd28614e2f0515da14be36835",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079353516070416821"
+    },
+    {
+      "current_reply_sha256": "0c6fa869fe60c427789cb4a765fc36b02567480a1ba83ea2e613fe6ccb539f0b",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104078",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "15dae2b8959da3a32eba919e212f876a18f698f721e6a4f348a77cd05ef203f1",
+          "19df10f6e5b024dca3cb1500200e97d7622a38bed273a922df2e4dede8dca816",
+          "578ed81c462dd41153ccf15aa7e01fc9b0916db7117b96d8e98f12fc1497ec71",
+          "85be3973ecc7f017b7c00a042b44f3d6388eef78e5bdfcd4f497a10f0b2d0c62",
+          "cc630bb1085b8ac777d3d2ec19262708008528846b5c3650636a5c52e793ae46"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 65,
+      "parent_post_id": "2079388314986058001",
+      "published_reply_sha256": "48f59bb5537d7708f6a1b4b7914479e84f565d6d719565f907a3be9c9b25f4ee",
+      "quote_id": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "quote_text": "Where there is discord, may we bring harmony. Where there is error, may we bring truth. Where there is doubt, may we bring faith. And where there is despair, may we bring hope.",
+      "quote_text_sha256": "4a3ab5b0d0c9d5222be085ea91e57402fbe2cb716c88687ed162489b60cf9747",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079388317582258381"
+    },
+    {
+      "current_reply_sha256": "e8a6d3cc98bc3db98f08e6694ab52382002257b52054b924c65f3a0a61c72395",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108346",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "81df0a8067fd1a322eb36b77045a16346c374b2d0b002abb330e6e5f680cd418",
+          "d592ed4c64820830abc9b641c5aa644caac221ac88065659c35207186af09597"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 66,
+      "parent_post_id": "2079420085576319176",
+      "published_reply_sha256": "6e882ef66b718f8f4f1a1ae4c27bdec3310a34769f452cc98bb4d5f12c5a4124",
+      "quote_id": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "quote_text": "To me the most significant lesson is: never appease an aggressor. If we do, he will only grow stronger and more confident, and to secure his ultimate defeat will require greater effort and greater sacrifice. The longer you put off the needed decision and action, the higher the price in blood which has to be paid.",
+      "quote_text_sha256": "f23279558d69a406ee4879741a769b6f5b79e81c41970a00ed4ed02169be95e2",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079420089384706278"
+    },
+    {
+      "current_reply_sha256": "bc4c10e4854cd97b9dc134a18a52e70735413e97d438cb63acb84b26214c933c",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "102639",
+            "machine_status": "manual_review_required"
+          },
+          {
+            "document_number": "102655",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "86eb16bf0deccf92d60d3d8b65a606ca3b3f3170065e00b5137f2b5c2d89735b"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 67,
+      "parent_post_id": "2079456969220362536",
+      "published_reply_sha256": "f9967278f5217379ece258155802f13f55cbde881db2c052f9ae121786944001",
+      "quote_id": "839dd294b5c3232f95147be8e221ce983197f5f1435cce9cf6f28844976f0f64",
+      "quote_text": "Human progress is best achieved by offering the freest possible scope for the development of individual talents, qualified only by a respect for the qualities and the freedom of others.",
+      "quote_text_sha256": "839dd294b5c3232f95147be8e221ce983197f5f1435cce9cf6f28844976f0f64",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079456971619491938"
+    },
+    {
+      "current_reply_sha256": "d7ccf85eb511a8bc9258eaefddb63c71c9515109985a964a630eeee51f9ef5b3",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "102663",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "44aeb81e043715c91346723b3b686aa0654753a9a8c524e4432b51294638a1f9",
+          "62ce4e1c7b6e51051c876030a81655caadb75313551c6c9f3062e9c4d13c1118"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 68,
+      "parent_post_id": "2079489778009985225",
+      "published_reply_sha256": "823d3dcdf7d5517104fce0b724aa42de3413c8a54064bb929859180bca4eb93f",
+      "quote_id": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "quote_text": "This Party of ours has been on the defensive for too long. The time has come to counter-attack. The intellectual counter-attack is as important as the counter-attack in Parliament and in the constituencies. If we can win the battle of ideas, then the war will already be half-won.",
+      "quote_text_sha256": "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079489780321075389"
+    },
+    {
+      "current_reply_sha256": "102bf24c4d9cea46ae96e3e5298ffd390b00bf33ca2b415a2086061e090e2972",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103684",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "63baba4fe352ef619e80410c420eb4b788d79a3cc137419ee8d87235a35e2ba7"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 69,
+      "parent_post_id": "2079520340510650465",
+      "published_reply_sha256": "e1af6d9a644ec654496b1181d51bb528821596cffdcd8963f908974face96af2",
+      "quote_id": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "quote_text": "It is our job to go about telling everybody to obey the law.",
+      "quote_text_sha256": "5f343702a183a99143ff0935165238b5d5ee0732521a258470450e207fb147e5",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079520342725312797"
+    },
+    {
+      "current_reply_sha256": "6b4862606357434ee75276eb9f7e397888ba0c330b364fdcd9a593d808cd17ce",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "renderable_source_ids": [
+          "001573a06465a0423a047642e4137b305c616e0a96ab5eecd6f3d8cd9e154186",
+          "5aedfc9354feb66965c87381334e9f80d68ac551c90f642b2ac2d5c44caa446d"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 70,
+      "parent_post_id": "2079557836044923108",
+      "published_reply_sha256": "267f4f9fb43f7d99e42fef0813b6b214a3ce6c081ac6e121efad1bc74c385740",
+      "quote_id": "2ed1607a04af289eb77f39654d09d1e68a12d31762f82fc5a6233d7a27bcd53a",
+      "quote_text": "Socialism has to be defeated, and soon, or it will be too late. We shall be so far down the road to State control that the near-Communist society will have engulfed us.",
+      "quote_text_sha256": "2ed1607a04af289eb77f39654d09d1e68a12d31762f82fc5a6233d7a27bcd53a",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079557839870112249"
+    },
+    {
+      "current_reply_sha256": "f3d7dff0bb5c990bfd6b2d263173e931f363584203fe75d3bb558a7c198312bd",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "bc85b671dd68ada9a104b634a2397382767266ede0dabdd7d406d96b6f5728f0",
+          "de7667d48ca24173de935630d4499721b707082202403b47c4e1e75aa1f302c7"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 71,
+      "parent_post_id": "2079594717214347700",
+      "published_reply_sha256": "e0f560b42d50877f57b69f98e3bcc2348f5ae1ac45f21699a16de9a64e711ab4",
+      "quote_id": "0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9",
+      "quote_text": "Time and again history beats out the same message. Competition is better for the consumer than State control.",
+      "quote_text_sha256": "0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079594719563124968"
+    },
+    {
+      "current_reply_sha256": "fba451d7889d2d1a62515ddf2e5c7acba6bf4bba337724a31acdac1253c542ad",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 72,
+      "parent_post_id": "2079630324523303005",
+      "published_reply_sha256": "c0c661ff2afe12da60f546d7464143f5d69ba54efe9273e7f1893f13aaa955f1",
+      "quote_id": "4229308295bc2b967b2ef17596473f6dec8d9f1ae5c12bf9a80e75a522b38ae7",
+      "quote_text": "To cure the British disease with socialism was like trying to cure leukaemia with leeches.",
+      "quote_text_sha256": "4229308295bc2b967b2ef17596473f6dec8d9f1ae5c12bf9a80e75a522b38ae7",
+      "reason": "Published exact memoir verification lacked a reliable renderable source; current output fails closed to Research incomplete.",
+      "reply_post_id": "2079630327601901996"
+    },
+    {
+      "current_reply_sha256": "28a766028ba1f744fcd344f03ecddb22c9f38cb77c1a34e5d2f8b75797f31b59",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 73,
+      "parent_post_id": "2079661906290155882",
+      "published_reply_sha256": "c58c1472fde2b53e0e952d1997cbaa7ac8bf3c3b6d9d92042825da79d6208b8d",
+      "quote_id": "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4",
+      "quote_text": "We were the first country to attempt and to succeed in rolling back the frontiers of socialism, which is the first cousin to communism.",
+      "quote_text_sha256": "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4",
+      "reason": "Meaning adds individual self-reliance as the mechanism despite unresolved attribution and no reliable source.",
+      "reply_post_id": "2079661912573276176"
+    },
+    {
+      "current_reply_sha256": "dc7dd621813cf00dbd85bd6d747876be51b98f857037f6277cfe6e0b2afbe759",
+      "disposition": "supported_as_published",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "107352",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "45f1a07b1d292952527310d570402ef32d535b8e0976be06a9c0b2f5034ce7da",
+          "80a0e08e01c3043654a299a3c50e5a13a4d3188a7ee858c840a876ce6ea455be"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "no_change_required",
+      "history_index": 74,
+      "parent_post_id": "2079694400372801544",
+      "published_reply_sha256": "3d600b87b412849e733c7fe4c5b688914ba8d403927e6f29f57cc7e2f5c9034c",
+      "quote_id": "27b9bc245abb7d5e022924fd6a02b346fc4a3dfb7837c974cb569461412be069",
+      "quote_text": "We believe that individuals have a right to liberty that no state can take away. That Government is the servant of the people, not its master. That the role of Government is to strengthen our freedom, not deny it. That the economic role of Government is to establish a climate in which enterprise can flourish, not to elbow enterprise out of the way.",
+      "quote_text_sha256": "27b9bc245abb7d5e022924fd6a02b346fc4a3dfb7837c974cb569461412be069",
+      "reason": "The published Meaning stays within the quotation's stated claim; the retained review evidence disclosed no material context, verification or source contradiction.",
+      "reply_post_id": "2079694407180140571"
+    },
+    {
+      "current_reply_sha256": "36282c50556a067bdfa0640a389ace5334109f0413ce3f90c65af536afec177f",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9"
+        ],
+        "renderable_source_quality_classes": [
+          "secondary_recollection"
+        ],
+        "wording_confidence": "low"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 75,
+      "parent_post_id": "2079728698731745489",
+      "published_reply_sha256": "36282c50556a067bdfa0640a389ace5334109f0413ce3f90c65af536afec177f",
+      "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "quote_text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it.",
+      "quote_text_sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "reason": "Meaning adds national-interest reasoning and a prescriptive ideological break not established by the secondary recollection.",
+      "reply_post_id": "2079887300213825906"
+    },
+    {
+      "current_reply_sha256": "18110d5025caf21210949ac60df82a57a1e744433946135efb6132ac95d32da6",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104653",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "resolved_by_current_rendering",
+      "history_index": 76,
+      "parent_post_id": "2079890585574359068",
+      "published_reply_sha256": "9c6d72a10aab227c94bfcc38a6379eb16b3a9d1c7f28c4ff07af84b44b8c99ab",
+      "quote_id": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
+      "quote_text_sha256": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "reason": "At review time admitted evidence did not support the occasion and date or restrain the Meaning; inspected official document 104653 and its hash-bound correction now resolve future rendering.",
+      "reply_post_id": "2079890592461377745"
+    }
+  ],
+  "remaining_items": [
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning says penal taxation ultimately destroys outcomes where the source says it has adverse or harmful results.",
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "The Santiago source is document 108331; the current source set still includes the later Mexico document 108332 and renders two entries.",
+      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning universalises the Polish collectivist example into inevitable failure of all state-run systems.",
+      "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds inevitability to the source's claim that communism collapsed under the weight of failure.",
+      "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning strengthens a threat to liberty into inevitable coercion and destruction; primary book evidence is not retained.",
+      "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning turns a comparison with tyrants into a categorical claim about intent; document 108364 also still renders twice.",
+      "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Exact verification ignores an editorial [James Callaghan] insertion, and Meaning overstates the source as equality destroying both liberty and equality.",
+      "quote_id": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "A primary-edition locator for Statecraft is still needed before source and verification can be upgraded.",
+      "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "Meaning adds unsupported claims about leadership, rational thought, conviction and vulnerability; no primary transcript is retained.",
+      "quote_id": "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds totalitarian and anti-democratic claims without an edition-specific primary memoir page.",
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds a causal justification for later free-market reforms without an edition-specific primary memoir page.",
+      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning generalises a recommendation of two Hayek books into endorsement of his philosophy and specific arguments.",
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds artificiality, coercion and national sovereignty beyond the retained secondary wording.",
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds freedom, democracy and inherence without a reliable retained source.",
+      "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Document 105774 still renders twice and one entry is inaccurately described as an interview transcript; Meaning over-narrows politics to a left-wing agenda.",
+      "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "The correct Lord Mayor source is document 105472, not the currently rendered unrelated document 105484; Meaning also overstates the direct claim.",
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds inherent private-sector superiority; the source states that taxpayers bear state planners' mistakes.",
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning mislabels the rival Liberal-SDP alternative as a populist distraction.",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning introduces market-clearing terminology and categorical causation without retained evidence.",
+      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "Meaning implies confirmed Thatcher authorship even though attribution remains unresolved.",
+      "quote_id": "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "Meaning adds individual self-reliance as the mechanism despite unresolved attribution and no reliable source.",
+      "quote_id": "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds national-interest reasoning and a prescriptive ideological break not established by the secondary recollection.",
+      "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
+    }
+  ],
+  "review_kind": "historical_context_published_reply_primary_source_semantic_review",
+  "review_method": {
+    "automatic_evidence_promotion_authorised": false,
+    "evidence_used": [
+      "retained source-role records and supporting passages",
+      "official Margaret Thatcher Foundation page comparisons where available",
+      "retained Hansard, newspaper and bibliographic evidence",
+      "the quotation's own semantic scope"
+    ],
+    "fields_compared": [
+      "Context",
+      "Meaning",
+      "Verification",
+      "Source"
+    ],
+    "machine_status_is_not_semantic_adjudication": true,
+    "source_of_review_rows": "historical_context_evidence_truth_audit.json records.published_reply_reviews"
+  },
+  "review_slices": [
+    {
+      "future_correction_needed": 10,
+      "insufficient_to_assess": 1,
+      "reviewed": 26,
+      "sorted_history_slice": "[0:26]",
+      "supported_as_published": 15
+    },
+    {
+      "future_correction_needed": 9,
+      "insufficient_to_assess": 2,
+      "reviewed": 26,
+      "sorted_history_slice": "[26:52]",
+      "supported_as_published": 15
+    },
+    {
+      "future_correction_needed": 11,
+      "insufficient_to_assess": 3,
+      "reviewed": 25,
+      "sorted_history_slice": "[52:77]",
+      "supported_as_published": 11
+    }
+  ],
+  "reviewed_at": "2026-07-22",
+  "schema_version": 2
+}

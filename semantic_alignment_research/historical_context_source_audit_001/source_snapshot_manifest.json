@@ -4,7 +4,7 @@
   "attribution_eligible_quote_count_after": 610,
   "attribution_eligible_quote_count_before": 610,
   "audit_path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-  "audit_sha256": "afda5152c18774bd2e2db39a001c4b7ea2a712f829e855dbe31579c769052053",
+  "audit_sha256": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
   "canonical_research_files_modified": false,
   "completed_packet_count": 626,
   "curated_source_adjudication_count": 1,
@@ -37,9 +37,9 @@
       "size": 17581706
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json": {
-      "mtime_ns": 1784678135273363204,
-      "sha256": "af669980bd364beed29128b3e12ee5667150ae4486148f47151fd6081c4029b1",
-      "size": 3876
+      "mtime_ns": 1784721324649997895,
+      "sha256": "db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867",
+      "size": 6328
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json": {
       "mtime_ns": 1784660031212614889,
@@ -52,7 +52,7 @@
       "size": 753963
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json": {
-      "mtime_ns": 1784678372504136421,
+      "mtime_ns": 1784722375842033074,
       "sha256": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
       "size": 1334146
     },

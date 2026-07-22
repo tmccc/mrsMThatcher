@@ -14,15 +14,15 @@
   },
   "audit_kind": "historical_context_public_source_deduplication_audit",
   "before_deduplication": {
-    "duplicate_canonical_identity_excess_record_count": 26,
-    "duplicate_canonical_identity_group_count": 26,
-    "duplicate_canonical_url_excess_record_count": 26,
-    "duplicate_canonical_url_group_count": 26,
+    "duplicate_canonical_identity_excess_record_count": 27,
+    "duplicate_canonical_identity_group_count": 27,
+    "duplicate_canonical_url_excess_record_count": 27,
+    "duplicate_canonical_url_group_count": 27,
     "legacy_exact_key_identity_conflict_count": 0,
-    "packets_with_duplicate_source_identity": 26,
-    "public_source_record_count": 588,
-    "repeated_archive_document_number_excess_record_count": 25,
-    "repeated_archive_document_number_group_count": 25
+    "packets_with_duplicate_source_identity": 27,
+    "public_source_record_count": 589,
+    "repeated_archive_document_number_excess_record_count": 26,
+    "repeated_archive_document_number_group_count": 26
   },
   "counts": {
     "attribution_eligible_quote_count": 610,
@@ -31,11 +31,11 @@
     "completed_packet_count": 626,
     "distinct_canonical_source_count": 563,
     "identity_ambiguity_count": 68,
-    "internal_source_record_count": 914,
-    "internal_source_records_merged_for_public_display": 351,
+    "internal_source_record_count": 915,
+    "internal_source_records_merged_for_public_display": 352,
     "invariant_violation_count": 0,
     "packets_with_no_reliable_public_source": 107,
-    "packets_with_public_source_merges": 242,
+    "packets_with_public_source_merges": 243,
     "render_failure_count": 0,
     "rendered_packet_count": 626,
     "unresolved_quote_count": 6
@@ -54,7 +54,7 @@
       "unresolved_quote_count_is_6": true
     },
     "completed_quote_id_text_sha256": "235eb63076bbc791c933e951525fbcde09537872241019e06d27fef6f86445eb",
-    "confidence_metadata_sha256": "36010dd0f6d41e4d207097aa2e66f57d5a56bef87e5976a0aecc50e0810496c3",
+    "confidence_metadata_sha256": "6df481dfaf161a3afe389faea1e45c961d2adf6bf64fb26d59c400b63754c3c4",
     "cycle_membership_count": 610,
     "cycle_membership_quote_ids_sha256": "9ad73fda8a0863cd1ba99fea65d1ceccf506f77d4b39742214e5934efd12e7ed",
     "quote_analysis_record_count": 619,
@@ -97560,19 +97560,23 @@
             "document_numbers": [
               "104653"
             ],
-            "title": "Margaret Thatcher Foundation, Document 104653",
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
             "url": "https://www.margaretthatcher.org/document/104653"
           }
         ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
-        "duplicate_canonical_identities": [],
-        "duplicate_canonical_identity_excess_records": 0,
-        "duplicate_canonical_url_excess_records": 0,
-        "duplicate_canonical_urls": [],
+        "duplicate_canonical_identities": [
+          "margaret_thatcher_foundation:document:104653"
+        ],
+        "duplicate_canonical_identity_excess_records": 1,
+        "duplicate_canonical_url_excess_records": 1,
+        "duplicate_canonical_urls": [
+          "https://www.margaretthatcher.org/document/104653"
+        ],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -97596,10 +97600,36 @@
             ],
             "title": "Margaret Thatcher Foundation document 104653",
             "url": ""
+          },
+          {
+            "canonical_identities": [
+              "margaret_thatcher_foundation:document:104653"
+            ],
+            "canonical_identity": "margaret_thatcher_foundation:document:104653",
+            "canonical_url": "https://www.margaretthatcher.org/document/104653",
+            "canonical_urls": [
+              "https://www.margaretthatcher.org/document/104653"
+            ],
+            "document_number": "104653",
+            "document_numbers": [
+              "104653"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1"
+            ],
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+            "url": "https://www.margaretthatcher.org/document/104653"
           }
         ],
-        "repeated_archive_document_number_excess_records": 0,
-        "repeated_archive_document_numbers": []
+        "repeated_archive_document_number_excess_records": 1,
+        "repeated_archive_document_numbers": [
+          "104653"
+        ]
       },
       "canonical_source_groups": [
         {
@@ -97610,21 +97640,25 @@
           "public_source": {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
             "roles": [
               "attribution_support",
+              "source_event_support",
               "wording_verification"
             ],
             "secondary_recollection": false,
             "source_type": "strong_primary_evidence",
-            "title": "Margaret Thatcher Foundation, Document 104653",
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
             "url": "https://www.margaretthatcher.org/document/104653"
           },
           "source_ids": [
+            "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
             "af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809"
           ],
-          "source_record_count": 1
+          "source_record_count": 2
         }
       ],
       "diagnostics": {
@@ -97649,8 +97683,58 @@
       },
       "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
+        {
+          "authoritative_urls": [
+            "https://www.margaretthatcher.org/document/104653"
+          ],
+          "canonical_identity": "margaret_thatcher_foundation:document:104653",
+          "canonical_url": "https://www.margaretthatcher.org/document/104653",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1981-05-20"
+          ],
+          "document_number": "104653",
+          "document_numbers": [
+            "104653"
+          ],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_foundation_document_104653"
+          ],
+          "publisher": "margaret_thatcher_foundation",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "url": "https://www.margaretthatcher.org/document/104653"
+        },
         {
           "authoritative_urls": [],
           "canonical_identity": "margaret_thatcher_foundation:document:104653",
@@ -97690,20 +97774,49 @@
           "url": ""
         }
       ],
-      "merged_internal_source_record_count": 0,
+      "merged_internal_source_record_count": 1,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Document 104653"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Document 104653\nhttps://www.margaretthatcher.org/document/104653"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)\nhttps://www.margaretthatcher.org/document/104653"
       ],
       "public_urls": [
         "https://www.margaretthatcher.org/document/104653"
       ],
       "quote_id": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
       "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
-      "source_records_merged_for_public_display": []
+      "source_records_merged_for_public_display": [
+        {
+          "canonical_identity": "margaret_thatcher_foundation:document:104653",
+          "canonical_url": "https://www.margaretthatcher.org/document/104653",
+          "document_number": "104653",
+          "identity_basis": "margaret_thatcher_foundation_document",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+            "url": "https://www.margaretthatcher.org/document/104653"
+          },
+          "source_ids": [
+            "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+            "af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809"
+          ],
+          "source_record_count": 2
+        }
+      ]
     },
     "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": {
       "after_deduplication": {
@@ -114013,10 +114126,12 @@
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
-    "historical_context_source_role_audit.json": "afda5152c18774bd2e2db39a001c4b7ea2a712f829e855dbe31579c769052053",
+    "historical_context_packet_corrections.json": "d67ba6d18a8914a75fad53d35f66236bc6767e9e08db801469fcac33453dd6ba",
+    "historical_context_source_curated_evidence.json": "db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867",
+    "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
   },
-  "source_role_policy_version": "historical-context-source-roles-v7-curated-source-adjudications"
+  "source_role_policy_version": "historical-context-source-roles-v8-claim-specific-public-context"
 }

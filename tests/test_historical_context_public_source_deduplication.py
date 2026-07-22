@@ -54,7 +54,7 @@ IMMUTABLE_HASHES = {
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     RESEARCH / "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "afda5152c18774bd2e2db39a001c4b7ea2a712f829e855dbe31579c769052053",
+    RESEARCH / "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
     RESEARCH / "final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
 }
@@ -1375,10 +1375,20 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
     assert written["counts"]["rendered_packet_count"] == 626
     assert written["counts"]["blocking_item_violation_count"] == 0
     assert written["counts"]["invariant_violation_count"] == 0
+    assert written["source_file_hashes"][
+        "historical_context_packet_corrections.json"
+    ] == _sha256(
+        copied_research / "historical_context_packet_corrections.json"
+    )
+    assert written["source_file_hashes"][
+        "historical_context_source_curated_evidence.json"
+    ] == _sha256(
+        copied_research / "historical_context_source_curated_evidence.json"
+    )
     assert all(written["invariants"]["checks"].values())
     assert written["before_deduplication"][
         "duplicate_canonical_identity_group_count"
-    ] == 26
+    ] == 27
     assert written["after_deduplication"] == {
         "public_source_record_count": 563,
         "packets_with_duplicate_source_identity": 0,

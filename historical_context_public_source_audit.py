@@ -26,6 +26,8 @@ from historical_context_formatter import (
     packet_is_attributed_to_margaret_thatcher,
     quote_text_hash,
 )
+from historical_context_packet_corrections import PACKET_CORRECTIONS_FILENAME
+from historical_context_source_curated_evidence import CURATED_EVIDENCE_FILENAME
 from historical_context_source_roles import (
     AUDIT_FILENAME,
     canonical_source_identity,
@@ -672,6 +674,15 @@ def build_audit(
         "mrsMThatcher.txt": _file_sha256(quote_lines_path),
         "quote_analysis.json": _file_sha256(quote_analysis_path),
     }
+    for optional_input_name in (
+        PACKET_CORRECTIONS_FILENAME,
+        CURATED_EVIDENCE_FILENAME,
+    ):
+        optional_input_path = research_dir / optional_input_name
+        if optional_input_path.exists():
+            source_file_hashes[optional_input_name] = _file_sha256(
+                optional_input_path
+            )
     rendered_count = sum(not item["diagnostics"]["render_failure"] for item in items.values())
     before_duplicate_packets = sum(bool(
         item["before_deduplication"]["duplicate_canonical_identities"]

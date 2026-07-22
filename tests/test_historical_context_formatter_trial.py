@@ -83,18 +83,38 @@ def test_production_v1_golden_outputs_are_byte_stable(corpus):
         assert hashlib.sha256(text.encode()).hexdigest() == expected
 
 
-def test_promoted_v2_matches_every_human_reviewed_candidate(corpus):
+def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     packets, _ = corpus
-    reviewed = read_json(
+    frozen = read_json(
         Path("semantic_alignment_research/historical_context_formatter_trial_001")
         / "formatter_v2_candidate.json"
     )["items"]
-    assert set(reviewed) == set(packets)
+    corrections = read_json(
+        RESEARCH / "historical_context_packet_corrections.json"
+    )["items"]
+    assert set(frozen) == set(packets)
     for quote_id, packet in packets.items():
         actual = v1.format_context_reply_v2(packet)
-        expected = reviewed[quote_id]
+        expected = frozen[quote_id]
         assert actual is not None
-        assert actual["text"] == expected["text"]
+        if quote_id in corrections:
+            correction = corrections[quote_id]
+            original_meaning = expected["field_provenance"]["meaning"][
+                "intended_argument"
+            ]
+            assert hashlib.sha256(original_meaning.encode()).hexdigest() == (
+                correction["original_value_sha256"]
+            )
+            assert hashlib.sha256(
+                correction["corrected_value"].encode()
+            ).hexdigest() == correction["corrected_value_sha256"]
+            assert actual["text"] == expected["text"].replace(
+                original_meaning,
+                correction["corrected_value"],
+                1,
+            )
+        else:
+            assert actual["text"] == expected["text"]
         assert actual["template_variant"] == expected["template_variant"]
         assert actual["meaning_included"] == expected["meaning_included"]
         assert actual["meaning_decision_reason"] == expected["meaning_decision_reason"]

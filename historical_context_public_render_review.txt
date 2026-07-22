@@ -15,37 +15,37 @@ attribution_eligible_quote_count: 610
 attribution_ineligible_completed_quote_count: 16
 render_failure_count: 0
 item_blocker_count: 0
-packets_with_source_merges: 242
-merged_internal_source_record_count: 351
+packets_with_source_merges: 243
+merged_internal_source_record_count: 352
 identity_ambiguity_count: 68
 packets_with_identity_ambiguities: 54
 packets_with_no_reliable_source: 107
 eligible_packets_with_no_reliable_source: 96
 packets_with_multiple_public_sources: 43
-packets_with_generic_context: 468
-packets_with_generic_context_and_public_source: 361
+packets_with_generic_context: 467
+packets_with_generic_context_and_public_source: 360
 packets_with_generic_context_and_event_or_date_evidence: 0
 packets_with_generic_context_and_exact_verification: 148
 packets_with_meaning_omitted: 16
 packets_with_long_replies: 2
 duplicate_full_public_reply_group_count: 1
 duplicate_quote_text_group_count: 0
-canonical_identity_display_variant_count: 45
-packets_with_reused_identity_display_variants: 205
+canonical_identity_display_variant_count: 46
+packets_with_reused_identity_display_variants: 207
 packets_with_urlless_public_sources: 165
 urlless_public_source_entry_count: 165
-packets_with_generic_mtf_document_titles: 187
-generic_mtf_document_title_entry_count: 191
+packets_with_generic_mtf_document_titles: 186
+generic_mtf_document_title_entry_count: 190
 editorial_queue_category_count: 9
 url_like_public_title_count: 0
 mtf_page_title_chrome_count: 0
 abbreviated_public_date_count: 0
 source_distribution: {"0":107,"1":476,"2":42,"3":1}
-raw_character_length: {"maximum":775,"median":418.0,"minimum":156}
-weighted_character_length: {"maximum":700,"median":398.0,"minimum":156}
+raw_character_length: {"maximum":775,"median":419.5,"minimum":176}
+weighted_character_length: {"maximum":700,"median":399.0,"minimum":176}
 formatter_options: {"include_meaning":true,"include_source":true,"include_verification":true,"maximum_length":4000}
-source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f","historical_context_source_role_audit.json":"afda5152c18774bd2e2db39a001c4b7ea2a712f829e855dbe31579c769052053","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
-implementation_file_hashes: {"historical_context_formatter.py":"ef96ec399b012ce03e653888052afae06e04a13977b97fac6b862572dc4b8690","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"5429f2e38e94415d30b7220739f0be72918d2bd3a383bb96842fdf44a9ce5b1d","historical_context_source_roles.py":"ce81dcb09920d5a95f629b22135aca177ef4d4977027638925ea67813e947ea2"}
+source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f","historical_context_packet_corrections.json":"d67ba6d18a8914a75fad53d35f66236bc6767e9e08db801469fcac33453dd6ba","historical_context_source_curated_evidence.json":"db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867","historical_context_source_role_audit.json":"431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
+implementation_file_hashes: {"historical_context_formatter.py":"2092d066a23c8e9da49ccf37fe2b6afaaac7313f54b888ff02d3e19b1b395382","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"51aa0d24163e80b9ef011a018b6e106779317441c6cd3c26eb729e46219a4c61"}
 
 AUTOMATED BLOCKERS
 ------------------
@@ -57,9 +57,9 @@ EDITORIAL REVIEW QUEUES
 {"additional_quote_id_count":87,"flag":"NO_RELIABLE_SOURCE","packet_count":107,"sample_quote_ids":["0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5","0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a","04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550","063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7","08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82","08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa","0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c","0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc","1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc","1085ff6a77a0bf02ea5c2621cc8d546e47637f2e363979687c62ba73f16504fa","13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f","141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5","15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712","184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13","1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55","2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9","25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9","26706085134c745c4f3819322184e57689d7aef652a5011e734adcd86ff77dc7","272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996","2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2"]}
 {"additional_quote_id_count":23,"flag":"MULTIPLE_PUBLIC_SOURCES","packet_count":43,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b","72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e"]}
 {"additional_quote_id_count":145,"flag":"URLLESS_PUBLIC_SOURCE","packet_count":165,"sample_quote_ids":["00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448","01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea","03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5","0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","1393eb73be2367fb280b57d3040e93f6ca7f569a77ec5e0a47f72940b9508637","16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f","19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296","1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500","1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315","1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662"]}
-{"additional_quote_id_count":167,"flag":"GENERIC_MTF_DOCUMENT_TITLE","packet_count":187,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29","115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","17223b25e42fe5b09b18f7b69eebd7224faeb7d764af5536dd57899eb0201f78","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
-{"additional_quote_id_count":185,"flag":"REUSED_IDENTITY_DISPLAY_VARIANT","packet_count":205,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11","1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a","1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d","178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1","1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1"]}
-{"additional_quote_id_count":341,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":361,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
+{"additional_quote_id_count":166,"flag":"GENERIC_MTF_DOCUMENT_TITLE","packet_count":186,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29","115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","17223b25e42fe5b09b18f7b69eebd7224faeb7d764af5536dd57899eb0201f78","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
+{"additional_quote_id_count":187,"flag":"REUSED_IDENTITY_DISPLAY_VARIANT","packet_count":207,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11","1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a","1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d","178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1","1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1"]}
+{"additional_quote_id_count":340,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":360,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
 {"additional_quote_id_count":0,"flag":"DUPLICATE_FULL_PUBLIC_REPLY","packet_count":3,"sample_quote_ids":["aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142","ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da","f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4"]}
 {"additional_quote_id_count":0,"flag":"LONG_REPLY","packet_count":2,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16"]}
 Queue members are marked by the same flag in ALL RENDERED QUOTATIONS.
@@ -150,6 +150,7 @@ CANONICAL IDENTITY DISPLAY VARIANTS
 {"canonical_identity":"margaret_thatcher_foundation:document:104107","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104107","url":"https://www.margaretthatcher.org/document/104107"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the Conservative Political Centre Summer School (\"The Renewal of Britain\") (Document 104107)","url":"https://www.margaretthatcher.org/document/104107"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:104368","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104368","url":"https://www.margaretthatcher.org/document/104368"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference (Document 104368)","url":"https://www.margaretthatcher.org/document/104368"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:104431","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104431","url":"https://www.margaretthatcher.org/document/104431"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference ('the lady's not for turning') [\"The Reason Why\"] (Document 104431)","url":"https://www.margaretthatcher.org/document/104431"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:104653","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104653","url":"https://www.margaretthatcher.org/document/104653"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)","url":"https://www.margaretthatcher.org/document/104653"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:105454","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 105454","url":"https://www.margaretthatcher.org/document/105454"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 105454)","url":"https://www.margaretthatcher.org/document/105454"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:105799","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 105799","url":"https://www.margaretthatcher.org/document/105799"},{"source_line":"Source — Margaret Thatcher Foundation, The Second Carlton Lecture (\"Why democracy will last\") (Document 105799)","url":"https://www.margaretthatcher.org/document/105799"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:106265","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 106265","url":"https://www.margaretthatcher.org/document/106265"},{"source_line":"Source — Margaret Thatcher Foundation, Interview for The Guardian (Document 106265)","url":"https://www.margaretthatcher.org/document/106265"}]}
@@ -438,7 +439,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 315/315/4000
+Raw/weighted/max characters: 365/365/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -455,7 +456,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Election Eve Article/Message, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Meaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.
 
@@ -559,7 +560,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 362/362/4000
+Raw/weighted/max characters: 378/378/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -576,7 +577,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or remarks recorded by the Margaret Thatcher Foundation, 8 November 1993.
+Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.
 
 Meaning — Capitalism is inherently moral because it relies on voluntary cooperation and individual freedom, whereas socialism is coercive and subjugates citizens to the state.
 
@@ -1528,7 +1529,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 336/336/4000
+Raw/weighted/max characters: 358/358/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -1545,7 +1546,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — TV Interview for BBC Campaign '79 with Michael Cockerell, 27 April 1979.
+Context — The surviving record dates this wording to 27 April 1979, but does not establish its occasion.
 
 Meaning — Britain's historical greatness and role in saving Europe during WWII makes its current state of decline unacceptable, necessitating a change in leadership.
 
@@ -2022,7 +2023,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 421/396/4000
+Raw/weighted/max characters: 471/446/4000
 Internal records -> canonical groups -> public sources: 4 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -2042,7 +2043,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Conservative Rally, 5 June 1987.
+Context — The surviving record dates this wording to 5 June 1987, but does not establish its occasion.
 
 Meaning — Thatcher argued that Labour's core policies and union ties inherently relied on conflict and division, making their accusations against the Conservatives hypocritical.
 
@@ -2253,7 +2254,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 362/337/4000
+Raw/weighted/max characters: 402/377/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1"]
 Blockers: []
@@ -2270,7 +2271,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Conservative Central Council, 4 March 1977.
+Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.
 
 Meaning — Economic power should reside with consumers in a free market, rather than with government officials dictating economic outcomes.
 
@@ -2681,7 +2682,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 402/402/4000
+Raw/weighted/max characters: 396/396/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -2697,7 +2698,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Comments made upon John Major's victory in the Conservative Party leadership contest, 27 November 1990.
+Context — The surviving record dates this wording to 27 November 1990, but does not establish its occasion.
 
 Meaning — Although she was relinquishing formal executive power, she fully intended to remain highly influential and offer forceful guidance to her successor.
 
@@ -2718,7 +2719,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 408/408/4000
+Raw/weighted/max characters: 398/398/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -2734,7 +2735,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article titled "Well Done Tony! You've Given William His Chance!" in The Daily Telegraph, 1 October 1999.
+Context — The surviving record dates this wording to 1 October 1999, but does not establish its occasion.
 
 Meaning — That socialism inherently leads to negative outcomes ranging from economic decline to mass death, and that conservative liberty is the necessary counter-doctrine.
 
@@ -2755,7 +2756,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 283/283/4000
+Raw/weighted/max characters: 349/349/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -2771,7 +2772,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The Observer, 27 January 1980.
+Context — The surviving record dates this wording to 27 January 1980, but does not establish its occasion.
 
 Meaning — She values debate and discussion but ultimately expects her decisions and authority to be strictly followed.
 
@@ -2836,7 +2837,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 365/365/4000
+Raw/weighted/max characters: 364/364/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -2853,7 +2854,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article in Signpost magazine ('THIS IS YOUR CHOICE. Margaret Thatcher Sums Up'), September 1959.
+Context — The surviving record dates this wording to September 1959, but does not establish its occasion.
 
 Meaning — That the Conservative Party governs by empowering citizens and respecting their freedom, whereas the Labour Party relies on state coercion and control.
 
@@ -2913,7 +2914,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 297/297/4000
+Raw/weighted/max characters: 328/328/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -2929,7 +2930,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or statement as Leader of the Opposition, 23 November 1975.
+Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.
 
 Meaning — The Labour government's policies are funded by taxpayers, thereby reducing personal wealth and freedom of choice.
 
@@ -3608,7 +3609,7 @@ Template variant: "compact_without_redundant_meaning"
 Meaning included: false
 Meaning decision: "Meaning omitted because it restates a direct, self-contained proposition whose mechanism or substantive terms are already visible."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 156/156/4000
+Raw/weighted/max characters: 191/191/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","MEANING_OMITTED","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -3625,7 +3626,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Election eve message, 1979 General Election, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Verification — Exact wording verified
 
@@ -3761,7 +3762,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 316/316/4000
+Raw/weighted/max characters: 373/373/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -3777,7 +3778,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech on 13 May 1978, 13 May 1978.
+Context — The surviving record dates this wording to 13 May 1978, but does not establish its occasion.
 
 Meaning — Socialist policies dangerously assume freedom can survive without active military defence, whereas true peace requires the strength to deter adversaries.
 
@@ -3838,7 +3839,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 404/404/4000
+Raw/weighted/max characters: 452/452/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -3854,7 +3855,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech in the House of Commons, 20 November 1980.
+Context — The surviving record dates this wording to 20 November 1980, but does not establish its occasion.
 
 Meaning — To assert unequivocally that the British government will not negotiate with or grant special status to convicted terrorists, framing their actions strictly as criminal rather than political.
 
@@ -4175,7 +4176,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 336/336/4000
+Raw/weighted/max characters: 373/373/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -4192,7 +4193,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Statement or article by Margaret Thatcher, 23 November 1975.
+Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.
 
 Meaning — That the Labour government's socialist policies were rapidly eroding freedom and must be stopped before Britain became a near-Communist society.
 
@@ -4838,7 +4839,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 315/315/4000
+Raw/weighted/max characters: 363/363/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -4855,7 +4856,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Interview for the Sunday Times, 15 November 1990.
+Context — The surviving record dates this wording to 15 November 1990, but does not establish its occasion.
 
 Meaning — The decision to adopt a single currency is not merely a technical economic issue but a fundamental constitutional surrender of national sovereignty.
 
@@ -4953,7 +4954,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 455/430/4000
+Raw/weighted/max characters: 514/489/4000
 Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -4972,7 +4973,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or broadcast, 13 September 1976.
+Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.
 
 Meaning — Socialism treats citizens like children by confiscating their earnings through taxes and returning a fraction as state benefits, thereby stripping them of personal responsibility and freedom.
 
@@ -5075,7 +5076,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 445/445/4000
+Raw/weighted/max characters: 487/487/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -5091,7 +5092,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Interview with the News of the World, 20 September 1981.
+Context — The surviving record dates this wording to 20 September 1981, but does not establish its occasion.
 
 Meaning — That her economic approach is rooted in traditional British values of hard work, thrift, and personal responsibility, rather than abstract academic theories.
 
@@ -5226,7 +5227,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 326/326/4000
+Raw/weighted/max characters: 320/320/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -5242,7 +5243,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Publication of her memoir, The Downing Street Years, 1993.
+Context — Publication of her memoir, The Downing Street Years.
 
 Meaning — To assert her moral opposition to apartheid's racial discrimination, distinguishing her rejection of the system from her pragmatic opposition to economic sanctions.
 
@@ -5301,7 +5302,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 300/300/4000
+Raw/weighted/max characters: 340/340/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -5318,7 +5319,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — 1979 General Election Campaign Address, 16 April 1979.
+Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.
 
 Meaning — That socialist policies of state control and deficit spending inherently undermine the foundations of a free society.
 
@@ -6732,7 +6733,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 265/265/4000
+Raw/weighted/max characters: 309/309/4000
 Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -6750,7 +6751,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — TV Interview for LWT Weekend World, 5 June 1983.
+Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.
 
 Meaning — Deficit spending is fundamentally unsustainable and inevitably leads to severe national economic crises.
 
@@ -7150,7 +7151,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 364/364/4000
+Raw/weighted/max characters: 374/374/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -7167,7 +7168,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or public remarks defending individualism and economic policy, 28 April 1988.
+Context — The surviving record dates this wording to 28 April 1988, but does not establish its occasion.
 
 Meaning — Tax cuts are essential to motivate individuals to create wealth, which is the only way a nation can afford to fund public services and social reforms.
 
@@ -7566,7 +7567,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 303/303/4000
+Raw/weighted/max characters: 363/363/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -7583,7 +7584,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech, 6 May 1978, 6 May 1978.
+Context — The surviving record dates this wording to 6 May 1978, but does not establish its occasion.
 
 Meaning — Thatcher argued that modern workers are citizens of their countries with legal protections and rights, not an oppressed international proletariat.
 
@@ -7951,7 +7952,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 272/272/4000
+Raw/weighted/max characters: 321/321/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -7967,7 +7968,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Letter to the Daily Telegraph, 21 August 2001.
+Context — The surviving record dates this wording to 21 August 2001, but does not establish its occasion.
 
 Meaning — Kenneth Clarke's pro-European views and past record make him unfit to lead the party.
 
@@ -8180,7 +8181,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 472/447/4000
+Raw/weighted/max characters: 502/477/4000
 Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -8198,7 +8199,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Chilean businessmen in Santiago, Chile, 21 March 1994.
+Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.
 
 Meaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.
 
@@ -8714,7 +8715,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 473/448/4000
+Raw/weighted/max characters: 501/476/4000
 Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
@@ -8733,7 +8734,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech at the International Free Enterprise Dinner, 20 April 1999.
+Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.
 
 Meaning — That the British people inherently value justice and fair dealing, which contrasts with what she viewed as the vindictive and unjust treatment of Pinochet by the Labour government.
 
@@ -8947,7 +8948,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 477/452/4000
+Raw/weighted/max characters: 499/474/4000
 Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
@@ -8965,7 +8966,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article titled 'The Britain I Want' published in The Sun, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Meaning — Citizens should be allowed to keep the majority of their earnings to support their families, rather than having their wealth confiscated to fund an expanding government bureaucracy.
 
@@ -8989,7 +8990,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 443/418/4000
+Raw/weighted/max characters: 483/458/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: []
 Blockers: []
@@ -9005,7 +9006,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article written for the Sunday Express, 29 July 1990.
+Context — The surviving record dates this wording to 29 July 1990, but does not establish its occasion.
 
 Meaning — The Conservative Party must not become complacent due to global ideological victories; they must defeat inflation and secure the domestic front to prevent a socialist government in Britain.
 
@@ -9336,7 +9337,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 333/333/4000
+Raw/weighted/max characters: 396/396/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -9352,7 +9353,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Media Interview, 8 September 1987.
+Context — The surviving record dates this wording to 8 September 1987, but does not establish its occasion.
 
 Meaning — That socialism inherently fails because it relies on central planning and state ownership, a reality now being acknowledged even by the leader of the communist world.
 
@@ -9678,7 +9679,7 @@ Template variant: "compact_without_redundant_meaning"
 Meaning included: false
 Meaning decision: "Meaning omitted because it restates a direct, self-contained proposition whose mechanism or substantive terms are already visible."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 173/173/4000
+Raw/weighted/max characters: 206/206/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["MEANING_OMITTED","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -9694,7 +9695,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech (Margaret Thatcher Foundation archive), 16 March 1976.
+Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.
 
 Verification — Verified excerpt
 
@@ -9879,7 +9880,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to the Economic Club of Chicago (and subsequent international speeches), 9 September 1991.
+Context — The surviving record dates this wording to 9 September 1991, but does not establish its occasion.
 
 Meaning — Capitalism is inherently democratic because it empowers individuals to make continuous daily choices, thereby decentralizing power away from the state.
 
@@ -10094,7 +10095,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 325/325/4000
+Raw/weighted/max characters: 381/381/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -10110,7 +10111,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech on 4 March 1977, 4 March 1977.
+Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.
 
 Meaning — That excessive government intervention, taxation, and regulation stifle economic growth, and that industry can only thrive when freed from state burdens.
 
@@ -10170,7 +10171,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 388/388/4000
+Raw/weighted/max characters: 404/404/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -10186,7 +10187,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article for the Daily Telegraph titled 'My Kind of Tory Party', 30 January 1975.
+Context — The surviving record dates this wording to 30 January 1975, but does not establish its occasion.
 
 Meaning — Conservatives must unequivocally defend private property as a necessary condition for individual liberty, and any compromise on this principle is tantamount to socialism.
 
@@ -10207,7 +10208,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 413/388/4000
+Raw/weighted/max characters: 445/420/4000
 Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -10225,7 +10226,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech on 'The Challenges of the 20th Century', 18 May 1994.
+Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.
 
 Meaning — By understanding the past, we can actively influence events for the better and avoid repeating historical errors.
 
@@ -11014,7 +11015,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 459/434/4000
+Raw/weighted/max characters: 491/466/4000
 Internal records -> canonical groups -> public sources: 4 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -11034,7 +11035,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Statement or speech on 'Freedom' and 'Decline', 13 September 1976.
+Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.
 
 Meaning — That Britain's national decline is not a coincidence but a direct result of the state encroaching on individual liberties and stifling personal enterprise.
 
@@ -11442,7 +11443,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 325/325/4000
+Raw/weighted/max characters: 365/365/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -11459,7 +11460,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Conservative Central Council, 4 March 1977.
+Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.
 
 Meaning — While all modern governments struggle with bureaucracy and over-regulation, socialism actively promotes these restrictive elements as positive features.
 
@@ -12714,7 +12715,7 @@ Template variant: "compact_uncertain_wording"
 Meaning included: true
 Meaning decision: "Meaning retained because the wording is non-exact or uncertain."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 290/290/4000
+Raw/weighted/max characters: 343/343/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["INELIGIBLE","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -12730,7 +12731,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Newsweek magazine profile, September 1976.
+Context — The surviving record dates this wording to September 1976, but does not establish its occasion.
 
 Meaning — Genuine authority is self-evident and does not require verbal assertion or boasting to be recognized by others.
 
@@ -12791,7 +12792,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 367/367/4000
+Raw/weighted/max characters: 388/388/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -12807,7 +12808,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Syndicated article (published in The Guardian and others), 11 February 2002.
+Context — The surviving record dates this wording to 11 February 2002, but does not establish its occasion.
 
 Meaning — The West must abandon its complacent and tolerant stance toward extremists and rogue states, strengthen its defenses, and actively eliminate terrorist threats.
 
@@ -13177,7 +13178,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 314/314/4000
+Raw/weighted/max characters: 330/330/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -13194,7 +13195,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Message to the people of Britain ("Now is the time to choose"), 16 April 1979.
+Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.
 
 Meaning — Excessive taxation removes the financial reward for hard work, leading to economic stagnation.
 
@@ -13331,7 +13332,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 368/368/4000
+Raw/weighted/max characters: 398/398/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -13347,7 +13348,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Article for Newsweek titled 'Don't undo my work', 27 April 1992.
+Context — The surviving record dates this wording to 27 April 1992, but does not establish its occasion.
 
 Meaning — Thatcher argues that her policies successfully reversed socialist decline because they aligned with the inherent freedom-loving character of the British people.
 
@@ -13557,7 +13558,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 428/403/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","GENERIC_MTF_DOCUMENT_TITLE"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -15321,7 +15322,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 342/342/4000
+Raw/weighted/max characters: 377/377/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -15337,7 +15338,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to the Conservative Party Conference, 14 October 1988.
+Context — The surviving record dates this wording to 14 October 1988, but does not establish its occasion.
 
 Meaning — Empowering individuals through property ownership and educational choice does not undermine society, but rather builds a stronger, more responsible community.
 
@@ -15747,7 +15748,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 405/405/4000
+Raw/weighted/max characters: 415/415/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -15763,7 +15764,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Publication of 'The Right Approach', a Conservative policy statement, 4 October 1976.
+Context — The surviving record dates this wording to 4 October 1976, but does not establish its occasion.
 
 Meaning — Conservative policies are not merely ideological but reflect fundamental realities of human nature and economics, meaning practical experience will always validate Tory principles.
 
@@ -16589,7 +16590,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 382/382/4000
+Raw/weighted/max characters: 376/376/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -16607,7 +16608,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Pre-election statements (1979) / Recalled in BBC1 Panorama Interview (1984), 1979.
+Context — Pre-election statements (1979) / Recalled in BBC1 Panorama Interview (1984).
 
 Meaning — She argued that leadership requires firm principles and the courage to act on them, rather than constantly seeking compromise or the middle ground.
 
@@ -16628,7 +16629,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 338/338/4000
+Raw/weighted/max characters: 343/343/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -16644,7 +16645,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Public statement or interview during her time as Leader of the Opposition, 1977.
+Context — The surviving record dates this wording to 1977, but does not establish its occasion.
 
 Meaning — That she values robust debate and independent thought among her ministers, rather than blind loyalty.
 
@@ -16703,7 +16704,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 424/424/4000
+Raw/weighted/max characters: 430/430/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -16720,7 +16721,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or interview recorded in the Margaret Thatcher Foundation archive, 8 November 1993.
+Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.
 
 Meaning — Leaders must have the moral courage to stick to their convictions and see difficult, fundamental reforms through to completion, rather than abandoning them at the first sign of hardship or unpopularity.
 
@@ -17388,7 +17389,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 285/285/4000
+Raw/weighted/max characters: 339/339/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -17404,7 +17405,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Interview with The Times, 1984.
+Context — The surviving record dates this wording to 1984, but does not establish its occasion.
 
 Meaning — To assert that her political career is driven by a fundamental moral struggle rather than mere administrative or economic management.
 
@@ -18191,7 +18192,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 332/332/4000
+Raw/weighted/max characters: 371/371/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -18207,7 +18208,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Conservative Rally in Cardiff, 29 April 1979.
+Context — The surviving record dates this wording to 29 April 1979, but does not establish its occasion.
 
 Meaning — Labour's policies have dangerously expanded union immunities, effectively legalising coercive behaviour and undermining the fundamental rule of law.
 
@@ -18344,7 +18345,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 364/339/4000
+Raw/weighted/max characters: 412/387/4000
 Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
@@ -18362,7 +18363,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Election Eve Message / Article, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Meaning — Thatcher argued that expanding state bureaucracy stifles meritocracy and replaces it with a system of political patronage and cronyism.
 
@@ -19407,7 +19408,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 378/378/4000
+Raw/weighted/max characters: 374/374/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -19424,7 +19425,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or statement on the eve of the October 1974 United Kingdom general election, 9 October 1974.
+Context — The surviving record dates this wording to 9 October 1974, but does not establish its occasion.
 
 Meaning — Public sector pay increases are not absorbed by a faceless state but are directly funded by ordinary citizens through higher prices and taxes.
 
@@ -19633,7 +19634,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 351/351/4000
+Raw/weighted/max characters: 356/356/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -19650,7 +19651,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech or press release during the October 1974 General Election campaign, 27 September 1974.
+Context — The surviving record dates this wording to 27 September 1974, but does not establish its occasion.
 
 Meaning — Subsidizing home ownership is more economically efficient and socially beneficial than indefinitely funding council housing.
 
@@ -19881,7 +19882,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech responding to the Labour Government's White Paper on Public Expenditure, 20 February 1976.
+Context — The surviving record dates this wording to 20 February 1976, but does not establish its occasion.
 
 Meaning — High taxation is not just an economic disadvantage but a direct infringement on personal liberty, as it deprives individuals of the choice of how to spend their own money.
 
@@ -20363,7 +20364,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 293/293/4000
+Raw/weighted/max characters: 346/346/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -20379,7 +20380,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Interview in The Observer, 4 April 1989.
+Context — The surviving record dates this wording to 4 April 1989, but does not establish its occasion.
 
 Meaning — She is willing to wait and endure lengthy processes as long as the final outcome aligns entirely with her original goals.
 
@@ -21136,29 +21137,30 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 413/388/4000
-Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Raw/weighted/max characters: 442/417/4000
+Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:1","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
+{"canonical_identity":"margaret_thatcher_foundation:document:104653","canonical_url":"https://www.margaretthatcher.org/document/104653","document_numbers":["104653"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/104653","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1","title":"Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)"}
 {"canonical_identity":"margaret_thatcher_foundation:document:104653","canonical_url":"https://www.margaretthatcher.org/document/104653","document_numbers":["104653"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809","title":"Margaret Thatcher Foundation document 104653"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:104653","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 104653","public_url":"https://www.margaretthatcher.org/document/104653","source_ids":["af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809"],"source_record_count":1}
+{"canonical_identity":"margaret_thatcher_foundation:document:104653","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)","public_url":"https://www.margaretthatcher.org/document/104653","source_ids":["729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1","af02c91b02126bc11f8414369af95ac8225e69f6a9d11be7bce2b64c0884f809"],"source_record_count":2}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech to Conservative Women's Conference, 20 May 1981.
 
-Meaning — Thatcher argued that socialism inevitably shares core aims with Marxism, which inherently leads to the suppression of individual rights in favor of state power.
+Meaning — Thatcher argued that socialism shares some aims with Marxism and that pursuing those aims subordinates individual rights to political doctrine.
 
 Verification — Verified excerpt
 
-Source — Margaret Thatcher Foundation, Document 104653
+Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)
 https://www.margaretthatcher.org/document/104653
 END PUBLIC REPLY
 
@@ -21212,7 +21214,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 325/325/4000
+Raw/weighted/max characters: 373/373/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21229,7 +21231,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to the Fraser Institute, 8 November 1993.
+Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.
 
 Meaning — Capitalism is inherently moral because it relies on individual freedom and voluntary exchange, allowing people to exercise their talents within the rule of law.
 
@@ -21328,7 +21330,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 315/315/4000
+Raw/weighted/max characters: 354/354/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21345,7 +21347,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech at Young Conservative Conference, 8 February 1975.
+Context — The surviving record dates this wording to 8 February 1975, but does not establish its occasion.
 
 Meaning — Hard work should be rewarded financially rather than penalized by high taxes, and providing for one's family is a moral virtue.
 
@@ -21403,7 +21405,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 317/317/4000
+Raw/weighted/max characters: 366/366/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21420,7 +21422,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Keith Joseph Memorial Lecture, 11 January 1996.
+Context — The surviving record dates this wording to 11 January 1996, but does not establish its occasion.
 
 Meaning — The state should only provide the framework for prosperity, not attempt to create it, because state expansion inherently threatens freedom.
 
@@ -21441,7 +21443,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 398/398/4000
+Raw/weighted/max characters: 423/423/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21458,7 +21460,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Opinion piece titled 'Islamism is the new bolshevism', 12 February 2002.
+Context — The surviving record dates this wording to 12 February 2002, but does not establish its occasion.
 
 Meaning — That Islamic extremism poses a systemic, ideological threat comparable to early communism, requiring a comprehensive and sustained global strategy rather than just isolated military strikes.
 
@@ -21591,7 +21593,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 388/388/4000
+Raw/weighted/max characters: 416/416/4000
 Internal records -> canonical groups -> public sources: 5 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:4","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21611,7 +21613,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Finchley Conservatives (Association AGM), March 1968.
+Context — The surviving record dates this wording to March 1968, but does not establish its occasion.
 
 Meaning — Thatcher argued that socialist policies inherently rely on excessive taxation and public spending rather than fostering economic expansion or addressing root problems.
 
@@ -21707,7 +21709,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 304/304/4000
+Raw/weighted/max characters: 348/348/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -21724,7 +21726,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Conservative Youth Rally, 5 June 1983.
+Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.
 
 Meaning — The Conservative Party confronts hard realities, such as unemployment, with determination rather than avoiding them or offering false promises.
 
@@ -22083,7 +22085,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 318/318/4000
+Raw/weighted/max characters: 337/337/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -22101,7 +22103,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — 1951 General Election Address for the Dartford Constituency, 8 October 1951.
+Context — The surviving record dates this wording to 8 October 1951, but does not establish its occasion.
 
 Meaning — To argue that peace can only be maintained through military and ideological strength, as Communism exploits weakness.
 
@@ -22237,7 +22239,7 @@ Template variant: "compact_without_redundant_meaning"
 Meaning included: false
 Meaning decision: "Meaning omitted because it restates a direct, self-contained proposition whose mechanism or substantive terms are already visible."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 177/177/4000
+Raw/weighted/max characters: 205/205/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","MEANING_OMITTED","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -22254,7 +22256,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech at the International Free Enterprise Dinner, 20 April 1999.
+Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.
 
 Verification — Verified excerpt
 
@@ -22779,7 +22781,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 457/432/4000
+Raw/weighted/max characters: 498/473/4000
 Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -22798,7 +22800,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to Glasgow Young Conservatives, 1 September 1978.
+Context — The surviving record dates this wording to 1 September 1978, but does not establish its occasion.
 
 Meaning — Labour's socialist policies inherently lead to economic failure, unemployment, and societal despair, contradicting their claim of being the natural governing party.
 
@@ -23484,7 +23486,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 396/396/4000
+Raw/weighted/max characters: 406/406/4000
 Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -23502,7 +23504,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Election Broadcast or Speech on the eve of the 1979 General Election, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Meaning — Union leadership has been captured by unrepresentative militants, and democratizing union decision-making through secret ballots will empower moderate members and reduce disruptive strikes.
 
@@ -23523,7 +23525,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 461/436/4000
+Raw/weighted/max characters: 500/475/4000
 Internal records -> canonical groups -> public sources: 4 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
@@ -23543,7 +23545,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech on economic and moral philosophy, 4 July 1977.
+Context — The surviving record dates this wording to 4 July 1977, but does not establish its occasion.
 
 Meaning — To argue that state control is fundamentally arrogant and that individuals are better equipped to make their own economic and moral choices than government bureaucrats.
 
@@ -23721,7 +23723,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 427/402/4000
+Raw/weighted/max characters: 482/457/4000
 Internal records -> canonical groups -> public sources: 4 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
@@ -23741,7 +23743,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech to the Bow Group, 16 March 1976.
+Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.
 
 Meaning — Expanding the power of the state inherently strips citizens of their fundamental freedoms, a danger exemplified by the Soviet system Solzhenitsyn exposed.
 
@@ -23848,7 +23850,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 319/319/4000
+Raw/weighted/max characters: 368/368/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
 Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -23864,7 +23866,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Statement quoted in The Times, 3 November 1977.
+Context — The surviving record dates this wording to 3 November 1977, but does not establish its occasion.
 
 Meaning — The Conservative Party must actively reverse socialist policies and prevent the country from succumbing to far-left or communist ideologies.
 
@@ -23885,7 +23887,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 364/364/4000
+Raw/weighted/max characters: 408/408/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -23902,7 +23904,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Eve of Election Message or Article, 2 May 1979.
+Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.
 
 Meaning — That ordinary union members are not inherently malicious, but have been led astray by a radicalized form of socialism that deviates from the moderate traditions of past Labour leaders.
 
@@ -24001,7 +24003,7 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 458/433/4000
+Raw/weighted/max characters: 478/453/4000
 Internal records -> canonical groups -> public sources: 4 -> 2 -> 2
 Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
@@ -24021,7 +24023,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech on international politics and the post-Cold War era, 5 November 1993.
+Context — The surviving record dates this wording to 5 November 1993, but does not establish its occasion.
 
 Meaning — The ideological defeat of communism does not guarantee the removal of its practitioners, who adapt to new political realities to retain influence.
 
@@ -24121,7 +24123,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 321/321/4000
+Raw/weighted/max characters: 368/368/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -24138,7 +24140,7 @@ None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Speech at Buckingham University, 18 May 1994.
+Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.
 
 Meaning — That maintaining liberty requires constant readiness and a realistic understanding of human nature's capacity for evil, rather than passive optimism.
 

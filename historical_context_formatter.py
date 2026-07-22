@@ -78,6 +78,7 @@ _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
     "historical-context-source-roles-v2-recovered-citations",
     "historical-context-source-roles-v4-multi-provider-guarded-approximate-80",
     "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
+    "historical-context-source-roles-v7-curated-source-adjudications",
 })
 _MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
 THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
@@ -220,6 +221,37 @@ def load_and_validate_corpus(
         )
     elif require_source_role_audit:
         raise ValueError("required source-role audit cannot be skipped")
+
+    # Keep the canonical provider-research packets immutable while allowing a
+    # narrowly validated editorial correction to affect future rendering.
+    from historical_context_packet_corrections import (
+        PACKET_CORRECTIONS_FILENAME,
+        apply_packet_corrections,
+    )
+    from historical_context_source_curated_evidence import (
+        CURATED_EVIDENCE_FILENAME,
+    )
+
+    corrections_path = research_dir / PACKET_CORRECTIONS_FILENAME
+    if corrections_path.exists():
+        curated_path = research_dir / CURATED_EVIDENCE_FILENAME
+        if not curated_path.exists():
+            raise RuntimeError(
+                "historical-context packet corrections lack curated evidence"
+            )
+        corrections = json.loads(corrections_path.read_text(encoding="utf-8"))
+        curated_evidence = json.loads(curated_path.read_text(encoding="utf-8"))
+        if not isinstance(corrections, dict) or not isinstance(
+            curated_evidence, dict
+        ):
+            raise RuntimeError(
+                "historical-context packet correction documents must be JSON objects"
+            )
+        packets = apply_packet_corrections(
+            corrections,
+            packets,
+            curated_evidence,
+        )
     return packets, unresolved
 
 

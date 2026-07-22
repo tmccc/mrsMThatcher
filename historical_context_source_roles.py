@@ -46,7 +46,7 @@ from historical_context_source_curated_evidence import (
 
 AUDIT_SCHEMA_VERSION = 5
 POLICY_VERSION = (
-    "historical-context-source-roles-v7-curated-source-adjudications"
+    "historical-context-source-roles-v8-claim-specific-public-context"
 )
 AUDIT_FILENAME = "historical_context_source_role_audit.json"
 
@@ -1306,11 +1306,14 @@ def audit_packet(
         "confidence_after": confidence,
         "public_verification_wording": _public_verification(packet, rows),
         "public_context_supported_fields": [
-            field for field, role in (
-                ("source_event", "source_event_support"),
-                ("date", "source_event_support"),
-                ("historical_context", "historical_context_support"),
-            ) if role in roles and (field != "date" or _known(packet.get("date")))
+            field for field in (
+                "source_event", "date", "historical_context",
+            )
+            if confidence[field] != "unknown"
+            and any(
+                field in row.get("claims_supported", [])
+                for row in renderable
+            )
         ],
         "requires_further_research": requires_research,
         "public_output_changes": sorted(set(material_change_reasons)),
