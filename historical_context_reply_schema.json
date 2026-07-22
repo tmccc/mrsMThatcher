@@ -5,6 +5,7 @@
     "character_count": {"minimum": 1, "type": "integer"},
     "maximum_length": {"minimum": 120, "maximum": 25000, "type": "integer"},
     "historical_confidence": {"enum": ["high", "medium", "low", "unavailable"]},
+    "internal_source_records": {"type": "object"},
     "confidence_dimensions": {
       "additionalProperties": false,
       "properties": {
@@ -43,6 +44,7 @@
       ]
     },
     "source_class": {"type": "string"},
+    "source_identity_diagnostics": {"type": "object"},
     "source_role_audit_version": {"type": ["string", "null"]},
     "sources": {
       "items": {
@@ -58,7 +60,6 @@
         "required": ["title", "url", "source_type", "roles", "claims_supported", "secondary_recollection"],
         "type": "object"
       },
-      "maxItems": 2,
       "type": "array"
     },
     "source_omitted": {"type": "boolean"},

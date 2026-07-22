@@ -3685,7 +3685,7 @@ def test_unpersisted_context_preparation_failure_propagates_for_main_receipt_rep
         )
 
 
-def test_main_context_reply_path_uses_public_role_aware_v4_and_persists_metadata(
+def test_main_context_reply_path_uses_public_v5_and_persists_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -3710,7 +3710,7 @@ def test_main_context_reply_path_uses_public_role_aware_v4_and_persists_metadata
         "source": {"title": "Source", "url": "", "source_type": "official"},
         "source_class": "original speech transcript",
         "source_omitted": False,
-        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V4,
+        "formatter_version": context_module.HISTORICAL_CONTEXT_FORMATTER_V5,
         "confidence_dimensions": {
             "attribution": "high",
             "wording": "high",
@@ -3760,12 +3760,12 @@ def test_main_context_reply_path_uses_public_role_aware_v4_and_persists_metadata
     assert len(format_calls) == 1
     assert format_calls[0][0] == (packet,)
     assert "rendering_mode" not in format_calls[0][1]
-    assert calls[0]["formatter_metadata"]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V4
+    assert calls[0]["formatter_metadata"]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
     assert calls[0]["formatter_metadata"]["confidence_dimensions"] == formatted["confidence_dimensions"]
     assert calls[0]["formatter_metadata"]["source_role_audit_version"] == formatted["source_role_audit_version"]
     assert calls[0]["formatter_metadata"]["rendering_mode"] == "public"
     assert calls[0]["formatter_metadata"]["template_variant"] == formatted["template_variant"]
-    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V4
+    assert events[-1]["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
     assert events[-1]["rendering_mode"] == "public"
 
 

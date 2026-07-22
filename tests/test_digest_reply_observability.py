@@ -38,7 +38,7 @@ def test_historical_context_quality_aggregates_lengths_labels_and_omissions():
     assert result["verification_counts"]["unavailable"] == 0
 
 
-def test_historical_context_v4_metadata_is_retained_and_summarised():
+def test_historical_context_v5_metadata_is_retained_and_summarised():
     dimensions = {
         "attribution": "high",
         "wording": "medium",
@@ -62,7 +62,7 @@ def test_historical_context_v4_metadata_is_retained_and_summarised():
                 "verification_label": "Exact wording verified",
                 "source_class": "Margaret Thatcher Foundation",
                 "historical_confidence": "high",
-                "formatter_version": "historical_context_reply_schema_v4",
+                "formatter_version": "historical_context_reply_schema_v5",
                 "rendering_mode": "public",
                 "confidence_dimensions": dimensions,
                 "source_role_audit_version": (
@@ -85,7 +85,7 @@ def test_historical_context_v4_metadata_is_retained_and_summarised():
     )
     quality = report["historical_context_quality"]
 
-    assert context_event["formatter_version"] == "historical_context_reply_schema_v4"
+    assert context_event["formatter_version"] == "historical_context_reply_schema_v5"
     assert context_event["rendering_mode"] == "public"
     assert context_event["confidence_dimensions"] == dimensions
     assert context_event["source_role_audit_version"] == (
@@ -93,7 +93,7 @@ def test_historical_context_v4_metadata_is_retained_and_summarised():
     )
     assert quality["verification_counts"]["Exact wording verified"] == 1
     assert quality["verification_counts"]["unavailable"] == 0
-    assert quality["formatter_version_counts"]["historical_context_reply_schema_v4"] == 1
+    assert quality["formatter_version_counts"]["historical_context_reply_schema_v5"] == 1
     assert quality["rendering_mode_counts"]["public"] == 1
     assert quality["source_role_audit_version_counts"][
         "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
@@ -104,7 +104,7 @@ def test_historical_context_v4_metadata_is_retained_and_summarised():
 
     rendered = digest.render_markdown(report)
     assert "Exact wording verified=1" in rendered
-    assert "historical_context_reply_schema_v4=1" in rendered
+    assert "historical_context_reply_schema_v5=1" in rendered
     assert "Rendering modes: public=1" in rendered
     assert (
         "Source-role audit versions: "
@@ -113,7 +113,7 @@ def test_historical_context_v4_metadata_is_retained_and_summarised():
     assert "Confidence attribution: high=1" in rendered
 
 
-def test_historical_context_v4_public_labels_are_not_downgraded_to_unavailable():
+def test_historical_context_v5_public_labels_are_not_downgraded_to_unavailable():
     labels = (
         "Exact wording verified",
         "Historically verified variant",
@@ -128,6 +128,7 @@ def test_historical_context_v4_public_labels_are_not_downgraded_to_unavailable()
             status="completed",
             character_count=100,
             verification_label=label,
+            formatter_version="historical_context_reply_schema_v5",
         )
         for label in labels
     ])
@@ -135,6 +136,7 @@ def test_historical_context_v4_public_labels_are_not_downgraded_to_unavailable()
     for label in labels:
         assert result["verification_counts"][label] == 1
     assert result["verification_counts"]["unavailable"] == 0
+    assert result["formatter_version_counts"]["historical_context_reply_schema_v5"] == len(labels)
 
 
 def test_current_source_role_version_is_reported():
@@ -153,7 +155,7 @@ def test_current_source_role_version_is_reported():
     assert result["source_role_audit_version_counts"]["unavailable"] == 0
 
 
-def test_legacy_historical_context_labels_remain_compatible():
+def test_legacy_v2_v3_and_v4_historical_context_metadata_remains_compatible():
     result = digest.historical_context_quality_summary(
         [
             event(
@@ -171,6 +173,13 @@ def test_legacy_historical_context_labels_remain_compatible():
                     "Exact wording not independently verified by the retained evidence"
                 ),
                 formatter_version="historical_context_reply_schema_v3",
+            ),
+            event(
+                "historical_context_reply",
+                status="completed",
+                character_count=100,
+                verification_label="Exact wording verified",
+                formatter_version="historical_context_reply_schema_v4",
             ),
             event(
                 "historical_context_reply",
@@ -194,6 +203,7 @@ def test_legacy_historical_context_labels_remain_compatible():
     ] == 1
     assert result["formatter_version_counts"]["historical_context_reply_schema_v2"] == 1
     assert result["formatter_version_counts"]["historical_context_reply_schema_v3"] == 2
+    assert result["formatter_version_counts"]["historical_context_reply_schema_v4"] == 1
 
 
 def test_malformed_confidence_dimensions_are_reported_as_unavailable():

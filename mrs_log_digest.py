@@ -1961,6 +1961,7 @@ _HISTORICAL_CONTEXT_FORMATTER_VERSIONS = (
     "historical_context_reply_schema_v2",
     "historical_context_reply_schema_v3",
     "historical_context_reply_schema_v4",
+    "historical_context_reply_schema_v5",
     "unavailable",
 )
 _HISTORICAL_CONTEXT_SOURCE_ROLE_AUDIT_VERSIONS = (

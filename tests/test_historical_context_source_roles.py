@@ -204,12 +204,17 @@ def test_recollections_are_counted_and_never_promoted_to_primary(corpus, audit):
         assert recollections
         assert all("secondary_recollection" in row["assigned_roles"]
                    for row in recollections)
-        formatted = format_context_reply_v2(
+        public = format_context_reply_public(
             corpus[0][quote_id], maximum_length=25_000
         )
-        assert formatted is not None
-        assert "Secondary recollection" in formatted["text"]
-        assert "Verification — Exact wording verified" not in formatted["text"]
+        internal = format_context_reply_internal(
+            corpus[0][quote_id], maximum_length=25_000
+        )
+        assert public is not None and internal is not None
+        assert "Secondary recollection" not in public["text"]
+        assert "Source (" not in public["text"]
+        assert "Secondary recollection" in internal["text"]
+        assert "Verification — Exact wording verified" not in public["text"]
 
     woodrow = audit["items"][WOODROW_WYATT_ID]
     assert woodrow["locator_audit"]["precise"] is False
@@ -225,13 +230,18 @@ def test_recollections_are_counted_and_never_promoted_to_primary(corpus, audit):
     assert "no primary Thatcher transcript located" in woodrow[
         "public_verification_wording"
     ]
-    formatted = format_context_reply_v2(
+    public = format_context_reply_public(
         corpus[0][WOODROW_WYATT_ID], maximum_length=25_000
     )
-    assert formatted is not None
-    assert "Secondary recollection" in formatted["text"]
-    assert "Vol. 3, p. 166" in formatted["text"]
-    assert "Exact wording verified" not in formatted["text"]
+    internal = format_context_reply_internal(
+        corpus[0][WOODROW_WYATT_ID], maximum_length=25_000
+    )
+    assert public is not None and internal is not None
+    assert "Secondary recollection" not in public["text"]
+    assert "Source (" not in public["text"]
+    assert "Secondary recollection" in internal["text"]
+    assert "Vol. 3, p. 166" in public["text"]
+    assert "Exact wording verified" not in public["text"]
     assert audit["summary"]["all_evidentiary_source_quality_counts"][
         "secondary_recollection"
     ] == 5
@@ -324,11 +334,11 @@ def test_headline_source_counts_are_mutually_exclusive_and_balanced(audit):
             "Verification — Historically verified variant",
             "Exact wording verified",
         ),
-        (HUGO_YOUNG_ID, "Secondary recollection", "Exact wording verified"),
+        (HUGO_YOUNG_ID, "Source — Hugo Young", "Exact wording verified"),
         (THAMES_ID, "Source — No reliable source located", "nps.gov"),
         (
             "0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448",
-            "Source (attribution, source event, date)",
+            "Source — Margaret Thatcher Foundation",
             "Verification — Exact wording verified",
         ),
         (
@@ -338,7 +348,7 @@ def test_headline_source_counts_are_mutually_exclusive_and_balanced(audit):
         ),
     ],
 )
-def test_representative_public_outputs_are_role_accurate(
+def test_representative_public_outputs_are_evidence_accurate_without_diagnostics(
     corpus, quote_id, required, forbidden
 ):
     formatted = format_context_reply_v2(
@@ -347,6 +357,8 @@ def test_representative_public_outputs_are_role_accurate(
     assert formatted is not None
     assert required in formatted["text"]
     assert forbidden not in formatted["text"]
+    assert "Source (" not in formatted["text"]
+    assert "Secondary recollection" not in formatted["text"]
 
 
 def test_complete_audit_preserves_all_quote_identities_and_eligibility(corpus, audit):
@@ -414,20 +426,26 @@ def test_discovery_only_sources_never_reach_public_source_selection(corpus):
         assert all("rejected_irrelevant" not in source["roles"] for source in rendered)
 
 
-def test_secondary_recollection_is_labelled_and_cannot_claim_exact_wording(corpus, audit):
+def test_secondary_recollection_is_internal_only_and_cannot_claim_exact_wording(
+    corpus, audit
+):
     packet = corpus[0][PRIOR_ID]
     item = audit["items"][PRIOR_ID]
     assert any(row["source_quality_class"] == "secondary_recollection"
                for row in item["renderable_sources"])
     assert "no primary Thatcher transcript located" in item["public_verification_wording"]
-    formatted = format_context_reply_public(packet)
-    assert formatted is not None
-    assert "Secondary recollection" in formatted["text"]
-    assert "Exact wording verified" not in formatted["text"]
-    assert formatted["verification_label"] == (
+    public = format_context_reply_public(packet)
+    internal = format_context_reply_internal(packet)
+    assert public is not None and internal is not None
+    assert "Secondary recollection" not in public["text"]
+    assert "Source (" not in public["text"]
+    assert "Source — Jim Prior" in public["text"]
+    assert "Secondary recollection (wording, attribution)" in internal["text"]
+    assert "Exact wording verified" not in public["text"]
+    assert public["verification_label"] == (
         "Attributed, but exact wording not independently verified"
     )
-    assert "Confidence —" not in formatted["text"]
+    assert "Confidence —" not in public["text"]
 
 
 def test_no_reliable_source_uses_explicit_safe_wording(corpus):
@@ -478,6 +496,8 @@ def test_every_eligible_public_rendering_omits_detailed_confidence(corpus):
         formatted = format_context_reply_public(packet)
         assert formatted is not None
         assert "Confidence —" not in formatted["text"]
+        assert "Source (" not in formatted["text"]
+        assert "Secondary recollection" not in formatted["text"]
         assert formatted["verification_label"] in allowed_labels
         if not formatted["sources"]:
             assert formatted["text"].endswith("Source — No reliable source located")

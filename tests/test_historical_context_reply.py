@@ -160,7 +160,9 @@ def test_formatter_output_matches_published_schema_with_optional_sections(corpus
         include_source=False,
         include_verification=False,
     ), schema)
-    validate_json_schema(format_context_reply_v2(packet), schema)
+    current = format_context_reply_v2(packet)
+    validate_json_schema(current, schema)
+    assert current["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
 
 
 def test_formatter_rejects_unknown_rendering_mode(corpus):
@@ -273,7 +275,7 @@ def test_context_reply_uses_compact_archive_entry_layout(corpus):
     assert text.startswith("Historical context\nOccasion: Speech to the Fraser Institute.\n")
     assert "\n\nMeaning: Capitalism is inherently moral" in text
     assert "\nVerification: Exact wording\n" in text
-    assert "\nSource: Margaret Thatcher Foundation Archive, November 8, 1993" in text
+    assert "\nSource: Margaret Thatcher Foundation, 8 November 1993" in text
     assert "vertexaisearch.cloud.google.com" not in text
     assert "\nSource\n" not in text
 
@@ -445,10 +447,13 @@ def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
     }]
 
 
-def test_formatter_v4_metadata_is_durable_and_prevents_duplicate_after_restart(tmp_path, corpus):
+def test_formatter_v5_metadata_is_durable_and_prevents_duplicate_after_restart(
+    tmp_path, corpus
+):
     packet = next(iter(corpus[0].values()))
     formatted = format_context_reply_v2(packet)
     assert formatted is not None
+    assert formatted["formatter_version"] == context_module.HISTORICAL_CONTEXT_FORMATTER_V5
     metadata = {
         "formatter_version": formatted["formatter_version"],
         "template_variant": formatted["template_variant"],
@@ -483,7 +488,7 @@ def test_formatter_v4_metadata_is_durable_and_prevents_duplicate_after_restart(t
         quote_id=packet["quote_id"],
         reply_text=formatted["text"],
         formatter_metadata=metadata,
-        create_post=lambda **kwargs: pytest.fail("completed v2 reply must not be duplicated"),
+        create_post=lambda **kwargs: pytest.fail("completed v5 reply must not be duplicated"),
         now_epoch=lambda: 124,
     )
     assert duplicate["status"] == "already_completed"
@@ -523,7 +528,24 @@ def test_legacy_v3_formatter_metadata_remains_valid_for_existing_receipts(corpus
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
 
 
-def test_v4_formatter_metadata_rejects_unknown_source_role_policy(corpus):
+def test_legacy_v4_formatter_metadata_remains_valid_for_existing_receipts(corpus):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata = {
+        key: formatted[key]
+        for key in (
+            "formatter_version", "template_variant", "meaning_included",
+            "meaning_decision_reason", "raw_character_count",
+            "weighted_character_count", "verification_label", "source_class",
+            "historical_confidence", "shortening_applied",
+            "confidence_dimensions", "source_role_audit_version", "rendering_mode",
+        )
+    }
+    metadata["formatter_version"] = context_module.HISTORICAL_CONTEXT_FORMATTER_V4
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
+
+
+def test_v5_formatter_metadata_rejects_unknown_source_role_policy(corpus):
     formatted = format_context_reply_v2(next(iter(corpus[0].values())))
     metadata = {
         key: formatted[key]
@@ -555,6 +577,7 @@ def test_v4_formatter_metadata_accepts_previous_source_role_policy(corpus):
     metadata["source_role_audit_version"] = (
         "historical-context-source-roles-v2-recovered-citations"
     )
+    metadata["formatter_version"] = context_module.HISTORICAL_CONTEXT_FORMATTER_V4
 
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
 

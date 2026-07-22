@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -42,6 +43,7 @@ UNKNOWN_VALUES = {"", "n/a", "n.a.", "none", "not available", "unknown", "unavai
 HISTORICAL_CONTEXT_FORMATTER_V2 = "historical_context_reply_schema_v2"
 HISTORICAL_CONTEXT_FORMATTER_V3 = "historical_context_reply_schema_v3"
 HISTORICAL_CONTEXT_FORMATTER_V4 = "historical_context_reply_schema_v4"
+HISTORICAL_CONTEXT_FORMATTER_V5 = "historical_context_reply_schema_v5"
 PUBLIC_RENDERING_MODE = "public"
 INTERNAL_RENDERING_MODE = "internal"
 HISTORICAL_CONTEXT_RENDERING_MODES = frozenset({
@@ -70,6 +72,7 @@ _FORMATTER_METADATA_KEYS_V3 = _FORMATTER_METADATA_KEYS_V2 | {
     "confidence_dimensions", "source_role_audit_version",
 }
 _FORMATTER_METADATA_KEYS_V4 = _FORMATTER_METADATA_KEYS_V3 | {"rendering_mode"}
+_FORMATTER_METADATA_KEYS_V5 = _FORMATTER_METADATA_KEYS_V4
 _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
     "historical-context-source-roles-v1",
     "historical-context-source-roles-v2-recovered-citations",
@@ -660,6 +663,40 @@ def _audited_public_sources(packet: dict[str, Any]) -> list[dict[str, Any]]:
     return public_sources(packet)
 
 
+def _audited_internal_sources(packet: dict[str, Any]) -> list[dict[str, Any]]:
+    if not isinstance(packet.get("_source_role_audit"), dict):
+        source = select_primary_source(packet)
+        return [] if not source else [{**source, "roles": [], "claims_supported": []}]
+    from historical_context_source_roles import internal_sources
+
+    return internal_sources(packet)
+
+
+_INTERNAL_SOURCE_COLLECTIONS = (
+    "sources",
+    "recovered_sources",
+    "researched_sources",
+    "curated_sources",
+    "virtual_locator_sources",
+    "model_proposed_source_leads",
+    "renderable_sources",
+)
+
+
+def _internal_source_audit_payload(packet: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return lossless source records and public-deduplication diagnostics."""
+    audit = packet.get("_source_role_audit")
+    if not isinstance(audit, dict):
+        return {}, {"records": [], "groups": [], "identity_ambiguities": []}
+    from historical_context_source_roles import public_source_identity_diagnostics
+
+    collections = {
+        name: copy.deepcopy(audit.get(name, []))
+        for name in _INTERNAL_SOURCE_COLLECTIONS
+    }
+    return collections, public_source_identity_diagnostics(packet)
+
+
 def _audited_verification_label(packet: dict[str, Any]) -> str:
     audit = packet.get("_source_role_audit")
     if isinstance(audit, dict):
@@ -718,6 +755,21 @@ def _conservative_historical_confidence(dimensions: dict[str, str]) -> str:
 
 
 def _public_source_lines(sources: list[dict[str, Any]]) -> list[str]:
+    if not sources:
+        return ["Source — No reliable source located"]
+    lines: list[str] = []
+    for source in sources:
+        title = _v2_british_dates_in_text(_v2_clean(source.get("title"))).strip()
+        if not title:
+            continue
+        line = f"Source — {title}"
+        if source.get("url"):
+            line += f"\n{source['url']}"
+        lines.append(line)
+    return lines or ["Source — No reliable source located"]
+
+
+def _internal_source_lines(sources: list[dict[str, Any]]) -> list[str]:
     if not sources:
         return ["Source — No reliable source located"]
     labels = {
@@ -833,7 +885,12 @@ def format_context_reply_v2(
             include_source=include_source,
             include_verification=include_verification,
         )
-    sources = _audited_public_sources(packet) if include_source else []
+    public_sources = _audited_public_sources(packet) if include_source else []
+    sources = (
+        _audited_internal_sources(packet)
+        if include_source and rendering_mode == INTERNAL_RENDERING_MODE
+        else public_sources
+    )
     source = select_primary_source(packet) if include_source else None
     audit = packet.get("_source_role_audit")
     supported_fields = None
@@ -846,7 +903,7 @@ def format_context_reply_v2(
                     "meaning_decision_reason": "Meaning disabled by explicit formatter configuration."}
     confidence_dimensions = _audited_confidence(packet)
     verification = (
-        _public_verification_label(packet, confidence_dimensions, sources)
+        _public_verification_label(packet, confidence_dimensions, public_sources)
         if rendering_mode == PUBLIC_RENDERING_MODE
         else _audited_verification_label(packet)
     )
@@ -856,7 +913,11 @@ def format_context_reply_v2(
     if include_verification:
         sections.append(f"Verification — {verification}")
     if include_source:
-        sections.extend(_public_source_lines(sources))
+        sections.extend(
+            _internal_source_lines(sources)
+            if rendering_mode == INTERNAL_RENDERING_MODE
+            else _public_source_lines(sources)
+        )
     if rendering_mode == INTERNAL_RENDERING_MODE:
         confidence_labels = (
             ("Attribution", "attribution"), ("wording", "wording"),
@@ -879,7 +940,7 @@ def format_context_reply_v2(
         variant = "compact_no_public_url"
     else:
         variant = "compact_with_meaning"
-    return {
+    result = {
         "quote_id": packet["quote_id"], "text": text, "character_count": weighted,
         "raw_character_count": len(text), "maximum_length": maximum_length,
         "historical_confidence": _conservative_historical_confidence(confidence_dimensions),
@@ -896,11 +957,16 @@ def format_context_reply_v2(
         "source_role_audit_version": (
             audit.get("policy_version") if isinstance(audit, dict) else None
         ),
-        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V4,
+        "formatter_version": HISTORICAL_CONTEXT_FORMATTER_V5,
         "rendering_mode": rendering_mode,
         "template_variant": variant,
         "weighted_character_count": weighted,
     }
+    if rendering_mode == INTERNAL_RENDERING_MODE:
+        records, diagnostics = _internal_source_audit_payload(packet)
+        result["internal_source_records"] = records
+        result["source_identity_diagnostics"] = diagnostics
+    return result
 
 
 def format_context_reply_public(
@@ -982,18 +1048,24 @@ class HistoricalContextReplyStore:
             frozenset(_FORMATTER_METADATA_KEYS_V2),
             frozenset(_FORMATTER_METADATA_KEYS_V3),
             frozenset(_FORMATTER_METADATA_KEYS_V4),
+            frozenset(_FORMATTER_METADATA_KEYS_V5),
         }:
             return False
         version = value.get("formatter_version")
-        if (
-            (metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V3))
-            != (version == HISTORICAL_CONTEXT_FORMATTER_V3)
-        ) or (
-            (metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V4))
-            != (version == HISTORICAL_CONTEXT_FORMATTER_V4)
+        if metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V3) and (
+            version != HISTORICAL_CONTEXT_FORMATTER_V3
         ):
             return False
-        if version in {HISTORICAL_CONTEXT_FORMATTER_V3, HISTORICAL_CONTEXT_FORMATTER_V4}:
+        if metadata_keys == frozenset(_FORMATTER_METADATA_KEYS_V4) and version not in {
+            HISTORICAL_CONTEXT_FORMATTER_V4,
+            HISTORICAL_CONTEXT_FORMATTER_V5,
+        }:
+            return False
+        if version in {
+            HISTORICAL_CONTEXT_FORMATTER_V3,
+            HISTORICAL_CONTEXT_FORMATTER_V4,
+            HISTORICAL_CONTEXT_FORMATTER_V5,
+        }:
             from historical_context_source_roles import POLICY_VERSION
 
             dimensions = value.get("confidence_dimensions")
@@ -1009,7 +1081,7 @@ class HistoricalContextReplyStore:
                 )
             ):
                 return False
-        if version == HISTORICAL_CONTEXT_FORMATTER_V4 and (
+        if version in {HISTORICAL_CONTEXT_FORMATTER_V4, HISTORICAL_CONTEXT_FORMATTER_V5} and (
             value.get("rendering_mode") not in HISTORICAL_CONTEXT_RENDERING_MODES
         ):
             return False
