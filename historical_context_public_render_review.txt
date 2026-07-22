@@ -45,7 +45,7 @@ raw_character_length: {"maximum":775,"median":419.5,"minimum":176}
 weighted_character_length: {"maximum":700,"median":399.0,"minimum":176}
 formatter_options: {"include_meaning":true,"include_source":true,"include_verification":true,"maximum_length":4000}
 source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f","historical_context_packet_corrections.json":"d67ba6d18a8914a75fad53d35f66236bc6767e9e08db801469fcac33453dd6ba","historical_context_source_curated_evidence.json":"db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867","historical_context_source_role_audit.json":"431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
-implementation_file_hashes: {"historical_context_formatter.py":"2092d066a23c8e9da49ccf37fe2b6afaaac7313f54b888ff02d3e19b1b395382","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"51aa0d24163e80b9ef011a018b6e106779317441c6cd3c26eb729e46219a4c61"}
+implementation_file_hashes: {"historical_context_formatter.py":"c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"51aa0d24163e80b9ef011a018b6e106779317441c6cd3c26eb729e46219a4c61"}
 
 AUTOMATED BLOCKERS
 ------------------
@@ -16590,7 +16590,7 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 376/376/4000
+Raw/weighted/max characters: 384/384/4000
 Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
 Flags: ["MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
@@ -16608,7 +16608,7 @@ IDENTITY AMBIGUITIES
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Pre-election statements (1979) / Recalled in BBC1 Panorama Interview (1984).
+Context — The surviving record identifies an occasion, but does not establish a reliable date.
 
 Meaning — She argued that leadership requires firm principles and the courage to act on them, rather than constantly seeking compromise or the middle ground.
 

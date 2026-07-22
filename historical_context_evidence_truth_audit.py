@@ -12,17 +12,23 @@ network client, provider, or reply store is imported or instantiated.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
 import re
 import tempfile
+import unicodedata
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
 from historical_context_formatter import (
     DEFAULT_RESEARCH_DIR,
+    _v2_british_date,
+    _v2_british_dates_in_text,
+    _v2_clean,
+    _v2_one_sentence,
     format_context_reply_public,
     load_and_validate_corpus,
     packet_is_attributed_to_margaret_thatcher,
@@ -38,7 +44,7 @@ from historical_context_source_roles import (
 ROOT = Path(__file__).resolve().parent
 DEFAULT_HISTORY_PATH = ROOT / "historical_context_reply_history.json"
 AUDIT_KIND = "historical_context_evidence_truth_triage_audit"
-AUDIT_SCHEMA_VERSION = 1
+AUDIT_SCHEMA_VERSION = 2
 EXPECTED_COMPLETED_PACKET_COUNT = 626
 REVIEW_BASELINE_PUBLISHED_HISTORY_COUNT = 77
 EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT = 610
@@ -48,6 +54,27 @@ GENERIC_CONTEXT = (
     "immediate historical issue."
 )
 _CLAIM_FIELDS = ("source_event", "date", "historical_context")
+_AUDITED_SOURCE_COLLECTIONS = (
+    "sources",
+    "recovered_sources",
+    "model_proposed_source_leads",
+    "researched_sources",
+    "curated_sources",
+    "virtual_locator_sources",
+    "renderable_sources",
+)
+_PUBLIC_SURFACES = ("context", "meaning", "source_title", "source_url")
+_PUBLIC_REACHABILITY_VALUES = (
+    "currently_rendered_exact_occurrence",
+    "formatter_reachable_but_suppressed",
+    "internal_only_or_unreachable",
+)
+_CONTEXT_SLOT_REACHABILITY_VALUES = (
+    "currently_rendered_exact_occurrence",
+    "formatter_slot_reachable_but_not_currently_exposed",
+    "production_ineligible",
+    "formatter_slot_unreachable",
+)
 _PUBLIC_EVIDENCE_ROLES = frozenset({
     "wording_verification",
     "attribution_support",
@@ -258,6 +285,439 @@ def _claim_field_findings(
     return sorted(findings, key=lambda row: (row["kind"], row["field"]))
 
 
+def _text_sha256(value: Any) -> str:
+    """Hash one whitespace-normalised text value."""
+    return hashlib.sha256(_clean(value).encode("utf-8")).hexdigest()
+
+
+def _exact_tokens(value: Any) -> list[str]:
+    """Return deterministic tokens for literal public-occurrence checks."""
+    normalised = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    return re.findall(r"[^\W_]+", normalised, flags=re.UNICODE)
+
+
+def _contains_exact_token_sequence(haystack: Any, needle: Any) -> bool:
+    """Return whether every projected claim token occurs contiguously."""
+    haystack_tokens = _exact_tokens(haystack)
+    needle_tokens = _exact_tokens(needle)
+    if not needle_tokens or len(needle_tokens) > len(haystack_tokens):
+        return False
+    width = len(needle_tokens)
+    return any(
+        haystack_tokens[index:index + width] == needle_tokens
+        for index in range(len(haystack_tokens) - width + 1)
+    )
+
+
+def _source_event_projection(value: Any) -> str:
+    """Project a packet event exactly as the public Context formatter does."""
+    event = _v2_clean(value)
+    uncertain = re.fullmatch(r"unknown\s*\((.+)\)", event, re.I)
+    if uncertain:
+        qualifier = uncertain.group(1).strip()
+        event = (
+            "" if qualifier.casefold() == "attributed"
+            else qualifier[0].upper() + qualifier[1:]
+        )
+    elif re.match(r"unknown\s+", event, re.I):
+        remainder = re.sub(r"^unknown\s+", "", event, flags=re.I).strip()
+        event = f"Attributed to a {remainder}" if remainder else ""
+    return _v2_british_dates_in_text(event).rstrip(". :;-")
+
+
+def _claim_projection(packet: dict[str, Any], field: str) -> str:
+    """Return the formatter-visible projection of one packet claim value."""
+    if field == "source_event":
+        return _source_event_projection(packet.get(field))
+    if field == "date":
+        return _v2_british_date(packet.get(field))
+    if field == "historical_context":
+        return _v2_one_sentence(packet.get(field))
+    raise ValueError(f"unsupported claim field: {field}")
+
+
+def _current_public_exposures(
+    projection: str,
+    rendered: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Locate literal claim projections in each current public surface.
+
+    A bibliographic occurrence is deliberately only an exposure diagnostic;
+    it is not treated as evidence that the source supports the packet claim.
+    """
+    if rendered is None or not projection:
+        return []
+    sections = _sections(rendered.get("text", ""))
+    candidates: list[tuple[str, str, int | None]] = [
+        ("context", sections.get("context", ""), None),
+        ("meaning", sections.get("meaning", ""), None),
+    ]
+    for index, source in enumerate(rendered.get("sources", [])):
+        if not isinstance(source, dict):
+            continue
+        candidates.extend((
+            ("source_title", _clean(source.get("title")), index),
+            ("source_url", _clean(source.get("url")), index),
+        ))
+    exposure_kinds = {
+        "context": "context_via_other_admitted_field",
+        "meaning": "meaning_exact_occurrence",
+        "source_title": "bibliographic_exact_occurrence",
+        "source_url": "bibliographic_url_exact_occurrence",
+    }
+    exposures: list[dict[str, Any]] = []
+    for surface, text, source_index in candidates:
+        if not _contains_exact_token_sequence(text, projection):
+            continue
+        exposure: dict[str, Any] = {
+            "surface": surface,
+            "basis": "contiguous_nfkc_casefolded_alphanumeric_token_sequence",
+            "exposure_kind": exposure_kinds[surface],
+            "surface_text_sha256": _text_sha256(text),
+        }
+        if source_index is not None:
+            exposure["public_source_index"] = source_index
+        exposures.append(exposure)
+    return sorted(
+        exposures,
+        key=lambda row: (
+            _PUBLIC_SURFACES.index(row["surface"]),
+            row.get("public_source_index", -1),
+        ),
+    )
+
+
+def _source_record_id(row: dict[str, Any]) -> str:
+    """Return a stable identifier for one audited source record."""
+    for field in ("source_id", "source_fingerprint"):
+        value = _clean(row.get(field))
+        if value:
+            return value
+    payload = json.dumps(row, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return "anonymous:" + hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _source_claim_state(
+    audit: dict[str, Any], field: str,
+) -> tuple[str, list[str], list[str]]:
+    """Classify explicit audited source claims without inferring from prose."""
+    supporting_ids: set[str] = set()
+    renderable_ids: set[str] = set()
+    for collection in _AUDITED_SOURCE_COLLECTIONS:
+        rows = audit.get(collection, [])
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if not isinstance(row, dict) or field not in row.get(
+                "claims_supported", []
+            ):
+                continue
+            source_id = _source_record_id(row)
+            supporting_ids.add(source_id)
+            if collection == "renderable_sources":
+                renderable_ids.add(source_id)
+    if renderable_ids:
+        state = "renderable_source_claim_not_admitted"
+    elif supporting_ids:
+        state = "internal_source_claim_only"
+    else:
+        state = "no_audited_source_claim"
+    return state, sorted(supporting_ids), sorted(renderable_ids)
+
+
+def _counterfactual_field_admission(
+    packet: dict[str, Any],
+    field: str,
+    current_rendered: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Render a copied packet after admitting one field to the Context slot."""
+    current_sections = _sections(
+        "" if current_rendered is None else current_rendered.get("text", "")
+    )
+    current_context = current_sections.get("context", "")
+    candidate = copy.deepcopy(packet)
+    source_audit = candidate.get("_source_role_audit")
+    if not isinstance(source_audit, dict):
+        counterfactual = None
+    else:
+        fields = set(source_audit.get("public_context_supported_fields", []))
+        fields.add(field)
+        source_audit["public_context_supported_fields"] = sorted(fields)
+        counterfactual = format_context_reply_public(candidate)
+    counterfactual_context = _sections(
+        "" if counterfactual is None else counterfactual.get("text", "")
+    ).get("context", "")
+    if field == "historical_context":
+        if _v2_one_sentence(packet.get("immediate_subject")):
+            effective_origin = "immediate_subject"
+        elif _contains_exact_token_sequence(
+            counterfactual_context,
+            _claim_projection(packet, field),
+        ):
+            effective_origin = "historical_context"
+        else:
+            effective_origin = "none"
+    else:
+        projection = _claim_projection(packet, field)
+        if _contains_exact_token_sequence(counterfactual_context, projection):
+            effective_origin = field
+        elif counterfactual is not None and counterfactual_context != current_context:
+            effective_origin = "public_fallback"
+        else:
+            effective_origin = "none"
+    return {
+        "admitted_field": field,
+        "public_render_succeeded": counterfactual is not None,
+        "context_slot_changed": (
+            counterfactual is not None
+            and counterfactual_context != current_context
+        ),
+        "effective_value_origin": effective_origin,
+        "direct_claim_value_selected": effective_origin == field,
+        "current_context": current_context,
+        "counterfactual_context": counterfactual_context,
+        "current_context_sha256": _text_sha256(current_context),
+        "counterfactual_context_sha256": _text_sha256(counterfactual_context),
+    }
+
+
+def _unsupported_claim_record(
+    quote_id: str,
+    packet: dict[str, Any],
+    source_audit: dict[str, Any],
+    finding: dict[str, str],
+    current_rendered: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build one deterministic unsupported packet-claim decomposition row."""
+    field = finding["field"]
+    eligible = packet_is_attributed_to_margaret_thatcher(packet)
+    claim_value = _clean(packet.get(field))
+    projection = _claim_projection(packet, field)
+    exposures = _current_public_exposures(projection, current_rendered)
+    evidence_state, supporting_ids, renderable_ids = _source_claim_state(
+        source_audit, field
+    )
+    counterfactual = _counterfactual_field_admission(
+        packet, field, current_rendered
+    )
+    if exposures:
+        reachability = "currently_rendered_exact_occurrence"
+    elif (
+        eligible
+        and counterfactual["public_render_succeeded"]
+        and counterfactual["context_slot_changed"]
+        and counterfactual["direct_claim_value_selected"]
+    ):
+        reachability = "formatter_reachable_but_suppressed"
+    else:
+        reachability = "internal_only_or_unreachable"
+
+    if exposures:
+        slot_reachability = "currently_rendered_exact_occurrence"
+    elif not eligible:
+        slot_reachability = "production_ineligible"
+    elif (
+        counterfactual["public_render_succeeded"]
+        and counterfactual["context_slot_changed"]
+    ):
+        slot_reachability = (
+            "formatter_slot_reachable_but_not_currently_exposed"
+        )
+    else:
+        slot_reachability = "formatter_slot_unreachable"
+
+    reasons = ["field_not_admitted_by_source_role_audit"]
+    if exposures:
+        reasons.append("exact_claim_projection_occurs_in_current_public_output")
+    if not eligible:
+        reasons.append("attribution_ineligible")
+    if (
+        field == "historical_context"
+        and counterfactual["effective_value_origin"] == "immediate_subject"
+    ):
+        reasons.append("shadowed_by_immediate_subject")
+    if not counterfactual["public_render_succeeded"]:
+        reasons.append("counterfactual_public_render_failed")
+    elif not counterfactual["context_slot_changed"]:
+        reasons.append("counterfactual_context_unchanged")
+    if not counterfactual["direct_claim_value_selected"]:
+        reasons.append("direct_claim_value_not_selected")
+
+    unreachable_reason = None
+    if reachability == "internal_only_or_unreachable":
+        if not eligible:
+            unreachable_reason = "attribution_ineligible"
+        elif (
+            field == "historical_context"
+            and counterfactual["effective_value_origin"] == "immediate_subject"
+        ):
+            unreachable_reason = "shadowed_by_immediate_subject"
+        elif not counterfactual["public_render_succeeded"]:
+            unreachable_reason = "counterfactual_public_render_failed"
+        elif not counterfactual["context_slot_changed"]:
+            unreachable_reason = "counterfactual_context_unchanged"
+        else:
+            unreachable_reason = "direct_claim_value_not_selected"
+
+    confidence_after = source_audit.get("confidence_after", {})
+    return {
+        "claim_key": f"{quote_id}:{field}:{finding['kind']}",
+        "quote_id": quote_id,
+        "quote_text_sha256": _text_sha256(packet.get("quote_text")),
+        "attribution_eligible": eligible,
+        "finding_kind": finding["kind"],
+        "field": field,
+        "claim_value": claim_value,
+        "claim_value_sha256": _text_sha256(claim_value),
+        "formatter_projection": projection,
+        "confidence_after": _clean(
+            confidence_after.get(field) if isinstance(confidence_after, dict) else ""
+        ),
+        "evidence_state": evidence_state,
+        "supporting_internal_source_ids": supporting_ids,
+        "supporting_renderable_source_ids": renderable_ids,
+        "current_public_exposures": exposures,
+        "current_public_context_supported_fields": sorted(set(
+            source_audit.get("public_context_supported_fields", [])
+        )),
+        "counterfactual_projection": counterfactual,
+        "public_reachability": reachability,
+        "context_slot_reachability": slot_reachability,
+        "exclusive_unreachable_reason": unreachable_reason,
+        "reachability_reasons": sorted(set(reasons)),
+    }
+
+
+def _counter_matrix(
+    rows: list[dict[str, Any]],
+    outer_values: Iterable[str],
+    inner_values: Iterable[str],
+    outer_key: str,
+    inner_key: str,
+) -> dict[str, dict[str, int]]:
+    """Return a complete deterministic two-dimensional count matrix."""
+    counts = Counter((str(row[outer_key]), str(row[inner_key])) for row in rows)
+    return {
+        outer: {inner: counts[(outer, inner)] for inner in inner_values}
+        for outer in outer_values
+    }
+
+
+def _unsupported_claim_counts(
+    records: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Aggregate every explicit claim-decomposition dimension."""
+    eligibility_rows = [
+        {
+            **row,
+            "eligibility": (
+                "eligible" if row["attribution_eligible"] else "ineligible"
+            ),
+        }
+        for row in records
+    ]
+    evidence_states = (
+        "no_audited_source_claim",
+        "internal_source_claim_only",
+        "renderable_source_claim_not_admitted",
+    )
+    public_surface_claim_counts: Counter[str] = Counter()
+    exposure_kind_claim_counts: Counter[str] = Counter()
+    public_surface_instance_counts: Counter[str] = Counter()
+    exposure_kind_instance_counts: Counter[str] = Counter()
+    field_surface_counts: Counter[tuple[str, str]] = Counter()
+    for row in records:
+        surfaces = {item["surface"] for item in row["current_public_exposures"]}
+        kinds = {
+            item["exposure_kind"] for item in row["current_public_exposures"]
+        }
+        public_surface_claim_counts.update(surfaces)
+        exposure_kind_claim_counts.update(kinds)
+        field_surface_counts.update((row["field"], surface) for surface in surfaces)
+        public_surface_instance_counts.update(
+            item["surface"] for item in row["current_public_exposures"]
+        )
+        exposure_kind_instance_counts.update(
+            item["exposure_kind"] for item in row["current_public_exposures"]
+        )
+    return {
+        "total": len(records),
+        "by_finding_kind": dict(sorted(Counter(
+            row["finding_kind"] for row in records
+        ).items())),
+        "intended_argument_or_meaning_claims_in_this_1539_count": 0,
+        "by_field": {
+            field: sum(row["field"] == field for row in records)
+            for field in _CLAIM_FIELDS
+        },
+        "by_attribution_eligibility": {
+            label: sum(row["eligibility"] == label for row in eligibility_rows)
+            for label in ("eligible", "ineligible")
+        },
+        "by_public_reachability": {
+            value: sum(row["public_reachability"] == value for row in records)
+            for value in _PUBLIC_REACHABILITY_VALUES
+        },
+        "by_field_and_public_reachability": _counter_matrix(
+            records,
+            _CLAIM_FIELDS,
+            _PUBLIC_REACHABILITY_VALUES,
+            "field",
+            "public_reachability",
+        ),
+        "by_attribution_eligibility_and_public_reachability": _counter_matrix(
+            eligibility_rows,
+            ("eligible", "ineligible"),
+            _PUBLIC_REACHABILITY_VALUES,
+            "eligibility",
+            "public_reachability",
+        ),
+        "by_current_public_surface": {
+            surface: public_surface_claim_counts[surface]
+            for surface in _PUBLIC_SURFACES
+        },
+        "by_field_and_current_public_surface": {
+            field: {
+                surface: field_surface_counts[(field, surface)]
+                for surface in _PUBLIC_SURFACES
+            }
+            for field in _CLAIM_FIELDS
+        },
+        "by_current_public_exposure_kind": dict(sorted(
+            exposure_kind_claim_counts.items()
+        )),
+        "current_public_exposure_instance_count": sum(
+            public_surface_instance_counts.values()
+        ),
+        "by_current_public_surface_instance": {
+            surface: public_surface_instance_counts[surface]
+            for surface in _PUBLIC_SURFACES
+        },
+        "by_current_public_exposure_kind_instance": dict(sorted(
+            exposure_kind_instance_counts.items()
+        )),
+        "by_evidence_state": {
+            state: sum(row["evidence_state"] == state for row in records)
+            for state in evidence_states
+        },
+        "by_field_and_evidence_state": _counter_matrix(
+            records,
+            _CLAIM_FIELDS,
+            evidence_states,
+            "field",
+            "evidence_state",
+        ),
+        "by_context_slot_reachability": {
+            value: sum(row["context_slot_reachability"] == value for row in records)
+            for value in _CONTEXT_SLOT_REACHABILITY_VALUES
+        },
+        "by_exclusive_unreachable_reason": dict(sorted(Counter(
+            row["exclusive_unreachable_reason"] for row in records
+            if row["exclusive_unreachable_reason"] is not None
+        ).items())),
+    }
+
+
 def _history_document(history_path: Path) -> dict[str, Any]:
     """Load and minimally validate the immutable production history."""
     value = json.loads(history_path.read_text(encoding="utf-8"))
@@ -366,6 +826,7 @@ def build_audit(
         })
 
     claim_records: list[dict[str, Any]] = []
+    unsupported_claim_records: list[dict[str, Any]] = []
     precise_mtf_records: list[dict[str, Any]] = []
     same_document_records: list[dict[str, Any]] = []
     meaning_records: list[dict[str, Any]] = []
@@ -378,6 +839,7 @@ def build_audit(
         packet = packets[quote_id]
         source_audit = packet["_source_role_audit"]
         eligible = packet_is_attributed_to_margaret_thatcher(packet)
+        rendered = packet_renderings[quote_id]
         public_fields = sorted(set(source_audit.get("public_context_supported_fields", [])))
         field_findings = _claim_field_findings(packet, source_audit)
         if field_findings:
@@ -390,8 +852,18 @@ def build_audit(
                 "public_context_supported_fields": public_fields,
                 "findings": field_findings,
             })
+            unsupported_claim_records.extend(
+                _unsupported_claim_record(
+                    quote_id,
+                    packet,
+                    source_audit,
+                    finding,
+                    rendered,
+                )
+                for finding in field_findings
+                if finding["kind"] == "packet_claim_not_publicly_supported"
+            )
 
-        rendered = packet_renderings[quote_id]
         rendered_sections = _sections("" if rendered is None else rendered["text"])
         current_render_records.append({
             "quote_id": quote_id,
@@ -536,6 +1008,10 @@ def build_audit(
         "current_context_without_calendar_date" in row["flags"]
         for row in current_context_records
     )
+    unsupported_claim_records.sort(key=lambda row: row["claim_key"])
+    unsupported_claim_counts = _unsupported_claim_counts(
+        unsupported_claim_records
+    )
 
     invariants = {
         "completed_packet_count_is_626": len(packets) == EXPECTED_COMPLETED_PACKET_COUNT,
@@ -573,6 +1049,43 @@ def build_audit(
             "automatic_evidence_rewrite_authorised": False,
             "meaning_indicators_are_semantic_review_leads_not_error_findings": True,
             "packet_claim_presence_is_not_treated_as_source_support": True,
+            "literal_public_occurrence_is_not_treated_as_source_support": True,
+            "source_title_occurrence_classification": (
+                "bibliographic_occurrence_risk_not_semantic_adjudication"
+            ),
+        },
+        "unsupported_claim_decomposition_definitions": {
+            "scope": (
+                "packet_claim_not_publicly_supported findings for source_event, "
+                "date, and historical_context only"
+            ),
+            "intended_argument_or_meaning_scope": (
+                "The 1,539 figure contains zero intended_argument or Meaning "
+                "claims; Meaning is a separate semantic-review surface."
+            ),
+            "currently_rendered_exact_occurrence": (
+                "The formatter-visible packet-field projection occurs as one "
+                "contiguous NFKC-casefolded alphanumeric token sequence in "
+                "current public Context, Meaning, source title, or source URL."
+            ),
+            "formatter_reachable_but_suppressed": (
+                "The packet is attribution-eligible and counterfactually "
+                "admitting the field changes Context through the actual public "
+                "formatter, with that packet field selected as the value origin."
+            ),
+            "internal_only_or_unreachable": (
+                "The claim is neither a current literal occurrence nor a "
+                "direct formatter-reachable eligible packet-field value."
+            ),
+            "context_slot_reachability": (
+                "A separate gate-level measure: historical_context admission "
+                "may change Context by selecting immediate_subject rather than "
+                "the packet historical_context value."
+            ),
+            "bibliographic_exact_occurrence": (
+                "A public source-title occurrence is an editorial exposure risk, "
+                "not proof that an audited source supports the packet claim."
+            ),
         },
         "input_hashes": input_hashes,
         "coverage": {
@@ -603,6 +1116,9 @@ def build_audit(
                 len(row["findings"]) for row in claim_records
             ),
             "claim_public_field_finding_kind_counts": dict(sorted(field_issue_counts.items())),
+            "unsupported_claim_decomposition_count": len(
+                unsupported_claim_records
+            ),
             "precise_mtf_identity_packet_count": len(precise_mtf_records),
             "accepted_and_lead_same_mtf_document_packet_count": len(same_document_records),
             "eligible_same_document_event_or_date_priority_count": (
@@ -623,6 +1139,7 @@ def build_audit(
             "published_generic_or_no_date_contexts": history_context_records,
             "current_generic_or_no_date_contexts": current_context_records,
             "claim_public_field_triage": claim_records,
+            "unsupported_claim_decomposition": unsupported_claim_records,
             "precise_mtf_identities": precise_mtf_records,
             "accepted_and_lead_same_mtf_document": same_document_records,
             "eligible_same_document_event_or_date_priorities": (
@@ -630,6 +1147,7 @@ def build_audit(
             ),
             "meaning_strengthening_indicators": meaning_records,
         },
+        "unsupported_claim_counts": unsupported_claim_counts,
         "invariants": invariants,
     }
 

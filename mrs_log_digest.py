@@ -2840,6 +2840,17 @@ def analyse(
                 )
                 quote_image_semantic_veto_events.append(pending_semantic_veto_event)
                 pending_semantic_veto_ts = r.ts
+            elif event_obj and event_obj.get("event") == "historical_context_semantic_gate":
+                add_event(
+                    "historical_context_semantic_gate",
+                    r.ts,
+                    status=event_obj.get("status") or "unavailable",
+                    policy_version=event_obj.get("policy_version") or "unavailable",
+                    ledger_sha256=event_obj.get("ledger_sha256") or "",
+                    projection_sha256=event_obj.get("projection_sha256") or "",
+                    blocked_quote_count=event_obj.get("blocked_quote_count"),
+                    reason=event_obj.get("reason") or "",
+                )
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
                 confidence_dimensions = event_obj.get("confidence_dimensions")
@@ -2868,6 +2879,15 @@ def analyse(
                     source_omitted=event_obj.get("source_omitted"),
                     verification_omitted=event_obj.get("verification_omitted"),
                     reason=event_obj.get("reason") or "",
+                    semantic_review_disposition=(
+                        event_obj.get("semantic_review_disposition")
+                    ),
+                    semantic_review_ledger_sha256=(
+                        event_obj.get("semantic_review_ledger_sha256") or ""
+                    ),
+                    semantic_review_projection_sha256=(
+                        event_obj.get("semantic_review_projection_sha256") or ""
+                    ),
                     reply_preview=event_obj.get("reply_preview") or "",
                 )
                 stats[f"historical_context_reply_status_{status}"] += 1
@@ -5363,9 +5383,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
     section("hot_post_reply_posted", "Hot-post replies", ["time", "hot_post_reply_id", "author_id", "incoming_text", "reply", "reply_post_id"])
     section("quote_tweet_reply_posted", "Quote-tweet replies", ["time", "quote_tweet_id", "author_id", "original_post_id", "incoming_text", "reply", "reply_post_id"])
     section(
+        "historical_context_semantic_gate",
+        "Historical context semantic gate",
+        ["time", "status", "policy_version", "ledger_sha256", "projection_sha256", "blocked_quote_count", "reason"],
+    )
+    section(
         "historical_context_reply",
         "Historical context replies",
-        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "formatter_version", "rendering_mode", "shortening_applied", "reason"]
+        ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "formatter_version", "rendering_mode", "shortening_applied", "reason", "semantic_review_disposition", "semantic_review_ledger_sha256", "semantic_review_projection_sha256"]
         + (["reply_preview"] if report.get("verbose_replies") else []),
     )
     section(

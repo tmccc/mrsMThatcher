@@ -620,6 +620,7 @@ class ReplyEvidenceUnavailable(RuntimeError):
 
 _PRODUCTION_BOOTSTRAPPED = False
 _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW: object | None = None
+_HISTORICAL_CONTEXT_SEMANTIC_GATE: object | None = None
 _REPLY_EVIDENCE_REPOSITORY: object | None = None
 _REPLY_EVIDENCE_LOAD_ERROR: str | None = None
 
@@ -992,6 +993,65 @@ def initialise_quote_image_semantic_veto_shadow() -> None:
         )
 
 
+def initialise_historical_context_semantic_gate(
+    packets: dict[str, dict],
+) -> object:
+    """Load the reviewed gate without failing the independent main-post lane."""
+    global _HISTORICAL_CONTEXT_SEMANTIC_GATE
+    if _HISTORICAL_CONTEXT_SEMANTIC_GATE is not None:
+        return _HISTORICAL_CONTEXT_SEMANTIC_GATE
+
+    from historical_context_formatter import (
+        packet_is_attributed_to_margaret_thatcher,
+    )
+    from historical_context_reply_semantic_gate import (
+        POLICY_VERSION,
+        load_historical_context_semantic_gate,
+    )
+
+    eligible_quote_ids = {
+        quote_id
+        for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+    gate = load_historical_context_semantic_gate(
+        root=BASE_DIR,
+        eligible_quote_ids=eligible_quote_ids,
+    )
+    _HISTORICAL_CONTEXT_SEMANTIC_GATE = gate
+    if gate.available:
+        log.info(
+            "Historical-context semantic gate loaded. policy=%s ledger_sha256=%s "
+            "projection_sha256=%s blocked=%d regular_post_eligibility_unchanged=true",
+            POLICY_VERSION,
+            gate.ledger_sha256,
+            gate.projection_sha256,
+            len(gate.blocked_dispositions),
+        )
+        log_event(
+            "historical_context_semantic_gate",
+            status="loaded",
+            policy_version=POLICY_VERSION,
+            ledger_sha256=gate.ledger_sha256,
+            projection_sha256=gate.projection_sha256,
+            blocked_quote_count=len(gate.blocked_dispositions),
+        )
+    else:
+        log.critical(
+            "Historical-context semantic gate unavailable; only public context "
+            "replies are fail-closed until a controlled restart. reason=%s",
+            gate.reason,
+        )
+        log_event(
+            "historical_context_semantic_gate",
+            status="unavailable",
+            policy_version=POLICY_VERSION,
+            ledger_sha256=gate.ledger_sha256,
+            reason=gate.reason,
+        )
+    return gate
+
+
 def production_bootstrap(
     *,
     log_path: Path | None = None,
@@ -1011,10 +1071,11 @@ def production_bootstrap(
     load_runtime_resources = not (SELF_TEST_REQUESTED or INITIALISE_REQUESTED)
     if load_runtime_resources and historical_context_reply["enabled"]:
         from historical_context_formatter import load_and_validate_corpus
-        load_and_validate_corpus(
+        historical_packets, _historical_unresolved = load_and_validate_corpus(
             HISTORICAL_CONTEXT_RESEARCH_DIR,
             require_source_role_audit=True,
         )
+        initialise_historical_context_semantic_gate(historical_packets)
     if load_runtime_resources:
         initialise_quote_image_semantic_veto_shadow()
     else:
@@ -5194,8 +5255,6 @@ def maybe_post_historical_context_reply(
     """Post an optional canonical context reply without affecting the main post."""
     if not dry_run:
         block_if_ambiguous_remote_post()
-    if not historical_context_reply.get("enabled") and not dry_run:
-        return {"status": "disabled"}
     try:
         from historical_context_formatter import (
             HistoricalContextReplyStore,
@@ -5204,6 +5263,19 @@ def maybe_post_historical_context_reply(
             packet_for_posted_quote,
             x_weighted_length,
         )
+
+        store = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+        )
+        if not dry_run:
+            # Reconcile before every policy/configuration exit. A durable
+            # receipt describes an earlier remote attempt and must not be
+            # hidden merely because the lane is now disabled, the packet is
+            # unavailable, or the current quote is blocked by policy.
+            store.reconcile_receipt()
+        if not historical_context_reply.get("enabled") and not dry_run:
+            return {"status": "disabled"}
 
         packets, unresolved = load_and_validate_corpus(
             HISTORICAL_CONTEXT_RESEARCH_DIR,
@@ -5218,6 +5290,44 @@ def maybe_post_historical_context_reply(
                 reason="no_completed_canonical_packet",
             )
             return {"status": "skipped_no_completed_packet"}
+
+        gate = _HISTORICAL_CONTEXT_SEMANTIC_GATE
+        if gate is None:
+            gate = initialise_historical_context_semantic_gate(packets)
+
+        gate_disposition = gate.disposition(packet["quote_id"])
+        if not gate.available or gate_disposition is not None:
+            reason = (
+                "semantic_review_gate_unavailable"
+                if not gate.available
+                else "open_semantic_review"
+            )
+            log.warning(
+                "Historical context reply blocked by reviewed semantic gate. "
+                "quote_id=%s reason=%s disposition=%s ledger_sha256=%s",
+                packet["quote_id"],
+                reason,
+                gate_disposition or "unavailable",
+                gate.ledger_sha256 or "unavailable",
+            )
+            log_event(
+                "historical_context_reply",
+                status="skipped_future_policy",
+                parent_post_id=str(parent_post_id),
+                quote_id=str(packet["quote_id"]),
+                reason=reason,
+                semantic_review_disposition=gate_disposition,
+                semantic_review_ledger_sha256=gate.ledger_sha256,
+                semantic_review_projection_sha256=gate.projection_sha256,
+            )
+            return {
+                "status": "skipped_future_policy",
+                "quote_id": str(packet["quote_id"]),
+                "reason": reason,
+                "semantic_review_disposition": gate_disposition,
+                "semantic_review_ledger_sha256": gate.ledger_sha256,
+                "semantic_review_projection_sha256": gate.projection_sha256,
+            }
         formatted = format_context_reply_public(
             packet,
             maximum_length=int(historical_context_reply["maximum_length"]),
@@ -5239,10 +5349,6 @@ def maybe_post_historical_context_reply(
                 f"Character count: raw={formatted['raw_character_count']} "
                 f"x_weighted={formatted['character_count']}/{formatted['maximum_length']}"
             )
-        store = HistoricalContextReplyStore(
-            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
-            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
-        )
         formatter_metadata = {
             "formatter_version": formatted["formatter_version"],
             "template_variant": formatted["template_variant"],

@@ -113,6 +113,81 @@ def test_historical_context_v5_metadata_is_retained_and_summarised():
     assert "Confidence attribution: high=1" in rendered
 
 
+def test_historical_context_semantic_gate_metadata_is_retained_and_skip_is_summarised():
+    quote_id = "b" * 64
+    ledger_sha256 = "c" * 64
+    projection_sha256 = "d" * 64
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 22, 12),
+            level="INFO",
+            src="log_event",
+            line=1,
+            msg="EVENT " + json.dumps({
+                "event": "historical_context_semantic_gate",
+                "status": "loaded",
+                "policy_version": (
+                    "historical-context-semantic-gate-v1-open-review-whole-reply"
+                ),
+                "ledger_sha256": ledger_sha256,
+                "projection_sha256": projection_sha256,
+                "blocked_quote_count": 23,
+            }),
+            path="mrsMThatcher.log",
+            ordinal=1,
+        ),
+        digest.Record(
+            ts=datetime(2026, 7, 22, 12, 1),
+            level="INFO",
+            src="log_event",
+            line=2,
+            msg="EVENT " + json.dumps({
+                "event": "historical_context_reply",
+                "status": "skipped_future_policy",
+                "reason": "open_semantic_review",
+                "quote_id": quote_id,
+                "semantic_review_disposition": "future_correction_needed",
+                "semantic_review_ledger_sha256": ledger_sha256,
+                "semantic_review_projection_sha256": projection_sha256,
+            }),
+            path="mrsMThatcher.log",
+            ordinal=2,
+        ),
+    ]
+
+    report = digest.analyse(records)
+    gate_event = next(
+        item for item in report["events"]
+        if item["kind"] == "historical_context_semantic_gate"
+    )
+    reply_event = next(
+        item for item in report["events"]
+        if item["kind"] == "historical_context_reply"
+    )
+    quality = report["historical_context_quality"]
+
+    assert gate_event["status"] == "loaded"
+    assert gate_event["policy_version"] == (
+        "historical-context-semantic-gate-v1-open-review-whole-reply"
+    )
+    assert gate_event["ledger_sha256"] == ledger_sha256
+    assert gate_event["projection_sha256"] == projection_sha256
+    assert gate_event["blocked_quote_count"] == 23
+    assert reply_event["semantic_review_disposition"] == "future_correction_needed"
+    assert reply_event["semantic_review_ledger_sha256"] == ledger_sha256
+    assert reply_event["semantic_review_projection_sha256"] == projection_sha256
+    assert quality["status_counts"]["skipped"] == 1
+    assert quality["skip_reason_counts"] == {"open_semantic_review": 1}
+    assert quality["attempted_count"] == 0
+
+    rendered = digest.render_markdown(report)
+    assert "## Historical context semantic gate" in rendered
+    assert "historical-context-semantic-gate-v1-open-review-whole-reply" in rendered
+    assert ledger_sha256 in rendered
+    assert projection_sha256 in rendered
+    assert "future_correction_needed" in rendered
+
+
 def test_historical_context_v5_public_labels_are_not_downgraded_to_unavailable():
     labels = (
         "Exact wording verified",

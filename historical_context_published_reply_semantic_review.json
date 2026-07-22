@@ -3,10 +3,12 @@
     "already_resolved_by_current_conservative_rendering": 14,
     "known_104653_corrected_for_future_rendering": true,
     "published_history_modified": false,
-    "remaining_future_correction_or_research_items": 22,
+    "remaining_future_correction_or_research_items": 24,
     "remaining_original_future_correction_items": 18,
     "remaining_original_insufficient_evidence_items": 4,
-    "reviewed_non_supported_or_uncertain": 36
+    "remaining_post_baseline_future_correction_items": 2,
+    "remaining_post_baseline_insufficient_evidence_items": 0,
+    "reviewed_non_supported_or_uncertain": 38
   },
   "history_policy": "Published history is immutable; every recommendation applies only to future rendering.",
   "input_evidence": {
@@ -18,12 +20,12 @@
       "successful_document_count": 262
     },
     "published_history": {
-      "completed_entry_count": 77,
-      "parent_post_ids_sha256": "53aef2de9abf583914d9132a9e6069e5599e78893b8307153d69b4e378c19fa3",
+      "completed_entry_count": 79,
+      "parent_post_ids_sha256": "5c6d20006bbc6cc36b1399ee7436e454c13ff335dbc76a9d66f191a699b22d69",
       "path": "historical_context_reply_history.json",
-      "quote_ids_sha256": "005dd9a3e97c1def90024a301fa13423b33c58f6fe8e35e314131bdedf097643",
-      "sha256": "2cb281c2c60b7067c8c0cfc05422c78544990b49f9dfdd0eabf8b548bf69497d",
-      "unique_quote_count": 77
+      "quote_ids_sha256": "9a154399306986198a69c1b6dcebc8325a980e05f83689d8d5cdf4c3f0bb11d1",
+      "sha256": "fc5972169cffed10680c196b41373906a9c2731263d26bb323b2eca03d4c03d6",
+      "unique_quote_count": 79
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
@@ -31,13 +33,13 @@
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "8e8d968d580a7fb9bf5cf84b3b4b607e3e73a0ffffaeca0d68a44cfb700ce1f6"
+      "sha256": "762c8a17d2c6da2e79c419acd287380f6604ff4f0aa3a4f6acf48a6d614d6974"
     }
   },
   "manual_review_totals": {
-    "future_correction_needed": 30,
+    "future_correction_needed": 32,
     "insufficient_to_assess": 6,
-    "reviewed": 77,
+    "reviewed": 79,
     "supported_as_published": 41
   },
   "records": [
@@ -2162,6 +2164,59 @@
       "quote_text_sha256": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
       "reason": "At review time admitted evidence did not support the occasion and date or restrain the Meaning; inspected official document 104653 and its hash-bound correction now resolve future rendering.",
       "reply_post_id": "2079890592461377745"
+    },
+    {
+      "current_reply_sha256": "7ad5f19b342bf7b12a64304c3c5d54589dd3638def92630ee13f15cc38832239",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd"
+        ],
+        "renderable_source_quality_classes": [
+          "reliable_secondary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 77,
+      "parent_post_id": "2079927932038893970",
+      "published_reply_sha256": "7ad5f19b342bf7b12a64304c3c5d54589dd3638def92630ee13f15cc38832239",
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone.",
+      "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "reason": "Meaning adds government intervention, stifled growth and reduced total wealth; the quotation and retained secondary evidence establish only that a larger government share leaves less available to others.",
+      "reply_post_id": "2079927939190202725"
+    },
+    {
+      "current_reply_sha256": "b258b1fcb54809f3790e206d18cd7679d65b0e94bd0ce599a47ceef877b49036",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108338",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "0d414279d76e1b746286e989061722abc116149b781fada61497aa86ccd0e962"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "medium"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 78,
+      "parent_post_id": "2079960504026456515",
+      "published_reply_sha256": "b258b1fcb54809f3790e206d18cd7679d65b0e94bd0ce599a47ceef877b49036",
+      "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
+      "quote_text_sha256": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "reason": "Meaning adds state ownership, stifled economic freedom and efficiency, and a specific government-divestment mechanism not established by the quotation or retained primary passage; the supported claim is only that creating a genuine market requires taking the state out of the market.",
+      "reply_post_id": "2079960510737387668"
     }
   ],
   "remaining_items": [
@@ -2274,6 +2329,16 @@
       "disposition": "future_correction_needed",
       "issue": "Meaning adds national-interest reasoning and a prescriptive ideological break not established by the secondary recollection.",
       "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds government intervention, stifled growth and reduced total wealth; the quotation and retained secondary evidence establish only that a larger government share leaves less available to others.",
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "Meaning adds state ownership, stifled economic freedom and efficiency, and a specific government-divestment mechanism not established by the quotation or retained primary passage; the supported claim is only that creating a genuine market requires taking the state out of the market.",
+      "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381"
     }
   ],
   "review_kind": "historical_context_published_reply_primary_source_semantic_review",
@@ -2294,6 +2359,15 @@
     "machine_status_is_not_semantic_adjudication": true,
     "source_of_review_rows": "historical_context_evidence_truth_audit.json records.published_reply_reviews"
   },
+  "review_scope": {
+    "original_review_baseline_count": 77,
+    "original_review_quote_ids_sha256": "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976",
+    "post_baseline_review_count": 2,
+    "post_baseline_review_quote_ids": [
+      "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
+    ]
+  },
   "review_slices": [
     {
       "future_correction_needed": 10,
@@ -2310,11 +2384,18 @@
       "supported_as_published": 15
     },
     {
-      "future_correction_needed": 11,
+      "future_correction_needed": 12,
       "insufficient_to_assess": 3,
-      "reviewed": 25,
-      "sorted_history_slice": "[52:77]",
+      "reviewed": 26,
+      "sorted_history_slice": "[52:78]",
       "supported_as_published": 11
+    },
+    {
+      "future_correction_needed": 1,
+      "insufficient_to_assess": 0,
+      "reviewed": 1,
+      "sorted_history_slice": "[78:79]",
+      "supported_as_published": 0
     }
   ],
   "reviewed_at": "2026-07-22",

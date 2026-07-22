@@ -63,6 +63,19 @@ _V2_MONTHS = {
     "may": "May", "june": "June", "july": "July", "august": "August",
     "september": "September", "october": "October", "november": "November", "december": "December",
 }
+_V2_DATE_LIKE_EVENT_TEXT = re.compile(
+    r"(?:\b(?:18|19|20)\d{2}\b|"
+    r"\b(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\s+"
+    r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
+    r"Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|"
+    r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\b|"
+    r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|"
+    r"Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|"
+    r"Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+"
+    r"(?:0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)?\b)",
+    re.I,
+)
+_V2_DIAGNOSTIC_EVENT_SLASH = re.compile(r"\s*/\s*")
 _FORMATTER_METADATA_KEYS_V2 = {
     "formatter_version", "template_variant", "meaning_included", "meaning_decision_reason",
     "raw_character_count", "weighted_character_count", "verification_label", "source_class",
@@ -658,6 +671,8 @@ def _v2_meaning_decision(packet: dict[str, Any], context: str) -> dict[str, Any]
 def _v2_context_sentence(
     packet: dict[str, Any],
     supported_fields: set[str] | None = None,
+    *,
+    public_rendering: bool = False,
 ) -> str:
     event = _v2_clean(packet.get("source_event")) if (
         supported_fields is None or "source_event" in supported_fields
@@ -669,6 +684,22 @@ def _v2_context_sentence(
     elif re.match(r"unknown\s+", event, re.I):
         remainder = re.sub(r"^unknown\s+", "", event, flags=re.I).strip()
         event = f"Attributed to a {remainder}" if remainder else ""
+    unsafe_public_event = bool(
+        public_rendering
+        and event
+        and supported_fields is not None
+        and "source_event" in supported_fields
+        and "date" not in supported_fields
+        and (
+            _V2_DATE_LIKE_EVENT_TEXT.search(event)
+            or _V2_DIAGNOSTIC_EVENT_SLASH.search(event)
+        )
+    )
+    if unsafe_public_event:
+        # Stripping pieces from a composite evidence label would guess which
+        # surviving fragment is authoritative.  Use a neutral public fallback
+        # while retaining the complete event in the internal rendering.
+        event = ""
     event = _v2_british_dates_in_text(event).rstrip(". :;-")
     date = _v2_british_date(packet.get("date")) if (
         supported_fields is None or "date" in supported_fields
@@ -683,6 +714,8 @@ def _v2_context_sentence(
     if immediate: return immediate if immediate.endswith((".", "?", "!")) else immediate + "."
     if event and date: return f"{event}, {date}."
     if event: return event if event.endswith((".", "?", "!")) else event + "."
+    if unsafe_public_event:
+        return "The surviving record identifies an occasion, but does not establish a reliable date."
     if date: return f"The surviving record dates this wording to {date}, but does not establish its occasion."
     return "The surviving attribution does not establish an occasion, date or immediate historical issue."
 
@@ -929,7 +962,11 @@ def format_context_reply_v2(
     supported_fields = None
     if isinstance(audit, dict):
         supported_fields = set(audit.get("public_context_supported_fields", []))
-    context = _v2_context_sentence(packet, supported_fields)
+    context = _v2_context_sentence(
+        packet,
+        supported_fields,
+        public_rendering=rendering_mode == PUBLIC_RENDERING_MODE,
+    )
     decision = _v2_meaning_decision(packet, context)
     if not include_meaning:
         decision = {**decision, "meaning_included": False,

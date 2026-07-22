@@ -1,0 +1,573 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from pathlib import Path
+from types import MappingProxyType
+
+import pytest
+
+import historical_context_formatter as context_formatter
+import mrsMThatcher2 as bot
+from historical_context_formatter import (
+    AmbiguousContextReplyOutcome,
+    HistoricalContextReplyStore,
+    load_and_validate_corpus,
+    packet_is_attributed_to_margaret_thatcher,
+)
+from historical_context_reply_semantic_gate import (
+    EXPECTED_LEDGER_SHA256,
+    EXPECTED_PROJECTION_SHA256,
+    HistoricalContextSemanticGate,
+    load_historical_context_semantic_gate,
+)
+
+
+ROOT = Path(__file__).resolve().parents[1]
+RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
+LEDGER = ROOT / "historical_context_published_reply_semantic_review.json"
+OPEN_FUTURE = (
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+)
+NEW_POST_BASELINE_FUTURE = (
+    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381"
+)
+OPEN_INSUFFICIENT = (
+    "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550"
+)
+RESOLVED_104653 = (
+    "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
+)
+
+
+def _copy_gate_inputs(destination: Path) -> None:
+    destination.mkdir(parents=True)
+    copied_research = (
+        destination
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+    )
+    copied_research.mkdir(parents=True)
+    for name in (
+        "historical_context_published_reply_semantic_review.json",
+        "historical_context_evidence_truth_audit.json",
+        "historical_context_mtf_primary_review.json",
+    ):
+        shutil.copy2(ROOT / name, destination / name)
+    shutil.copy2(
+        RESEARCH / "historical_context_source_role_audit.json",
+        copied_research / "historical_context_source_role_audit.json",
+    )
+
+
+def _gate(
+    blocked: dict[str, str] | None = None,
+    *,
+    available: bool = True,
+) -> HistoricalContextSemanticGate:
+    if not available:
+        return HistoricalContextSemanticGate.closed("test gate unavailable")
+    return HistoricalContextSemanticGate(
+        available=True,
+        reason="",
+        ledger_sha256=EXPECTED_LEDGER_SHA256,
+        projection_sha256=EXPECTED_PROJECTION_SHA256,
+        blocked_dispositions=MappingProxyType(dict(blocked or {})),
+    )
+
+
+def _formatted(quote_id: str) -> dict[str, object]:
+    text = "Context — Safe reviewed context."
+    return {
+        "quote_id": quote_id,
+        "text": text,
+        "character_count": len(text),
+        "weighted_character_count": len(text),
+        "raw_character_count": len(text),
+        "maximum_length": 4000,
+        "historical_confidence": "high",
+        "meaning_included": False,
+        "meaning_omitted": True,
+        "meaning_decision_reason": "Meaning omitted by reviewed formatter.",
+        "shortening_applied": False,
+        "verification_label": "Exact wording",
+        "verification_omitted": False,
+        "source": {"title": "Source", "url": "", "source_type": "official"},
+        "source_class": "original speech transcript",
+        "source_omitted": False,
+        "formatter_version": context_formatter.HISTORICAL_CONTEXT_FORMATTER_V5,
+        "confidence_dimensions": {
+            "attribution": "high",
+            "wording": "high",
+            "source_event": "high",
+            "date": "high",
+            "historical_context": "high",
+            "interpretation": "high",
+        },
+        "source_role_audit_version": "test-source-role-audit-v1",
+        "rendering_mode": "public",
+        "template_variant": "compact_without_redundant_meaning",
+    }
+
+
+def _install_bot_context(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    packet: dict[str, str],
+    gate: HistoricalContextSemanticGate,
+) -> list[dict[str, object]]:
+    events: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_SEMANTIC_GATE", gate)
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
+    monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "context-receipt.json")
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(
+        context_formatter,
+        "load_and_validate_corpus",
+        lambda *_args, **_kwargs: ({packet["quote_id"]: packet}, set()),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "packet_for_posted_quote",
+        lambda *_args, **_kwargs: packet,
+    )
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda event, **fields: events.append({"event": event, **fields}),
+    )
+    return events
+
+
+def test_real_gate_is_hash_bound_and_contains_exact_79_24_20_4_policy():
+    packets, _unresolved = load_and_validate_corpus(
+        RESEARCH,
+        require_source_role_audit=True,
+    )
+    eligible = {
+        quote_id
+        for quote_id, packet in packets.items()
+        if packet_is_attributed_to_margaret_thatcher(packet)
+    }
+
+    gate = load_historical_context_semantic_gate(
+        root=ROOT,
+        eligible_quote_ids=eligible,
+    )
+
+    assert gate.available is True
+    assert gate.reason == ""
+    assert gate.ledger_sha256 == EXPECTED_LEDGER_SHA256
+    assert gate.projection_sha256 == EXPECTED_PROJECTION_SHA256
+    assert len(gate.blocked_dispositions) == 24
+    assert list(gate.blocked_dispositions.values()).count(
+        "future_correction_needed"
+    ) == 20
+    assert list(gate.blocked_dispositions.values()).count(
+        "insufficient_to_assess"
+    ) == 4
+    assert gate.disposition(OPEN_FUTURE) == "future_correction_needed"
+    assert gate.disposition(NEW_POST_BASELINE_FUTURE) == "future_correction_needed"
+    assert gate.disposition(OPEN_INSUFFICIENT) == "insufficient_to_assess"
+    assert gate.blocks(RESOLVED_104653) is False
+    assert len(eligible) == 610
+    with pytest.raises(TypeError):
+        gate.blocked_dispositions["f" * 64] = "future_correction_needed"  # type: ignore[index]
+
+
+def test_missing_corrupt_and_stale_gate_inputs_close_the_lane(tmp_path: Path):
+    missing = load_historical_context_semantic_gate(root=tmp_path / "missing")
+    assert missing.available is False
+    assert missing.blocks(RESOLVED_104653) is True
+
+    copied = tmp_path / "copied"
+    _copy_gate_inputs(copied)
+    ledger_path = copied / LEDGER.name
+    ledger_path.write_bytes(ledger_path.read_bytes() + b" ")
+    corrupt = load_historical_context_semantic_gate(root=copied)
+    assert corrupt.available is False
+    assert "SHA-256 differs" in corrupt.reason
+
+    _copy_gate_inputs(tmp_path / "stale")
+    stale_path = tmp_path / "stale" / LEDGER.name
+    stale_value = json.loads(stale_path.read_text(encoding="utf-8"))
+    stale_value["remaining_items"][0]["disposition"] = "insufficient_to_assess"
+    stale_path.write_text(
+        json.dumps(stale_value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    stale_sha = hashlib.sha256(stale_path.read_bytes()).hexdigest()
+    stale = load_historical_context_semantic_gate(
+        root=tmp_path / "stale",
+        expected_ledger_sha256=stale_sha,
+    )
+    assert stale.available is False
+    assert "review differs" in stale.reason
+
+    eligible = set(json.loads(
+        (RESEARCH / "research_packets.json").read_text(encoding="utf-8")
+    )["items"])
+    eligible.remove(OPEN_FUTURE)
+    ineligible = load_historical_context_semantic_gate(
+        root=ROOT,
+        eligible_quote_ids=eligible,
+    )
+    assert ineligible.available is False
+    assert "ineligible quote" in ineligible.reason
+
+
+@pytest.mark.parametrize(
+    ("gate", "expected_reason", "expected_disposition"),
+    [
+        (
+            _gate({OPEN_FUTURE: "future_correction_needed"}),
+            "open_semantic_review",
+            "future_correction_needed",
+        ),
+        (_gate(available=False), "semantic_review_gate_unavailable", None),
+    ],
+)
+def test_blocked_or_unavailable_gate_skips_before_formatter_or_post(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    gate: HistoricalContextSemanticGate,
+    expected_reason: str,
+    expected_disposition: str | None,
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    events = _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=gate,
+    )
+    reconciled: list[bool] = []
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: reconciled.append(True) or False,
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: pytest.fail("blocked context must not reach store.post"),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: pytest.fail("blocked context must not be formatted"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail("blocked context must not contact X"),
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash="b" * 64,
+        quote_text="Alias text resolved to canonical packet",
+        parent_post_id="123",
+    )
+
+    assert reconciled == [True]
+    assert result["status"] == "skipped_future_policy"
+    assert result["quote_id"] == OPEN_FUTURE
+    assert result["reason"] == expected_reason
+    assert result["semantic_review_disposition"] == expected_disposition
+    assert events[-1]["status"] == "skipped_future_policy"
+    assert events[-1]["quote_id"] == OPEN_FUTURE
+
+
+def test_blocked_dry_run_emits_no_public_render(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: pytest.fail("dry-run must not reconcile durable state"),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: pytest.fail("blocked dry-run must not render"),
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=OPEN_FUTURE,
+        quote_text="Canonical quote",
+        parent_post_id="123",
+        dry_run=True,
+    )
+
+    assert result["status"] == "skipped_future_policy"
+    assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("quote_id", [RESOLVED_104653, "f" * 64])
+def test_resolved_104653_and_other_allowed_quote_follow_public_post_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    quote_id: str,
+):
+    packet = {"quote_id": quote_id, "quote_text": "Allowed quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    formatted = _formatted(quote_id)
+    format_calls: list[object] = []
+    post_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: False,
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *args, **kwargs: format_calls.append((args, kwargs)) or formatted,
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **kwargs: post_calls.append(kwargs)
+        or {"status": "completed", "reply_post_id": "456"},
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=quote_id,
+        quote_text="Allowed quote",
+        parent_post_id="123",
+    )
+
+    assert result["status"] == "completed"
+    assert len(format_calls) == 1
+    assert len(post_calls) == 1
+    assert post_calls[0]["quote_id"] == quote_id
+
+
+def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: (_ for _ in ()).throw(
+            AmbiguousContextReplyOutcome("ambiguous sending receipt")
+        ),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: pytest.fail("ambiguous receipt must stop first"),
+    )
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        bot.maybe_post_historical_context_reply(
+            quote_hash=OPEN_FUTURE,
+            quote_text="Canonical quote",
+            parent_post_id="123",
+        )
+
+
+def test_ambiguous_preexisting_context_receipt_is_not_hidden_when_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": False},
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: (_ for _ in ()).throw(
+            AmbiguousContextReplyOutcome("ambiguous sending receipt")
+        ),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "load_and_validate_corpus",
+        lambda *_args, **_kwargs: pytest.fail(
+            "disabled configuration must reconcile before corpus loading"
+        ),
+    )
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        bot.maybe_post_historical_context_reply(
+            quote_hash=OPEN_FUTURE,
+            quote_text="Canonical quote",
+            parent_post_id="123",
+        )
+
+
+def test_ambiguous_preexisting_context_receipt_is_not_hidden_by_missing_packet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: (_ for _ in ()).throw(
+            AmbiguousContextReplyOutcome("ambiguous sending receipt")
+        ),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "packet_for_posted_quote",
+        lambda *_args, **_kwargs: pytest.fail(
+            "receipt ambiguity must stop before packet lookup"
+        ),
+    )
+
+    with pytest.raises(AmbiguousContextReplyOutcome):
+        bot.maybe_post_historical_context_reply(
+            quote_hash=OPEN_FUTURE,
+            quote_text="Canonical quote",
+            parent_post_id="123",
+        )
+
+
+def test_reconciled_receipt_for_another_parent_cannot_bypass_gate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": "Canonical quote"}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "reconcile_receipt",
+        lambda self: True,
+    )
+    monkeypatch.setattr(
+        HistoricalContextReplyStore,
+        "post",
+        lambda self, **_kwargs: pytest.fail(
+            "an unrelated reconciled receipt must not bypass the gate"
+        ),
+    )
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an unrelated reconciled receipt must not reach the formatter"
+        ),
+    )
+
+    result = bot.maybe_post_historical_context_reply(
+        quote_hash=OPEN_FUTURE,
+        quote_text="Canonical quote",
+        parent_post_id="123",
+    )
+
+    assert result["status"] == "skipped_future_policy"
+    assert result["reason"] == "open_semantic_review"
+
+
+def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    ledger = json.loads(LEDGER.read_text(encoding="utf-8"))
+    open_record = next(
+        row for row in ledger["records"] if row["quote_id"] == OPEN_FUTURE
+    )
+    quote_text = open_record["quote_text"]
+    packet = {"quote_id": OPEN_FUTURE, "quote_text": quote_text}
+    _install_bot_context(
+        monkeypatch,
+        tmp_path,
+        packet=packet,
+        gate=_gate({OPEN_FUTURE: "future_correction_needed"}),
+    )
+    regular_receipt = tmp_path / "regular-receipt.json"
+    regular_receipt.write_text(json.dumps({
+        "schema_version": 1,
+        "post_id": "950001",
+        "quote_hash": OPEN_FUTURE,
+        "image_basename": "t01.jpg",
+        "quote_post_epoch": 1_800_000_000,
+        "next_quote_post_epoch": 1_800_007_200,
+        "text": quote_text,
+    }), encoding="utf-8")
+    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", regular_receipt)
+    monkeypatch.setattr(
+        bot,
+        "save_regular_post_protected_state",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(bot, "cache_tweet", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(bot, "record_recent_own_post", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        context_formatter,
+        "format_context_reply_public",
+        lambda *_args, **_kwargs: pytest.fail("blocked replay must not format"),
+    )
+    monkeypatch.setattr(
+        bot,
+        "create_post",
+        lambda **_kwargs: pytest.fail("blocked replay must not contact X"),
+    )
+
+    lines_used: set[str] = set()
+    images_used: set[str] = set()
+    state: dict[str, object] = {}
+    assert bot.reconcile_regular_post_receipt(
+        lines_used,
+        images_used,
+        state,
+    ) is True
+
+    assert not regular_receipt.exists()
+    assert OPEN_FUTURE in lines_used
+    assert "t01.jpg" in images_used
+    assert state["last_main_post_id"] == "950001"
+    assert not (tmp_path / "history.json").exists()
+    assert not (tmp_path / "context-receipt.json").exists()

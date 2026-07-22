@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import shutil
@@ -14,6 +15,7 @@ from historical_context_formatter import (
     HistoricalContextReplyStore,
     VERIFICATION_LABELS,
     format_context_reply,
+    format_context_reply_public,
     format_context_reply_v2,
     load_and_validate_corpus,
     packet_is_attributed_to_margaret_thatcher,
@@ -170,6 +172,116 @@ def test_formatter_rejects_unknown_rendering_mode(corpus):
 
     with pytest.raises(ValueError, match="rendering_mode must be public or internal"):
         format_context_reply_v2(packet, rendering_mode="x")
+
+
+@pytest.mark.parametrize(
+    ("supported_fields", "expected_context"),
+    [
+        (
+            [],
+            "Context — The surviving attribution does not establish an "
+            "occasion, date or immediate historical issue.",
+        ),
+        (["source_event"], "Context — Synthetic conference speech."),
+        (
+            ["date"],
+            "Context — The surviving record dates this wording to 20 May "
+            "1981, but does not establish its occasion.",
+        ),
+        (
+            ["source_event", "date"],
+            "Context — Synthetic conference speech, 20 May 1981.",
+        ),
+    ],
+)
+def test_public_formatter_obeys_all_event_date_admission_combinations(
+    corpus, supported_fields, expected_context
+):
+    packet = copy.deepcopy(next(iter(corpus[0].values())))
+    packet["source_event"] = "Synthetic conference speech"
+    packet["date"] = "1981-05-20"
+    packet["_source_role_audit"]["public_context_supported_fields"] = (
+        supported_fields
+    )
+
+    rendered = format_context_reply_public(
+        packet,
+        include_meaning=False,
+        include_source=False,
+        include_verification=False,
+    )
+
+    assert rendered is not None
+    assert rendered["text"] == expected_context
+
+
+@pytest.mark.parametrize(
+    "source_event",
+    [
+        "Interview recorded in 1984",
+        "First statement / later recollection",
+    ],
+)
+def test_public_event_only_context_rejects_date_leakage_and_diagnostic_slash(
+    corpus, source_event
+):
+    packet = copy.deepcopy(next(iter(corpus[0].values())))
+    packet["source_event"] = source_event
+    packet["date"] = "1984"
+    packet["_source_role_audit"]["public_context_supported_fields"] = [
+        "source_event"
+    ]
+
+    rendered = format_context_reply_public(
+        packet,
+        include_meaning=False,
+        include_source=False,
+        include_verification=False,
+    )
+
+    assert rendered is not None
+    assert rendered["text"] == (
+        "Context — The surviving record identifies an occasion, but does not "
+        "establish a reliable date."
+    )
+
+
+def test_public_b32_context_does_not_leak_unadmitted_dates_or_diagnostic_slash(
+    corpus,
+):
+    quote_id = "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
+    packet = corpus[0][quote_id]
+
+    assert packet["_source_role_audit"]["public_context_supported_fields"] == [
+        "source_event"
+    ]
+    public = format_context_reply_public(
+        packet,
+        include_meaning=False,
+        include_source=False,
+        include_verification=False,
+    )
+    internal = format_context_reply_v2(
+        packet,
+        include_meaning=False,
+        include_source=False,
+        include_verification=False,
+        rendering_mode="internal",
+    )
+
+    assert public is not None
+    assert public["text"] == (
+        "Context — The surviving record identifies an occasion, but does not "
+        "establish a reliable date."
+    )
+    assert "1979" not in public["text"]
+    assert "1984" not in public["text"]
+    assert " / " not in public["text"]
+    assert internal is not None
+    assert internal["text"].startswith(
+        "Context — Pre-election statements (1979) / Recalled in BBC1 Panorama "
+        "Interview (1984)."
+    )
 
 
 def test_standalone_formatter_cli_distinguishes_internal_and_public_rendering(corpus, capsys):

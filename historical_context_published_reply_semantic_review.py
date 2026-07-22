@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and validate the 77-case published historical-reply semantic review.
+"""Build and validate the published historical-reply semantic review.
 
 The classification constants below are reviewed editorial judgements.  The
 builder joins them to the immutable published-history rows and retained source
@@ -31,6 +31,14 @@ OUTPUT_PATH = ROOT / "historical_context_published_reply_semantic_review.json"
 
 SCHEMA_VERSION = 2
 REVIEW_KIND = "historical_context_published_reply_primary_source_semantic_review"
+ORIGINAL_REVIEW_BASELINE_COUNT = 77
+ORIGINAL_REVIEW_QUOTE_IDS_SHA256 = (
+    "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976"
+)
+POST_BASELINE_REVIEW_IDS = {
+    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+}
 DISPOSITIONS = {
     "supported_as_published",
     "future_correction_needed",
@@ -55,12 +63,18 @@ def _is_successful_mtf_page_record(row: Any) -> bool:
     )
 
 
-# These 22 findings remain open.  The text is deliberately claim-specific and
+# These findings remain open.  The text is deliberately claim-specific and
 # is also used as the public worklist in the JSON artefact.
 OPEN_FINDINGS = {
     "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550": (
         "Meaning adds unsupported claims about leadership, rational thought, "
         "conviction and vulnerability; no primary transcript is retained."
+    ),
+    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": (
+        "Meaning adds state ownership, stifled economic freedom and efficiency, "
+        "and a specific government-divestment mechanism not established by the "
+        "quotation or retained primary passage; the supported claim is only that "
+        "creating a genuine market requires taking the state out of the market."
     ),
     "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": (
         "Meaning mislabels the rival Liberal-SDP alternative as a populist "
@@ -106,6 +120,11 @@ OPEN_FINDINGS = {
     "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": (
         "Meaning strengthens a threat to liberty into inevitable coercion and "
         "destruction; primary book evidence is not retained."
+    ),
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": (
+        "Meaning adds government intervention, stifled growth and reduced "
+        "total wealth; the quotation and retained secondary evidence establish "
+        "only that a larger government share leaves less available to others."
     ),
     "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc": (
         "Meaning turns a comparison with tyrants into a categorical claim "
@@ -249,6 +268,11 @@ def _sha256_text(value: str) -> str:
     return _sha256_bytes(value.encode("utf-8"))
 
 
+def _quote_id_set_sha256(values: set[str]) -> str:
+    """Bind the manually reviewed baseline without embedding 77 IDs twice."""
+    return _sha256_text("".join(f"{value}\n" for value in sorted(values)))
+
+
 def _load(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -318,8 +342,11 @@ def build_review(
     truth_audit_path: Path = TRUTH_AUDIT_PATH,
     source_role_audit_path: Path = SOURCE_ROLE_AUDIT_PATH,
     mtf_review_path: Path = MTF_REVIEW_PATH,
+    *,
+    reference_root: Path = ROOT,
 ) -> dict[str, Any]:
     """Return the deterministic per-record manual-review ledger."""
+    reference_root = reference_root.resolve()
     truth = _load(truth_audit_path)
     source_audit = _load(source_role_audit_path)
     mtf = _load(mtf_review_path)
@@ -328,6 +355,21 @@ def build_review(
     mtf_rows = mtf.get("records")
     if not isinstance(rows, list) or not isinstance(source_items, dict) or not isinstance(mtf_rows, list):
         raise RuntimeError("semantic-review inputs have incompatible schemas")
+
+    history_quote_ids = [str(row.get("quote_id") or "") for row in rows]
+    baseline_quote_ids = set(history_quote_ids) - POST_BASELINE_REVIEW_IDS
+    if (
+        len(history_quote_ids) != len(set(history_quote_ids))
+        or len(baseline_quote_ids) != ORIGINAL_REVIEW_BASELINE_COUNT
+        or _quote_id_set_sha256(baseline_quote_ids)
+        != ORIGINAL_REVIEW_QUOTE_IDS_SHA256
+        or not POST_BASELINE_REVIEW_IDS.issubset(history_quote_ids)
+        or len(history_quote_ids)
+        != ORIGINAL_REVIEW_BASELINE_COUNT + len(POST_BASELINE_REVIEW_IDS)
+    ):
+        raise RuntimeError(
+            "published history contains records outside the explicit semantic review"
+        )
 
     mtf_by_quote: dict[str, list[dict[str, Any]]] = {}
     for mtf_row in mtf_rows:
@@ -393,7 +435,8 @@ def build_review(
 
     disposition_counts = Counter(record["disposition"] for record in records)
     slices = []
-    for start, end in ((0, 26), (26, 52), (52, 77)):
+    for start in range(0, len(records), 26):
+        end = min(start + 26, len(records))
         counts = Counter(record["disposition"] for record in records[start:end])
         slices.append({
             "sorted_history_slice": f"[{start}:{end}]",
@@ -404,7 +447,16 @@ def build_review(
         })
     follow_up_counts = Counter(record["follow_up_status"] for record in records)
     remaining = [record for record in records if record["follow_up_status"] == "remains_open"]
-    remaining_dispositions = Counter(record["disposition"] for record in remaining)
+    original_remaining_dispositions = Counter(
+        record["disposition"]
+        for record in remaining
+        if record["quote_id"] not in POST_BASELINE_REVIEW_IDS
+    )
+    post_baseline_remaining_dispositions = Counter(
+        record["disposition"]
+        for record in remaining
+        if record["quote_id"] in POST_BASELINE_REVIEW_IDS
+    )
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -414,17 +466,25 @@ def build_review(
             "Published history is immutable; every recommendation applies only "
             "to future rendering."
         ),
+        "review_scope": {
+            "original_review_baseline_count": ORIGINAL_REVIEW_BASELINE_COUNT,
+            "original_review_quote_ids_sha256": (
+                ORIGINAL_REVIEW_QUOTE_IDS_SHA256
+            ),
+            "post_baseline_review_count": len(POST_BASELINE_REVIEW_IDS),
+            "post_baseline_review_quote_ids": sorted(POST_BASELINE_REVIEW_IDS),
+        },
         "input_evidence": {
             "truth_audit": {
-                "path": str(truth_audit_path.relative_to(ROOT)),
+                "path": str(truth_audit_path.relative_to(reference_root)),
                 "sha256": _sha256_bytes(truth_audit_path.read_bytes()),
             },
             "source_role_audit": {
-                "path": str(source_role_audit_path.relative_to(ROOT)),
+                "path": str(source_role_audit_path.relative_to(reference_root)),
                 "sha256": _sha256_bytes(source_role_audit_path.read_bytes()),
             },
             "mtf_primary_review": {
-                "path": str(mtf_review_path.relative_to(ROOT)),
+                "path": str(mtf_review_path.relative_to(reference_root)),
                 "sha256": _sha256_bytes(mtf_review_path.read_bytes()),
                 "successful_document_count": mtf.get("counts", {}).get(
                     "page_retrieval_success_count"
@@ -484,12 +544,18 @@ def build_review(
             "remaining_future_correction_or_research_items": follow_up_counts[
                 "remains_open"
             ],
-            "remaining_original_future_correction_items": remaining_dispositions[
+            "remaining_original_future_correction_items": original_remaining_dispositions[
                 "future_correction_needed"
             ],
-            "remaining_original_insufficient_evidence_items": remaining_dispositions[
+            "remaining_original_insufficient_evidence_items": original_remaining_dispositions[
                 "insufficient_to_assess"
             ],
+            "remaining_post_baseline_future_correction_items": (
+                post_baseline_remaining_dispositions["future_correction_needed"]
+            ),
+            "remaining_post_baseline_insufficient_evidence_items": (
+                post_baseline_remaining_dispositions["insufficient_to_assess"]
+            ),
             "known_104653_corrected_for_future_rendering": (
                 next(
                     record for record in records
@@ -516,9 +582,16 @@ def validate_review(
     truth_audit_path: Path = TRUTH_AUDIT_PATH,
     source_role_audit_path: Path = SOURCE_ROLE_AUDIT_PATH,
     mtf_review_path: Path = MTF_REVIEW_PATH,
+    *,
+    reference_root: Path = ROOT,
 ) -> dict[str, int]:
     """Fail closed unless the stored ledger equals its reviewed source mapping."""
-    expected = build_review(truth_audit_path, source_role_audit_path, mtf_review_path)
+    expected = build_review(
+        truth_audit_path,
+        source_role_audit_path,
+        mtf_review_path,
+        reference_root=reference_root,
+    )
     if review != expected:
         raise RuntimeError("published-reply semantic review differs from reviewed evidence ledger")
     records = review["records"]

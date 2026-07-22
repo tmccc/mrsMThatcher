@@ -1,0 +1,2458 @@
+{
+  "audit_kind": "historical_context_public_projection_review",
+  "counts": {
+    "change_count": 68,
+    "date_only_day_precision_count": 60,
+    "date_only_month_precision_count": 3,
+    "date_only_year_precision_count": 2,
+    "downgraded_count": 67,
+    "duplicate_context_group_count": 10,
+    "duplicate_context_record_count": 26,
+    "duplicate_full_reply_group_count": 0,
+    "event_only_downgrade_count": 2,
+    "manual_hint_count": 9,
+    "safe_date_only_count": 65,
+    "safe_event_only_context_count": 1,
+    "safe_event_only_fallback_count": 1,
+    "upgraded_count": 1
+  },
+  "downgraded_records": [
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 2 May 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+      "quote_text": "The Britain I want is a country which once again is known throughout the world for its integrity, its industry, the calibre of its people and its valiant championship of justice and truth.",
+      "source_event": "Election Eve Article/Message",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.",
+      "date": "November 8, 1993",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.\n\nMeaning — Capitalism is inherently moral because it relies on voluntary cooperation and individual freedom, whereas socialism is coercive and subjugates citizens to the state.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 8 November 1993",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 8 November 1993",
+          "url": ""
+        }
+      ],
+      "quote_id": "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+      "quote_text": "We must never forget that it is in fact capitalism which has the moral quality in society. Not socialism, which is the elevation of the power of the government over the people.",
+      "source_event": "Speech or remarks recorded by the Margaret Thatcher Foundation",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 27 April 1979, but does not establish its occasion.",
+      "date": "April 27, 1979",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 27 April 1979, but does not establish its occasion.\n\nMeaning — Britain's historical greatness and role in saving Europe during WWII makes its current state of decline unacceptable, necessitating a change in leadership.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, 27 April 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 27 April 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5",
+      "quote_text": "I can't bear Britain in decline. I just can't. We who either defeated or rescued half Europe, who kept half Europe free, when otherwise it would be in chains.",
+      "source_event": "TV Interview for BBC Campaign '79 with Michael Cockerell",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 5 June 1987, but does not establish its occasion.",
+      "date": "June 5, 1987",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 5 June 1987, but does not establish its occasion.\n\nMeaning — Thatcher argued that Labour's core policies and union ties inherently relied on conflict and division, making their accusations against the Conservatives hypocritical.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, 5 June 1987\n\nSource — Margaret Thatcher Foundation, Document 106869\nhttps://www.margaretthatcher.org/document/106869",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 5 June 1987",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 106869",
+          "url": "https://www.margaretthatcher.org/document/106869"
+        }
+      ],
+      "quote_id": "1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9",
+      "quote_text": "Labour accuse us of being divisive. I find this hypocritical coming from the party which actually believes, and practises, the theory of class warfare, the block vote, and the closed shop, and whose road to power lies in turning one section of the people against another.",
+      "source_event": "Speech to Conservative Rally",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.",
+      "date": "March 4, 1977",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.\n\nMeaning — Economic power should reside with consumers in a free market, rather than with government officials dictating economic outcomes.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 103334 (4 March 1977)\nhttps://www.margaretthatcher.org/document/103334",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 103334 (4 March 1977)",
+          "url": "https://www.margaretthatcher.org/document/103334"
+        }
+      ],
+      "quote_id": "164759be8a3cf9d7ad1c880bc4b17b8fac3a8c0325d3f8aafe9f197d65b0be57",
+      "quote_text": "The customer is King, not the politician and the bureaucrat.",
+      "source_event": "Speech to Conservative Central Council",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 27 November 1990, but does not establish its occasion.",
+      "date": "27 November 1990",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 27 November 1990, but does not establish its occasion.\n\nMeaning — Although she was relinquishing formal executive power, she fully intended to remain highly influential and offer forceful guidance to her successor.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Reported in The Independent, 27 November 1990",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Reported in The Independent, 27 November 1990",
+          "url": ""
+        }
+      ],
+      "quote_id": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+      "quote_text": "I shall not be pulling the levers there but I shall be a very good back-seat driver.",
+      "source_event": "Comments made upon John Major's victory in the Conservative Party leadership contest",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 1 October 1999, but does not establish its occasion.",
+      "date": "October 1, 1999",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 1 October 1999, but does not establish its occasion.\n\nMeaning — That socialism inherently leads to negative outcomes ranging from economic decline to mass death, and that conservative liberty is the necessary counter-doctrine.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Daily Telegraph, 1 October 1999",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Daily Telegraph, 1 October 1999",
+          "url": ""
+        }
+      ],
+      "quote_id": "1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500",
+      "quote_text": "Socialism's results have ranged between the merely shabby and the truly catastrophic - poverty, strife, oppression and, on the killing fields of communism, the deaths this century of perhaps 100 million people.",
+      "source_event": "Article titled \"Well Done Tony! You've Given William His Chance!\" in The Daily Telegraph",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 27 January 1980, but does not establish its occasion.",
+      "date": "27 January 1980",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 27 January 1980, but does not establish its occasion.\n\nMeaning — She values debate and discussion but ultimately expects her decisions and authority to be strictly followed.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Observer newspaper, 27 January 1980",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Observer newspaper, 27 January 1980",
+          "url": ""
+        }
+      ],
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "quote_text": "I don't mind how much my Ministers talk, so long as they do what I say.",
+      "source_event": "The Observer",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to September 1959, but does not establish its occasion.",
+      "date": "September 1959",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "month",
+      "public_reply_text": "Context — The surviving record dates this wording to September 1959, but does not establish its occasion.\n\nMeaning — That the Conservative Party governs by empowering citizens and respecting their freedom, whereas the Labour Party relies on state coercion and control.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Signpost, 1959/3",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Signpost, 1959/3",
+          "url": ""
+        }
+      ],
+      "quote_id": "1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315",
+      "quote_text": "To put it broadly, Conservative government means rule by consent; Socialist government means control by compulsion.",
+      "source_event": "Article in Signpost magazine ('THIS IS YOUR CHOICE. Margaret Thatcher Sums Up')",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.",
+      "date": "November 23, 1975",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.\n\nMeaning — The Labour government's policies are funded by taxpayers, thereby reducing personal wealth and freedom of choice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 23 November 1975",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 23 November 1975",
+          "url": ""
+        }
+      ],
+      "quote_id": "1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662",
+      "quote_text": "Their hand is in your pocket all the time. They restrict your choice and make you pay for it.",
+      "source_event": "Speech or statement as Leader of the Opposition",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 2 May 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 2 May 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "277bfdc05cf8b85b769513f16e241fc5698dda5c29a253e15c8c0daf6237da7a",
+      "quote_text": "The Britain I want is a place where all men and women, whatever their birth, their background, their colour or their religion, truly have the same chance to succeed.",
+      "source_event": "Election eve message, 1979 General Election",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 13 May 1978, but does not establish its occasion.",
+      "date": "May 13, 1978",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 13 May 1978, but does not establish its occasion.\n\nMeaning — Socialist policies dangerously assume freedom can survive without active military defence, whereas true peace requires the strength to deter adversaries.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document dated 13 May 1978",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 13 May 1978",
+          "url": ""
+        }
+      ],
+      "quote_id": "2a4c080a88934c20c64f8c8a793f2aa39fbc653108387d1af27dca8f885a9f14",
+      "quote_text": "The Socialist myth is that we can preserve our freedoms without defending them. The truth is that in a dangerous world our ability to defend ourselves is essential to preserve peace.",
+      "source_event": "Speech on May 13, 1978",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 20 November 1980, but does not establish its occasion.",
+      "date": "20 November 1980",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 20 November 1980, but does not establish its occasion.\n\nMeaning — To assert unequivocally that the British government will not negotiate with or grant special status to convicted terrorists, framing their actions strictly as criminal rather than political.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation Document 104446; Hansard, HC Deb 20 November 1980 vol 992",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation Document 104446; Hansard, HC Deb 20 November 1980 vol 992",
+          "url": ""
+        }
+      ],
+      "quote_id": "2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4",
+      "quote_text": "To be utterly clear about the hunger strike in the Maze prison: There can be no political justification for murder or any other crime. The Government will never concede political status to the hunger strikers, or to any others convicted of criminal offences in the Province.",
+      "source_event": "Speech in the House of Commons",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.",
+      "date": "November 23, 1975",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.\n\nMeaning — That the Labour government's socialist policies were rapidly eroding freedom and must be stopped before Britain became a near-Communist society.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 23 November 1975",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 23 November 1975",
+          "url": ""
+        }
+      ],
+      "quote_id": "2ed1607a04af289eb77f39654d09d1e68a12d31762f82fc5a6233d7a27bcd53a",
+      "quote_text": "Socialism has to be defeated, and soon, or it will be too late. We shall be so far down the road to State control that the near-Communist society will have engulfed us.",
+      "source_event": "Statement or article by Margaret Thatcher",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 15 November 1990, but does not establish its occasion.",
+      "date": "1990-11-15",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 15 November 1990, but does not establish its occasion.\n\nMeaning — The decision to adopt a single currency is not merely a technical economic issue but a fundamental constitutional surrender of national sovereignty.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 15 November 1990",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 15 November 1990",
+          "url": ""
+        }
+      ],
+      "quote_id": "36d8caf8b8ae9fbd20473e1ea33dc37aa74045e0e39efeb241c36113da822027",
+      "quote_text": "Quite simple: Do you give up the power to issue your own currency? Do you give up the pound sterling?",
+      "source_event": "Interview for the Sunday Times",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.",
+      "date": "September 13, 1976",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.\n\nMeaning — Socialism treats citizens like children by confiscating their earnings through taxes and returning a fraction as state benefits, thereby stripping them of personal responsibility and freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation (13 September 1976)\n\nSource — Margaret Thatcher Foundation, Document 102838\nhttps://www.margaretthatcher.org/document/102838",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation (13 September 1976)",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 102838",
+          "url": "https://www.margaretthatcher.org/document/102838"
+        }
+      ],
+      "quote_id": "3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e",
+      "quote_text": "The Socialist society does not believe that we are grown up. It pats us on the head, tells us to brush our shoes and wipe our faces. Then, if we are good little boys and girls, it gives us our pocket money (which is, incidentally, our money) and tells us to run away and play.",
+      "source_event": "Speech or broadcast",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 20 September 1981, but does not establish its occasion.",
+      "date": "20 September 1981",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 20 September 1981, but does not establish its occasion.\n\nMeaning — That her economic approach is rooted in traditional British values of hard work, thrift, and personal responsibility, rather than abstract academic theories.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — News of the World (20 September 1981), quoted in Chris Ogden, Maggie: An Intimate Portrait of a Woman in Power (1990), p. 342.",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "News of the World (20 September 1981), quoted in Chris Ogden, Maggie: An Intimate Portrait of a Woman in Power (1990), p. 342.",
+          "url": ""
+        }
+      ],
+      "quote_id": "3b18341dc7b18590d6c9a443e901e26ca6a5f09aa459b8e8bbd75e55bdbf8351",
+      "quote_text": "My policies are based not on some economics theory, but on things I and millions like me were brought up with: an honest day's work for an honest day's pay; live within your means; put by a nest egg for a rainy day; pay your bills on time; support the police.",
+      "source_event": "Interview with the News of the World",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — Publication of her memoir, The Downing Street Years.",
+      "date": "1993",
+      "presentation_flags": [
+        "safe_event_only_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Publication of her memoir, The Downing Street Years.\n\nMeaning — To assert her moral opposition to apartheid's racial discrimination, distinguishing her rejection of the system from her pragmatic opposition to economic sanctions.\n\nVerification — Exact wording verified\n\nSource — The Downing Street Years, p. 513",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event"
+          ],
+          "title": "The Downing Street Years, p. 513",
+          "url": ""
+        }
+      ],
+      "quote_id": "3cced21d7f9bc45fd5479288c7b413bad5e0e48fcf71f103251b6284c8528f12",
+      "quote_text": "The colour of someone's skin should not determine his or her political rights.",
+      "source_event": "Publication of her memoir, The Downing Street Years",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "source_event"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.",
+      "date": "April 16, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.\n\nMeaning — That socialist policies of state control and deficit spending inherently undermine the foundations of a free society.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 16 April 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 16 April 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "3ceb27465a268a65848bfeaf1eb0171a691bbc27b42f74ea43131e5fe96e6eea",
+      "quote_text": "A free society is inseparable from a free economy. It is impossible to have the first without the second. Yet Socialists do not believe in a free economy. They believe instead in state control. They believe, too, in the Government spending money before it has been earned.",
+      "source_event": "1979 General Election Campaign Address",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.",
+      "date": "June 5, 1983",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.\n\nMeaning — Deficit spending is fundamentally unsustainable and inevitably leads to severe national economic crises.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 5 June 1983",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 5 June 1983",
+          "url": ""
+        }
+      ],
+      "quote_id": "4d0ee2952c87bc6d0ef3b344bf5bba3d1b37c48888576887232760ed0a8b9651",
+      "quote_text": "I don't believe you can go on spending money you haven't got.",
+      "source_event": "TV Interview for LWT Weekend World",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 28 April 1988, but does not establish its occasion.",
+      "date": "April 28, 1988",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 28 April 1988, but does not establish its occasion.\n\nMeaning — Tax cuts are essential to motivate individuals to create wealth, which is the only way a nation can afford to fund public services and social reforms.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document dated 28 April 1988",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 28 April 1988",
+          "url": ""
+        }
+      ],
+      "quote_id": "4ffa3d1db4201e7a9302c3e90098a6142747fc65113158ce62ab8e0aaf0b53d0",
+      "quote_text": "Governments do not create the wealth. They consume it. It is the people who create the wealth and they need the incentive of tax cuts to do it.",
+      "source_event": "Speech or public remarks defending individualism and economic policy",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 6 May 1978, but does not establish its occasion.",
+      "date": "May 6, 1978",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 6 May 1978, but does not establish its occasion.\n\nMeaning — Thatcher argued that modern workers are citizens of their countries with legal protections and rights, not an oppressed international proletariat.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document from 6 May 1978",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document from 6 May 1978",
+          "url": ""
+        }
+      ],
+      "quote_id": "544b1f58dd541d3840f6eb6dde794b38f1731c4013a0ec71d4c30061536b3f56",
+      "quote_text": "Marx was wrong about the working-class when he wrote his books; and his prescriptions have as little use today as other mid-Victorian arguments have as to what should, or should not, be done.",
+      "source_event": "Speech, May 6, 1978",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 21 August 2001, but does not establish its occasion.",
+      "date": "August 21, 2001",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 21 August 2001, but does not establish its occasion.\n\nMeaning — Kenneth Clarke's pro-European views and past record make him unfit to lead the party.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Daily Telegraph, 21 August 2001",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Daily Telegraph, 21 August 2001",
+          "url": ""
+        }
+      ],
+      "quote_id": "586df70d0ca762e0c657a22adfee9caa7946da42acf90ca013bc3ddfb867b033",
+      "quote_text": "I simply do not understand how Ken Clarke could lead today's Conservative Party to anything other than disaster.",
+      "source_event": "Letter to the Daily Telegraph",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.",
+      "date": "March 21, 1994",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, THCR (21 March 1994)",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 108332",
+          "url": "https://www.margaretthatcher.org/document/108332"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, THCR (21 March 1994)",
+          "url": ""
+        }
+      ],
+      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
+      "source_event": "Speech to Chilean businessmen in Santiago, Chile",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.",
+      "date": "April 20, 1999",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.\n\nMeaning — That the British people inherently value justice and fair dealing, which contrasts with what she viewed as the vindictive and unjust treatment of Pinochet by the Labour government.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, 20 April 1999\n\nSource — Margaret Thatcher Foundation, Document 108381\nhttps://www.margaretthatcher.org/document/108381",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 20 April 1999",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 108381",
+          "url": "https://www.margaretthatcher.org/document/108381"
+        }
+      ],
+      "quote_id": "5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4",
+      "quote_text": "Qualities that made Britain what she is haven't changed. Decency, fair play, honest dealing, respect for other's rights - even the rights of people you dislike, especially the rights of people who are vulnerable - these are things that made us the most remarkable nation on earth.",
+      "source_event": "Speech at the International Free Enterprise Dinner",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Citizens should be allowed to keep the majority of their earnings to support their families, rather than having their wealth confiscated to fund an expanding government bureaucracy.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 104066\nhttps://www.margaretthatcher.org/document/104066\n\nSource — The Sun, 2 May 1979 (Margaret Thatcher Foundation)",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 104066",
+          "url": "https://www.margaretthatcher.org/document/104066"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Sun, 2 May 1979 (Margaret Thatcher Foundation)",
+          "url": ""
+        }
+      ],
+      "quote_id": "62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427",
+      "quote_text": "The Britain I want is a land where a man can know that if he works hard and earns money for his family, he will be allowed to hold on to most of what his efforts have brought him, rather than have it seized to build Ministerial empires.",
+      "source_event": "Article titled 'The Britain I Want' published in The Sun",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 29 July 1990, but does not establish its occasion.",
+      "date": "1990-07-29",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 29 July 1990, but does not establish its occasion.\n\nMeaning — The Conservative Party must not become complacent due to global ideological victories; they must defeat inflation and secure the domestic front to prevent a socialist government in Britain.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document ID: 108152 (Sunday Express, 29 July 1990)\nhttps://www.margaretthatcher.org/document/108152",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document ID: 108152 (Sunday Express, 29 July 1990)",
+          "url": "https://www.margaretthatcher.org/document/108152"
+        }
+      ],
+      "quote_id": "6323672fa80796cd7a7b28c7b5ec08a5e6514c19d7ba7e7204b7d292d2d6fd19",
+      "quote_text": "It would be a bitter irony if we allowed Britain, whether by commission or omission, to fall into the hands of the Labour Party's socialism in disguise - but socialism red in tooth and claw nonetheless.",
+      "source_event": "Article written for the Sunday Express",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 September 1987, but does not establish its occasion.",
+      "date": "September 8, 1987",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 September 1987, but does not establish its occasion.\n\nMeaning — That socialism inherently fails because it relies on central planning and state ownership, a reality now being acknowledged even by the leader of the communist world.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document dated 8 September 1987",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 8 September 1987",
+          "url": ""
+        }
+      ],
+      "quote_id": "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d",
+      "quote_text": "Socialism is nationalisation of the total means of production, distribution and exchange and the planning of that by the central government - and that is what Gorbachev is saying has not worked.",
+      "source_event": "Media Interview",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.",
+      "date": "March 16, 1976",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, document dated 16 March 1976",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 16 March 1976",
+          "url": ""
+        }
+      ],
+      "quote_id": "697ca41825ed6037eac03257d9e7940e826ce6bdb988c583c0e3e1c423701e1c",
+      "quote_text": "If the State appropriates the better part - or even a very large part - of the national wealth and the national income for its own purposes, however admirable, then the light of individual freedom will begin to flicker; and will in time be snuffed out.",
+      "source_event": "Speech (Margaret Thatcher Foundation archive)",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 9 September 1991, but does not establish its occasion.",
+      "date": "September 9, 1991",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 9 September 1991, but does not establish its occasion.\n\nMeaning — Capitalism is inherently democratic because it empowers individuals to make continuous daily choices, thereby decentralizing power away from the state.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speeches from 1991-1994",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speeches from 1991-1994",
+          "url": ""
+        }
+      ],
+      "quote_id": "6b2f57df8c4b2e575347fc3b22c574e75a6132279a8a15bff6041ea3c5fc0795",
+      "quote_text": "Free enterprise capitalism is economic democracy.",
+      "source_event": "Speech to the Economic Club of Chicago (and subsequent international speeches)",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.",
+      "date": "March 4, 1977",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.\n\nMeaning — That excessive government intervention, taxation, and regulation stifle economic growth, and that industry can only thrive when freed from state burdens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document from 4 March 1977",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 4 March 1977",
+          "url": ""
+        }
+      ],
+      "quote_id": "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+      "quote_text": "The Government treats industry like a beast of burden. They put more & more weight on the animal, starve it of nutritious food, harness it ever more tightly and then shout at it to go faster. The regeneration of British industry will begin only when Government get off its back.",
+      "source_event": "Speech on March 4, 1977",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 30 January 1975, but does not establish its occasion.",
+      "date": "January 30, 1975",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 30 January 1975, but does not establish its occasion.\n\nMeaning — Conservatives must unequivocally defend private property as a necessary condition for individual liberty, and any compromise on this principle is tantamount to socialism.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Daily Telegraph, 30 January 1975",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Daily Telegraph, 30 January 1975",
+          "url": ""
+        }
+      ],
+      "quote_id": "6f70887295eff72d62a86e86c3983e7d960cafd35784e0f5d6a4d790558cf37b",
+      "quote_text": "If a Tory does not believe that private property is one of the main bulwarks of individual freedom, then he had better become a socialist and have done with it.",
+      "source_event": "Article for the Daily Telegraph titled 'My Kind of Tory Party'",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.",
+      "date": "May 18, 1994",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.\n\nMeaning — By understanding the past, we can actively influence events for the better and avoid repeating historical errors.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 108334\nhttps://www.margaretthatcher.org/document/108334\n\nSource — Margaret Thatcher Foundation, document dated 18 May 1994",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 108334",
+          "url": "https://www.margaretthatcher.org/document/108334"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 18 May 1994",
+          "url": ""
+        }
+      ],
+      "quote_id": "6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b",
+      "quote_text": "Those who don't understand the past are destined to repeat its errors. In words of Thucydides \"History repeats itself\" or Dionysius \"History is philosophy teaching by example\" or  my favourite from Edmund Burke, \"History is a pact between the dead, the living, & the yet unborn.\"",
+      "source_event": "Speech on 'The Challenges of the 20th Century'",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.",
+      "date": "September 13, 1976",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.\n\nMeaning — That Britain's national decline is not a coincidence but a direct result of the state encroaching on individual liberties and stifling personal enterprise.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 102838\nhttps://www.margaretthatcher.org/document/102838\n\nSource — Margaret Thatcher Foundation, Document from 13 September 1976",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 102838",
+          "url": "https://www.margaretthatcher.org/document/102838"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 13 September 1976",
+          "url": ""
+        }
+      ],
+      "quote_id": "78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf",
+      "quote_text": "Britain has been in a state of decline. And the significant thing is that this decline has gone on at exactly the same time as the rights and freedoms of the individual have been chipped away by the creeping powers of the State.",
+      "source_event": "Statement or speech on 'Freedom' and 'Decline'",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.",
+      "date": "1977-03-04",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.\n\nMeaning — While all modern governments struggle with bureaucracy and over-regulation, socialism actively promotes these restrictive elements as positive features.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, THCR, 4 March 1977",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, THCR, 4 March 1977",
+          "url": ""
+        }
+      ],
+      "quote_id": "7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4",
+      "quote_text": "All modern governments are infected with these viruses to some extent. Only Socialism makes a virtue of the disease.",
+      "source_event": "Speech to Conservative Central Council",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to September 1976, but does not establish its occasion.",
+      "date": "September 1976",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "month",
+      "public_reply_text": "Context — The surviving record dates this wording to September 1976, but does not establish its occasion.\n\nMeaning — Genuine authority is self-evident and does not require verbal assertion or boasting to be recognized by others.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Newsweek, Vol. 88 (1976), p. 77",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "attribution",
+            "date"
+          ],
+          "title": "Newsweek, Vol. 88 (1976), p. 77",
+          "url": ""
+        }
+      ],
+      "quote_id": "8868d3b5b60f2860eeacadc90620dd160196466d2d5d21013aa277f8aef51c01",
+      "quote_text": "Being in power is like being a lady... if you have to tell people you are, you aren't.",
+      "source_event": "Newsweek magazine profile",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 11 February 2002, but does not establish its occasion.",
+      "date": "February 11, 2002",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 11 February 2002, but does not establish its occasion.\n\nMeaning — The West must abandon its complacent and tolerant stance toward extremists and rogue states, strengthen its defenses, and actively eliminate terrorist threats.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, article dated 11 February 2002",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, article dated 11 February 2002",
+          "url": ""
+        }
+      ],
+      "quote_id": "89a020d133d390624dc61a59ab7ffbb59ba06792b45eac6b5337b564662146d0",
+      "quote_text": "The events of September 11 are a terrible reminder that freedom demands eternal vigilance. And for too long we have not been vigilant. We have harboured those who hated us, tolerated those who threatened us and indulged those who weakened us.",
+      "source_event": "Syndicated article (published in The Guardian and others)",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.",
+      "date": "April 16, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.\n\nMeaning — Excessive taxation removes the financial reward for hard work, leading to economic stagnation.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 1979 General Election campaign materials",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 1979 General Election campaign materials",
+          "url": ""
+        }
+      ],
+      "quote_id": "8d23f8984b463c3b5218c7b3c7e56b0a8dea3025d3874a9970349a69f4e1e46e",
+      "quote_text": "In a free country people will work hard if it pays them to do so. At present taxes are so high that for many it is not worthwhile working hard, and for some it is not worthwhile working at all. The first step to recovery, therefore, is to lower taxes on earnings.",
+      "source_event": "Message to the people of Britain (\"Now is the time to choose\")",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 27 April 1992, but does not establish its occasion.",
+      "date": "April 27, 1992",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 27 April 1992, but does not establish its occasion.\n\nMeaning — Thatcher argues that her policies successfully reversed socialist decline because they aligned with the inherent freedom-loving character of the British people.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Newsweek magazine, 27 April 1992 issue",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Newsweek magazine, 27 April 1992 issue",
+          "url": ""
+        }
+      ],
+      "quote_id": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "quote_text": "I set out to destroy socialism because it was at odds with the character of the people. We were the first country in the world to roll back the frontiers of socialism, then roll forward the frontiers of freedom. We reclaimed our heritage; we are renewing and carrying it forward.",
+      "source_event": "Article for Newsweek titled 'Don't undo my work'",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 14 October 1988, but does not establish its occasion.",
+      "date": "1988-10-14",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 14 October 1988, but does not establish its occasion.\n\nMeaning — Empowering individuals through property ownership and educational choice does not undermine society, but rather builds a stronger, more responsible community.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, THCR, 14 October 1988",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, THCR, 14 October 1988",
+          "url": ""
+        }
+      ],
+      "quote_id": "a38b8765f977125345317f7c0be62a39d47525f3b1698119ec62c65bad229936",
+      "quote_text": "Greater responsibility gives more dignity to the individual and more strength to the community. That belief is at the heart of Conservatism. We must make it live.",
+      "source_event": "Speech to the Conservative Party Conference",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 October 1976, but does not establish its occasion.",
+      "date": "October 4, 1976",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 October 1976, but does not establish its occasion.\n\nMeaning — Conservative policies are not merely ideological but reflect fundamental realities of human nature and economics, meaning practical experience will always validate Tory principles.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Right Approach (1976), page 19",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Right Approach (1976), page 19",
+          "url": ""
+        }
+      ],
+      "quote_id": "a7f8b7c8dcea6f7ecddea2624f81c169e69f893bee4d5158d53ce35cdec1987a",
+      "quote_text": "The facts of life are Conservative.",
+      "source_event": "Publication of 'The Right Approach', a Conservative policy statement",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record identifies an occasion, but does not establish a reliable date.",
+      "date": "1979",
+      "presentation_flags": [
+        "safe_event_only_fallback"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — The surviving record identifies an occasion, but does not establish a reliable date.\n\nMeaning — She argued that leadership requires firm principles and the courage to act on them, rather than constantly seeking compromise or the middle ground.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, TV Interview for BBC1 Panorama, 9 April 1984",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event"
+          ],
+          "title": "Margaret Thatcher Foundation, TV Interview for BBC1 Panorama, 9 April 1984",
+          "url": ""
+        }
+      ],
+      "quote_id": "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c",
+      "quote_text": "I am not a consensus politician. I'm a conviction politician.",
+      "source_event": "Pre-election statements (1979) / Recalled in BBC1 Panorama Interview (1984)",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "source_event"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 1977, but does not establish its occasion.",
+      "date": "1977",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "year",
+      "public_reply_text": "Context — The surviving record dates this wording to 1977, but does not establish its occasion.\n\nMeaning — That she values robust debate and independent thought among her ministers, rather than blind loyalty.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Times (London), 1990 retrospective quoting 1977",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Times (London), 1990 retrospective quoting 1977",
+          "url": ""
+        }
+      ],
+      "quote_id": "b3645f6e9b300b993be393db1d791147d2eafad5e333e9f00d336cfb4ff89696",
+      "quote_text": "I don't want a Cabinet of yes-men or yes-women. It's not healthy. I can't stand sycophants.",
+      "source_event": "Public statement or interview during her time as Leader of the Opposition",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.",
+      "date": "November 8, 1993",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.\n\nMeaning — Leaders must have the moral courage to stick to their convictions and see difficult, fundamental reforms through to completion, rather than abandoning them at the first sign of hardship or unpopularity.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document dated 8 November 1993",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 8 November 1993",
+          "url": ""
+        }
+      ],
+      "quote_id": "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+      "quote_text": "The important thing, when you're making fundamental changes, is that you have to persevere until they work.",
+      "source_event": "Speech or interview recorded in the Margaret Thatcher Foundation archive",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 1984, but does not establish its occasion.",
+      "date": "1984",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "year",
+      "public_reply_text": "Context — The surviving record dates this wording to 1984, but does not establish its occasion.\n\nMeaning — To assert that her political career is driven by a fundamental moral struggle rather than mere administrative or economic management.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Times, 1984",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Times, 1984",
+          "url": ""
+        }
+      ],
+      "quote_id": "bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1",
+      "quote_text": "I am in politics because of the conflict between good and evil, and I believe that in the end good will triumph.",
+      "source_event": "Interview with The Times",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 29 April 1979, but does not establish its occasion.",
+      "date": "April 29, 1979",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 29 April 1979, but does not establish its occasion.\n\nMeaning — Labour's policies have dangerously expanded union immunities, effectively legalising coercive behaviour and undermining the fundamental rule of law.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, speeches from 29 April 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, speeches from 29 April 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "c569dfaab82b96c05f89de49e2761fc3dc3105da5264e4ebb5d1fb45010d0ece",
+      "quote_text": "The trend of Labour legislation, especially in the field of trade union law, has blurred the legal concept of threats to the point where Labour's Attorney-General, with terrifying complacency, refers to \"lawful intimidation.\"",
+      "source_event": "Speech to Conservative Rally in Cardiff",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Thatcher argued that expanding state bureaucracy stifles meritocracy and replaces it with a system of political patronage and cronyism.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104066 (2 May 1979)\nhttps://www.margaretthatcher.org/document/104066",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 104066 (2 May 1979)",
+          "url": "https://www.margaretthatcher.org/document/104066"
+        }
+      ],
+      "quote_id": "c61cc9b2befd65932ca79bc2932975ffcca34c4306b5b39ea3118277bf87e4d3",
+      "quote_text": "I do not want a Britain where the only way to the top is by knowing which bureaucrats to butter up, or which politicians to please in order to get one of the growing thousands of jobs which can only be gained by ministerial patronage.",
+      "source_event": "Election Eve Message / Article",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 9 October 1974, but does not establish its occasion.",
+      "date": "October 9, 1974",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 9 October 1974, but does not establish its occasion.\n\nMeaning — Public sector pay increases are not absorbed by a faceless state but are directly funded by ordinary citizens through higher prices and taxes.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, document from 9 October 1974",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document from 9 October 1974",
+          "url": ""
+        }
+      ],
+      "quote_id": "d2a571603bea2a48a2f4b766e42896a221479403408e3895fccb64dea6e66283",
+      "quote_text": "When [nationalised industry] pay claims are made, they are sometimes presented as claims against Governments. But they are really claims which can only be paid for by fellow workers, housewives and consumers generally.",
+      "source_event": "Speech or statement on the eve of the October 1974 United Kingdom general election",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 27 September 1974, but does not establish its occasion.",
+      "date": "September 27, 1974",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 27 September 1974, but does not establish its occasion.\n\nMeaning — Subsidizing home ownership is more economically efficient and socially beneficial than indefinitely funding council housing.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document dated 27 September 1974",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 27 September 1974",
+          "url": ""
+        }
+      ],
+      "quote_id": "d42c41683c492620e153ba90e29fc6f99642bc181011321d18d9b6bab5024409",
+      "quote_text": "Conservatives believe that the right way to meet our housing needs is to spend money on helping more and more families to become home owners rather than to subsidise them indefinitely as council tenants.",
+      "source_event": "Speech or press release during the October 1974 General Election campaign",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 20 February 1976, but does not establish its occasion.",
+      "date": "February 20, 1976",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 20 February 1976, but does not establish its occasion.\n\nMeaning — High taxation is not just an economic disadvantage but a direct infringement on personal liberty, as it deprives individuals of the choice of how to spend their own money.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 102963\nhttps://www.margaretthatcher.org/document/102963\n\nSource — Margaret Thatcher Foundation, document dated 20 February 1976",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 102963",
+          "url": "https://www.margaretthatcher.org/document/102963"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 20 February 1976",
+          "url": ""
+        }
+      ],
+      "quote_id": "d6ba4775ac47ca6aef09ec4913e591d30ad298af12dfacaa5c18fc235d53eb9d",
+      "quote_text": "Freedom of choice is the essence of a free society, and that includes the right to choose how you spend your earnings. Every time the Government takes a bigger slice of your pay-packet, it is taking a bigger slice of your freedom.",
+      "source_event": "Speech responding to the Labour Government's White Paper on Public Expenditure",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 April 1989, but does not establish its occasion.",
+      "date": "4 April 1989",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 April 1989, but does not establish its occasion.\n\nMeaning — She is willing to wait and endure lengthy processes as long as the final outcome aligns entirely with her original goals.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Observer, 4 April 1989",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Observer, 4 April 1989",
+          "url": ""
+        }
+      ],
+      "quote_id": "d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350",
+      "quote_text": "I am extraordinarily patient, provided I get my own way in the end.",
+      "source_event": "Interview in The Observer",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.",
+      "date": "November 8, 1993",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.\n\nMeaning — Capitalism is inherently moral because it relies on individual freedom and voluntary exchange, allowing people to exercise their talents within the rule of law.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 8 November 1993",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 8 November 1993",
+          "url": ""
+        }
+      ],
+      "quote_id": "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b",
+      "quote_text": "Capitalism is the moral way of running an economy.",
+      "source_event": "Speech to the Fraser Institute",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 February 1975, but does not establish its occasion.",
+      "date": "February 8, 1975",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 February 1975, but does not establish its occasion.\n\nMeaning — Hard work should be rewarded financially rather than penalized by high taxes, and providing for one's family is a moral virtue.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document from 8 February 1975",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document from 8 February 1975",
+          "url": ""
+        }
+      ],
+      "quote_id": "e5bece58e7925832e5e6882783a5105a0646899a03884084a3c2f32e21d2f5e5",
+      "quote_text": "I believe the person who is prepared to work hardest should get the greatest rewards and keep them after tax. That we should back the workers and not the shirkers: that it is not only permissible but praiseworthy to want to benefit your own family by your own efforts.",
+      "source_event": "Speech at Young Conservative Conference",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 11 January 1996, but does not establish its occasion.",
+      "date": "January 11, 1996",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 11 January 1996, but does not establish its occasion.\n\nMeaning — The state should only provide the framework for prosperity, not attempt to create it, because state expansion inherently threatens freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, document from 11 January 1996",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document from 11 January 1996",
+          "url": ""
+        }
+      ],
+      "quote_id": "e6759ca3289e12a1dfe7eb002ef6fa58ce6dff45591e9ce22b97ccbfb31b96c7",
+      "quote_text": "What marks out our Conservative vision is the insight that the State - government - only underpins the conditions for a prosperous and fulfilling life. It does not generate them. Moreover, the very existence of this State, with its huge capacity for evil, is a potential threat to all the moral, cultural, social and economic benefits of freedom.",
+      "source_event": "Keith Joseph Memorial Lecture",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 12 February 2002, but does not establish its occasion.",
+      "date": "February 12, 2002",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 12 February 2002, but does not establish its occasion.\n\nMeaning — That Islamic extremism poses a systemic, ideological threat comparable to early communism, requiring a comprehensive and sustained global strategy rather than just isolated military strikes.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Guardian, 12 February 2002",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Guardian, 12 February 2002",
+          "url": ""
+        }
+      ],
+      "quote_id": "e74879dd8293ee588c19b84c8921b4a5b467725cfd2121c991b2701d10d195fa",
+      "quote_text": "Islamic extremism today, like Bolshevism in the past, is an armed doctrine. It is an aggressive ideology promoted by fanatical, well-armed devotees. And, like Communism, it requires an all-embracing long-term strategy to defeat it.",
+      "source_event": "Opinion piece titled 'Islamism is the new bolshevism'",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to March 1968, but does not establish its occasion.",
+      "date": "March 1968",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "month",
+      "public_reply_text": "Context — The surviving record dates this wording to March 1968, but does not establish its occasion.\n\nMeaning — Thatcher argued that socialist policies inherently rely on excessive taxation and public spending rather than fostering economic expansion or addressing root problems.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Finchley Times and Finchley Press reports, 15 March 1968",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Finchley Times and Finchley Press reports, 15 March 1968",
+          "url": ""
+        }
+      ],
+      "quote_id": "e901673a2a91f9dadb8b896ef8232aa5d7e6f20c0602f12721d74810db8233f0",
+      "quote_text": "Socialism has only one remedy for anything - spend more of the people's money and raise higher taxes.",
+      "source_event": "Speech to Finchley Conservatives (Association AGM)",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.",
+      "date": "1983-06-05",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.\n\nMeaning — The Conservative Party confronts hard realities, such as unemployment, with determination rather than avoiding them or offering false promises.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 5 June 1983",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 5 June 1983",
+          "url": ""
+        }
+      ],
+      "quote_id": "ea8ce8b92dda4ec4903e7a3a02642a938a4c69dff6dd73d7135a5b2ba75839cf",
+      "quote_text": "We Conservatives don't duck the difficult issues. We face them determined to overcome them.",
+      "source_event": "Speech to Conservative Youth Rally",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 8 October 1951, but does not establish its occasion.",
+      "date": "October 8, 1951",
+      "presentation_flags": [
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 8 October 1951, but does not establish its occasion.\n\nMeaning — To argue that peace can only be maintained through military and ideological strength, as Communism exploits weakness.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, 1951 General Election Address",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 1951 General Election Address",
+          "url": ""
+        }
+      ],
+      "quote_id": "eece24fa8b46957889f60d3c70e278aa5d9f646114030806262b8c530e906f6a",
+      "quote_text": "The threat to peace comes from Communism, which has powerful forces ready to attack anywhere. Communism waits for weakness, it leaves strength alone. Britain therefore must be strong, strong in arms, and strong in faith in her own way of life.",
+      "source_event": "1951 General Election Address for the Dartford Constituency",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.",
+      "date": "April 20, 1999",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, document from 20 April 1999",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document from 20 April 1999",
+          "url": ""
+        }
+      ],
+      "quote_id": "f0209c9a0effe2f5cd4b95e03d5de956dfafeaaf34174599188690fa7cced1df",
+      "quote_text": "Either you believe in capitalism, or you believe in socialism. Capitalism, as we know, creates wealth. Socialism, as we also know, creates poverty.",
+      "source_event": "Speech at the International Free Enterprise Dinner",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 1 September 1978, but does not establish its occasion.",
+      "date": "1978-09-01",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 1 September 1978, but does not establish its occasion.\n\nMeaning — Labour's socialist policies inherently lead to economic failure, unemployment, and societal despair, contradicting their claim of being the natural governing party.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 103494\nhttps://www.margaretthatcher.org/document/103494\n\nSource — Margaret Thatcher Foundation, Document from 1 September 1978",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 103494",
+          "url": "https://www.margaretthatcher.org/document/103494"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 1 September 1978",
+          "url": ""
+        }
+      ],
+      "quote_id": "f3f3f8b295a3b26821fdb651bc4a120087c3787f5e007c783176257d60f89673",
+      "quote_text": "The only natural part of Labour Government is the failure which inevitably accompanies its drive to Socialism. The dole queues and frustration in this Socialist paradise are a breeding ground for disaster and despair in the future.",
+      "source_event": "Speech to Glasgow Young Conservatives",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Union leadership has been captured by unrepresentative militants, and democratizing union decision-making through secret ballots will empower moderate members and reduce disruptive strikes.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 2 May 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+      "quote_text": "Too often trade unions are dominated by a tiny handful of extremists who do not reflect the common sense views of most union members. Wider use of secret ballots for decision-making throughout the trade union movement should be given every encouragement.",
+      "source_event": "Election Broadcast or Speech on the eve of the 1979 General Election",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 4 July 1977, but does not establish its occasion.",
+      "date": "July 4, 1977",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 4 July 1977, but does not establish its occasion.\n\nMeaning — To argue that state control is fundamentally arrogant and that individuals are better equipped to make their own economic and moral choices than government bureaucrats.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411\n\nSource — Margaret Thatcher Foundation, document dated 4 July 1977",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 103411",
+          "url": "https://www.margaretthatcher.org/document/103411"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, document dated 4 July 1977",
+          "url": ""
+        }
+      ],
+      "quote_id": "f9f4251f60bf1f7ea5fb270975e8b5904f308504200a18e1b5b371fc38a57445",
+      "quote_text": "As the French economist and critic of socialism, Frederic Bastiat, asked a century and a half ago, how can the socialists, who have such a low opinion of the people's ability to choose have such a high regard for their own?",
+      "source_event": "Speech on economic and moral philosophy",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.",
+      "date": "March 16, 1976",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.\n\nMeaning — Expanding the power of the state inherently strips citizens of their fundamental freedoms, a danger exemplified by the Soviet system Solzhenitsyn exposed.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 102984\nhttps://www.margaretthatcher.org/document/102984\n\nSource — Margaret Thatcher Foundation, Document from 16 March 1976",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 102984",
+          "url": "https://www.margaretthatcher.org/document/102984"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 16 March 1976",
+          "url": ""
+        }
+      ],
+      "quote_id": "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5",
+      "quote_text": "Through bitter experience Solzhenitsyn has realised the dangers posed by an over-mighty state. The more power that accrues to the state - the less freedom; freedom to make decisions, freedom to make one's own choices, freedom of ideas - remains for the individual citizen.",
+      "source_event": "Speech to the Bow Group",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 3 November 1977, but does not establish its occasion.",
+      "date": "November 3, 1977",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 3 November 1977, but does not establish its occasion.\n\nMeaning — The Conservative Party must actively reverse socialist policies and prevent the country from succumbing to far-left or communist ideologies.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — The Times, 3 November 1977",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "The Times, 3 November 1977",
+          "url": ""
+        }
+      ],
+      "quote_id": "fbaf32a54650f629731270135c319348343a6c08189e71f22ccb74b1a1d89521",
+      "quote_text": "My job is to stop Britain going red.",
+      "source_event": "Statement quoted in The Times",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "date": "May 2, 1979",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — That ordinary union members are not inherently malicious, but have been led astray by a radicalized form of socialism that deviates from the moderate traditions of past Labour leaders.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 2 May 1979",
+          "url": ""
+        }
+      ],
+      "quote_id": "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf",
+      "quote_text": "Have millions of ordinary, decent trade unionists become heartless militants? I refuse to believe it. What has happened is that, under the ethics of a breed of \"socialism\" which would have appalled Clem Atlee or Hugh Gaitskell, the trade union ideal has been distorted.",
+      "source_event": "Eve of Election Message or Article",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 5 November 1993, but does not establish its occasion.",
+      "date": "1993-11-05",
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 5 November 1993, but does not establish its occasion.\n\nMeaning — The ideological defeat of communism does not guarantee the removal of its practitioners, who adapt to new political realities to retain influence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108324\nhttps://www.margaretthatcher.org/document/108324\n\nSource — Margaret Thatcher Foundation, Document from 5 November 1993",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Document 108324",
+          "url": "https://www.margaretthatcher.org/document/108324"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Document from 5 November 1993",
+          "url": ""
+        }
+      ],
+      "quote_id": "fc54ab7da4cdb6a19fff71c1c126f5af2113f29fba35916e24e1ec5daa9f5c82",
+      "quote_text": "The communist system may have been vanquished - but all too often the Communists themselves have not. There are plenty of them wearing a variety of disguises from market socialists to social liberals to fiery nationalists still in positions of power.",
+      "source_event": "Speech on international politics and the post-Cold War era",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    },
+    {
+      "change_kind": "downgraded",
+      "context_line": "Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.",
+      "date": "May 18, 1994",
+      "presentation_flags": [
+        "duplicate_context_line",
+        "safe_date_only_context",
+        "source_title_event_tension_manual_hint"
+      ],
+      "public_date_precision": "day",
+      "public_reply_text": "Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.\n\nMeaning — That maintaining liberty requires constant readiness and a realistic understanding of human nature's capacity for evil, rather than passive optimism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, 18 May 1994 Press Release",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, 18 May 1994 Press Release",
+          "url": ""
+        }
+      ],
+      "quote_id": "fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361",
+      "quote_text": "I have spoken of the need to understand history. We might have avoided the worst atrocities of Nazism had we learned the lessons of the First World War that the price of freedom is eternal vigilance.",
+      "source_event": "Speech at Buckingham University",
+      "v7_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v8_public_context_supported_fields": [
+        "date"
+      ]
+    }
+  ],
+  "duplicate_context_groups": [
+    {
+      "context_line": "Context — The surviving record dates this wording to 13 September 1976, but does not establish its occasion.",
+      "quote_ids": [
+        "3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e",
+        "78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 16 April 1979, but does not establish its occasion.",
+      "quote_ids": [
+        "3ceb27465a268a65848bfeaf1eb0171a691bbc27b42f74ea43131e5fe96e6eea",
+        "8d23f8984b463c3b5218c7b3c7e56b0a8dea3025d3874a9970349a69f4e1e46e"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 16 March 1976, but does not establish its occasion.",
+      "quote_ids": [
+        "697ca41825ed6037eac03257d9e7940e826ce6bdb988c583c0e3e1c423701e1c",
+        "faf99f3030693b0a55f0116194551792f3c4ea51261d7310eca7fb4d33b667d5"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 18 May 1994, but does not establish its occasion.",
+      "quote_ids": [
+        "6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b",
+        "fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+      "quote_ids": [
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "277bfdc05cf8b85b769513f16e241fc5698dda5c29a253e15c8c0daf6237da7a",
+        "62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427",
+        "c61cc9b2befd65932ca79bc2932975ffcca34c4306b5b39ea3118277bf87e4d3",
+        "f9a7dfe4827a8da531aac6576b2a94e3e509cbaf93b17c96dc480ca4f16ac3c7",
+        "fbb0cc71bd83a6594060aa55c4c283bbddb4860c6f42a3c45e1be358c528accf"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 20 April 1999, but does not establish its occasion.",
+      "quote_ids": [
+        "5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4",
+        "f0209c9a0effe2f5cd4b95e03d5de956dfafeaaf34174599188690fa7cced1df"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 23 November 1975, but does not establish its occasion.",
+      "quote_ids": [
+        "1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662",
+        "2ed1607a04af289eb77f39654d09d1e68a12d31762f82fc5a6233d7a27bcd53a"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 4 March 1977, but does not establish its occasion.",
+      "quote_ids": [
+        "164759be8a3cf9d7ad1c880bc4b17b8fac3a8c0325d3f8aafe9f197d65b0be57",
+        "6ecc88f6e06f86515044a409421f059b2cf756001b9a6929a0183808a9b2e19e",
+        "7d67f551934f28edeff341b70ccfce5f65234b2e73ec99a1b60bd0dda30606b4"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 5 June 1983, but does not establish its occasion.",
+      "quote_ids": [
+        "4d0ee2952c87bc6d0ef3b344bf5bba3d1b37c48888576887232760ed0a8b9651",
+        "ea8ce8b92dda4ec4903e7a3a02642a938a4c69dff6dd73d7135a5b2ba75839cf"
+      ]
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 8 November 1993, but does not establish its occasion.",
+      "quote_ids": [
+        "03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f",
+        "b3e9b1146de6c8b6fdd0515f496a6775e7e4e5d2864a660ca5d640a63651c346",
+        "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b"
+      ]
+    }
+  ],
+  "duplicate_full_reply_groups": [],
+  "input_hashes": {
+    "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "historical_context_formatter.py": "c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4",
+    "historical_context_public_projection_review.py": "363ea00e8f82daab8e9d192a299ab00cd4b4674bb2e787cd6d426170979ac50a",
+    "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
+    "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+  },
+  "interpretation": {
+    "duplicate_context_lines": "Shared dates legitimately reuse the deterministic date-only sentence; only duplicate full replies are blocking.",
+    "manual_hints": "Source-title/event tensions are review hints only and never promote a public field without claim-specific evidence.",
+    "v7_reconstruction": "The role-based v7 projection is reconstructed from current renderable records after excluding the explicitly identified document 104653 source added with v8."
+  },
+  "invariants": {
+    "all_65_date_only_contexts_are_safe": true,
+    "b32_uses_safe_fallback": true,
+    "change_count_is_68": true,
+    "clean_event_only_context_is_preserved": true,
+    "date_only_downgrade_count_is_65": true,
+    "date_only_precision_is_60_day_3_month_2_year": true,
+    "document_104653_upgrade_is_correct": true,
+    "downgraded_count_is_67": true,
+    "event_and_date_upgrade_count_is_1": true,
+    "event_only_downgrade_count_is_2": true,
+    "manual_hint_count_is_9": true,
+    "manual_hint_ids_match_reviewed_set": true,
+    "manual_hints_do_not_promote_fields": true,
+    "no_blocking_presentation_flags": true,
+    "no_duplicate_full_reply": true,
+    "upgraded_count_is_1": true
+  },
+  "manual_hints": [
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Reported in The Independent, 27 November 1990"
+      ],
+      "quote_id": "19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "The Observer newspaper, 27 January 1980"
+      ],
+      "quote_id": "1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation Document 104446; Hansard, HC Deb 20 November 1980 vol 992"
+      ],
+      "quote_id": "2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation, article dated 11 February 2002"
+      ],
+      "quote_id": "89a020d133d390624dc61a59ab7ffbb59ba06792b45eac6b5337b564662146d0",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation, 1979 General Election campaign materials"
+      ],
+      "quote_id": "8d23f8984b463c3b5218c7b3c7e56b0a8dea3025d3874a9970349a69f4e1e46e",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Newsweek magazine, 27 April 1992 issue"
+      ],
+      "quote_id": "8ee86fceccc2ab211e6b4f20764ba758d8b0278c1fcaa2f46c302f2d440c61b1",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation, Finchley Times and Finchley Press reports, 15 March 1968"
+      ],
+      "quote_id": "e901673a2a91f9dadb8b896ef8232aa5d7e6f20c0602f12721d74810db8233f0",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation, 1951 General Election Address"
+      ],
+      "quote_id": "eece24fa8b46957889f60d3c70e278aa5d9f646114030806262b8c530e906f6a",
+      "recommended_action": "manual_evidence_review_only"
+    },
+    {
+      "kind": "source_title_event_tension",
+      "promotes_public_fields": false,
+      "public_source_titles": [
+        "Margaret Thatcher Foundation, 18 May 1994 Press Release"
+      ],
+      "quote_id": "fe8be1f80a36cb747a12ad4925152b57ae2ead8549b083ad14d31179bf418361",
+      "recommended_action": "manual_evidence_review_only"
+    }
+  ],
+  "policy_comparison": {
+    "from": "historical-context-source-roles-v7-curated-source-adjudications",
+    "to": "historical-context-source-roles-v8-claim-specific-public-context"
+  },
+  "review_ready": true,
+  "schema_version": 1,
+  "upgraded_records": [
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Speech to Conservative Women's Conference, 20 May 1981.",
+      "date": "20 May 1981",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Speech to Conservative Women's Conference, 20 May 1981.\n\nMeaning — Thatcher argued that socialism shares some aims with Marxism and that pursuing those aims subordinates individual rights to political doctrine.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)\nhttps://www.margaretthatcher.org/document/104653",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)",
+          "url": "https://www.margaretthatcher.org/document/104653"
+        }
+      ],
+      "quote_id": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
+      "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
+      "source_event": "Speech to Conservative Women's Conference",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    }
+  ]
+}

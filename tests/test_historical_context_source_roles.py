@@ -623,6 +623,7 @@ def _context_admission_packet(
 @pytest.mark.parametrize(
     ("claims_supported", "expected_fields"),
     [
+        ([], []),
         (["date"], ["date"]),
         (["source_event"], ["source_event"]),
         (
@@ -648,6 +649,15 @@ def test_public_context_admission_requires_non_unknown_claim_confidence():
 
     assert item["confidence_after"]["source_event"] == "unknown"
     assert item["public_context_supported_fields"] == []
+
+
+def test_b32_public_context_admits_event_but_not_date(audit):
+    quote_id = "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
+    item = audit["items"][quote_id]
+
+    assert item["confidence_after"]["source_event"] == "low"
+    assert item["confidence_after"]["date"] == "unknown"
+    assert item["public_context_supported_fields"] == ["source_event"]
 
 
 def test_secondary_wording_requires_explicit_thatcher_attribution(audit):

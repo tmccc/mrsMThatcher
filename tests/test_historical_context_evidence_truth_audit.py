@@ -16,6 +16,15 @@ KNOWN_104653_QUOTE_ID = (
 APPROXIMATE_PACKET_LOCATOR_QUOTE_ID = (
     "edbdfcd279a304940c6e1001ee013da4e45de9f75bfd9fbd26c863e7cfae1a02"
 )
+DATE_IN_SOURCE_TITLE_QUOTE_ID = (
+    "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2"
+)
+FORMER_DATE_IN_CONTEXT_QUOTE_ID = (
+    "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
+)
+DIRECT_HISTORICAL_CONTEXT_FALLBACK_QUOTE_ID = (
+    "573412501ec88441938dae368acf42712f3952fd31aeab5c85dcd10ec7c968a4"
+)
 
 
 def _sha256(path: Path) -> str:
@@ -87,6 +96,76 @@ def test_claim_field_comparison_does_not_treat_packet_prose_as_evidence():
     ]
 
 
+def test_exact_occurrence_is_surface_specific_and_not_evidence_support():
+    projection = "19 April 1983"
+    rendered = {
+        "text": (
+            "Context — Parliamentary proceedings.\n\n"
+            "Meaning — A restrained explanation.\n\n"
+            "Source — UK Parliament Hansard, House of Commons, "
+            "19 April 1983, Engagements"
+        ),
+        "sources": [{
+            "title": (
+                "UK Parliament Hansard, House of Commons, "
+                "19 April 1983, Engagements"
+            ),
+            "url": "https://hansard.parliament.uk/1983-04-19/debates/example",
+        }],
+    }
+    assert truth_audit._contains_exact_token_sequence(
+        "19 APRIL 1983", projection
+    )
+    assert truth_audit._contains_exact_token_sequence(
+        "19 April unrelated 1983", projection
+    ) is False
+    assert truth_audit._current_public_exposures(projection, rendered) == [{
+        "surface": "source_title",
+        "basis": "contiguous_nfkc_casefolded_alphanumeric_token_sequence",
+        "exposure_kind": "bibliographic_exact_occurrence",
+        "surface_text_sha256": truth_audit._text_sha256(
+            rendered["sources"][0]["title"]
+        ),
+        "public_source_index": 0,
+    }]
+    state, supporting, renderable = truth_audit._source_claim_state({
+        "sources": [{
+            "source_id": "bibliographic-row",
+            "claims_supported": [],
+        }],
+        "renderable_sources": [{
+            "source_id": "bibliographic-row",
+            "claims_supported": [],
+        }],
+    }, "date")
+    assert (state, supporting, renderable) == (
+        "no_audited_source_claim", [], []
+    )
+
+
+def test_source_claim_state_distinguishes_internal_and_renderable_claims():
+    internal = {
+        "source_id": "internal-date",
+        "claims_supported": ["date"],
+    }
+    state, supporting, renderable = truth_audit._source_claim_state(
+        {"researched_sources": [internal]}, "date"
+    )
+    assert (state, supporting, renderable) == (
+        "internal_source_claim_only", ["internal-date"], []
+    )
+
+    state, supporting, renderable = truth_audit._source_claim_state({
+        "researched_sources": [internal],
+        "renderable_sources": [internal],
+    }, "date")
+    assert (state, supporting, renderable) == (
+        "renderable_source_claim_not_admitted",
+        ["internal-date"],
+        ["internal-date"],
+    )
+
+
 def test_exact_mtf_identity_uses_production_canonicalizer():
     assert truth_audit._mtf_documents({
         "source_title": "Margaret Thatcher Foundation document 104653",
@@ -129,6 +208,147 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     assert audit["counts"]["current_render_failure_count"] == 0
     assert audit["counts"]["invariant_failure_count"] == 0
     assert all(audit["invariants"].values())
+
+    assert audit["schema_version"] == 2
+    decomposition = audit["records"]["unsupported_claim_decomposition"]
+    decomposition_counts = audit["unsupported_claim_counts"]
+    assert len(decomposition) == 1539
+    assert audit["counts"]["unsupported_claim_decomposition_count"] == 1539
+    claim_keys = [row["claim_key"] for row in decomposition]
+    assert claim_keys == sorted(claim_keys)
+    assert len(claim_keys) == len(set(claim_keys))
+    assert {row["finding_kind"] for row in decomposition} == {
+        "packet_claim_not_publicly_supported"
+    }
+    assert {row["confidence_after"] for row in decomposition} == {"unknown"}
+    assert {row["evidence_state"] for row in decomposition} == {
+        "no_audited_source_claim"
+    }
+    assert all(not row["supporting_internal_source_ids"] for row in decomposition)
+    assert all(not row["supporting_renderable_source_ids"] for row in decomposition)
+    assert decomposition_counts["total"] == 1539
+    assert decomposition_counts[
+        "intended_argument_or_meaning_claims_in_this_1539_count"
+    ] == 0
+    assert decomposition_counts["by_field"] == {
+        "source_event": 489,
+        "date": 425,
+        "historical_context": 625,
+    }
+    assert decomposition_counts["by_attribution_eligibility"] == {
+        "eligible": 1504,
+        "ineligible": 35,
+    }
+    assert decomposition_counts["by_public_reachability"] == {
+        "currently_rendered_exact_occurrence": 113,
+        "formatter_reachable_but_suppressed": 765,
+        "internal_only_or_unreachable": 661,
+    }
+    assert decomposition_counts["by_field_and_public_reachability"] == {
+        "source_event": {
+            "currently_rendered_exact_occurrence": 112,
+            "formatter_reachable_but_suppressed": 349,
+            "internal_only_or_unreachable": 28,
+        },
+        "date": {
+            "currently_rendered_exact_occurrence": 1,
+            "formatter_reachable_but_suppressed": 415,
+            "internal_only_or_unreachable": 9,
+        },
+        "historical_context": {
+            "currently_rendered_exact_occurrence": 0,
+            "formatter_reachable_but_suppressed": 1,
+            "internal_only_or_unreachable": 624,
+        },
+    }
+    assert decomposition_counts[
+        "by_attribution_eligibility_and_public_reachability"
+    ] == {
+        "eligible": {
+            "currently_rendered_exact_occurrence": 113,
+            "formatter_reachable_but_suppressed": 765,
+            "internal_only_or_unreachable": 626,
+        },
+        "ineligible": {
+            "currently_rendered_exact_occurrence": 0,
+            "formatter_reachable_but_suppressed": 0,
+            "internal_only_or_unreachable": 35,
+        },
+    }
+    assert decomposition_counts["by_current_public_surface"] == {
+        "context": 0,
+        "meaning": 0,
+        "source_title": 113,
+        "source_url": 0,
+    }
+    assert decomposition_counts["by_current_public_exposure_kind"] == {
+        "bibliographic_exact_occurrence": 113,
+    }
+    assert decomposition_counts["by_evidence_state"] == {
+        "no_audited_source_claim": 1539,
+        "internal_source_claim_only": 0,
+        "renderable_source_claim_not_admitted": 0,
+    }
+    assert decomposition_counts["by_context_slot_reachability"] == {
+        "currently_rendered_exact_occurrence": 113,
+        "formatter_slot_reachable_but_not_currently_exposed": 1391,
+        "production_ineligible": 35,
+        "formatter_slot_unreachable": 0,
+    }
+    assert decomposition_counts["by_exclusive_unreachable_reason"] == {
+        "attribution_ineligible": 35,
+        "direct_claim_value_not_selected": 17,
+        "shadowed_by_immediate_subject": 609,
+    }
+
+    decomposition_by_key = {
+        (row["quote_id"], row["field"]): row for row in decomposition
+    }
+    bibliographic_date = decomposition_by_key[
+        (DATE_IN_SOURCE_TITLE_QUOTE_ID, "date")
+    ]
+    assert bibliographic_date["formatter_projection"] == "19 April 1983"
+    assert bibliographic_date["public_reachability"] == (
+        "currently_rendered_exact_occurrence"
+    )
+    assert bibliographic_date["current_public_exposures"][0]["surface"] == (
+        "source_title"
+    )
+    assert bibliographic_date["evidence_state"] == "no_audited_source_claim"
+
+    formerly_exposed_date = decomposition_by_key[
+        (FORMER_DATE_IN_CONTEXT_QUOTE_ID, "date")
+    ]
+    assert formerly_exposed_date["formatter_projection"] == "1979"
+    assert formerly_exposed_date["current_public_exposures"] == []
+    assert formerly_exposed_date["public_reachability"] == (
+        "formatter_reachable_but_suppressed"
+    )
+    assert formerly_exposed_date["counterfactual_projection"][
+        "current_context"
+    ] == (
+        "The surviving record identifies an occasion, but does not establish "
+        "a reliable date."
+    )
+
+    direct_historical_context = decomposition_by_key[
+        (DIRECT_HISTORICAL_CONTEXT_FALLBACK_QUOTE_ID, "historical_context")
+    ]
+    assert direct_historical_context["public_reachability"] == (
+        "formatter_reachable_but_suppressed"
+    )
+    assert direct_historical_context["counterfactual_projection"][
+        "effective_value_origin"
+    ] == "historical_context"
+    eligible_shadowed = [
+        row for row in decomposition
+        if row["field"] == "historical_context"
+        and row["attribution_eligible"]
+        and row["exclusive_unreachable_reason"] == (
+            "shadowed_by_immediate_subject"
+        )
+    ]
+    assert len(eligible_shadowed) == 609
 
     same_documents = {
         row["quote_id"]: row
