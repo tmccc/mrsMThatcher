@@ -297,6 +297,12 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(bot, "MEME_POST_RECEIPT_FILE", tmp_path / "meme_post_receipt.json")
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
+    monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
+    )
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
     monkeypatch.setattr(bot, "STATE_FILE", tmp_path / "bot_state.json")
     monkeypatch.setattr(bot, "STATE_BACKUP_COUNT", 0)
@@ -3925,6 +3931,343 @@ def test_regular_receipt_replay_restores_future_quote_schedule(
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
     assert state["next_quote_post_epoch"] == 1_800_007_200
+
+
+def test_startup_regular_receipt_replay_preserves_newer_production_schedule(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _lines_used,
+        _images_used,
+        _state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    quote_post_epoch = 1_784_680_936  # 2026-07-22 01:42:16 BST
+    stale_receipt_next = 1_784_689_435  # 2026-07-22 04:03:55 BST
+    newer_state_next = 1_784_714_624  # 2026-07-22 11:03:44 BST
+    first_tick_epoch = 1_784_708_283  # 2026-07-22 09:18:03 BST
+    receipt = valid_regular_receipt(
+        post_id="2079728698731745489",
+        image_basename="t24.jpg",
+        quote_post_epoch=quote_post_epoch,
+        next_quote_post_epoch=stale_receipt_next,
+    )
+    quote_hash = str(receipt["quote_hash"])
+    bot.atomic_write_json(receipt_file, receipt)
+    lines_used = {quote_hash}
+    images_used = {"t24.jpg"}
+    state = {
+        "last_main_post_id": "2079728698731745489",
+        "last_quote_post_epoch": quote_post_epoch,
+        "last_regular_image_filename": "t24.jpg",
+        "next_quote_post_epoch": newer_state_next,
+    }
+    monkeypatch.setattr(
+        bot,
+        "CONTROL_FILE",
+        tmp_path / "missing-control.json",
+    )
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
+    )
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **kwargs: {"status": "already_completed"},
+    )
+    monkeypatch.setattr(
+        bot,
+        "schedule_next_quote_post",
+        lambda *args, **kwargs: pytest.fail("future production schedule must not be replaced"),
+    )
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda lines: lines_used)
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda paths: images_used)
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda state: None)
+    monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: first_tick_epoch)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda state, key, current: (current, False),
+    )
+    monkeypatch.setattr(
+        bot,
+        "run_reply_lane_checks_for_tick",
+        lambda state, current, last_reply, last_quote: (last_reply, last_quote),
+    )
+    monkeypatch.setattr(bot, "ambiguous_remote_post_is_blocking", lambda: False)
+    monkeypatch.setattr(
+        bot,
+        "post_random_quote",
+        lambda *args, **kwargs: pytest.fail("first loop tick must not post again"),
+    )
+
+    class FirstTickComplete(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda seconds: (_ for _ in ()).throw(FirstTickComplete),
+    )
+
+    with pytest.raises(FirstTickComplete):
+        bot.main()
+
+    assert state["next_quote_post_epoch"] == newer_state_next
+    assert state["next_quote_post_epoch"] > first_tick_epoch
+    assert not receipt_file.exists()
+
+
+def test_startup_regular_receipt_with_missing_state_defers_first_quote_tick(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    receipt = valid_regular_receipt(
+        quote_post_epoch=1_784_680_936,
+        next_quote_post_epoch=1_784_689_435,
+    )
+    bot.atomic_write_json(receipt_file, receipt)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **kwargs: {"status": "completed"},
+    )
+    monkeypatch.setattr(bot.random, "randint", lambda low, high: 7_200)
+    first_tick_epoch = 1_784_708_283
+
+    status = bot.reconcile_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        minimum_next_quote_epoch=first_tick_epoch,
+    )
+
+    assert state["last_quote_post_epoch"] == receipt["quote_post_epoch"]
+    assert receipt["quote_hash"] in lines_used
+    assert receipt["image_basename"] in images_used
+    assert status == {"regular": True, "meme": False}
+    assert state["next_quote_post_epoch"] == first_tick_epoch + 7_200
+    assert state["next_quote_post_epoch"] > first_tick_epoch
+    assert not receipt_file.exists()
+
+
+def test_startup_receipt_persists_future_schedule_before_receipt_removal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    receipt = valid_regular_receipt(
+        quote_post_epoch=1_784_680_936,
+        next_quote_post_epoch=1_784_689_435,
+    )
+    bot.atomic_write_json(receipt_file, receipt)
+    monkeypatch.setattr(
+        bot,
+        "maybe_post_historical_context_reply",
+        lambda **_kwargs: {"status": "completed"},
+    )
+    monkeypatch.setattr(bot.random, "randint", lambda _low, _high: 7_200)
+    monkeypatch.setattr(
+        bot,
+        "remove_regular_post_receipt",
+        lambda: (_ for _ in ()).throw(RuntimeError("simulated removal crash")),
+    )
+    first_tick_epoch = 1_784_708_283
+
+    with pytest.raises(RuntimeError, match="simulated removal crash"):
+        bot.reconcile_main_post_receipts(
+            lines_used,
+            images_used,
+            state,
+            minimum_next_quote_epoch=first_tick_epoch,
+        )
+
+    durable_state = json.loads(bot.STATE_FILE.read_text(encoding="utf-8"))
+    assert durable_state["next_quote_post_epoch"] == first_tick_epoch + 7_200
+    assert durable_state["next_quote_post_epoch"] > first_tick_epoch
+    assert receipt_file.exists()
+
+
+@pytest.mark.parametrize(
+    "control_text",
+    [
+        json.dumps({"disable_all": True}),
+        json.dumps({"pause_all": True}),
+        "{",
+    ],
+)
+def test_global_pause_leaves_startup_main_receipt_untouched(
+    control_text: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        lines_used,
+        images_used,
+        state,
+        _lines_used_file,
+        _images_used_file,
+        receipt_file,
+        _lines_file,
+    ) = configure_simple_quote_post(tmp_path, monkeypatch)
+    receipt = valid_regular_receipt(
+        quote_post_epoch=1_784_680_936,
+        next_quote_post_epoch=1_784_689_435,
+    )
+    bot.atomic_write_json(receipt_file, receipt)
+    receipt_bytes = receipt_file.read_bytes()
+    control_file = tmp_path / "mrsMThatcher.control.json"
+    control_file.write_text(control_text, encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
+    )
+    monkeypatch.setattr(
+        bot,
+        "reconcile_main_post_receipts",
+        lambda *_args, **_kwargs: pytest.fail(
+            "global maintenance pause must precede receipt reconciliation"
+        ),
+    )
+
+    status = bot.reconcile_startup_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        1_784_708_283,
+    )
+
+    assert status == {"regular": False, "meme": False}
+    assert receipt_file.read_bytes() == receipt_bytes
+
+
+def test_false_global_pause_preserves_startup_receipt_reconciliation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    control_file = tmp_path / "mrsMThatcher.control.json"
+    control_file.write_text(json.dumps({"disable_all": False}), encoding="utf-8")
+    monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
+    )
+    expected = {"regular": True, "meme": False}
+    monkeypatch.setattr(
+        bot,
+        "reconcile_main_post_receipts",
+        lambda *_args, **_kwargs: expected,
+    )
+
+    assert bot.reconcile_startup_main_post_receipts(
+        set(),
+        set(),
+        {},
+        1_784_708_283,
+    ) is expected
+
+
+def test_main_global_pause_stops_before_every_remote_lane(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lines_file = tmp_path / "quotes.txt"
+    lines_file.write_text("Good quote.\n", encoding="utf-8")
+    receipt_file = tmp_path / "regular_post_receipt.json"
+    receipt_file.write_bytes(b'{"durable":"unchanged"}\n')
+    receipt_bytes = receipt_file.read_bytes()
+    control_file = tmp_path / "mrsMThatcher.control.json"
+    control_file.write_text(json.dumps({"disable_all": True}), encoding="utf-8")
+    monkeypatch.setattr(bot, "LINES_FILE", lines_file)
+    monkeypatch.setattr(bot, "REGULAR_POST_RECEIPT_FILE", receipt_file)
+    monkeypatch.setattr(bot, "CONTROL_FILE", control_file)
+    monkeypatch.setattr(
+        bot,
+        "_CONTROL_CACHE",
+        {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
+    )
+    monkeypatch.setattr(bot, "require_established_installation", lambda: None)
+    monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
+    monkeypatch.setattr(bot, "acquire_instance_lock", lambda: None)
+    monkeypatch.setattr(bot, "glob", lambda _pattern: [])
+    monkeypatch.setattr(bot, "ENABLE_DAILY_MEME_POSTS", False)
+    monkeypatch.setattr(bot, "validate_original_editorial_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "validate_generated_identity_shadow_startup", lambda: None)
+    monkeypatch.setattr(bot, "load_quote_used_hashes", lambda _lines: set())
+    monkeypatch.setattr(bot, "load_image_used_basenames", lambda _paths: set())
+    monkeypatch.setattr(bot, "current_image_paths", lambda: [])
+    state = {"next_quote_post_epoch": 0}
+    monkeypatch.setattr(bot, "load_runtime_state", lambda: state)
+    monkeypatch.setattr(bot, "seed_recent_own_post_ids_from_cache", lambda _state: None)
+    monkeypatch.setattr(bot, "save_state", lambda _state, **_kwargs: None)
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_784_708_283)
+    monkeypatch.setattr(
+        bot,
+        "scheduler_epoch_from_state",
+        lambda _state, _key, current: (current, False),
+    )
+
+    def remote_lane_reached(*_args, **_kwargs):
+        pytest.fail("global maintenance pause must block every remote lane")
+
+    monkeypatch.setattr(bot, "reconcile_main_post_receipts", remote_lane_reached)
+    monkeypatch.setattr(bot, "run_reply_lane_checks_for_tick", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_random_quote", remote_lane_reached)
+    monkeypatch.setattr(bot, "post_next_meme", remote_lane_reached)
+    monkeypatch.setattr(bot, "create_post", remote_lane_reached)
+    monkeypatch.setattr(bot, "upload_media", remote_lane_reached)
+    monkeypatch.setattr(bot, "x_request", remote_lane_reached)
+    monkeypatch.setattr(bot, "xai_structured_reply_call", remote_lane_reached)
+
+    class MaintenanceTickComplete(Exception):
+        pass
+
+    monkeypatch.setattr(
+        bot,
+        "sleep",
+        lambda seconds: (_ for _ in ()).throw(MaintenanceTickComplete),
+    )
+
+    with pytest.raises(MaintenanceTickComplete):
+        bot.main()
+
+    assert receipt_file.read_bytes() == receipt_bytes
 
 
 def test_regular_receipt_replay_does_not_create_second_post(

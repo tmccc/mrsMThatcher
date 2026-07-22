@@ -1176,7 +1176,10 @@ def control_failure_result(reason: str, *, signature: object) -> dict:
     if _CONTROL_CACHE.get("has_valid"):
         cached = _CONTROL_CACHE.get("data", {})
         log.debug("Continuing with last valid runtime control document")
-        return dict(cached) if isinstance(cached, dict) else {"disable_all": True}
+        fail_closed = dict(cached) if isinstance(cached, dict) else {}
+        fail_closed["disable_all"] = True
+        fail_closed["_control_fail_closed"] = True
+        return fail_closed
     return {"disable_all": True, "_control_fail_closed": True}
 
 
@@ -1290,6 +1293,19 @@ def lane_paused(*lane_keys: str) -> bool:
         return True
 
     return False
+
+
+def global_remote_writes_paused() -> bool:
+    """Return whether the runtime control pauses every remote-write lane."""
+    data = load_control()
+    if not data:
+        return False
+    active, _key, _until_epoch = control_pause_active(
+        data,
+        "disable_all",
+        "pause_all",
+    )
+    return active
 
 
 # ---------------------------------------------------------------------
@@ -1437,6 +1453,23 @@ class ApiError(Exception):
 
 class AmbiguousRemotePostOutcome(ApiError):
     """X may have accepted a write although no response reached this process."""
+
+
+class RemoteOperationsPaused(RuntimeError):
+    """A global runtime-control pause blocked a remote operation."""
+
+
+def require_remote_operation_unpaused(operation: str) -> None:
+    """Fail before a remote boundary while a global pause is active."""
+    if not global_remote_writes_paused():
+        return
+    log.warning(
+        "Global runtime control pause blocked remote operation: %s",
+        operation,
+    )
+    raise RemoteOperationsPaused(
+        f"Global runtime control pause blocks remote operation: {operation}"
+    )
 
 
 def api_error_is_reply_not_allowed(error: Exception) -> bool:
@@ -2673,6 +2706,9 @@ def x_request(method: str, path: str, *, ambiguous_write: bool = False, **kwargs
     if "files" in kwargs:
         log.debug("X request includes files: %s", list(kwargs["files"].keys()))
 
+    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+        require_remote_operation_unpaused(f"X {method.upper()} {path}")
+
     try:
         response = requests.request(
             method,
@@ -2752,6 +2788,9 @@ def x_bearer_request(method: str, path: str, **kwargs) -> dict:
 
     if "params" in kwargs:
         log_json_debug("X bearer request params", kwargs["params"])
+
+    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+        require_remote_operation_unpaused(f"X bearer {method.upper()} {path}")
 
     try:
         response = requests.request(
@@ -4044,6 +4083,7 @@ def upload_media_v1_1(image_path: str) -> str:
             "media_category": "tweet_image",
         }
 
+        require_remote_operation_unpaused("X v1.1 media upload")
         try:
             response = requests.post(
                 url,
@@ -4081,8 +4121,11 @@ def upload_media_v1_1(image_path: str) -> str:
 
 def upload_media(image_path: str) -> str:
     """Upload media through the preferred endpoint with a safe fallback."""
+    require_remote_operation_unpaused("X media upload")
     try:
         return upload_media_v2(image_path)
+    except RemoteOperationsPaused:
+        raise
     except ApiError as exc:
         if getattr(exc, "status_code", None) == 429:
             log.exception("v2 media upload was rate limited; not retrying v1.1 fallback")
@@ -4147,6 +4190,7 @@ def create_post(
     made_with_ai: bool = False,
 ) -> dict:
     """Create an X post with transactional ambiguity handling."""
+    require_remote_operation_unpaused("X post creation")
     block_if_ambiguous_remote_post()
     log.info(
         "Creating X post. reply_to_id=%s media_count=%d made_with_ai=%s text=%r",
@@ -5080,7 +5124,19 @@ def apply_regular_post_receipt(receipt: dict, lines_used: set, images_used: set,
         )
         state["last_quote_post_epoch"] = quote_post_epoch
         state["last_regular_image_filename"] = image_basename
-        state["next_quote_post_epoch"] = next_quote_post_epoch
+        current_next_quote_post_epoch = int(state.get("next_quote_post_epoch", 0) or 0)
+        if (
+            quote_post_epoch == last_quote_epoch
+            and current_next_quote_post_epoch > next_quote_post_epoch
+        ):
+            log.warning(
+                "Receipt post_id=%s is already reflected with a newer quote schedule current=%s receipt=%s; preserving current schedule",
+                post_id,
+                current_next_quote_post_epoch,
+                next_quote_post_epoch,
+            )
+        else:
+            state["next_quote_post_epoch"] = next_quote_post_epoch
         if not spacing_already_reflected:
             update_regular_generated_image_spacing_state(state, image_basename)
     if receipt_is_newest_main:
@@ -5282,7 +5338,34 @@ def maybe_post_historical_context_reply(
         raise
 
 
-def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dict) -> bool:
+def ensure_reconciled_regular_receipt_schedule_is_future(
+    receipt: dict,
+    state: dict,
+    current: int,
+) -> bool:
+    """Persist a future quote schedule before completing current-receipt replay."""
+    if int(state.get("last_quote_post_epoch", 0) or 0) != int(
+        receipt["quote_post_epoch"]
+    ):
+        return False
+    next_quote_epoch = int(state.get("next_quote_post_epoch", 0) or 0)
+    if next_quote_epoch > current:
+        return False
+    log.warning(
+        "Reconciled regular receipt has a due quote schedule; deferring the next "
+        "regular post before completing receipt replay"
+    )
+    schedule_next_quote_post(state, current, save=False)
+    return True
+
+
+def reconcile_regular_post_receipt(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    *,
+    minimum_next_quote_epoch: int | None = None,
+) -> bool:
     """Reconcile a durable regular-post receipt without duplicating a remote post."""
     status, receipt = load_regular_post_receipt()
     if status == "absent":
@@ -5296,6 +5379,12 @@ def reconcile_regular_post_receipt(lines_used: set, images_used: set, state: dic
         receipt.get("image_basename"),
     )
     apply_regular_post_receipt(receipt, lines_used, images_used, state)
+    if minimum_next_quote_epoch is not None:
+        ensure_reconciled_regular_receipt_schedule_is_future(
+            receipt,
+            state,
+            minimum_next_quote_epoch,
+        )
     save_regular_post_protected_state(lines_used, images_used, state, durable=True)
     maybe_post_historical_context_reply(
         quote_hash=str(receipt["quote_hash"]),
@@ -5321,7 +5410,13 @@ def both_main_post_receipts_exist() -> bool:
     return REGULAR_POST_RECEIPT_FILE.exists() and MEME_POST_RECEIPT_FILE.exists()
 
 
-def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict) -> dict[str, bool]:
+def reconcile_main_post_receipts(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    *,
+    minimum_next_quote_epoch: int | None = None,
+) -> dict[str, bool]:
     """Reconcile regular and meme receipts before any new main post."""
     if both_main_post_receipts_exist():
         log.critical(
@@ -5331,9 +5426,35 @@ def reconcile_main_post_receipts(lines_used: set, images_used: set, state: dict)
         )
         raise InvalidRegularPostReceipt("Both main-post receipts exist; manual recovery required")
     return {
-        "regular": reconcile_regular_post_receipt(lines_used, images_used, state),
+        "regular": reconcile_regular_post_receipt(
+            lines_used,
+            images_used,
+            state,
+            minimum_next_quote_epoch=minimum_next_quote_epoch,
+        ),
         "meme": reconcile_meme_post_receipt(state),
     }
+
+
+def reconcile_startup_main_post_receipts(
+    lines_used: set,
+    images_used: set,
+    state: dict,
+    current: int,
+) -> dict[str, bool]:
+    """Reconcile main receipts unless a global maintenance pause is active."""
+    if global_remote_writes_paused():
+        log.warning(
+            "Global runtime control pause is active; leaving main-post receipts "
+            "untouched during startup"
+        )
+        return {"regular": False, "meme": False}
+    return reconcile_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        minimum_next_quote_epoch=current,
+    )
 
 
 def image_used_history_has_legacy_indices(images_used: set) -> bool:
@@ -7236,7 +7357,12 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     log.info("Starting quote/image post cycle")
     block_if_ambiguous_remote_post()
 
-    receipt_status = reconcile_main_post_receipts(lines_used, images_used, state)
+    receipt_status = reconcile_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        minimum_next_quote_epoch=now_epoch(),
+    )
     if receipt_status.get("regular"):
         log.warning("Reconciled regular quote/image receipt; not creating a second regular post in the same call")
         return
@@ -8313,6 +8439,7 @@ def xai_structured_reply_call(
     }
     log.info("Calling AI-first reply stage=%s model=%s", stage, model)
     log_json_debug("xAI structured reply request", redact_xai_payload_for_log(payload))
+    require_remote_operation_unpaused(f"xAI reply stage {stage}")
     try:
         response = requests.post(
             f"{XAI_BASE}/chat/completions",
@@ -10526,7 +10653,13 @@ def main() -> None:
     lines_used = load_quote_used_hashes(quote_lines_for_history)
     images_used = load_image_used_basenames(current_image_paths())
     state = load_runtime_state()
-    reconcile_main_post_receipts(lines_used, images_used, state)
+    startup_current = now_epoch()
+    reconcile_startup_main_post_receipts(
+        lines_used,
+        images_used,
+        state,
+        startup_current,
+    )
 
     seed_recent_own_post_ids_from_cache(state)
     save_state(state)
@@ -10562,9 +10695,23 @@ def main() -> None:
     log.info("Bot started successfully")
 
     ambiguity_pause_logged = False
+    maintenance_pause_logged = global_remote_writes_paused()
     while True:
         current = now_epoch()
         log.debug("Main loop tick. epoch=%s", current)
+
+        if global_remote_writes_paused():
+            if not maintenance_pause_logged:
+                log.warning(
+                    "Global runtime control pause is active; all remote-write lanes "
+                    "remain idle"
+                )
+            maintenance_pause_logged = True
+            sleep(60)
+            continue
+        if maintenance_pause_logged:
+            log.info("Global runtime control pause cleared; resuming scheduled lanes")
+        maintenance_pause_logged = False
 
         if ambiguous_remote_post_is_blocking():
             if not ambiguity_pause_logged:

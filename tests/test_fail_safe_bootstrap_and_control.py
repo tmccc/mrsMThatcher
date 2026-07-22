@@ -227,6 +227,73 @@ def test_control_stat_and_read_failure_preserve_prior_valid(tmp_path, monkeypatc
     assert bot.load_control()["disable_all"] is True
 
 
+def test_malformed_control_fails_closed_after_cached_unpaused_document(
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text(json.dumps({"disable_all": False}))
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.global_remote_writes_paused() is False
+
+    path.write_text("{")
+
+    failed = bot.load_control()
+    assert failed["disable_all"] is True
+    assert failed["_control_fail_closed"] is True
+    assert bot.global_remote_writes_paused() is True
+
+
+@pytest.mark.parametrize("boundary", ["x_write", "media", "provider", "post"])
+def test_global_pause_is_rechecked_at_remote_boundaries(
+    boundary,
+    tmp_path,
+    monkeypatch,
+):
+    path = tmp_path / "control.json"
+    path.write_text(json.dumps({"disable_all": False}))
+    monkeypatch.setattr(bot, "CONTROL_FILE", path)
+    reset_control_cache(monkeypatch)
+    assert bot.global_remote_writes_paused() is False
+
+    path.write_text(json.dumps({"disable_all": True, "generation": 2}))
+    remote_calls: list[str] = []
+    monkeypatch.setattr(
+        bot.requests,
+        "request",
+        lambda *_args, **_kwargs: remote_calls.append("request"),
+    )
+    monkeypatch.setattr(
+        bot.requests,
+        "post",
+        lambda *_args, **_kwargs: remote_calls.append("post"),
+    )
+
+    with pytest.raises(bot.RemoteOperationsPaused, match="Global runtime control"):
+        if boundary == "x_write":
+            bot.x_request("POST", "/2/tweets", json={"text": "blocked"})
+        elif boundary == "media":
+            image_path = tmp_path / "image.jpg"
+            image_path.write_bytes(b"not sent")
+            bot.upload_media(str(image_path))
+        elif boundary == "provider":
+            bot.xai_structured_reply_call(
+                stage="review",
+                model="unit-model",
+                system_prompt="system",
+                user_prompt="user",
+                response_schema={"type": "object", "properties": {}},
+                timeout_seconds=1,
+                max_output_tokens=10,
+                media_context=None,
+            )
+        else:
+            bot.create_post("blocked")
+
+    assert remote_calls == []
+
+
 def test_import_from_foreign_cwd_ignores_live_local_config(tmp_path):
     code = "import mrsMThatcher2 as b; print(b._PRODUCTION_BOOTSTRAPPED); print(b.POST_SLEEP_MIN)"
     env = dict(os.environ, PYTHONPATH=str(Path(bot.__file__).resolve().parent))

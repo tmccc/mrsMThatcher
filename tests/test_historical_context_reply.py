@@ -524,6 +524,9 @@ def test_legacy_v3_formatter_metadata_remains_valid_for_existing_receipts(corpus
         )
     }
     metadata["formatter_version"] = context_module.HISTORICAL_CONTEXT_FORMATTER_V3
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
+    )
 
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
 
@@ -541,8 +544,92 @@ def test_legacy_v4_formatter_metadata_remains_valid_for_existing_receipts(corpus
         )
     }
     metadata["formatter_version"] = context_module.HISTORICAL_CONTEXT_FORMATTER_V4
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
+    )
 
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
+
+
+@pytest.mark.parametrize(
+    ("formatter_version", "include_rendering_mode"),
+    [
+        (context_module.HISTORICAL_CONTEXT_FORMATTER_V3, False),
+        (context_module.HISTORICAL_CONTEXT_FORMATTER_V4, True),
+    ],
+)
+def test_production_shaped_legacy_history_accepts_exact_v5_source_role_policy(
+    tmp_path, corpus, formatter_version, include_rendering_mode
+):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata_keys = {
+        "formatter_version", "template_variant", "meaning_included",
+        "meaning_decision_reason", "raw_character_count",
+        "weighted_character_count", "verification_label", "source_class",
+        "historical_confidence", "shortening_applied",
+        "confidence_dimensions", "source_role_audit_version",
+    }
+    if include_rendering_mode:
+        metadata_keys.add("rendering_mode")
+    metadata = {key: formatted[key] for key in metadata_keys}
+    metadata["formatter_version"] = formatter_version
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v5-independent-review-and-exclusive-counts"
+    )
+    item = {
+        "schema_version": 1,
+        "lifecycle_state": "confirmed",
+        "parent_post_id": "111",
+        "reply_post_id": "222",
+        "quote_id": formatted["quote_id"],
+        "reply_text": formatted["text"],
+        "reply_epoch": 123,
+        "started_at": "2026-07-21T00:00:00Z",
+        "attempt_number": 1,
+        "confirmed_at": "2026-07-21T00:00:01Z",
+        "formatter_metadata": metadata,
+        "status": "completed",
+    }
+    history_path = tmp_path / "history.json"
+    history_path.write_text(
+        json.dumps({"schema_version": 1, "items": {"111": item}}),
+        encoding="utf-8",
+    )
+
+    loaded = HistoricalContextReplyStore(
+        history_path, tmp_path / "receipt.json"
+    ).history()
+
+    assert loaded["items"]["111"]["formatter_metadata"] == metadata
+
+
+@pytest.mark.parametrize(
+    ("formatter_version", "include_rendering_mode"),
+    [
+        (context_module.HISTORICAL_CONTEXT_FORMATTER_V3, False),
+        (context_module.HISTORICAL_CONTEXT_FORMATTER_V4, True),
+    ],
+)
+def test_legacy_v3_v4_formatter_metadata_still_rejects_unknown_source_role_policy(
+    corpus, formatter_version, include_rendering_mode
+):
+    formatted = format_context_reply_v2(next(iter(corpus[0].values())))
+    metadata_keys = {
+        "formatter_version", "template_variant", "meaning_included",
+        "meaning_decision_reason", "raw_character_count",
+        "weighted_character_count", "verification_label", "source_class",
+        "historical_confidence", "shortening_applied",
+        "confidence_dimensions", "source_role_audit_version",
+    }
+    if include_rendering_mode:
+        metadata_keys.add("rendering_mode")
+    metadata = {key: formatted[key] for key in metadata_keys}
+    metadata["formatter_version"] = formatter_version
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v5-unrecognised"
+    )
+
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
 
 
 def test_v5_formatter_metadata_rejects_unknown_source_role_policy(corpus):
