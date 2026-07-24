@@ -11,28 +11,28 @@
     "unresolved_quote_count": 6
   },
   "decision_counts": {
-    "blocked_open_semantic_review": 24,
-    "eligible_allow": 586,
+    "blocked_open_semantic_review": 18,
+    "eligible_allow": 592,
     "ineligible_not_regular_post": 16
   },
   "gate": {
     "available": true,
-    "blocked_projection_sha256": "5c166e3fd2c31a01ca132a8b046e8cc02e36ab787e7060dd0fa952d719afc1b2",
-    "blocked_quote_count": 24,
+    "blocked_projection_sha256": "24ba5a4eaf29c74c0efc9d6356503e7cc17c4a891ff0631cc31df8a6adc03483",
+    "blocked_quote_count": 18,
     "disposition_counts": {
-      "future_correction_needed": 20,
-      "insufficient_to_assess": 4
+      "future_correction_needed": 8,
+      "insufficient_to_assess": 10
     },
     "failure_reason": "",
-    "reviewed_blocked_quote_count": 24,
-    "semantic_review_ledger_sha256": "b6bef0282fda2b2476bf2ab5b84b928afa09c04b7a953faae068d8c3c7db73c7"
+    "reviewed_blocked_quote_count": 18,
+    "semantic_review_ledger_sha256": "8996d6465cb7fa44d6e0920ff9fb046cd5c3b41da3eb284f3df9f9254b9b4bd7"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "b6bef0282fda2b2476bf2ab5b84b928afa09c04b7a953faae068d8c3c7db73c7",
-    "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
+    "historical_context_published_reply_semantic_review.json": "8996d6465cb7fa44d6e0920ff9fb046cd5c3b41da3eb284f3df9f9254b9b4bd7",
+    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
-    "runtime_eligible_quote_manifest.json": "c3d4e4f3193635da0d5f499b586beffbf46fab06faf8f99e0bd0af55a46d18af"
+    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
+    "runtime_eligible_quote_manifest.json": "ffee95314329251303ca9ab0f38d8b7e141c3989e3308add2db8ab6de83f399e"
   },
   "invariant_failure_count": 0,
   "invariants": {
@@ -75,9 +75,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — Speech to the National Press Club, 19 September 1975.\n\nMeaning — Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the National Press Club (19 September 1975)",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one."
     },
@@ -99,9 +99,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
       "quote_text": "The Britain I want is a country which once again is known throughout the world for its integrity, its industry, the calibre of its people and its valiant championship of justice and truth."
     },
@@ -947,9 +947,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
       "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market."
     },
@@ -1043,9 +1043,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
       "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices."
     },
@@ -1155,9 +1155,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Interview with a journalist (Lewis), 25 October 1984.\n\nMeaning — Legitimate trade unionism should focus on the economic well-being of workers and the prosperity of their industry, rather than pursuing left-wing political agendas.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 105774\nhttps://www.margaretthatcher.org/document/105774\n\nSource — Margaret Thatcher Foundation, Interview transcript, 25 October 1984",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
       "quote_text": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry."
     },
@@ -1707,9 +1707,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, THCR (21 March 1994)",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
       "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps."
     },
@@ -1891,9 +1891,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 106498\nhttps://www.margaretthatcher.org/document/106498",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
       "quote_text": "Governments should not run business."
     },
@@ -2075,9 +2075,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103336\nhttps://www.margaretthatcher.org/document/103336",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
       "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain."
     },
@@ -2643,9 +2643,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — Speech to the founding meeting of the International Democrat Union (IDU) in London, 24 June 1983.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to IDU, 24 June 1983",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
       "quote_text": "The spirit of freedom is too strong and too resilient to be crushed by the tanks of tyrants. The same is true in other parts of the world which suffer from the brutality of despotism."
     },
@@ -2907,9 +2907,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes."
     },
@@ -3115,9 +3115,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Prime Minister's Questions, House of Commons, 10 March 1981.\n\nMeaning — To publicly endorse Hayek's philosophy and suggest that Members of Parliament would benefit from understanding his arguments on liberty and the rule of law.\n\nVerification — Exact wording verified\n\nSource — Hansard, House of Commons Debates, 10 March 1981",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
       "quote_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member."
     },
@@ -3323,9 +3323,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible."
     },
@@ -3371,9 +3371,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Lecture at the Institute of United States Studies, 24 September 1996.\n\nMeaning — Thatcher argued that political correctness is a modern manifestation of tyranny, designed to control thought by restricting what people can read and express.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108364\nhttps://www.margaretthatcher.org/document/108364\n\nSource — Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
       "quote_text": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them."
     },
@@ -3515,9 +3515,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Speech to the Polish Senate, 3 October 1991.\n\nMeaning — That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
       "quote_text": "Capitalism alone can mobilise people's talents."
     },
@@ -4227,9 +4227,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105484\nhttps://www.margaretthatcher.org/document/105484",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
       "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could."
     },
@@ -4299,9 +4299,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Debate on the Address, House of Commons, 24 November 1976.\n\nMeaning — Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.\n\nVerification — Exact wording verified\n\nSource — Hansard, HC Deb 24 November 1976 vol 921 cc18-31\n\nSource — Margaret Thatcher Foundation, Document 103146\nhttps://www.margaretthatcher.org/document/103146",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
       "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty."
     },
@@ -4363,9 +4363,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — Speech in Bermuda, 7 August 2001.\n\nMeaning — That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
       "quote_text": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure."
     },
@@ -4419,9 +4419,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
       "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise."
     },

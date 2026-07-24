@@ -36,8 +36,14 @@ ORIGINAL_REVIEW_QUOTE_IDS_SHA256 = (
     "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976"
 )
 POST_BASELINE_REVIEW_IDS = {
+    "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+    "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+    "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
     "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+    "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
 }
 DISPOSITIONS = {
     "supported_as_published",
@@ -230,6 +236,88 @@ RESOLVED_CORRECTION_FINDINGS = {
 }
 
 
+TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
+    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": (
+        "Inspected primary document 108338 establishes the quotation, Bombay "
+        "occasion and date; its surrounding passage supports the retained "
+        "Meaning, and the canonical document identity now renders once."
+    ),
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": (
+        "Inspected primary document 105508 establishes the quotation, "
+        "Financial Times interview and date; a hash-bound Meaning correction "
+        "removes the unsupported rival-party and populist-distraction claims."
+    ),
+    "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631": (
+        "Inspected primary document 105774 establishes the Birmingham Post "
+        "interview and date; a hash-bound Meaning correction removes the "
+        "unsupported left-wing qualification and the document now renders once."
+    ),
+    "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202": (
+        "Inspected event-specific primary document 108331 establishes the "
+        "Santiago speech, date and wording; its surrounding passage supports "
+        "the retained Meaning and replaces the unrelated public source identity."
+    ),
+    "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5": (
+        "Inspected primary document 106498 establishes the speech, date and "
+        "wording; a hash-bound Meaning correction now states the source's "
+        "accountability claim without asserting inherent private superiority."
+    ),
+    "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": (
+        "Inspected primary document 103336 establishes the Zurich speech and "
+        "records the duplicated source transcription 'the the'; the stored "
+        "regularisation is explicitly a variant and the Meaning is corrected."
+    ),
+    "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997": (
+        "Inspected official Hansard establishes the answer, speaker, date and "
+        "locator; the omitted preceding clause is now labelled as an excerpt "
+        "and a hash-bound Meaning correction stays within the two named books."
+    ),
+    "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc": (
+        "Inspected primary document 108364 establishes the James Bryce "
+        "Lecture, date and passage; a hash-bound Meaning correction removes "
+        "the categorical intent claim and the document now renders once."
+    ),
+    "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd": (
+        "Inspected primary document 108285 establishes the Polish Senate "
+        "speech, date and passage; a hash-bound Meaning correction confines "
+        "the comparison to the source's communist-collectivist example."
+    ),
+    "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9": (
+        "Inspected primary document 105472 establishes the Lord Mayor's "
+        "Banquet passage; the omitted leading 'But' remains explicitly an "
+        "excerpt and the source identity and Meaning are corrected."
+    ),
+    "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374": (
+        "Inspected primary document 103146 establishes the debate and spoken "
+        "wording; the bracketed James Callaghan identification is explicitly "
+        "an editorial variant and the Meaning is corrected."
+    ),
+    "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09": (
+        "Inspected primary document 109301 establishes the Bermuda speech, "
+        "date and wording; a hash-bound Meaning correction removes the "
+        "unsupported inevitability claim."
+    ),
+}
+
+
+UNREVIEWED_POST_BASELINE_FINDINGS = {
+    quote_id: (
+        "This reply entered production history after the reviewed 79-record "
+        "semantic ledger. It is outside the present 18-case remediation scope "
+        "and is held closed without a historical conclusion until separately "
+        "reviewed against retained evidence."
+    )
+    for quote_id in {
+        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
+        "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    }
+}
+
+
 INSUFFICIENT_FINDINGS = {
     "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550": OPEN_FINDINGS[
         "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550"
@@ -252,12 +340,17 @@ INSUFFICIENT_FINDINGS = {
     "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4": OPEN_FINDINGS[
         "eb1d2ebaac7e321e67174d2db5761d2bd008341ebb04b1abac4d4a927cd7a7d4"
     ],
+    **UNREVIEWED_POST_BASELINE_FINDINGS,
 }
 
-RESOLVED_IDS = set(RESOLVED_CORRECTION_FINDINGS) | {
+RESOLVED_IDS = (
+    set(RESOLVED_CORRECTION_FINDINGS)
+    | set(TARGETED_REMEDIATION_RESOLVED_FINDINGS)
+    | {
     "7514859e06c16389eab799267fdd69dfa29ef15be82abf4127561661d176cd2b",
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
-}
+    }
+)
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -323,6 +416,8 @@ def _finding_reason(
 ) -> str:
     if quote_id in INSUFFICIENT_FINDINGS:
         return INSUFFICIENT_FINDINGS[quote_id]
+    if quote_id in TARGETED_REMEDIATION_RESOLVED_FINDINGS:
+        return TARGETED_REMEDIATION_RESOLVED_FINDINGS[quote_id]
     if quote_id in OPEN_FINDINGS:
         return OPEN_FINDINGS[quote_id]
     if quote_id in RESOLVED_CORRECTION_FINDINGS:

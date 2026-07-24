@@ -43,33 +43,33 @@ The source-role sidecar now prevents provider redirects, search machinery, quota
 
 ### Mutually exclusive headline totals
 
-- Observed source records: **3097** (physical 2017; recovered citations 256; model leads 790; independently reviewed AI-located 34).
-- Accepted observed evidence: **635**
-- Discovery-only or insufficient observed records: **2089**
+- Observed source records: **3111** (physical 2017; recovered citations 256; model leads 790; independently reviewed AI-located 34).
+- Accepted observed evidence: **647**
+- Discovery-only or insufficient observed records: **2091**
 - Rejected or non-verifying observed records: **373**
-- Additional canonical virtual-locator records: **278**
-- All evidentiary records including virtual locators: **3375**
+- Additional canonical virtual-locator records: **279**
+- All evidentiary records including virtual locators: **3390**
 
 The provenance and disposition groups above are mutually exclusive and each observed-source partition sums to the same total. Quality counts below are mutually exclusive per evidentiary record and include virtual locators. Role counts overlap because one source may support several claims.
 
 ### Detailed quality and role counts
-- Primary sources: **873**
+- Primary sources: **885**
 - Secondary sources: **36**
-- Recollections: **4**
+- Recollections: **5**
 - Discovery-only sources: **1036**
 - Circular attribution sources: **246**
 - Rejected irrelevant sources: **38**
 - Broken or non-verifying urls: **89**
-- Insufficiently located evidence: **1053**
-- Role `attribution_support`: **872**
-- Role `discovery_only`: **2335**
+- Insufficiently located evidence: **1055**
+- Role `attribution_support`: **885**
+- Role `discovery_only`: **2337**
 - Role `rejected_irrelevant`: **127**
-- Role `secondary_recollection`: **4**
-- Role `source_event_support`: **226**
-- Role `wording_verification`: **821**
-- Packets with no reliable renderable source: **108**
+- Role `secondary_recollection`: **5**
+- Role `source_event_support`: **229**
+- Role `wording_verification`: **834**
+- Packets with no reliable renderable source: **107**
 - Packets with material public-output corrections: **484**
-- Packets requiring further historical research: **220**
+- Packets requiring further historical research: **218**
 
 ## Bounded provider research
 
@@ -190,7 +190,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a` | It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British s… | discovery-only source suppressed; irrelevant source suppressed |
 | `32219e403c5ba59e985bbfa5dbf6834892e1abfb41d25effd29a617eeb936e17` | We need to create a mood where it is everywhere thought morally right for as many people as possible to acquire capital. | discovery-only source suppressed |
 | `33eef87a7e4bd7c159bdb35f0378709b1c0324477b62d344e3b3ceec9e7f19a3` | Socialism must return for ever to its proper place - the reading room of the British Library where Karl Marx found it, Section: History of… | discovery-only source suppressed |
-| `34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381` | Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market. | discovery-only source suppressed; verification wording made source-conservative |
+| `34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381` | Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market. | discovery-only source suppressed |
 | `3430990175a042a15b32ecbab9f142e149a53f1bb36bf8237c56747a4a163f39` | Most women defend themselves. It is the female of the species - it is the tigress and lioness in you - which tends to defend when attacked. | discovery-only source suppressed |
 | `34372b4bc6ba46c34b4943069658ff7c1a605a71f095e2d4386dff93cf072152` | What Britain needs is an iron lady. | discovery-only source suppressed |
 | `343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d` | It is mankind and his activities which are changing the environment of our planet in damaging and dangerous ways. | discovery-only source suppressed |
@@ -349,7 +349,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `80bfb8b6d1d7edc4af384bbf90aee9d3b44dc1b6c623ff237feb520724f54c4c` | The freedom we take for granted today was created and upheld by the English speaking peoples. These are the real, practical advantages that… | discovery-only source suppressed; verification wording made source-conservative |
 | `80f94e530bec27ef15ea0049892cc3a5b26f80c378c6c2f8bb566aa221f1ec59` | The two totalitarian systems which we in Britain had to fight - Nazism and Communism - two socialist tyrannies, let's remember - represente… | discovery-only source suppressed; verification wording made source-conservative |
 | `810bdf1482be16e82cdde6145f50fd3887026ecde907cbf38a2bdf606e1875e6` | In the inner cities - where youngsters must have a decent education if they are to have a better future - that opportunity is all too often… | discovery-only source suppressed |
-| `8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407` | I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no… | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
+| `8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407` | I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no… | discovery-only source suppressed; verification wording made source-conservative |
 | `81c14e48d945dfadbcc2e54d5e0b2da6194abdafe88511a6c40aeeef05ff384d` | I do not regard society as polarised. Indeed, it is not. The commentators like to try to make it so, but it is not. The greater part of soc… | discovery-only source suppressed; verification wording made source-conservative |
 | `824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af` | When I'm out of politics I'm going to run a business, it'll be called rent-a-spine. | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
 | `8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16` | Politics is the art of making the impossible happen. | discovery-only source suppressed |
@@ -464,7 +464,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1` | I am in politics because of the conflict between good and evil, and I believe that in the end good will triumph. | discovery-only source suppressed; verification wording made source-conservative |
 | `bdf13cf3061695601ea6bef2368dbdec358dfd9eb147d23be43f886e959127ec` | The first and perhaps the most important insight which we Conservatives have is that government can do little that is good and much that is… | discovery-only source suppressed |
 | `be000cd396c5e19e4154b8d54e0db02205a4700294946a86db750ea578d55430` | Democratic nations must try to find ways to starve the terrorist and the hijacker of the oxygen of publicity on which they depend. | discovery-only source suppressed |
-| `beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756` | Let me give you my vision. A man's right to work as he will, to spend what he earns, to own property, to have the State as servant and not… | discovery-only source suppressed; verification wording made source-conservative |
+| `beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756` | Let me give you my vision. A man's right to work as he will, to spend what he earns, to own property, to have the State as servant and not… | discovery-only source suppressed |
 | `bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f` | Conservatives everywhere must go on the counter-offensive against the New Left human rights brigade, and with as much intellectual vigour a… | discovery-only source suppressed; no reliable public source |
 | `bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662` | And what a prize we have to fight for: no less than the chance to banish from our land the dark divisive clouds of Marxist socialism. | discovery-only source suppressed |
 | `c03ace3ba53344857a05296564bcfddc1946ddbcbd2b3084bbf60ba80cd3e323` | Choice is the essence of ethics. If there were no choice there would be no ethics, no good, no evil. Good and evil only have meaning in so… | discovery-only source suppressed |
@@ -642,7 +642,6 @@ These records remain in the 610-quotation posting population. This list concerns
 | `2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1` | Experience has shown the failure of two fundamental Socialist arguments: that nationalisation is justified because it makes economic power… | variant | high | medium |
 | `2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2` | The right hon. Gentleman is afraid of an election is he? Oh, if I were going to cut and run I'd have gone after the Falklands. Afraid? Frig… | variant | high | medium |
 | `313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a` | It is well known that the advocates of European federalism have never lacked access to funding. Not so those who seek to preserve British s… | unverified | medium | medium |
-| `34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381` | Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market. | exact | high | medium |
 | `3b18341dc7b18590d6c9a443e901e26ca6a5f09aa459b8e8bbd75e55bdbf8351` | My policies are based not on some economics theory, but on things I and millions like me were brought up with: an honest day's work for an… | exact | medium | medium |
 | `3dd04269c7014b5ab25d7fc9d7b2ea5195ed1e8a2b2c44278ed5cad73486a2d5` | It is not our policy to suppress success. | exact | unknown | unknown |
 | `3ec9ed7c0f35b414ee6570182d1e65874cc7f5c659cdb31ecdbf8fe3ee492319` | The Conservative Party understands the individual, because it believes in him, and in his potential provided he is allowed to be his own ma… | unverified | unknown | unknown |
@@ -707,7 +706,7 @@ These records remain in the 610-quotation posting population. This list concerns
 | `7fc6d2da4b0307b6adbcd9b44aa0b9714655d9a0879ac76158caa26e12381bc2` | It is always important in matters of high politics to know what you do not know. Those who think that they know, but are mistaken, and act… | variant | unknown | unknown |
 | `80bfb8b6d1d7edc4af384bbf90aee9d3b44dc1b6c623ff237feb520724f54c4c` | The freedom we take for granted today was created and upheld by the English speaking peoples. These are the real, practical advantages that… | exact | high | medium |
 | `80f94e530bec27ef15ea0049892cc3a5b26f80c378c6c2f8bb566aa221f1ec59` | The two totalitarian systems which we in Britain had to fight - Nazism and Communism - two socialist tyrannies, let's remember - represente… | exact | high | medium |
-| `8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407` | I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no… | variant | unknown | unknown |
+| `8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407` | I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no… | variant | low | low |
 | `81c14e48d945dfadbcc2e54d5e0b2da6194abdafe88511a6c40aeeef05ff384d` | I do not regard society as polarised. Indeed, it is not. The commentators like to try to make it so, but it is not. The greater part of soc… | exact | high | medium |
 | `824439e38ce85afa03c44fdee8ce1845235937862c05610fc5636db8767546af` | When I'm out of politics I'm going to run a business, it'll be called rent-a-spine. | exact | unknown | unknown |
 | `8584b7bae61545528f8d5b37452944aeca9cc8016d3e99df67e6231bcae69172` | I shall never stop fighting. I mean this country to survive, to prosper and to be free... I haven't fought the destructive forces of social… | excerpt | unknown | unknown |
@@ -757,7 +756,6 @@ These records remain in the 610-quotation posting population. This list concerns
 | `b829e9436d9050c6fd8e99346706bd4460d3a80feeaf4041d61d3e7fd0a92c18` | Concepts like truth and falsehood, beauty and ugliness, civilization and barbarism have been de-constructed to give way to judgements based… | exact | high | medium |
 | `bbef6a7437faac76049e2e2dd3b1a604990bf6ce820c7e27a25b8540da8772be` | Britain is not just another country. We are the country which has always stood at the forefront in defence of freedom. We are the country w… | variant | unknown | unknown |
 | `bd0a36b2007a17e5bc60d6104427e2b03f138bd0ebf8230f4abb07e6fa3b4ac1` | I am in politics because of the conflict between good and evil, and I believe that in the end good will triumph. | exact | medium | medium |
-| `beefe96a0cd1204c79b2da4a8ed9fabe02dd07f9624a8ef0a6954e24b436f756` | Let me give you my vision. A man's right to work as he will, to spend what he earns, to own property, to have the State as servant and not… | normalised | high | medium |
 | `bf7b29c68ebee5c40813db3cb6970b29e4c6cb2ef06f80cea782cf2a6c07362f` | Conservatives everywhere must go on the counter-offensive against the New Left human rights brigade, and with as much intellectual vigour a… | unverified | unknown | unknown |
 | `c0c20416dce3033550ca0fc32b1a21b5302986c4595379da090002c38f6aac57` | We must match imagination with realism and not so lull people into a sense of euphoria that they come to question the very need for NATO. | unverified | unknown | unknown |
 | `c0db67b6bec353f4bb347372df011d499bd337d76513f4f5de4a223f3ff99247` | During my lifetime most of the problems the world has faced have come, in one fashion or other, from mainland Europe, and the solutions fro… | exact | unknown | unknown |
@@ -823,7 +821,7 @@ These records remain in the 610-quotation posting population. This list concerns
 ## Migration and preservation
 
 - Audit sidecar: `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
-- Audit SHA-256: `ebab8591365d341b9968a6964d3b33b98d9de5a51eab1c29268d6206eb5dfa5c`
+- Audit SHA-256: `97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908`
 - Eligible-ID set SHA-256 before: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Eligible-ID set SHA-256 after: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Raw `research_packets.json`, `grounding_sources.json`, manifest and provider history were not rewritten.
@@ -870,6 +868,7 @@ These records remain in the 610-quotation posting population. This list concerns
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_research.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json`
+- `semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json`
 - `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
 - `semantic_alignment_research/historical_context_source_audit_001` (cost ledgers, raw provider audit responses, and aggregate research outputs)
 - `semantic_alignment_research/historical_context_source_audit_001/source_snapshot_manifest.json`

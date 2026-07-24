@@ -195,8 +195,8 @@ def build_audit(
         "blocked_quotes_have_reviewed_dispositions": (
             disposition_counts
             == Counter({
-                "future_correction_needed": 20,
-                "insufficient_to_assess": 4,
+                "future_correction_needed": 8,
+                "insufficient_to_assess": 10,
             })
         ),
         "blocked_quotes_have_inspectable_pre_gate_renderings": (

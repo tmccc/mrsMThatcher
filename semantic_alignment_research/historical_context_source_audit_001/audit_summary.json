@@ -1,27 +1,27 @@
 {
-  "additional_virtual_locator_source_count": 278,
+  "additional_virtual_locator_source_count": 279,
   "all_evidentiary_source_quality_counts": {
     "broken_or_non_verifying_url": 89,
     "circular_attribution": 246,
     "discovery_lead_only": 1036,
-    "insufficiently_located_evidence": 1053,
+    "insufficiently_located_evidence": 1055,
     "irrelevant_or_corrupt": 38,
     "reliable_secondary_evidence": 36,
     "secondary_recollection": 5,
-    "strong_primary_evidence": 874
+    "strong_primary_evidence": 885
   },
-  "all_evidentiary_source_record_count": 3377,
-  "all_evidentiary_source_role_assignment_count": 4392,
+  "all_evidentiary_source_record_count": 3390,
+  "all_evidentiary_source_role_assignment_count": 4417,
   "all_evidentiary_source_role_counts": {
-    "attribution_support": 874,
-    "discovery_only": 2335,
+    "attribution_support": 885,
+    "discovery_only": 2337,
     "rejected_irrelevant": 127,
     "secondary_recollection": 5,
-    "source_event_support": 228,
-    "wording_verification": 823
+    "source_event_support": 229,
+    "wording_verification": 834
   },
-  "audit_sha256": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
-  "audited_source_record_count": 3099,
+  "audit_sha256": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+  "audited_source_record_count": 3111,
   "changed_quote_ids": [
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
     "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
@@ -517,10 +517,10 @@
     "source_role_counts": "Overlapping claim roles for observed source records; one source may contribute more than one role assignment."
   },
   "curated_source_adjudication_count": 1,
-  "curated_source_count": 2,
+  "curated_source_count": 14,
   "curated_source_quality_counts": {
     "secondary_recollection": 1,
-    "strong_primary_evidence": 1
+    "strong_primary_evidence": 13
   },
   "eligible_quote_count": 610,
   "gemini_researched_source_count": 1,
@@ -528,18 +528,18 @@
     "reliable_secondary_evidence": 1
   },
   "headline_observed_source_disposition_counts": {
-    "accepted_evidence": 637,
-    "discovery_or_insufficient": 2089,
+    "accepted_evidence": 647,
+    "discovery_or_insufficient": 2091,
     "rejected_or_non_verifying": 373,
-    "total": 3099
+    "total": 3111
   },
   "headline_observed_source_provenance_counts": {
     "ai_located_independently_reviewed_sources": 34,
     "model_proposed_source_leads": 790,
-    "operator_curated_sources": 2,
+    "operator_curated_sources": 14,
     "physical_packet_sources": 2017,
     "recovered_citation_sources": 256,
-    "total": 3099
+    "total": 3111
   },
   "model_proposed_lead_quality_counts": {
     "discovery_lead_only": 789,
@@ -663,17 +663,17 @@
     "strong_primary_evidence": 26
   },
   "packet_count": 626,
-  "packets_requiring_new_historical_research": 219,
+  "packets_requiring_new_historical_research": 218,
   "packets_whose_public_output_changes": 484,
   "packets_with_no_reliable_source": 107,
   "physical_source_quality_counts": {
     "broken_or_non_verifying_url": 89,
     "circular_attribution": 244,
     "discovery_lead_only": 173,
-    "insufficiently_located_evidence": 1019,
+    "insufficiently_located_evidence": 1021,
     "irrelevant_or_corrupt": 37,
     "reliable_secondary_evidence": 11,
-    "strong_primary_evidence": 444
+    "strong_primary_evidence": 442
   },
   "recovered_citation_source_count": 256,
   "recovered_source_quality_counts": {
@@ -726,7 +726,6 @@
     "2e651c6188d03434522b5efd70d19bb1c6f80b556f0fb7d194813699100e37e1",
     "2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2",
     "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a",
-    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
     "3b18341dc7b18590d6c9a443e901e26ca6a5f09aa459b8e8bbd75e55bdbf8351",
     "3dd04269c7014b5ab25d7fc9d7b2ea5195ed1e8a2b2c44278ed5cad73486a2d5",
     "3ec9ed7c0f35b414ee6570182d1e65874cc7f5c659cdb31ecdbf8fe3ee492319",
@@ -910,21 +909,21 @@
     "broken_or_non_verifying_url": 89,
     "circular_attribution": 246,
     "discovery_lead_only": 1036,
-    "insufficiently_located_evidence": 1053,
+    "insufficiently_located_evidence": 1055,
     "irrelevant_or_corrupt": 38,
     "reliable_secondary_evidence": 17,
     "secondary_recollection": 2,
-    "strong_primary_evidence": 618
+    "strong_primary_evidence": 628
   },
-  "source_role_assignment_count": 3686,
+  "source_role_assignment_count": 3716,
   "source_role_counts": {
-    "attribution_support": 596,
-    "discovery_only": 2335,
+    "attribution_support": 606,
+    "discovery_only": 2337,
     "rejected_irrelevant": 127,
     "secondary_recollection": 2,
-    "source_event_support": 71,
-    "wording_verification": 555
+    "source_event_support": 79,
+    "wording_verification": 565
   },
   "unresolved_quote_count": 6,
-  "virtual_locator_source_count": 278
+  "virtual_locator_source_count": 279
 }

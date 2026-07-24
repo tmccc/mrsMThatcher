@@ -52,11 +52,11 @@ INTERNAL_COLLECTIONS = (
 IMMUTABLE_HASHES = {
     ROOT / "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    RESEARCH / "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611",
+    RESEARCH / "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
+    RESEARCH / "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
-    RESEARCH / "final_unresolved/final_research_status.json": "2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f",
+    RESEARCH / "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
 }
 
 
@@ -828,8 +828,8 @@ def test_possible_same_mtf_document_warning_corpus_count_is_stable(corpus):
         if row["kind"] == "possible_same_mtf_document_identity_unresolved"
     ]
 
-    assert len(warnings) == 28
-    assert len({quote_id for quote_id, _row in warnings}) == 28
+    assert len(warnings) == 25
+    assert len({quote_id for quote_id, _row in warnings}) == 25
 
 
 def test_lead_bridge_rejects_conflicting_dates_and_same_path_different_hash(corpus):
@@ -1244,7 +1244,7 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
     assert len(corpus[0]) == 626
     assert len(corpus[1]) == 6
     assert eligible == 610
-    assert source_distribution == Counter({0: 107, 1: 476, 2: 42, 3: 1})
+    assert source_distribution == Counter({0: 107, 1: 479, 2: 39, 3: 1})
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1388,9 +1388,9 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
     assert all(written["invariants"]["checks"].values())
     assert written["before_deduplication"][
         "duplicate_canonical_identity_group_count"
-    ] == 27
+    ] == 36
     assert written["after_deduplication"] == {
-        "public_source_record_count": 563,
+        "public_source_record_count": 560,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,

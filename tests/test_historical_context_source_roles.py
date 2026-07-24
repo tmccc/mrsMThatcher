@@ -299,6 +299,76 @@ def test_curated_evidence_is_identity_bound_and_fails_closed(
         validate_curated_evidence(altered_adjudication, packets)
 
 
+def test_targeted_curated_sources_preserve_publisher_and_archive_transport(
+    corpus,
+):
+    packets, _unresolved = corpus
+    mtf_ids = {
+        "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+        "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+        "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+        "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+        "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+        "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+        "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+        "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+        "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+        "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+        "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+    }
+    for quote_id in mtf_ids:
+        source = packets[quote_id]["_source_role_audit"]["curated_sources"][0]
+        assert source["source_publisher"] == "Margaret Thatcher Foundation"
+        assert source["retrieval_archive"] == "Internet Archive Wayback Machine"
+        assert source["canonical_url"].startswith(
+            "https://www.margaretthatcher.org/document/"
+        )
+        assert source["public_url"] == source["canonical_url"]
+        assert source["transport_url"].startswith(
+            "https://web.archive.org/web/"
+        )
+        assert source["fetch_policy_version"].endswith("-v5")
+        assert len(source["page_sha256"]) == 64
+        assert len(source["page_text_sha256"]) == 64
+        assert len(source["date"]) == 10
+        assert source["source_date_raw"]
+        assert source["supporting_context"]
+        assert len(source["supporting_context_sha256"]) == 64
+
+    hansard = packets[
+        "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997"
+    ]["_source_role_audit"]["curated_sources"][0]
+    assert hansard["source_publisher"] == "UK Parliament"
+    assert "retrieval_archive" not in hansard
+    assert hansard["public_url"] == hansard["canonical_url"]
+
+
+def test_targeted_excerpt_and_variant_statuses_are_publicly_distinct(corpus):
+    packets, _unresolved = corpus
+    hayek = packets[
+        "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997"
+    ]
+    lord_mayor = packets[
+        "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
+    ]
+    callaghan = packets[
+        "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374"
+    ]
+
+    assert hayek["verification_status"] == "excerpt"
+    assert lord_mayor["verification_status"] == "excerpt"
+    assert callaghan["verification_status"] == "variant"
+    assert hayek["_source_role_audit"]["public_verification_wording"] == (
+        "Verified excerpt"
+    )
+    assert lord_mayor["_source_role_audit"]["public_verification_wording"] == (
+        "Verified excerpt"
+    )
+    assert callaghan["_source_role_audit"]["public_verification_wording"] == (
+        "Historically verified variant"
+    )
+
+
 def test_headline_source_counts_are_mutually_exclusive_and_balanced(audit):
     summary = audit["summary"]
     provenance = summary["headline_observed_source_provenance_counts"]

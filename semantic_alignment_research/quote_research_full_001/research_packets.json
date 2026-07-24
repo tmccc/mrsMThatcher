@@ -9321,7 +9321,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Speech in Bombay",
+      "stable_locator": "Margaret Thatcher Foundation document 108338",
       "text_variation_notes": "The original transcript includes a space before the colon. An earlier 1993 speech in Bangkok used the slight variation 'in the state' instead of 'in a state'.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
@@ -10264,7 +10264,7 @@
       "recovered_via_paid_retry_validation": true,
       "research_confidence": "high",
       "retry_run": "retry_batches/retry_batch_030_004_run",
-      "source_event": "Interview for the Financial Times",
+      "source_event": "Interview for Financial Times",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -10303,7 +10303,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive",
+      "stable_locator": "Margaret Thatcher Foundation document 105508",
       "text_variation_notes": "The uploaded quotation is an exact match to the published transcript of the interview.",
       "transport": "developer_api",
       "unresolved_questions": [
@@ -11426,7 +11426,7 @@
       "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
       "quote_text": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry.",
       "research_confidence": "high",
-      "source_event": "Interview with a journalist (Lewis)",
+      "source_event": "Interview for Birmingham Post",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -11446,7 +11446,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Interview transcript, October 25, 1984",
+      "stable_locator": "Margaret Thatcher Foundation document 105774",
       "text_variation_notes": "The uploaded text matches the historical transcript exactly.",
       "transport": "vertex_ai",
       "unresolved_questions": [
@@ -17262,7 +17262,7 @@
       "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
       "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
       "research_confidence": "high",
-      "source_event": "Speech to Chilean businessmen in Santiago, Chile",
+      "source_event": "Speech in Santiago (\"Challenges of the 21st Century\")",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -17290,7 +17290,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, THCR (March 21, 1994)",
+      "stable_locator": "Margaret Thatcher Foundation document 108331",
       "text_variation_notes": "The quotation is exact and appears verbatim in her prepared remarks for multiple speeches in March 1994.",
       "transport": "vertex_ai",
       "unresolved_questions": [
@@ -19164,7 +19164,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Document 106498",
+      "stable_locator": "Margaret Thatcher Foundation document 106498",
       "text_variation_notes": "Often cited as part of the broader passage: 'Our opponents would have us believe that all problems can be solved by State intervention. But Governments should not run business.'",
       "transport": "vertex_ai",
       "unresolved_questions": [],
@@ -21210,7 +21210,7 @@
       "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
       "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
       "research_confidence": "high",
-      "source_event": "Speech to the Zurich Economic Society ('The New Renaissance')",
+      "source_event": "Speech to Zurich Economic Society (\"The New Renaissance\")",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -21226,8 +21226,8 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Document 103336",
-      "text_variation_notes": "The original transcript contains a typographical error ('the the progressives'), which is commonly corrected to 'that the progressives' in reproductions. Punctuation is also frequently normalised from em-dashes to hyphens.",
+      "stable_locator": "Margaret Thatcher Foundation document 103336",
+      "text_variation_notes": "The MTF transcript reads 'Britain the the progressives'; the stored quotation regularises this apparent source/transcription error to 'Britain that the progressives'. Dash typography is also normalised.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
@@ -31944,13 +31944,13 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Hansard, House of Commons Debates, 10 March 1981",
-      "text_variation_notes": "The uploaded quote uses hyphens instead of the em-dashes found in the official Hansard transcript, but the wording is otherwise identical.",
+      "stable_locator": "HC Deb 10 March 1981 vol 1000 c756",
+      "text_variation_notes": "The stored quotation is a contiguous excerpt: it omits the preceding clause and the connective 'but'. Dash typography and ordinary spacing are normalised.",
       "transport": "developer_api",
       "unresolved_questions": [],
       "validation_status": "valid",
-      "verification_status": "exact",
-      "verified_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme—\"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\"—and would be well read by almost every hon. Member."
+      "verification_status": "excerpt",
+      "verified_text": "I did not see the broadcast, as I was in my constituency, but I am a great admirer of Professor Hayek. Some of his books are absolutely supreme—\"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\"—and would be well read by almost every hon. Member."
     },
     "9f1326d3fca3fff3629b03a4abce589c5cf3bc7eeb6599e0e2a8f46cd289f016": {
       "broader_principle": "Fiscal responsibility and the inherent limits of state intervention in generating economic prosperity.",
@@ -34563,7 +34563,7 @@
       "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
       "quote_text": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them.",
       "research_confidence": "high",
-      "source_event": "Lecture at the Institute of United States Studies",
+      "source_event": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -34585,7 +34585,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation archive, Speech to the Institute of United States Studies, September 24, 1996.",
+      "stable_locator": "Margaret Thatcher Foundation document 108364",
       "text_variation_notes": "The quotation is accurate as recorded in the Margaret Thatcher Foundation archives and contemporary press reports.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
@@ -35994,7 +35994,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Speech to Polish Senate, October 3, 1991",
+      "stable_locator": "Margaret Thatcher Foundation document 108285",
       "text_variation_notes": "The quotation is exact and appears verbatim in the official transcript of her speech.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
@@ -43398,7 +43398,7 @@
       "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
       "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
       "research_confidence": "high",
-      "source_event": "Speech at the Lord Mayor's Banquet",
+      "source_event": "Speech at Lord Mayor's Banquet",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -43430,8 +43430,8 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation Archive, Document 105484",
-      "text_variation_notes": "The uploaded quote omits the introductory conjunction 'But' from the original speech transcript.",
+      "stable_locator": "Margaret Thatcher Foundation document 105472",
+      "text_variation_notes": "The stored quotation is a contiguous excerpt which omits the source's leading connective 'But'.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "verification_status": "excerpt",
@@ -44073,12 +44073,12 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Hansard, HC Deb 24 November 1976 vol 921 cc18-31",
-      "text_variation_notes": "The uploaded quote includes the bracketed insertion '[James Callaghan]' for clarity, which is not in the original Hansard transcript.",
+      "stable_locator": "Margaret Thatcher Foundation document 103146",
+      "text_variation_notes": "The stored quotation adds the editorial identification '[James Callaghan]' after 'The Prime Minister'; it is absent from Thatcher's spoken words.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
-      "verification_status": "exact",
+      "verification_status": "variant",
       "verified_text": "The Prime Minister has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty."
     },
     "de2724534055f3ec826ed3f1b9f41bd05a3c555b01bac2b05ee9c7d2ed6a263d": {
@@ -44890,7 +44890,7 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Margaret Thatcher Foundation archive, Speech in Bermuda (August 7, 2001)",
+      "stable_locator": "Margaret Thatcher Foundation document 109301",
       "text_variation_notes": "The quote is accurate as recorded in the Margaret Thatcher Foundation archives.",
       "transport": "vertex_ai",
       "unresolved_questions": [

@@ -1,7 +1,147 @@
 {
-  "correction_count": 1,
+  "correction_count": 11,
   "created_at": "2026-07-22",
   "items": {
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
+      "corrected_value": "Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.",
+      "corrected_value_sha256": "261d14361f24e162d72ea0ea836aae824e529dd8cae9fcd75970b53fe18c3473",
+      "correction_id": "ea77776cfb6e77ddd9f1df226fa26ab53b3351657c4dcae608573f6cbcf329e0",
+      "evidence_source_ids": [
+        "533581255159eecd991e9cec1c6d9834607cec63ac27c55bd2a39e70d3c8c3fe"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "8364044ab9f61da902439a930a624ea5ddea6979efe211ae284e72bc929cd70f",
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text_sha256": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "rationale": "The previous Meaning added compromise, political-opponent and populist-distraction claims. The replacement stays within the inspected interview's statement about clear objectives, conviction and resisting diverting pressures.",
+      "reviewed_at": "2026-07-23"
+    },
+    "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631": {
+      "corrected_value": "Thatcher defined ‘true trade unionists’ as focused on workers' fair treatment and the prosperity of their industry rather than politics.",
+      "corrected_value_sha256": "7acf953ba78ac5618ac572f2c8095bc52b5ffeedcbdab3721361d04a42241b7c",
+      "correction_id": "531f30324b92ae04f8de9b863b0bd3551e486109277d4782eacd3cfcbfbba5d3",
+      "evidence_source_ids": [
+        "9b1049a3bfa9cb04a594b7f6d271844960b8e1e8480f86566c7a4342fe2dba69"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "9cf1563a65638c71e5ff177e7dc364042612f91cc748cec8fd8658739f3f0cba",
+      "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "quote_text_sha256": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "rationale": "The previous Meaning narrowed Thatcher's unqualified reference to 'politics' into a specifically left-wing agenda. The replacement preserves her stated contrast with workers' fair treatment and a prosperous industry.",
+      "reviewed_at": "2026-07-23"
+    },
+    "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5": {
+      "corrected_value": "Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.",
+      "corrected_value_sha256": "b062b4780bb2887283668d093bb2dc12eb6c5da9b8396f5c204a2cd86903d7c8",
+      "correction_id": "3b67e36efde5be646cb14be273c3913364e77230d8c86eb3952bf06899b079a4",
+      "evidence_source_ids": [
+        "747547e744b7a4dd0b806df5d5ecd2f024c5e1761bd53d909b936fd7f80ef25a"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "8304e0dbe26023561c76fa2ccbfaa467cc6e265a8878adb3785417cf148ff581",
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "quote_text_sha256": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "rationale": "The previous Meaning added inherent private-sector superiority. The replacement states only the inspected passage's accountability claim: state planners do not bear their mistakes and taxpayers pay.",
+      "reviewed_at": "2026-07-23"
+    },
+    "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": {
+      "corrected_value": "Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.",
+      "corrected_value_sha256": "7c2e03f952e184119b535d3ef797d40abc59f5b94970b1b696da53d8d2f85f81",
+      "correction_id": "0096a873433cd7b197395df5c94e99bf27889d4378101aaa2e0bd2b9e351e347",
+      "evidence_source_ids": [
+        "b47efc5466e47fc26b182d9b5884fdc19b2ffe87d26fb609ee5d61c8831d532e"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "6f2727db557f5c009d13f13d1869dfb04dca726f119bedd8e67ec5491214370d",
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "quote_text_sha256": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "rationale": "The previous Meaning strengthened adverse results into ultimate destruction. The replacement preserves the speech's stated link between expanded socialism, penal taxation and adverse economic effects.",
+      "reviewed_at": "2026-07-23"
+    },
+    "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997": {
+      "corrected_value": "Thatcher praised two of Hayek's works and recommended them to almost every Member of Parliament.",
+      "corrected_value_sha256": "a1efb953eb97ae5340b053dda68ab4198435c6120f1a7893084eeed477aeaac0",
+      "correction_id": "2c19a8487ca914262980519f33ceddfcbb0ad13898c591dd0ba6fe0f32168427",
+      "evidence_source_ids": [
+        "62c3318f33a63fac11b27a34fdf3aaab74801fa7e5516493282e40575ca82ce5"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "5d93287fbe9aa7d051ff8298c41cacf7a9cee897d6b5301eabf55a498d797f53",
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "quote_text_sha256": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "rationale": "The previous Meaning generalised praise and a recommendation of two books into an endorsement of Hayek's philosophy and specified arguments. The replacement stays within the inspected Hansard passage.",
+      "reviewed_at": "2026-07-23"
+    },
+    "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc": {
+      "corrected_value": "Thatcher linked political correctness to the recurring impulse of tyrants to control what people read and therefore what they think.",
+      "corrected_value_sha256": "bc821bbf61f0e1df021ba9cda28f81aabc0ee47acbe2b1b827c557507c82df1b",
+      "correction_id": "1b2b0df03a0a04edc4678af4f7b45ac4f50a6f6745c9228686604fe9138dfdb7",
+      "evidence_source_ids": [
+        "96f0aad16a4a0e81711b66901c32d1278de5dfccc058ec40379963957a9ebf45"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "284c62fea248dc10496b06190fe0c2b5cc97f02a3c0f09e4e5869870c0c06e29",
+      "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "quote_text_sha256": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "rationale": "The previous Meaning converted a comparison with tyrants into a categorical claim about political correctness's design. The replacement preserves the passage's actual comparison and causal sequence.",
+      "reviewed_at": "2026-07-23"
+    },
+    "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd": {
+      "corrected_value": "In a speech to the Polish Senate, Thatcher argued that capitalism alone can mobilise individual talents, contrasting it with communist collectivism.",
+      "corrected_value_sha256": "240b4c7566e4145f08ad25230c57a8fabbd97b0a131788c6d4d350dda30c2fa6",
+      "correction_id": "13b8b9b29a30ef3de3fad8365ebd9d4e195cafa392a81077c8b6b3614a0f1a11",
+      "evidence_source_ids": [
+        "36a99bfc90aaeeafab6187948e15e0ec27bd1afa7c337ed947d300b0f2c37642"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "f5658dc4244226f571b85ad5985d07cf21193d7616ef974d7e3b0d7309852c84",
+      "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "quote_text_sha256": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "rationale": "The previous Meaning universalised a Polish communist example into inevitable failure of all state-run systems. The replacement retains the speech's direct capitalism claim and its immediate comparison.",
+      "reviewed_at": "2026-07-23"
+    },
+    "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9": {
+      "corrected_value": "Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.",
+      "corrected_value_sha256": "b3f36c777f04a36fe3bb94c05392338a984e7516676a12f47b88c6164c7c9416",
+      "correction_id": "1e386b91bb5d86924226a30b9c6519f40558c1b748d6261b969b9feb047237e0",
+      "evidence_source_ids": [
+        "987577ec33faba36e5b9b8d29017f8147f610d59c704dd83a37962cd6e98b41c"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "22034b73d4a00e3564a5a3a1ef54edbf2bf569be89dfadf96d73a9706d6730ed",
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_text_sha256": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "rationale": "The previous Meaning added a broad post-war-consensus and productivity interpretation. The replacement stays within the inspected primary passage's claim about state provision and individual effort.",
+      "reviewed_at": "2026-07-23"
+    },
+    "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374": {
+      "corrected_value": "Thatcher argued that putting liberty first would preserve liberty and produce fewer inequalities than putting equality first while neglecting liberty.",
+      "corrected_value_sha256": "8ac4b6a9dcdacb21412617ce763efd2861b44c1e5870bab9ed34dfa2e602d762",
+      "correction_id": "b0d2d1ec59be39df82f1c4d1bf8fe4c00b7435f5ccbc959010045579ae867ce2",
+      "evidence_source_ids": [
+        "4dfe739d72f75cb344839e209ac37d8b3f674f801e15946fc33939060a6e70b1"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "8c0b4601611593d4b9929efccadd3c58049be2108d48fc855cb85a65c2c7f0d4",
+      "quote_id": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text_sha256": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "rationale": "The previous Meaning said equality-first destroys both equality and liberty, which the passage does not say. The replacement preserves Thatcher's stated comparison while retaining the editorial name in the quotation corpus.",
+      "reviewed_at": "2026-07-23"
+    },
+    "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09": {
+      "corrected_value": "Thatcher said communism ruled through terror, brought neither dignity nor prosperity, and collapsed under the weight of its own failure.",
+      "corrected_value_sha256": "3470f1162579083ffe3c1797b385c805be858921ce2129570b1afe50dc69d522",
+      "correction_id": "fdf1b8faf60a0eddac87e6a6cdf86184b01fcf40b9ac79293b5702380f77b40a",
+      "evidence_source_ids": [
+        "b746f965044f03f8f463f713048dbda4d574eb2e6e9024400e7d34314ec867d8"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "1ef90c0da4a42eb6891f581353eb909af853659ac0e40675f974da3fc147f484",
+      "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "quote_text_sha256": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "rationale": "The previous Meaning added inevitability. The replacement follows the inspected speech's three stated propositions: terror, lack of dignity and prosperity, and collapse under the weight of failure.",
+      "reviewed_at": "2026-07-23"
+    },
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18": {
       "corrected_value": "Thatcher argued that socialism shares some aims with Marxism and that pursuing those aims subordinates individual rights to political doctrine.",
       "corrected_value_sha256": "c37924ab4aefd94b3dbe7b6a25b97d9ad75780e739deabda409de3ced17c299b",

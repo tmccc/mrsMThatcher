@@ -92,26 +92,26 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert summary["render_failure_count"] == 0
     assert summary["item_blocker_count"] == 0
     assert summary["source_distribution"] == {
-        "0": 107, "1": 476, "2": 42, "3": 1,
+        "0": 107, "1": 479, "2": 39, "3": 1,
     }
-    assert summary["packets_with_source_merges"] == 243
-    assert summary["merged_internal_source_record_count"] == 352
-    assert summary["identity_ambiguity_count"] == 68
-    assert summary["packets_with_identity_ambiguities"] == 54
+    assert summary["packets_with_source_merges"] == 246
+    assert summary["merged_internal_source_record_count"] == 366
+    assert summary["identity_ambiguity_count"] == 66
+    assert summary["packets_with_identity_ambiguities"] == 52
     assert summary["packets_with_no_reliable_source"] == 107
     assert summary["eligible_packets_with_no_reliable_source"] == 96
-    assert summary["packets_with_multiple_public_sources"] == 43
-    assert summary["packets_with_generic_context_and_public_source"] == 360
+    assert summary["packets_with_multiple_public_sources"] == 40
+    assert summary["packets_with_generic_context_and_public_source"] == 355
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
     ] == 0
-    assert summary["packets_with_generic_context_and_exact_verification"] == 148
+    assert summary["packets_with_generic_context_and_exact_verification"] == 146
     assert summary["duplicate_full_public_reply_group_count"] == 1
-    assert summary["packets_with_urlless_public_sources"] == 165
-    assert summary["urlless_public_source_entry_count"] == 165
-    assert summary["packets_with_generic_mtf_document_titles"] == 186
-    assert summary["generic_mtf_document_title_entry_count"] == 190
-    assert summary["packets_with_reused_identity_display_variants"] == 207
+    assert summary["packets_with_urlless_public_sources"] == 158
+    assert summary["urlless_public_source_entry_count"] == 158
+    assert summary["packets_with_generic_mtf_document_titles"] == 180
+    assert summary["generic_mtf_document_title_entry_count"] == 184
+    assert summary["packets_with_reused_identity_display_variants"] == 221
     assert summary["editorial_queue_category_count"] == 9
     assert summary["url_like_public_title_count"] == 0
     assert summary["mtf_page_title_chrome_count"] == 0

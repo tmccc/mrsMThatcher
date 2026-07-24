@@ -46,7 +46,7 @@ from historical_context_source_curated_evidence import (
 
 AUDIT_SCHEMA_VERSION = 5
 POLICY_VERSION = (
-    "historical-context-source-roles-v8-claim-specific-public-context"
+    "historical-context-source-roles-v9-archive-provenance"
 )
 AUDIT_FILENAME = "historical_context_source_role_audit.json"
 
@@ -1171,14 +1171,23 @@ def audit_packet(
             "claim_coverage": {
                 "wording": (
                     "normalised"
-                    if source["wording_match_kind"] == "historical_variant"
+                    if source["wording_match_kind"]
+                    in {"historical_variant", "excerpt"}
                     else source["wording_match_kind"]
                 )
             },
             "action": "keep",
             "confidence_before": _clean(packet.get("research_confidence")),
             "supporting_passages": [{
-                "kind": "operator_supplied_book_passage",
+                "kind": (
+                    "independently_reviewed_archival_passage"
+                    if source.get("evidence_origin")
+                    == "independently_reviewed_archival_retrieval"
+                    else "independently_reviewed_public_source_passage"
+                    if source.get("evidence_origin")
+                    == "independently_reviewed_public_retrieval"
+                    else "operator_supplied_book_passage"
+                ),
                 "text": source["exact_supporting_passage"],
                 "sha256": source["exact_supporting_passage_sha256"],
             }],
@@ -1191,6 +1200,26 @@ def audit_packet(
             "page_independently_inspected": source[
                 "page_independently_inspected"
             ],
+            **{
+                key: source[key]
+                for key in (
+                    "author_or_speaker",
+                    "source_publisher",
+                    "canonical_url",
+                    "retrieval_archive",
+                    "transport_url",
+                    "archive_capture_timestamp",
+                    "archive_capture_digest",
+                    "fetch_policy_version",
+                    "page_sha256",
+                    "page_text_sha256",
+                    "source_date_raw",
+                    "date",
+                    "supporting_context",
+                    "supporting_context_sha256",
+                )
+                if key in source
+            },
         }
         for source in (curated_evidence_item or {}).get("sources", [])
     ]

@@ -28,10 +28,16 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
 LEDGER = ROOT / "historical_context_published_reply_semantic_review.json"
 OPEN_FUTURE = (
-    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80"
 )
 NEW_POST_BASELINE_FUTURE = (
-    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381"
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
+)
+REMEDIATED_PRIMARY = (
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
+)
+NEW_UNREVIEWED = (
+    "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae"
 )
 OPEN_INSUFFICIENT = (
     "04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550"
@@ -155,7 +161,7 @@ def _install_bot_context(
     return events
 
 
-def test_real_gate_is_hash_bound_and_contains_exact_79_24_20_4_policy():
+def test_real_gate_is_hash_bound_and_contains_exact_85_18_8_10_policy():
     packets, _unresolved = load_and_validate_corpus(
         RESEARCH,
         require_source_role_audit=True,
@@ -175,16 +181,18 @@ def test_real_gate_is_hash_bound_and_contains_exact_79_24_20_4_policy():
     assert gate.reason == ""
     assert gate.ledger_sha256 == EXPECTED_LEDGER_SHA256
     assert gate.projection_sha256 == EXPECTED_PROJECTION_SHA256
-    assert len(gate.blocked_dispositions) == 24
+    assert len(gate.blocked_dispositions) == 18
     assert list(gate.blocked_dispositions.values()).count(
         "future_correction_needed"
-    ) == 20
+    ) == 8
     assert list(gate.blocked_dispositions.values()).count(
         "insufficient_to_assess"
-    ) == 4
+    ) == 10
     assert gate.disposition(OPEN_FUTURE) == "future_correction_needed"
     assert gate.disposition(NEW_POST_BASELINE_FUTURE) == "future_correction_needed"
     assert gate.disposition(OPEN_INSUFFICIENT) == "insufficient_to_assess"
+    assert gate.disposition(NEW_UNREVIEWED) == "insufficient_to_assess"
+    assert gate.blocks(REMEDIATED_PRIMARY) is False
     assert gate.blocks(RESOLVED_104653) is False
     assert len(eligible) == 610
     with pytest.raises(TypeError):

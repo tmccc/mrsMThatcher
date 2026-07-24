@@ -28,13 +28,13 @@
     "manifest": 632,
     "unresolved": 6
   },
-  "generated_at": "2026-07-14T11:29:55.096701Z",
+  "generated_at": "2026-07-23T06:44:09.140336Z",
   "hashes": {
     "corpus_manifest_sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "full_retry_manifest_sha256": "914c21e988228c23cd75c6a2761faf7258f0d936ee91b6b95b73c633a565b325",
     "project_quote_manifest_sha256": "19f9435e4b2dda6f32461051d89d2c944978a30d82d6a1519db061a8e41a1b20",
     "recovery_meta_report_sha256": "2b88285bed529765af53bdbbb0646d65c55d582e7e5882b22c9f8a87f0cb88e0",
-    "research_packets_sha256": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+    "research_packets_sha256": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
   },
   "identity_errors": [],
   "record_kind": "quote_research_corpus_closure_audit",

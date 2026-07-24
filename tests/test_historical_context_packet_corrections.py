@@ -90,11 +90,13 @@ def test_document_104653_correction_changes_only_future_meaning_view(
     assert corrected[QUOTE_ID]["source_event"] == packets[QUOTE_ID]["source_event"]
     assert corrected[QUOTE_ID]["sources"] == packets[QUOTE_ID]["sources"]
     assert set(corrected) == set(packets)
-    assert all(
-        corrected[quote_id] is packet
+    correction_ids = set(corrections["items"])
+    assert correction_ids == {
+        quote_id
         for quote_id, packet in packets.items()
-        if quote_id != QUOTE_ID
-    )
+        if corrected[quote_id] is not packet
+    }
+    assert len(correction_ids) == 11
     assert "inevitably" not in corrected[QUOTE_ID]["intended_argument"]
     assert "inherently" not in corrected[QUOTE_ID]["intended_argument"]
     assert "state power" not in corrected[QUOTE_ID]["intended_argument"]

@@ -1,17 +1,17 @@
 {
   "audit_kind": "historical_context_evidence_truth_triage_audit",
   "counts": {
-    "accepted_and_lead_same_mtf_document_packet_count": 144,
+    "accepted_and_lead_same_mtf_document_packet_count": 143,
     "claim_public_field_finding_kind_counts": {
-      "packet_claim_not_publicly_supported": 1539
+      "packet_claim_not_publicly_supported": 1528
     },
-    "claim_public_field_triage_finding_count": 1539,
+    "claim_public_field_triage_finding_count": 1528,
     "claim_public_field_triage_packet_count": 625,
     "correlation_error_count": 0,
-    "current_context_without_calendar_date_count": 469,
-    "current_generic_context_count": 467,
+    "current_context_without_calendar_date_count": 464,
+    "current_generic_context_count": 462,
     "current_render_failure_count": 0,
-    "eligible_same_document_event_or_date_priority_count": 139,
+    "eligible_same_document_event_or_date_priority_count": 136,
     "invariant_failure_count": 0,
     "meaning_strengthening_indicator_counts": {
       "absolute_scope": 10,
@@ -23,33 +23,33 @@
       "suppression_or_destruction": 34
     },
     "meaning_strengthening_indicator_packet_count": 178,
-    "precise_mtf_identity_packet_count": 435,
-    "published_context_without_calendar_date_count": 19,
-    "published_generic_context_count": 5,
-    "published_meaning_strengthening_indicator_packet_count": 23,
-    "unsupported_claim_decomposition_count": 1539
+    "precise_mtf_identity_packet_count": 437,
+    "published_context_without_calendar_date_count": 22,
+    "published_generic_context_count": 8,
+    "published_meaning_strengthening_indicator_packet_count": 25,
+    "unsupported_claim_decomposition_count": 1528
   },
   "coverage": {
     "attribution_eligible_packet_count": 610,
     "completed_packet_count": 626,
     "completed_quote_ids_sha256": "d6410475d043b3c60ee41b373d3503c3f11ade7b16621d759acba8d1821f349a",
     "current_public_render_record_count": 626,
-    "published_history_entry_count": 79,
-    "published_history_parent_post_ids_sha256": "5c6d20006bbc6cc36b1399ee7436e454c13ff335dbc76a9d66f191a699b22d69",
-    "published_history_quote_ids_sha256": "9a154399306986198a69c1b6dcebc8325a980e05f83689d8d5cdf4c3f0bb11d1",
-    "published_history_unique_quote_count": 79,
-    "published_reply_review_record_count": 79,
+    "published_history_entry_count": 85,
+    "published_history_parent_post_ids_sha256": "22114bb59e5996afe0f605436f4798384d9362749bd8ffd696e597efc8c8f3cc",
+    "published_history_quote_ids_sha256": "44aeb23f58b1ba292df2ccbef4b399f08d8b5d090226853e0b5de6aa355694f6",
+    "published_history_unique_quote_count": 85,
+    "published_reply_review_record_count": 85,
     "unresolved_quote_count": 6
   },
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "historical_context_packet_corrections.json": "d67ba6d18a8914a75fad53d35f66236bc6767e9e08db801469fcac33453dd6ba",
-    "historical_context_reply_history.json": "fc5972169cffed10680c196b41373906a9c2731263d26bb323b2eca03d4c03d6",
-    "historical_context_source_curated_evidence.json": "db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867",
-    "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
+    "historical_context_packet_corrections.json": "7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c",
+    "historical_context_reply_history.json": "d9d6c3e63324eadea67fa8529d021c8e1f60b8b6af122553585767d3a740850e",
+    "historical_context_source_curated_evidence.json": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
+    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
   },
   "interpretation": {
     "automatic_evidence_rewrite_authorised": false,
@@ -935,17 +935,17 @@
         "document_numbers": [
           "106498"
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "published_parent_post_ids": [
           "2079220295857037638"
         ],
         "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
         "quote_text": "Governments should not run business.",
         "source_event": "Speech to Conservative Party Conference, Bournemouth",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
+        "suppressed_event_or_date_fields": []
       },
       {
         "attribution_eligible": true,
@@ -1001,17 +1001,17 @@
         "document_numbers": [
           "103336"
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "published_parent_post_ids": [
           "2077225711396343911"
         ],
         "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
         "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
-        "source_event": "Speech to the Zurich Economic Society ('The New Renaissance')",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
+        "source_event": "Speech to Zurich Economic Society (\"The New Renaissance\")",
+        "suppressed_event_or_date_fields": []
       },
       {
         "attribution_eligible": true,
@@ -1780,7 +1780,9 @@
           "108381"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080069760121733624"
+        ],
         "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
         "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
         "source_event": "Speech to the International Free Enterprise dinner",
@@ -2140,24 +2142,6 @@
         "quote_id": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
         "quote_text": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity.",
         "source_event": "Speech to the Conservative Political Centre Summer School",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
-      },
-      {
-        "attribution_eligible": true,
-        "date": "November 14, 1983",
-        "document_numbers": [
-          "105484"
-        ],
-        "public_context_supported_fields": [],
-        "published_parent_post_ids": [
-          "2079185945149010272"
-        ],
-        "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
-        "source_event": "Speech at the Lord Mayor's Banquet",
         "suppressed_event_or_date_fields": [
           "date",
           "source_event"
@@ -4578,19 +4562,14 @@
         "date": "October 4, 1994",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
         "source_event": "Speech in Bombay, India"
       },
@@ -4821,21 +4800,16 @@
         "date": "August 31, 1984",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
-        "source_event": "Interview for the Financial Times"
+        "source_event": "Interview for Financial Times"
       },
       {
         "attribution_eligible": true,
@@ -5097,7 +5071,7 @@
           "source_event"
         ],
         "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
-        "source_event": "Interview with a journalist (Lewis)"
+        "source_event": "Interview for Birmingham Post"
       },
       {
         "attribution_eligible": true,
@@ -6433,17 +6407,14 @@
           {
             "field": "historical_context",
             "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
-            "kind": "packet_claim_not_publicly_supported"
           }
         ],
         "public_context_supported_fields": [
-          "date"
+          "date",
+          "source_event"
         ],
         "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
-        "source_event": "Speech to Chilean businessmen in Santiago, Chile"
+        "source_event": "Speech in Santiago (\"Challenges of the 21st Century\")"
       },
       {
         "attribution_eligible": true,
@@ -6902,19 +6873,14 @@
         "date": "October 10, 1986",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
         "source_event": "Speech to Conservative Party Conference, Bournemouth"
       },
@@ -7348,21 +7314,16 @@
         "date": "March 14, 1977",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "source_event": "Speech to the Zurich Economic Society ('The New Renaissance')"
+        "source_event": "Speech to Zurich Economic Society (\"The New Renaissance\")"
       },
       {
         "attribution_eligible": true,
@@ -10507,7 +10468,7 @@
           "source_event"
         ],
         "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
-        "source_event": "Lecture at the Institute of United States Studies"
+        "source_event": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies"
       },
       {
         "attribution_eligible": true,
@@ -12585,21 +12546,16 @@
         "date": "November 14, 1983",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "source_event": "Speech at the Lord Mayor's Banquet"
+        "source_event": "Speech at Lord Mayor's Banquet"
       },
       {
         "attribution_eligible": true,
@@ -15312,15 +15268,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "3430990175a042a15b32ecbab9f142e149a53f1bb36bf8237c56747a4a163f39"
       },
       {
@@ -15385,15 +15332,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "37e7a04cad7f1ec91e4204814d7e05be4c31cfc0440a43fa616e11d5c9832d99"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad"
       },
       {
         "attribution_eligible": true,
@@ -16157,15 +16095,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113"
       },
       {
@@ -16302,15 +16231,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7"
       },
       {
         "attribution_eligible": true,
@@ -18200,15 +18120,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
       },
       {
         "attribution_eligible": true,
@@ -20734,15 +20645,20 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Speech in Bombay, India, 4 October 1994.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
         "public_sources": [
           {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
-            "title": "Margaret Thatcher Foundation, Speech in Bombay (Document 108338)",
+            "title": "Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)",
             "url": "https://www.margaretthatcher.org/document/108338"
           }
         ],
@@ -20965,15 +20881,20 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Interview for Financial Times, 31 August 1984.\n\nMeaning — Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
         "public_sources": [
           {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
-            "title": "Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)",
+            "title": "Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)",
             "url": "https://www.margaretthatcher.org/document/105508"
           }
         ],
@@ -21203,16 +21124,8 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Interview with a journalist (Lewis), 25 October 1984.\n\nMeaning — Legitimate trade unionism should focus on the economic well-being of workers and the prosperity of their industry, rather than pursuing left-wing political agendas.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 105774\nhttps://www.margaretthatcher.org/document/105774\n\nSource — Margaret Thatcher Foundation, Interview transcript, 25 October 1984",
+        "public_reply_text": "Context — Interview for Birmingham Post, 25 October 1984.\n\nMeaning — Thatcher defined ‘true trade unionists’ as focused on workers' fair treatment and the prosperity of their industry rather than politics.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)\nhttps://www.margaretthatcher.org/document/105774",
         "public_sources": [
-          {
-            "claims_supported": [
-              "wording",
-              "attribution"
-            ],
-            "title": "Margaret Thatcher Foundation, Document 105774",
-            "url": "https://www.margaretthatcher.org/document/105774"
-          },
           {
             "claims_supported": [
               "wording",
@@ -21220,8 +21133,8 @@
               "source_event",
               "date"
             ],
-            "title": "Margaret Thatcher Foundation, Interview transcript, 25 October 1984",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)",
+            "url": "https://www.margaretthatcher.org/document/105774"
           }
         ],
         "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
@@ -22382,9 +22295,10 @@
       {
         "attribution_eligible": true,
         "public_context_supported_fields": [
-          "date"
+          "date",
+          "source_event"
         ],
-        "public_reply_text": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, THCR (21 March 1994)",
+        "public_reply_text": "Context — Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)\nhttps://www.margaretthatcher.org/document/108331",
         "public_sources": [
           {
             "claims_supported": [
@@ -22398,10 +22312,11 @@
             "claims_supported": [
               "wording",
               "attribution",
+              "source_event",
               "date"
             ],
-            "title": "Margaret Thatcher Foundation, THCR (21 March 1994)",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)",
+            "url": "https://www.margaretthatcher.org/document/108331"
           }
         ],
         "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
@@ -22769,15 +22684,20 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 106498\nhttps://www.margaretthatcher.org/document/106498",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Speech to Conservative Party Conference, Bournemouth, 10 October 1986.\n\nMeaning — Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)\nhttps://www.margaretthatcher.org/document/106498",
         "public_sources": [
           {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
-            "title": "Margaret Thatcher Foundation, Document 106498",
+            "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)",
             "url": "https://www.margaretthatcher.org/document/106498"
           }
         ],
@@ -23130,15 +23050,20 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103336\nhttps://www.margaretthatcher.org/document/103336",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.\n\nMeaning — Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)\nhttps://www.margaretthatcher.org/document/103336",
         "public_sources": [
           {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
-            "title": "Margaret Thatcher Foundation, Document 103336",
+            "title": "Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)",
             "url": "https://www.margaretthatcher.org/document/103336"
           }
         ],
@@ -25361,7 +25286,7 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Prime Minister's Questions, House of Commons, 10 March 1981.\n\nMeaning — To publicly endorse Hayek's philosophy and suggest that Members of Parliament would benefit from understanding his arguments on liberty and the rule of law.\n\nVerification — Exact wording verified\n\nSource — Hansard, House of Commons Debates, 10 March 1981",
+        "public_reply_text": "Context — Prime Minister's Questions, House of Commons, 10 March 1981.\n\nMeaning — Thatcher praised two of Hayek's works and recommended them to almost every Member of Parliament.\n\nVerification — Verified excerpt\n\nSource — UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)\nhttps://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements",
         "public_sources": [
           {
             "claims_supported": [
@@ -25370,8 +25295,8 @@
               "source_event",
               "date"
             ],
-            "title": "Hansard, House of Commons Debates, 10 March 1981",
-            "url": ""
+            "title": "UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)",
+            "url": "https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements"
           }
         ],
         "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
@@ -25917,16 +25842,8 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Lecture at the Institute of United States Studies, 24 September 1996.\n\nMeaning — Thatcher argued that political correctness is a modern manifestation of tyranny, designed to control thought by restricting what people can read and express.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108364\nhttps://www.margaretthatcher.org/document/108364\n\nSource — Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.",
+        "public_reply_text": "Context — The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996.\n\nMeaning — Thatcher linked political correctness to the recurring impulse of tyrants to control what people read and therefore what they think.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)\nhttps://www.margaretthatcher.org/document/108364",
         "public_sources": [
-          {
-            "claims_supported": [
-              "wording",
-              "attribution"
-            ],
-            "title": "Margaret Thatcher Foundation, Document 108364",
-            "url": "https://www.margaretthatcher.org/document/108364"
-          },
           {
             "claims_supported": [
               "wording",
@@ -25934,8 +25851,8 @@
               "source_event",
               "date"
             ],
-            "title": "Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)",
+            "url": "https://www.margaretthatcher.org/document/108364"
           }
         ],
         "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
@@ -26232,7 +26149,7 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Speech to the Polish Senate, 3 October 1991.\n\nMeaning — That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991",
+        "public_reply_text": "Context — Speech to the Polish Senate, 3 October 1991.\n\nMeaning — In a speech to the Polish Senate, Thatcher argued that capitalism alone can mobilise individual talents, contrasting it with communist collectivism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)\nhttps://www.margaretthatcher.org/document/108285",
         "public_sources": [
           {
             "claims_supported": [
@@ -26241,8 +26158,8 @@
               "source_event",
               "date"
             ],
-            "title": "Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)",
+            "url": "https://www.margaretthatcher.org/document/108285"
           }
         ],
         "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
@@ -27641,16 +27558,21 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105484\nhttps://www.margaretthatcher.org/document/105484",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Speech at Lord Mayor's Banquet, 14 November 1983.\n\nMeaning — Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)\nhttps://www.margaretthatcher.org/document/105472",
         "public_sources": [
           {
             "claims_supported": [
               "wording",
-              "attribution"
+              "attribution",
+              "source_event",
+              "date"
             ],
-            "title": "Margaret Thatcher Foundation, Document 105484",
-            "url": "https://www.margaretthatcher.org/document/105484"
+            "title": "Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)",
+            "url": "https://www.margaretthatcher.org/document/105472"
           }
         ],
         "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
@@ -27791,7 +27713,7 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Debate on the Address, House of Commons, 24 November 1976.\n\nMeaning — Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.\n\nVerification — Exact wording verified\n\nSource — Hansard, HC Deb 24 November 1976 vol 921 cc18-31\n\nSource — Margaret Thatcher Foundation, Document 103146\nhttps://www.margaretthatcher.org/document/103146",
+        "public_reply_text": "Context — Debate on the Address, House of Commons, 24 November 1976.\n\nMeaning — Thatcher argued that putting liberty first would preserve liberty and produce fewer inequalities than putting equality first while neglecting liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)\nhttps://www.margaretthatcher.org/document/103146",
         "public_sources": [
           {
             "claims_supported": [
@@ -27800,15 +27722,7 @@
               "source_event",
               "date"
             ],
-            "title": "Hansard, HC Deb 24 November 1976 vol 921 cc18-31",
-            "url": ""
-          },
-          {
-            "claims_supported": [
-              "wording",
-              "attribution"
-            ],
-            "title": "Margaret Thatcher Foundation, Document 103146",
+            "title": "Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)",
             "url": "https://www.margaretthatcher.org/document/103146"
           }
         ],
@@ -27931,7 +27845,7 @@
           "date",
           "source_event"
         ],
-        "public_reply_text": "Context — Speech in Bermuda, 7 August 2001.\n\nMeaning — That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)",
+        "public_reply_text": "Context — Speech in Bermuda, 7 August 2001.\n\nMeaning — Thatcher said communism ruled through terror, brought neither dignity nor prosperity, and collapsed under the weight of its own failure.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)\nhttps://www.margaretthatcher.org/document/109301",
         "public_sources": [
           {
             "claims_supported": [
@@ -27940,8 +27854,8 @@
               "source_event",
               "date"
             ],
-            "title": "Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)",
-            "url": ""
+            "title": "Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)",
+            "url": "https://www.margaretthatcher.org/document/109301"
           }
         ],
         "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
@@ -30345,24 +30259,6 @@
       },
       {
         "attribution_eligible": true,
-        "date": "October 10, 1986",
-        "document_numbers": [
-          "106498"
-        ],
-        "public_context_supported_fields": [],
-        "published_parent_post_ids": [
-          "2079220295857037638"
-        ],
-        "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
-        "quote_text": "Governments should not run business.",
-        "source_event": "Speech to Conservative Party Conference, Bournemouth",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
-      },
-      {
-        "attribution_eligible": true,
         "date": "May 6, 1978",
         "document_numbers": [
           "103674"
@@ -30404,24 +30300,6 @@
         "quote_id": "6cab54a1bfcbd9c79b72c39ff64eb7126436cde07c37d48aa6fcd9ddfec4f662",
         "quote_text": "There is no such thing as society: there are individual men and women, and there are families.",
         "source_event": "Interview for Woman's Own magazine",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
-      },
-      {
-        "attribution_eligible": true,
-        "date": "March 14, 1977",
-        "document_numbers": [
-          "103336"
-        ],
-        "public_context_supported_fields": [],
-        "published_parent_post_ids": [
-          "2077225711396343911"
-        ],
-        "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
-        "source_event": "Speech to the Zurich Economic Society ('The New Renaissance')",
         "suppressed_event_or_date_fields": [
           "date",
           "source_event"
@@ -31178,7 +31056,9 @@
           "108381"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080069760121733624"
+        ],
         "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
         "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
         "source_event": "Speech to the International Free Enterprise dinner",
@@ -31538,24 +31418,6 @@
         "quote_id": "d4013aa361485ab2894f71e426c705de78455e93d37fe3f4d2ae27727c70c88c",
         "quote_text": "Everywhere there is a crisis of Socialism. Everywhere a confirmation that capitalism produces freedom and prosperity.",
         "source_event": "Speech to the Conservative Political Centre Summer School",
-        "suppressed_event_or_date_fields": [
-          "date",
-          "source_event"
-        ]
-      },
-      {
-        "attribution_eligible": true,
-        "date": "November 14, 1983",
-        "document_numbers": [
-          "105484"
-        ],
-        "public_context_supported_fields": [],
-        "published_parent_post_ids": [
-          "2079185945149010272"
-        ],
-        "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
-        "source_event": "Speech at the Lord Mayor's Banquet",
         "suppressed_event_or_date_fields": [
           "date",
           "source_event"
@@ -32683,20 +32545,6 @@
               "core_or_fundamental"
             ],
             "meaning": "A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "core_or_fundamental"
-            ],
-            "meaning": "A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.",
-            "surface": "current_public_meaning"
-          },
-          {
-            "indicators": [
-              "core_or_fundamental"
-            ],
-            "meaning": "A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.",
             "parent_post_id": "2079253904500384102",
             "surface": "published_public_meaning"
           }
@@ -33450,20 +33298,6 @@
               "inherence"
             ],
             "meaning": "State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "inherence"
-            ],
-            "meaning": "State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.",
-            "surface": "current_public_meaning"
-          },
-          {
-            "indicators": [
-              "inherence"
-            ],
-            "meaning": "State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.",
             "parent_post_id": "2079220295857037638",
             "surface": "published_public_meaning"
           }
@@ -33681,20 +33515,6 @@
         "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
         "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
         "surfaces": [
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.",
-            "surface": "current_public_meaning"
-          },
           {
             "indicators": [
               "suppression_or_destruction"
@@ -34420,6 +34240,14 @@
             ],
             "meaning": "Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "suppression_or_destruction"
+            ],
+            "meaning": "Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.",
+            "parent_post_id": "2080104314182209656",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -34768,6 +34596,14 @@
             ],
             "meaning": "That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "inherence"
+            ],
+            "meaning": "That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.",
+            "parent_post_id": "2080069760121733624",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -34827,20 +34663,6 @@
         "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
         "quote_text": "Capitalism alone can mobilise people's talents.",
         "surfaces": [
-          {
-            "indicators": [
-              "inevitability"
-            ],
-            "meaning": "That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "inevitability"
-            ],
-            "meaning": "That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.",
-            "surface": "current_public_meaning"
-          },
           {
             "indicators": [
               "inevitability"
@@ -35307,22 +35129,6 @@
               "guarantee_or_certainty"
             ],
             "meaning": "To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "core_or_fundamental",
-              "guarantee_or_certainty"
-            ],
-            "meaning": "To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.",
-            "surface": "current_public_meaning"
-          },
-          {
-            "indicators": [
-              "core_or_fundamental",
-              "guarantee_or_certainty"
-            ],
-            "meaning": "To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.",
             "parent_post_id": "2079185945149010272",
             "surface": "published_public_meaning"
           }
@@ -35401,20 +35207,6 @@
               "suppression_or_destruction"
             ],
             "meaning": "Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.",
-            "surface": "current_public_meaning"
-          },
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.",
             "parent_post_id": "2078218532991406200",
             "surface": "published_public_meaning"
           }
@@ -35477,22 +35269,6 @@
         "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
         "quote_text": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure.",
         "surfaces": [
-          {
-            "indicators": [
-              "core_or_fundamental",
-              "inevitability"
-            ],
-            "meaning": "That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "core_or_fundamental",
-              "inevitability"
-            ],
-            "meaning": "That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.",
-            "surface": "current_public_meaning"
-          },
           {
             "indicators": [
               "core_or_fundamental",
@@ -37199,7 +36975,9 @@
         ],
         "attribution_eligible": true,
         "lead_document_numbers": [],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "108338"
+        ],
         "public_document_numbers": [
           "108338"
         ],
@@ -37351,7 +37129,9 @@
         "lead_document_numbers": [
           "105563"
         ],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "105508"
+        ],
         "public_document_numbers": [
           "105508"
         ],
@@ -37477,7 +37257,9 @@
         ],
         "attribution_eligible": true,
         "lead_document_numbers": [],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "105774"
+        ],
         "public_document_numbers": [
           "105774"
         ],
@@ -38141,12 +37923,16 @@
       },
       {
         "accepted_document_numbers": [
+          "108331",
           "108332"
         ],
         "attribution_eligible": true,
         "lead_document_numbers": [],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "108331"
+        ],
         "public_document_numbers": [
+          "108331",
           "108332"
         ],
         "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202"
@@ -40168,7 +39954,9 @@
         ],
         "attribution_eligible": true,
         "lead_document_numbers": [],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "108364"
+        ],
         "public_document_numbers": [
           "108364"
         ],
@@ -40321,6 +40109,20 @@
           "108389"
         ],
         "quote_id": "b50bee201cb748e9c830c70e5476e0401ce8a46b11d8dad12a01e3168abf266d"
+      },
+      {
+        "accepted_document_numbers": [
+          "108285"
+        ],
+        "attribution_eligible": true,
+        "lead_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "108285"
+        ],
+        "public_document_numbers": [
+          "108285"
+        ],
+        "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd"
       },
       {
         "accepted_document_numbers": [
@@ -41093,17 +40895,17 @@
       },
       {
         "accepted_document_numbers": [
-          "105484"
+          "105472"
         ],
         "attribution_eligible": true,
         "lead_document_numbers": [
           "105484"
         ],
         "packet_locator_candidate_document_numbers": [
-          "105484"
+          "105472"
         ],
         "public_document_numbers": [
-          "105484"
+          "105472"
         ],
         "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
       },
@@ -41177,7 +40979,9 @@
         "lead_document_numbers": [
           "103126"
         ],
-        "packet_locator_candidate_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "103146"
+        ],
         "public_document_numbers": [
           "103146"
         ],
@@ -41258,6 +41062,20 @@
           "108364"
         ],
         "quote_id": "df956326a0b406392992c8aa43eb2b0c4a258c31db85dc93d3237f3fc8ef20d2"
+      },
+      {
+        "accepted_document_numbers": [
+          "109301"
+        ],
+        "attribution_eligible": true,
+        "lead_document_numbers": [],
+        "packet_locator_candidate_document_numbers": [
+          "109301"
+        ],
+        "public_document_numbers": [
+          "109301"
+        ],
+        "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09"
       },
       {
         "accepted_document_numbers": [],
@@ -42216,6 +42034,39 @@
         "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
         "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
         "reply_post_id": "2079960510737387668"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080069760121733624",
+        "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+        "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
+        "reply_post_id": "2080069766874579146"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080104314182209656",
+        "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
+        "reply_post_id": "2080104320809197722"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080135333262377191",
+        "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+        "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise.",
+        "reply_post_id": "2080135339683807601"
       }
     ],
     "published_reply_reviews": [
@@ -42286,13 +42137,11 @@
         "reply_post_id": "2077188141975293993"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "suppression_or_destruction"
-        ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103336\nhttps://www.margaretthatcher.org/document/103336",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.\n\nMeaning — Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)\nhttps://www.margaretthatcher.org/document/103336",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.",
+          "context": "Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.",
+          "meaning": "Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.",
           "verification": "Historically verified variant"
         },
         "parent_post_id": "2077225711396343911",
@@ -42310,9 +42159,9 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, THCR (21 March 1994)",
+        "current_public_reply_text": "Context — Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)\nhttps://www.margaretthatcher.org/document/108331",
         "current_sections": {
-          "context": "The surviving record dates this wording to 21 March 1994, but does not establish its occasion.",
+          "context": "Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994.",
           "meaning": "Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.",
           "verification": "Exact wording verified"
         },
@@ -42472,13 +42321,11 @@
         "reply_post_id": "2077535279527665989"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "inevitability"
-        ],
-        "current_public_reply_text": "Context — Speech to the Polish Senate, 3 October 1991.\n\nMeaning — That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech to the Polish Senate, 3 October 1991.\n\nMeaning — In a speech to the Polish Senate, Thatcher argued that capitalism alone can mobilise individual talents, contrasting it with communist collectivism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)\nhttps://www.margaretthatcher.org/document/108285",
         "current_sections": {
           "context": "Speech to the Polish Senate, 3 October 1991.",
-          "meaning": "That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.",
+          "meaning": "In a speech to the Polish Senate, Thatcher argued that capitalism alone can mobilise individual talents, contrasting it with communist collectivism.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2077566061742874972",
@@ -42496,14 +42343,11 @@
         "reply_post_id": "2077566064074891424"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "core_or_fundamental",
-          "inevitability"
-        ],
-        "current_public_reply_text": "Context — Speech in Bermuda, 7 August 2001.\n\nMeaning — That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech in Bermuda, 7 August 2001.\n\nMeaning — Thatcher said communism ruled through terror, brought neither dignity nor prosperity, and collapsed under the weight of its own failure.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)\nhttps://www.margaretthatcher.org/document/109301",
         "current_sections": {
           "context": "Speech in Bermuda, 7 August 2001.",
-          "meaning": "That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.",
+          "meaning": "Thatcher said communism ruled through terror, brought neither dignity nor prosperity, and collapsed under the weight of its own failure.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2077602153560961463",
@@ -42739,10 +42583,10 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — Lecture at the Institute of United States Studies, 24 September 1996.\n\nMeaning — Thatcher argued that political correctness is a modern manifestation of tyranny, designed to control thought by restricting what people can read and express.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108364\nhttps://www.margaretthatcher.org/document/108364\n\nSource — Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.",
+        "current_public_reply_text": "Context — The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996.\n\nMeaning — Thatcher linked political correctness to the recurring impulse of tyrants to control what people read and therefore what they think.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)\nhttps://www.margaretthatcher.org/document/108364",
         "current_sections": {
-          "context": "Lecture at the Institute of United States Studies, 24 September 1996.",
-          "meaning": "Thatcher argued that political correctness is a modern manifestation of tyranny, designed to control thought by restricting what people can read and express.",
+          "context": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996.",
+          "meaning": "Thatcher linked political correctness to the recurring impulse of tyrants to control what people read and therefore what they think.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2077974966864105711",
@@ -42880,14 +42724,12 @@
         "reply_post_id": "2078180653674225886"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "suppression_or_destruction"
-        ],
-        "current_public_reply_text": "Context — Debate on the Address, House of Commons, 24 November 1976.\n\nMeaning — Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.\n\nVerification — Exact wording verified\n\nSource — Hansard, HC Deb 24 November 1976 vol 921 cc18-31\n\nSource — Margaret Thatcher Foundation, Document 103146\nhttps://www.margaretthatcher.org/document/103146",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Debate on the Address, House of Commons, 24 November 1976.\n\nMeaning — Thatcher argued that putting liberty first would preserve liberty and produce fewer inequalities than putting equality first while neglecting liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)\nhttps://www.margaretthatcher.org/document/103146",
         "current_sections": {
           "context": "Debate on the Address, House of Commons, 24 November 1976.",
-          "meaning": "Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.",
-          "verification": "Exact wording verified"
+          "meaning": "Thatcher argued that putting liberty first would preserve liberty and produce fewer inequalities than putting equality first while neglecting liberty.",
+          "verification": "Historically verified variant"
         },
         "parent_post_id": "2078218532991406200",
         "published_meaning_strengthening_indicators": [
@@ -43313,11 +43155,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — Prime Minister's Questions, House of Commons, 10 March 1981.\n\nMeaning — To publicly endorse Hayek's philosophy and suggest that Members of Parliament would benefit from understanding his arguments on liberty and the rule of law.\n\nVerification — Exact wording verified\n\nSource — Hansard, House of Commons Debates, 10 March 1981",
+        "current_public_reply_text": "Context — Prime Minister's Questions, House of Commons, 10 March 1981.\n\nMeaning — Thatcher praised two of Hayek's works and recommended them to almost every Member of Parliament.\n\nVerification — Verified excerpt\n\nSource — UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)\nhttps://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements",
         "current_sections": {
           "context": "Prime Minister's Questions, House of Commons, 10 March 1981.",
-          "meaning": "To publicly endorse Hayek's philosophy and suggest that Members of Parliament would benefit from understanding his arguments on liberty and the rule of law.",
-          "verification": "Exact wording verified"
+          "meaning": "Thatcher praised two of Hayek's works and recommended them to almost every Member of Parliament.",
+          "verification": "Verified excerpt"
         },
         "parent_post_id": "2078945002462281789",
         "published_meaning_strengthening_indicators": [],
@@ -43443,10 +43285,10 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — Interview with a journalist (Lewis), 25 October 1984.\n\nMeaning — Legitimate trade unionism should focus on the economic well-being of workers and the prosperity of their industry, rather than pursuing left-wing political agendas.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 105774\nhttps://www.margaretthatcher.org/document/105774\n\nSource — Margaret Thatcher Foundation, Interview transcript, 25 October 1984",
+        "current_public_reply_text": "Context — Interview for Birmingham Post, 25 October 1984.\n\nMeaning — Thatcher defined ‘true trade unionists’ as focused on workers' fair treatment and the prosperity of their industry rather than politics.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)\nhttps://www.margaretthatcher.org/document/105774",
         "current_sections": {
-          "context": "Interview with a journalist (Lewis), 25 October 1984.",
-          "meaning": "Legitimate trade unionism should focus on the economic well-being of workers and the prosperity of their industry, rather than pursuing left-wing political agendas.",
+          "context": "Interview for Birmingham Post, 25 October 1984.",
+          "meaning": "Thatcher defined ‘true trade unionists’ as focused on workers' fair treatment and the prosperity of their industry rather than politics.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2079152583285813352",
@@ -43462,14 +43304,11 @@
         "reply_post_id": "2079152585831858394"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "core_or_fundamental",
-          "guarantee_or_certainty"
-        ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105484\nhttps://www.margaretthatcher.org/document/105484",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech at Lord Mayor's Banquet, 14 November 1983.\n\nMeaning — Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)\nhttps://www.margaretthatcher.org/document/105472",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.",
+          "context": "Speech at Lord Mayor's Banquet, 14 November 1983.",
+          "meaning": "Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.",
           "verification": "Verified excerpt"
         },
         "parent_post_id": "2079185945149010272",
@@ -43488,13 +43327,11 @@
         "reply_post_id": "2079185947762024690"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "inherence"
-        ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 106498\nhttps://www.margaretthatcher.org/document/106498",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech to Conservative Party Conference, Bournemouth, 10 October 1986.\n\nMeaning — Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)\nhttps://www.margaretthatcher.org/document/106498",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.",
+          "context": "Speech to Conservative Party Conference, Bournemouth, 10 October 1986.",
+          "meaning": "Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2079220295857037638",
@@ -43512,13 +43349,11 @@
         "reply_post_id": "2079220298587545750"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "core_or_fundamental"
-        ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Interview for Financial Times, 31 August 1984.\n\nMeaning — Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.",
+          "context": "Interview for Financial Times, 31 August 1984.",
+          "meaning": "Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.",
           "verification": "Exact wording verified"
         },
         "parent_post_id": "2079253904500384102",
@@ -43871,11 +43706,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
+        "current_public_reply_text": "Context — Speech in Bombay, India, 4 October 1994.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Speech in Bombay, India, 4 October 1994.",
           "meaning": "State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.",
-          "verification": "Attributed, but exact wording not independently verified"
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2079960504026456515",
         "published_meaning_strengthening_indicators": [],
@@ -43888,6 +43723,132 @@
         "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
         "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
         "reply_post_id": "2079960510737387668"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech to the founding meeting of the International Democrat Union (IDU) in London, 24 June 1983.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to IDU, 24 June 1983",
+        "current_sections": {
+          "context": "Speech to the founding meeting of the International Democrat Union (IDU) in London, 24 June 1983.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2079996014308511826",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — Speech to the founding meeting of the International Democrat Union (IDU) in London, 24 June 1983.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to IDU, 24 June 1983",
+        "published_sections": {
+          "context": "Speech to the founding meeting of the International Democrat Union (IDU) in London, 24 June 1983.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
+        "quote_text": "The spirit of freedom is too strong and too resilient to be crushed by the tanks of tyrants. The same is true in other parts of the world which suffer from the brutality of despotism.",
+        "reply_post_id": "2079996021556281357"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+        "current_sections": {
+          "context": "The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+          "meaning": "Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2080033587320000638",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving record dates this wording to 2 May 1979, but does not establish its occasion.\n\nMeaning — Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document from 2 May 1979",
+        "published_sections": {
+          "context": "The surviving record dates this wording to 2 May 1979, but does not establish its occasion.",
+          "meaning": "Britain must reject state control and economic decline to restore its global reputation through hard work, moral clarity, and economic independence.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "quote_text": "The Britain I want is a country which once again is known throughout the world for its integrity, its industry, the calibre of its people and its valiant championship of justice and truth.",
+        "reply_post_id": "2080033593817027066"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2080069760121733624",
+        "published_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)\nhttps://www.margaretthatcher.org/document/108381",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "That the Labour government's actions against Pinochet were driven by a deep-seated, dishonourable vindictiveness inherent to socialism, rather than a genuine pursuit of justice.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+        "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
+        "reply_post_id": "2080069766874579146"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "suppression_or_destruction"
+        ],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.",
+          "verification": "Research incomplete"
+        },
+        "parent_post_id": "2080104314182209656",
+        "published_meaning_strengthening_indicators": [
+          "suppression_or_destruction"
+        ],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.",
+          "verification": "Research incomplete"
+        },
+        "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
+        "reply_post_id": "2080104320809197722"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.",
+          "verification": "Historically verified variant"
+        },
+        "parent_post_id": "2080135333262377191",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.",
+          "verification": "Historically verified variant"
+        },
+        "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+        "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise.",
+        "reply_post_id": "2080135339683807601"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — Speech to the National Press Club, 19 September 1975.\n\nMeaning — Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the National Press Club (19 September 1975)",
+        "current_sections": {
+          "context": "Speech to the National Press Club, 19 September 1975.",
+          "meaning": "Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2080172653499810052",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — Speech to the National Press Club, 19 September 1975.\n\nMeaning — Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to the National Press Club (19 September 1975)",
+        "published_sections": {
+          "context": "Speech to the National Press Club, 19 September 1975.",
+          "meaning": "Political systems must accommodate human nature rather than forcing people to conform to rigid, preconceived ideological theories.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one.",
+        "reply_post_id": "2080172660042969461"
       }
     ],
     "render_failures": [],
@@ -53491,40 +53452,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381:date:packet_claim_not_publicly_supported",
-        "claim_value": "October 4, 1994",
-        "claim_value_sha256": "eca27c3b06b6ac7a5b7adabd82c495b8d75c2b8da3c6a3c7e6ada22619007466",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 4 October 1994, but does not establish its occasion.",
-          "counterfactual_context_sha256": "1ff9959e5e6a5af7d4829c58f3cca12884da7941ce26eccf102cbd811c7ec711",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "4 October 1994",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-        "quote_text_sha256": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Thatcher delivered this speech in Bombay to advocate for free enterprise and privatization, reflecting on her government's policies in the 1980s that dismantled state control over British industries.",
         "claim_value_sha256": "69a84d688429cc182ebdc32207de6b86b66933997fef2958036f428cdd166073",
@@ -53533,15 +53460,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The necessity of removing state control to foster a genuine free market.",
-          "counterfactual_context_sha256": "0c0aeb5af29867e4e28349bd1e09dc18e28d86f04b01f20f9c232377f650e373",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Speech in Bombay, India, 4 October 1994: The necessity of removing state control to foster a genuine free market.",
+          "counterfactual_context_sha256": "3a3d055bb4df775c8230587eaa955cf6ee41a6892e2031a8699fd1d68144ea65",
+          "current_context": "Speech in Bombay, India, 4 October 1994.",
+          "current_context_sha256": "2308329d4fa4f7d02075b9998fa7e2766273d02e2d84b990d2f831c48877d7af",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -53555,40 +53485,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech in Bombay, India",
-        "claim_value_sha256": "8d2188f68d8ebfcf5edf4d86c46683a7214d3dc9963c0486e0122faeef7e4c24",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech in Bombay, India.",
-          "counterfactual_context_sha256": "85ca74278cd4251fc4d928418c4fb10a6957257d059c5878843f66c4b7f13deb",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech in Bombay, India",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-        "quote_text_sha256": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -54632,40 +54528,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad:date:packet_claim_not_publicly_supported",
-        "claim_value": "August 31, 1984",
-        "claim_value_sha256": "e0d6056d553212ce3efe9cc9b0df08e97d006e1f91b6638f5dd6fcf0dee7b45e",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 31 August 1984, but does not establish its occasion.",
-          "counterfactual_context_sha256": "0478b7e739616019dfdc02feed23a83e75931f616a16055cb429bdcc0eb73451",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "31 August 1984",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
-        "quote_text_sha256": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Margaret Thatcher gave this interview to the Financial Times during the 1984-1985 miners' strike. She was discussing her views on the Labour Party, the Social Democratic-Liberal Alliance, and the necessity of resolute government leadership.",
         "claim_value_sha256": "68e3b097528fe07fad42b51edcaf1b18f2cf6df190d0330bba7b9a49b639b052",
@@ -54674,15 +54536,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The role and required character of a national government.",
-          "counterfactual_context_sha256": "6c41f30d8bff48f477a9aa88ecf75d9ecaab8d540635218a05e7b054161450bd",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Interview for Financial Times, 31 August 1984: The role and required character of a national government.",
+          "counterfactual_context_sha256": "4833a53047bca495d2a8495a2de44ff1a111c95499ebeed29d8de62a5b2c4c48",
+          "current_context": "Interview for Financial Times, 31 August 1984.",
+          "current_context_sha256": "2a779ed0b718d69b63c73f50fda7d4f49fdd29bfcbda5006449c525f7709b5e1",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -54696,40 +54561,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Interview for the Financial Times",
-        "claim_value_sha256": "d0d733d0cc7212985aa14d91c55461966fb1cb4d7d7218d41b11b2d661d7ad06",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Interview for the Financial Times.",
-          "counterfactual_context_sha256": "fd8704a6c5b43a485190f314a3714f1ceedca5cbb7503124c445cbbfd5e09528",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Interview for the Financial Times",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
-        "quote_text_sha256": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -55823,10 +55654,10 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "Interview with a journalist (Lewis), 25 October 1984: The distinction between militant, politically motivated union leaders and responsible trade unionists.",
-          "counterfactual_context_sha256": "551dc2743259169239354693752a6e521bb435d95862da82740906ff55c224f2",
-          "current_context": "Interview with a journalist (Lewis), 25 October 1984.",
-          "current_context_sha256": "2d64577ed5c61a96883ed0e2fe4af6d1da5fabcd719ef50dec892d623bc56b4e",
+          "counterfactual_context": "Interview for Birmingham Post, 25 October 1984: The distinction between militant, politically motivated union leaders and responsible trade unionists.",
+          "counterfactual_context_sha256": "6d9c168fe710ea06acb588111fd21e2844d7b97bc8f3179c8d5aa2df57455cbd",
+          "current_context": "Interview for Birmingham Post, 25 October 1984.",
+          "current_context_sha256": "0a28e949e0108d4670a80e9f57fd6a4fa4619c72ccb0555ba84997aacb04beae",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
@@ -61902,16 +61733,17 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "21 March 1994: The necessity of maintaining strong Western defense capabilities despite the end of the Cold War.",
-          "counterfactual_context_sha256": "1c67e3b48fff850e94b6f9e9138c021609daeb8b574db8a2f2b1b7fe3b7a3363",
-          "current_context": "The surviving record dates this wording to 21 March 1994, but does not establish its occasion.",
-          "current_context_sha256": "5b697be674d6fc8239847bf79f5394c841383e72a2d2dcc44f860a87f5aede2f",
+          "counterfactual_context": "Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994: The necessity of maintaining strong Western defense capabilities despite the end of the Cold War.",
+          "counterfactual_context_sha256": "e02b541971c6af06baed535d730498360bbe7470c8ba836287fc635cc4cf1060",
+          "current_context": "Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994.",
+          "current_context_sha256": "194b655fd9a5aa4ea0026a9d1ca3ba8680ecd58329f9e4d93708a01694316f62",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
         "current_public_context_supported_fields": [
-          "date"
+          "date",
+          "source_event"
         ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
@@ -61926,42 +61758,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech to Chilean businessmen in Santiago, Chile",
-        "claim_value_sha256": "6f981ad7375969f6f40650854abb3863bbd343ed0fe5dc24b33d917fba995a8c",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech to Chilean businessmen in Santiago, Chile, 21 March 1994.",
-          "counterfactual_context_sha256": "b131a92630e5f531556be906c7fabf3a6fef32063fe4bef4b3b8bd6c66943526",
-          "current_context": "The surviving record dates this wording to 21 March 1994, but does not establish its occasion.",
-          "current_context_sha256": "5b697be674d6fc8239847bf79f5394c841383e72a2d2dcc44f860a87f5aede2f",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [
-          "date"
-        ],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech to Chilean businessmen in Santiago, Chile",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
-        "quote_text_sha256": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -64150,40 +63946,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5:date:packet_claim_not_publicly_supported",
-        "claim_value": "October 10, 1986",
-        "claim_value_sha256": "abc8e5682bc58ef71470a35d6eefdc7435914ad2ad1a624ea2e482b1efad84b6",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 10 October 1986, but does not establish its occasion.",
-          "counterfactual_context_sha256": "7831582e2d5bddef3ed1fcca2473e4c660614213238208f54fb4f99721528cd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "10 October 1986",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
-        "quote_text_sha256": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "During her second term as Prime Minister, Thatcher aggressively pursued the privatization of state-owned industries, framing the policy as 'popular capitalism' that would spread wealth and property ownership.",
         "claim_value_sha256": "a7668091c47cd711eed65cbd36608f9c9427ee1c1589aa305a6b48e1eb5bce44",
@@ -64192,15 +63954,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The inefficiency of state ownership and the justification for privatizing nationalized industries.",
-          "counterfactual_context_sha256": "6d9ed110043fb3cce9412e0625e25ed7dfaadd28f3c9f461fa08adec14d51915",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Speech to Conservative Party Conference, Bournemouth, 10 October 1986: The inefficiency of state ownership and the justification for privatizing nationalized industries.",
+          "counterfactual_context_sha256": "4a8b32f394b98e4a0cc433a90b58cef507f11a13c9ac990528bf7ce6ba6f8a5d",
+          "current_context": "Speech to Conservative Party Conference, Bournemouth, 10 October 1986.",
+          "current_context_sha256": "3f2037e9c4cee8c381a1961f3ae36e64e69941a350f4a33f033b50cc5b5191f2",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -64214,40 +63979,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech to Conservative Party Conference, Bournemouth",
-        "claim_value_sha256": "37532ca998334d486aeebafca3843c3be1cc464645231c202e2a832f0ba2eee7",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech to Conservative Party Conference, Bournemouth.",
-          "counterfactual_context_sha256": "b908a467375379b6bf0fc45b7125063d5d8e273c08a24046ff0d98ce4bb324b8",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech to Conservative Party Conference, Bournemouth",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
-        "quote_text_sha256": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -66172,40 +65903,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7:date:packet_claim_not_publicly_supported",
-        "claim_value": "March 14, 1977",
-        "claim_value_sha256": "70b10cdb4389e4447733afbe9375a75c4516c5fda65cc22b2c48bf668d668b46",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 14 March 1977, but does not establish its occasion.",
-          "counterfactual_context_sha256": "7a1f9321ba48a5f0ffe75b5a834ca6259d705f05ea0be5047b3c19cf56333a42",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "14 March 1977",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "quote_text_sha256": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "In 1977, Britain was experiencing severe economic difficulties, including high inflation and stagnant growth, under a Labour government. Thatcher, as Leader of the Opposition, was articulating her emerging free-market philosophy, critiquing the post-war consensus and the expansion of the state.",
         "claim_value_sha256": "b47695f43cea5fa382f49c7c02c9c2eb631475412f40f1b9e5cbc31b283c984f",
@@ -66214,15 +65911,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The failure of socialist economic policies and the negative impact of high taxation in Britain.",
-          "counterfactual_context_sha256": "b032b741e2e33d96ef9ab10480b29325dcf34834f46c14e8f0b0169422a90d61",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977: The failure of socialist economic policies and the negative impact of high taxation in Britain.",
+          "counterfactual_context_sha256": "3e062f82efd4d8ef23b0aeff505ba273f7edd5d9b2803e796567fefcf5f49c11",
+          "current_context": "Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.",
+          "current_context_sha256": "e7da9c42f732977212cdd73904024cc8954170f53324f04ad720925109af3463",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -66236,40 +65936,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech to the Zurich Economic Society ('The New Renaissance')",
-        "claim_value_sha256": "17acbbc951679ce7066c8688873099a9e8badd67edfe3f2893f7aaa9a769432d",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech to the Zurich Economic Society ('The New Renaissance').",
-          "counterfactual_context_sha256": "c6ec0b076e6fbd118a1a68e355bbdb8b5cb987a720326f7cf2b187d534205cb8",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech to the Zurich Economic Society ('The New Renaissance')",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "quote_text_sha256": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -80409,10 +80075,10 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "Lecture at the Institute of United States Studies, 24 September 1996: The concept of 'political correctness' and its restrictive nature on thought and expression.",
-          "counterfactual_context_sha256": "a907c802cb008d8c1ef186ff8e0cbe831a29f4d2eea012fed60db31f49a22ffe",
-          "current_context": "Lecture at the Institute of United States Studies, 24 September 1996.",
-          "current_context_sha256": "9f9ef2ffb3a17bb82bf0bafd50d65def7109f509f33e72c9ca3aa4c02a8ab3ab",
+          "counterfactual_context": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996: The concept of 'political correctness' and its restrictive nature on thought and expression.",
+          "counterfactual_context_sha256": "e109d082f012367ef859dc75c7190f3c899e3974683d07c1e46757319f67c02d",
+          "current_context": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996.",
+          "current_context_sha256": "f7bb240fee84b0a18aad5808b1ab3ce6549f2e0539053d5a0724b103c4de1613",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
@@ -90100,40 +89766,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9:date:packet_claim_not_publicly_supported",
-        "claim_value": "November 14, 1983",
-        "claim_value_sha256": "7b6c2c32fa5adf2643413b44b121eae24c04a48c3ea08dad8d9c28685e3d54b5",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 14 November 1983, but does not establish its occasion.",
-          "counterfactual_context_sha256": "ea6733997c8ceb332fe3845ebe971fb6a28285d20627fca219397a3ad795e563",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "14 November 1983",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "quote_text_sha256": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Thatcher delivered this speech at the Lord Mayor's Banquet shortly after her landslide 1983 election victory. She used the occasion to reflect on her first term's economic policies, particularly the fight against inflation and the rejection of Keynesian deficit spending.",
         "claim_value_sha256": "e067d558adb762a33449fc2001e97cf0abc718e2884218237ef525ec5c7b71c3",
@@ -90142,15 +89774,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The limitations of government provision and the necessity of personal responsibility.",
-          "counterfactual_context_sha256": "a41bceb58edaad4dee2b2db751b91cc090d9a70f4d977c9159105adb31e791ef",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Speech at Lord Mayor's Banquet, 14 November 1983: The limitations of government provision and the necessity of personal responsibility.",
+          "counterfactual_context_sha256": "6a23f35745676600a55d71b3b6cb9d99feeca9ad8830c4299606543c4c239285",
+          "current_context": "Speech at Lord Mayor's Banquet, 14 November 1983.",
+          "current_context_sha256": "4eedcaac113662aec1086fb7c8b106dd06dc6117968946ea2d423f254d5951ea",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -90164,40 +89799,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech at the Lord Mayor's Banquet",
-        "claim_value_sha256": "3fbfde89ec850024a8db00ed40b397700b5a0e691e3f3e3822ae222ff32d191c",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech at the Lord Mayor's Banquet.",
-          "counterfactual_context_sha256": "9a88133d44fdee07e7f18fec6154df7441e1e9a22a26216c5faf7d56d18e3808",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech at the Lord Mayor's Banquet",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "quote_text_sha256": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -99086,13 +98687,13 @@
   "schema_version": 2,
   "unsupported_claim_counts": {
     "by_attribution_eligibility": {
-      "eligible": 1504,
+      "eligible": 1493,
       "ineligible": 35
     },
     "by_attribution_eligibility_and_public_reachability": {
       "eligible": {
         "currently_rendered_exact_occurrence": 113,
-        "formatter_reachable_but_suppressed": 765,
+        "formatter_reachable_but_suppressed": 754,
         "internal_only_or_unreachable": 626
       },
       "ineligible": {
@@ -99103,7 +98704,7 @@
     },
     "by_context_slot_reachability": {
       "currently_rendered_exact_occurrence": 113,
-      "formatter_slot_reachable_but_not_currently_exposed": 1391,
+      "formatter_slot_reachable_but_not_currently_exposed": 1380,
       "formatter_slot_unreachable": 0,
       "production_ineligible": 35
     },
@@ -99127,7 +98728,7 @@
     },
     "by_evidence_state": {
       "internal_source_claim_only": 0,
-      "no_audited_source_claim": 1539,
+      "no_audited_source_claim": 1528,
       "renderable_source_claim_not_admitted": 0
     },
     "by_exclusive_unreachable_reason": {
@@ -99136,9 +98737,9 @@
       "shadowed_by_immediate_subject": 609
     },
     "by_field": {
-      "date": 425,
+      "date": 420,
       "historical_context": 625,
-      "source_event": 489
+      "source_event": 483
     },
     "by_field_and_current_public_surface": {
       "date": {
@@ -99163,7 +98764,7 @@
     "by_field_and_evidence_state": {
       "date": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 425,
+        "no_audited_source_claim": 420,
         "renderable_source_claim_not_admitted": 0
       },
       "historical_context": {
@@ -99173,14 +98774,14 @@
       },
       "source_event": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 489,
+        "no_audited_source_claim": 483,
         "renderable_source_claim_not_admitted": 0
       }
     },
     "by_field_and_public_reachability": {
       "date": {
         "currently_rendered_exact_occurrence": 1,
-        "formatter_reachable_but_suppressed": 415,
+        "formatter_reachable_but_suppressed": 410,
         "internal_only_or_unreachable": 9
       },
       "historical_context": {
@@ -99190,21 +98791,21 @@
       },
       "source_event": {
         "currently_rendered_exact_occurrence": 112,
-        "formatter_reachable_but_suppressed": 349,
+        "formatter_reachable_but_suppressed": 343,
         "internal_only_or_unreachable": 28
       }
     },
     "by_finding_kind": {
-      "packet_claim_not_publicly_supported": 1539
+      "packet_claim_not_publicly_supported": 1528
     },
     "by_public_reachability": {
       "currently_rendered_exact_occurrence": 113,
-      "formatter_reachable_but_suppressed": 765,
+      "formatter_reachable_but_suppressed": 754,
       "internal_only_or_unreachable": 661
     },
     "current_public_exposure_instance_count": 113,
     "intended_argument_or_meaning_claims_in_this_1539_count": 0,
-    "total": 1539
+    "total": 1528
   },
   "unsupported_claim_decomposition_definitions": {
     "bibliographic_exact_occurrence": "A public source-title occurrence is an editorial exposure risk, not proof that an audited source supports the packet claim.",

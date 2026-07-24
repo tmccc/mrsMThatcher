@@ -39,7 +39,7 @@ def test_corpus_invariants_and_unresolved_exclusion():
     assert len(packets) == 626
     assert len(unresolved) == 6
     assert set(packets).isdisjoint(unresolved)
-    assert metadata["research_packets_sha256"] == "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+    assert metadata["research_packets_sha256"] == "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
 
 
 def test_retrieval_document_is_deterministic_bounded_and_excludes_sources():

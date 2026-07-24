@@ -33,14 +33,14 @@ def test_published_reply_review_is_complete_hash_bound_and_reproducible():
 
     assert review == build_review()
     assert counts == {
-        "reviewed": 79,
+        "reviewed": 85,
         "supported_as_published": 41,
         "future_correction_needed": 32,
-        "insufficient_to_assess": 6,
-        "resolved": 14,
-        "remaining": 24,
+        "insufficient_to_assess": 12,
+        "resolved": 26,
+        "remaining": 18,
     }
-    assert len({record["quote_id"] for record in review["records"]}) == 79
+    assert len({record["quote_id"] for record in review["records"]}) == 85
     assert all(record["reason"].strip() for record in review["records"])
     assert all(record["evidence_basis"] for record in review["records"])
     assert before == {
@@ -96,33 +96,67 @@ def test_104653_is_resolved_only_for_future_rendering():
 
 
 @pytest.mark.parametrize(
-    ("quote_id", "reason_fragment"),
+    ("quote_id", "reason_fragment", "follow_up_status"),
     [
         (
             "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-            "stifled economic freedom and efficiency",
+            "Inspected primary document 108338",
+            "resolved_by_current_rendering",
         ),
         (
             "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
             "government intervention",
+            "remains_open",
         ),
     ],
 )
 def test_post_baseline_reply_is_explicitly_reviewed_and_not_default_supported(
     quote_id: str,
     reason_fragment: str,
+    follow_up_status: str,
 ):
     review = _load(OUTPUT_PATH)
     record = next(row for row in review["records"] if row["quote_id"] == quote_id)
 
     assert review["review_scope"]["original_review_baseline_count"] == 77
     assert review["review_scope"]["post_baseline_review_quote_ids"] == [
+        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
         "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+        "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
+        "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
         "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
     ]
     assert record["disposition"] == "future_correction_needed"
-    assert record["follow_up_status"] == "remains_open"
+    assert record["follow_up_status"] == follow_up_status
     assert reason_fragment in record["reason"]
+
+
+def test_six_new_history_rows_are_held_closed_without_a_historical_conclusion():
+    review = _load(OUTPUT_PATH)
+    expected = {
+        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+        "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
+        "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    }
+    records = {
+        record["quote_id"]: record
+        for record in review["records"]
+        if record["quote_id"] in expected
+    }
+
+    assert set(records) == expected
+    assert all(
+        record["disposition"] == "insufficient_to_assess"
+        and record["follow_up_status"] == "remains_open"
+        and "without a historical conclusion" in record["reason"]
+        for record in records.values()
+    )
 
 
 def test_new_history_row_requires_an_explicit_semantic_review(tmp_path: Path):

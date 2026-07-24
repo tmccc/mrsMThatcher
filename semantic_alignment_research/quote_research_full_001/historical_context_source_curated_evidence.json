@@ -1,6 +1,300 @@
 {
   "created_at": "2026-07-22",
   "items": {
+    "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": {
+      "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
+      "quote_text_sha256": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "sources": [
+        {
+          "archive_capture_digest": "CIUDVFWPBIPG7NQXIOCRKFKHUP245XTU",
+          "archive_capture_timestamp": "20170531040331",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108338",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1994-10-04",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Free enterprise has a universal truth at its heart : to create a genuine market in a state you have to take the state out of the market",
+          "exact_supporting_passage_sha256": "5b45faeaeeaef69d655b7ce6b6343e5b5761435c64e4416ff0ede987fbd166d4",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "9a10a501603894ed67fd66fadda44029ff4dfdc2d240e0059287a9ab23253492",
+          "page_text_sha256": "a91f002fbffaa254b4353083133531238750356bcd56f7bb8bfc26390be3e8cd",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "October 4, 1994",
+          "source_date_raw": "1994 Oct 4 Tu",
+          "source_event": "Speech in Bombay, India",
+          "source_id": "ab7c85c9257789969109589e2436765ac88873e2bfbd7b54595b593246556046",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108338",
+          "supporting_context": "…nks the power of the state and free enterprise enlarges the power of the people. Our policies were fiercely opposed. Too many people and industries preferred to rely on easy subsidies rather than apply the financial discipline necessary to cut their costs and become competitive. Others preferred the captive customers that a monopoly can command or the secure job in an overmanned industry, rather than the strenuous life of liberty and enterprise. Free enterprise has a universal truth at its heart : to create a genuine market in a state you have to take the state out of the market. For Britain, the 1970's was a decade of decline: even worse than that, our people seemed to accept it. Our nationalised industries were inefficient, overmanned and weakened by restrictive practices. Government had no business being in business. We tackled privatisation in the way which best suited us. First, we had to put the balance sheet of the industries we wanted to sell in good order. Where redundancies had to be made because of overmannin…",
+          "supporting_context_sha256": "b5d58e8a147e05f720802450a8ad5d6ace8dfbdfb377512ebd41479fddab1a50",
+          "title": "Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)",
+          "transport_url": "https://web.archive.org/web/20170531040331id_/http%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F108338",
+          "url": "https://www.margaretthatcher.org/document/108338",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+      "quote_text_sha256": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "sources": [
+        {
+          "archive_capture_digest": "DBOXGJEQEIMWRCPJQR7SPSRZVD7SRRT3",
+          "archive_capture_timestamp": "20240705005739",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/105508",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1984-08-31",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices",
+          "exact_supporting_passage_sha256": "ce2ec3334b0b2cca0e5ae71bc470dbc5d4766e2dd0d0a26bfd7192459e874088",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "fd199fc582aa7a392e6d681910eae67b621e48c3f773cc2403b8f5cac207b1e9",
+          "page_text_sha256": "f510a9bd04207faf8c1bbc5d6a07fa297ea200e91df2b0e47b95d054dbb1d738",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "August 31, 1984",
+          "source_date_raw": "1984 Aug 31 Fr",
+          "source_event": "Interview for Financial Times",
+          "source_id": "533581255159eecd991e9cec1c6d9834607cec63ac27c55bd2a39e70d3c8c3fe",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 105508",
+          "supporting_context": "…tite for getting ahead and doing the right thing … So it is small business, it is pay, it is good management—never, never underestimate the importance of good management—only good management can motivate a workforce—and the willingness to accept change both within industries and in moving from one industry to another …” Long-term fundamental reforms have to be accompanied by short-term measures to “cushion the hard corners of change.” ON LABOUR “You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices. “I have not seen (in the Liberal and Social Democratic parties) the requisite clear objectives and strength of purpose. “As for the Labour Party, there isn't a Labour Party, it's a Socialist party. The good, solid, honest Labour people have not been strong enough to stand up to the others.” ON FREEDOM “Why I believe in freedom is not only that I believe in it as the only thing that gives life dignity and meaning, not only because without it you…",
+          "supporting_context_sha256": "86cc282ac2fb526e8962674c2a478c90efccd03299973195072bd5c137aacc6f",
+          "title": "Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)",
+          "transport_url": "https://web.archive.org/web/20240705005739id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F105508",
+          "url": "https://www.margaretthatcher.org/document/105508",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631": {
+      "quote_id": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "quote_text": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry.",
+      "quote_text_sha256": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "sources": [
+        {
+          "archive_capture_digest": "MBAY6J3RQTRV2QSCLKQH34T2WCAVETJW",
+          "archive_capture_timestamp": "20240603112438",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/105774",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1984-10-25",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry",
+          "exact_supporting_passage_sha256": "1433a1b9964cdcb48cdc6f643ec4af3c4f39ff113095877440ddccc36a23bf19",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "4c3551a44628bf3700863d73596243d9c9bf22cafc99a9e5cd7123239756245b",
+          "page_text_sha256": "e2111d2043bbd08facad5bed8b162288eb040d568296351f63ebbe690319684e",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "October 25, 1984",
+          "source_date_raw": "1984 Oct 25 Th",
+          "source_event": "Interview for Birmingham Post",
+          "source_id": "9b1049a3bfa9cb04a594b7f6d271844960b8e1e8480f86566c7a4342fe2dba69",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 105774",
+          "supporting_context": "…do you think of now as your main political opponents? Thatcher Oh! I don't think of my main challenger. I just think of getting on with the job. Lewis You don't think of the Alliance as being the more serious threat than Labour? Thatcher I grieve for the Labour Party. They are not like the old Labour Party people I was brought up with. I don't see many trade union leaders—there are some—like old Ernie Bevin. “Now let me make it perfectly clear. There are some I would call true trade unionists. That is to say they are not interested in politics. They are interested in the industry in which their people work and getting a fair deal for the people with a prosperous industry. And they recognise the condition for getting a fair deal and a better deal is a more prosperous industry, so they work with management. “I make it perfectly clear that when this strike is over we have got to do everything we can to encourage that approach. Yes I am interested in responsible trade unionism, responsible trade unionists prepared to build a prosperous industry, which comes from satisfying customers. And with a prosperous industry,…",
+          "supporting_context_sha256": "0346c29bb9b5b82cd9e5f26a426d05b39e9b64a0bf61420e29e32f0473eda91c",
+          "title": "Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)",
+          "transport_url": "https://web.archive.org/web/20240603112438id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F105774",
+          "url": "https://www.margaretthatcher.org/document/105774",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202": {
+      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
+      "quote_text_sha256": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "sources": [
+        {
+          "archive_capture_digest": "KVMOO5EWL7MLNBE2TOOXGXOGYF4MHBNM",
+          "archive_capture_timestamp": "20240617040817",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108331",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1994-03-21",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps",
+          "exact_supporting_passage_sha256": "8dbcdf1d6a921d7e1d917ac80bdaa595cc7e53bd5993b99a47a11fe94a5dab07",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "8c8f0182dc5704f157715ca65821a6642269f34106094a2553a620b9fd93e507",
+          "page_text_sha256": "9e5ec7cf26597746c2ce13ddd9a69f4e97b955073d20e9f2aee8662cd08e9b54",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "March 21, 1994",
+          "source_date_raw": "1994 Mar 21 Mo",
+          "source_event": "Speech in Santiago (\"Challenges of the 21st Century\")",
+          "source_id": "0d4f9a355e2d63e2b1c95700c2f82963568214bc8205e6cfed7b4eb7801fcf8c",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108331",
+          "supporting_context": "…ce is guaranteed not by weak but by strong defence in the hands of peace loving powers. Spending on defence is not just one element in a government's public spending programme. It is the condition upon which all of the rest of public spending and indeed private spending, public activity and private activity, depend. If you do not have sufficiently strong defence to face down an aggressor–and to do so when he chooses to attack–everything is lost. Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps. As the poet T.S. Eliot put the point so well in his Choruses from ‘The Rock’ : “It is hard for those who live near a Police Station To believe in the triumph of violence. Do you think that The Faith has conquered the World? And that lions no longer need keepers? Do you need to be told that whatever has been, can still be?” The Benefits of Trade The second great international challenge we must face is that of securing and enlarging free trade. A…",
+          "supporting_context_sha256": "cea015211296a5827382f49099b751bd898cb40094786fd350d1a9d4bef8a767",
+          "title": "Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)",
+          "transport_url": "https://web.archive.org/web/20240617040817id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F108331",
+          "url": "https://www.margaretthatcher.org/document/108331",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5": {
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "quote_text": "Governments should not run business.",
+      "quote_text_sha256": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "sources": [
+        {
+          "archive_capture_digest": "ZGJEKF435K3Y7ODVYHKXUMOROOJ6QNYJ",
+          "archive_capture_timestamp": "20180628044240",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/106498",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1986-10-10",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Governments should not run business",
+          "exact_supporting_passage_sha256": "3e30ce8c1d01aca087fdffd253f2a609e16c75fd586b8acbd86d3d5bdcfb921e",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "0f92a2b272d4081f08da9355d3286a0dd2a3145458a22932add486990cde624c",
+          "page_text_sha256": "c66d6080d56f07f42ee5061a1a8bd531aab73613d508026b36bdcec6e980edeb",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "October 10, 1986",
+          "source_date_raw": "1986 Oct 10 Fr",
+          "source_event": "Speech to Conservative Party Conference, Bournemouth",
+          "source_id": "747547e744b7a4dd0b806df5d5ecd2f024c5e1761bd53d909b936fd7f80ef25a",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 106498",
+          "supporting_context": "…r present range of help for people to train, retrain and find jobs. And I would like just to say, Mr President: training is not a palliative for unemployment. Training will play an ever larger part in our whole industrial life. [end p20] For only modern, Efficient industry and commerce will produce the jobs our people need. [end p21] POPULAR CAPITALISM Our opponents would have us believe that all problems can be solved by State intervention. But Governments should not run business. Indeed, the weakness of the case for State ownership has become all too apparent. [end p22] For state planners do not have to suffer the consequences of their mistakes. It's the taxpayers who have to pick up the bill. This Government has rolled back the frontiers of the State, and will roll them back still further. So popular is our policy that it's being taken up all over the world. From France to the Phillipines, from Jamaica to Japan, from M…",
+          "supporting_context_sha256": "7cbc68e3dde234014c25ddb582207c5299c5bff6388e72e30ce74b6e995d58a5",
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)",
+          "transport_url": "https://web.archive.org/web/20180628044240id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F106498",
+          "url": "https://www.margaretthatcher.org/document/106498",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": {
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
+      "quote_text_sha256": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "sources": [
+        {
+          "archive_capture_digest": "CXADRWP7TMS5OYJ2UPAHTFGEDBMYWNS7",
+          "archive_capture_timestamp": "20190718015940",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/103336",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1977-03-14",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "There is a growing realisation in Britain the the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results—for living standards, for incentive and for enterprise—of the excessive tax burden in Britain",
+          "exact_supporting_passage_sha256": "8b475af6275df178cfd9e7d6055f3e41f61a4d1559c01984d25f40ef75012e12",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "5ff177be8932d64da09bd8b2fb5e40473fbbc243347d2cb470ccdc0e07d19557",
+          "page_text_sha256": "d287f9df9274562931f778684c16e170890b82bc9bda72723df1af475bde6cf4",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "March 14, 1977",
+          "source_date_raw": "1977 Mar 14 Mo",
+          "source_event": "Speech to Zurich Economic Society (\"The New Renaissance\")",
+          "source_id": "b47efc5466e47fc26b182d9b5884fdc19b2ffe87d26fb609ee5d61c8831d532e",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 103336",
+          "supporting_context": "…for supporting the old, the unemployed and the unfortunate. Socialism promised to raise the provision of education, health, and housing. As is becoming patent to almost everyone, the result has been the opposite. Standards are [remaining words cut off] . Socialism whetted appetites for more, but has resulted in less being available. Typescript resumes This is where we now stand. But I believe that we have come to the end of the trend. [end p11] There is a growing realisation in Britain the the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results—for living standards, for incentive and for enterprise—of the excessive tax burden in Britain. [Manuscript addition by MT] 83%; 98%; 35%;. Over last 20 years share of GDP taken by State has risen from 40–60%;. In 20 years, the State took control of almost another fifth of national income. Typescript resumes. Yet even these unacceptable levels of taxation have not been enough to finance the public sector. The Government has been borrowing vast sums of money, both within ",
+          "supporting_context_sha256": "185a036dd02a968cd8772e4db56de9e6b985585c8d66ad65847b6ac6699f8daf",
+          "title": "Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)",
+          "transport_url": "https://web.archive.org/web/20190718015940id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F103336",
+          "url": "https://www.margaretthatcher.org/document/103336",
+          "wording_match_kind": "normalised"
+        }
+      ]
+    },
     "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407": {
       "quote_id": "8143e19d5c4d4e159aa40941118a0aeadf1ea316ed4b0f4ba9f93345326fc407",
       "quote_text": "I didn't realise how absolutely useless the House of Lords are. There they are, they just go along to collect 15,000 a year. They've got no guts. They should be defending Britain against the transfer of power to Maastricht and our loss of sovereignty and our loss of identity.",
@@ -37,6 +331,295 @@
         }
       ]
     },
+    "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997": {
+      "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "quote_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member.",
+      "quote_text_sha256": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher, Prime Minister",
+          "canonical_url": "https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1981-03-10",
+          "evidence_origin": "independently_reviewed_public_retrieval",
+          "exact_supporting_passage": "I did not see the broadcast, as I was in my constituency, but I am a great admirer of Professor Hayek. Some of his books are absolutely supreme—\"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\"—and would be well read by almost every hon. Member.",
+          "exact_supporting_passage_sha256": "d3eea89a5ac863dc664e3e33b638af17adce117916cf96f84936c93e67c413a7",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "603d1ce34df222dd1c73344f819d178c710391f2120c1634a963d9ad4438731a",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "source_date": "10 March 1981",
+          "source_date_raw": "1981-03-10",
+          "source_event": "Prime Minister's Questions, House of Commons",
+          "source_id": "62c3318f33a63fac11b27a34fdf3aaab74801fa7e5516493282e40575ca82ce5",
+          "source_publisher": "UK Parliament",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_parliamentary_record",
+          "stable_locator": "HC Deb 10 March 1981 vol 1000 c756",
+          "supporting_context": "…s vital if the economic policies of this Government were to succeed? Will she assure the House that she will have discussions in the near future with her right hon. Friend the Secretary of State for Employment in order to outlaw the closed shop, which I believe is an evil and an infringement of personal freedom, to which my right hon. Friend has referred so often? § The Prime Minister I did not see the broadcast, as I was in my constituency, but I am a great admirer of Professor Hayek. Some of his books are absolutely supreme—\"The Constitution of Liberty\" and the three volumes on\"Law, Legislation and Liberty\"—and would be well read by almost every hon. Member. My right hon. Friend the Secretary of State for Employment has put out consultations in the Green Paper on the closed shop, and I hope that those such as my hon. Friend, who have particular views on the matter, will make their views known to my right hon. Friend. Back to PRIME MINISTER Forward to WAY AND MEANS Noticed a typo? | Report other issues | © UK Parliament",
+          "supporting_context_sha256": "b1e3c62a3b75145fb1500df59159437c1d34c292d98c76bdf45b3d33c022d42d",
+          "title": "UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)",
+          "url": "https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements",
+          "wording_match_kind": "excerpt"
+        }
+      ]
+    },
+    "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc": {
+      "quote_id": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "quote_text": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them.",
+      "quote_text_sha256": "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "sources": [
+        {
+          "archive_capture_digest": "2YNL3ZYLHJIZTFVXW75NLGUIAYIQPOQ2",
+          "archive_capture_timestamp": "20250319094733",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108364",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1996-09-24",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them",
+          "exact_supporting_passage_sha256": "468b81fb52a250002131e098cab760063d1f5b55a43a305bc9dbb62c60309e78",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "29621ef330df7a9a2b1f0372de1e59f907d0cfeefdb0ebd70c4e35120e4af373",
+          "page_text_sha256": "5461b34a69ef95eb3e3006d915c8fa3ffc0ad60aca78c232b2e8103cbf9b29d9",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "September 24, 1996",
+          "source_date_raw": "1996 Sep 24 Tu",
+          "source_event": "The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies",
+          "source_id": "96f0aad16a4a0e81711b66901c32d1278de5dfccc058ec40379963957a9ebf45",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108364",
+          "supporting_context": "…Burke and Bryce, should be pushed from the centre of education is simply preposterous. The best that has been thought, said, and written must be taken seriously - questioned perhaps, improved upon if possible - but taken seriously as the highest achievements of the human mind. What makes those great works great is that they seek to penetrate the deepest mysteries of the human condition and to elevate mankind from the jungle of untutored nature. The idea that some things are more politically correct than others is not new, of course. It has been the guiding sentiment of tyrants in every age who believe that if you can control what people read and thereby what they think then you can control them. The idea that one can become, as Locke said, “the dictator of principles” and establish as the most basic principle “that principles must not be questioned,” is the essence of tyranny. By such means are tyrants able to “cram their tenets down all men's throats.” As Locke asked: “what improvements can be expected of this kind? What greater light can be hoped for in the moral sciences?” where men are denied the liberty of thinking for themselves.…",
+          "supporting_context_sha256": "fd8e866c88eb23a5d7ff4331cee17dad086de3d042930482b7b141d24386a652",
+          "title": "Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)",
+          "transport_url": "https://web.archive.org/web/20250319094733id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F108364",
+          "url": "https://www.margaretthatcher.org/document/108364",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd": {
+      "quote_id": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "quote_text": "Capitalism alone can mobilise people's talents.",
+      "quote_text_sha256": "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "sources": [
+        {
+          "archive_capture_digest": "G6D5SCPBNKM5X6P55PKJJTEQKSGB7VXO",
+          "archive_capture_timestamp": "20250302113044",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/108285",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1991-10-03",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Capitalism alone can mobilise people's talents",
+          "exact_supporting_passage_sha256": "e45267773b160ee29e48576713ad88592ad364a1fd3b32f1e2006617e1763684",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "c99174ec07e6470d4b9cd769a0c181fddaf886528196986171799315bede78c3",
+          "page_text_sha256": "aab2c2149481068760c265217e7ce1564f684834d89e057b860fa6a831ebf650",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "October 3, 1991",
+          "source_date_raw": "1991 Oct 3 Th",
+          "source_event": "Speech to the Polish Senate",
+          "source_id": "36a99bfc90aaeeafab6187948e15e0ec27bd1afa7c337ed947d300b0f2c37642",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 108285",
+          "supporting_context": "…u in Poland know all about this. In retrospect, we can see that it was when the communists were unable to destroy private ownership and enterprise in agriculture that the limits of communism itself were recognised. Not that the end came quickly: nor that it could have come at all without extraordinary courage and sacrifice. But when the communists were forced to accept that collectivism could not feed the people the system was ultimately doomed. Capitalism alone can mobilise people's talents. Governments themselves do not create wealth: they consume it. The proper and positive task of government is: to see that money keeps its value; to break up monopolies, replacing them with the spur of competition; to set some consumer standards; and, of course, to provide a safety net of social benefits for those genuinely unable to cope for themselves. And on this last point, we should always remember that those who can work must. In Poland the…",
+          "supporting_context_sha256": "4d8992ac543b362d8c0ab0f2c142027086b5cc62081d5d0e8f845ea99a24500b",
+          "title": "Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)",
+          "transport_url": "https://web.archive.org/web/20250302113044id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F108285",
+          "url": "https://www.margaretthatcher.org/document/108285",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
+    "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9": {
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
+      "quote_text_sha256": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "sources": [
+        {
+          "archive_capture_digest": "SHXRM6M3QZGJR2T6OHYL4QQMQUBTOANJ",
+          "archive_capture_timestamp": "20240427111319",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/105472",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1983-11-14",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
+          "exact_supporting_passage_sha256": "12c67d6bdda420b2ee1e883445b0cd9f46f30dcaaa8730da68aea4cffaae2f1c",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "290b31d0bd00c508e3b8225c57c5f5b21e240b84bbbff7b15a597e86a684c671",
+          "page_text_sha256": "d39bb3e9d1ca4a5b4cf549aa149a8b23e7f5baa4727be3c6d9d9ca2bf6e1364a",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "November 14, 1983",
+          "source_date_raw": "1983 Nov 14 Mo",
+          "source_event": "Speech at Lord Mayor's Banquet",
+          "source_id": "987577ec33faba36e5b9b8d29017f8147f610d59c704dd83a37962cd6e98b41c",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 105472",
+          "supporting_context": "…This Government has set itself the task of holding public spending next year and the year after to the amount planned and published before the Election. When Nigel Lawson the Chancellor publishes his Autumn Statement next Thursday it will be clear that we have done just that. It hasn't been easy, but then I take the view that a government must apply to its own activities those same disciplines which others have to apply to theirs. [end p11] But the most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could. [end p12] Even those who planned the reconstruction of our society in the last days of the war did not have a vision of an all-providing government. [end p13] It was Lord Beveridge himself who wrote: “The underlying principle of the report is to propose for the state only those things which the state alone can do, or which it can do better than any local authority or than private citizens.” Never believe that big government is necessarily stron…",
+          "supporting_context_sha256": "b5c4c1924683a6f3a827eaf034bc76f7b39ac96d74af83a463d7a0de3a3f40a7",
+          "title": "Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)",
+          "transport_url": "https://web.archive.org/web/20240427111319id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F105472",
+          "url": "https://www.margaretthatcher.org/document/105472",
+          "wording_match_kind": "excerpt"
+        }
+      ]
+    },
+    "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374": {
+      "quote_id": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "quote_text": "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty.",
+      "quote_text_sha256": "dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374",
+      "sources": [
+        {
+          "archive_capture_digest": "GQCWGVTJXIR3MAPPKXC6IRYFJX4P24RW",
+          "archive_capture_timestamp": "20210705020744",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/103146",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "1976-11-24",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "The Prime Minister has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty",
+          "exact_supporting_passage_sha256": "fb88895dcee0f4cbe00bfb063f1d1291259ecc194d07d3a962aa826eea272449",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "3e573f54ed9e289ce2c6ea50274d32ca7021d0337a22ab1e2f56c1884e9ba0d9",
+          "page_text_sha256": "fecbc0caee6ae360a382f6b1af3d74ca3a22b91310f43a56fbe4ff8ad8ff9a1e",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "1976-11-24",
+          "source_date_raw": "1976 Nov 24 We",
+          "source_event": "Debate on the Address, House of Commons",
+          "source_id": "4dfe739d72f75cb344839e209ac37d8b3f674f801e15946fc33939060a6e70b1",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 103146",
+          "supporting_context": "…world society and the effect of British Socialism on it. In that article Mr. Moynihan studied countries which had put equality before liberty as an objective. At the end he came to this conclusion: “And equality, what of it? … what is the record? The record was stated most succinctly by an Israeli socialist … that those nations which have put liberty ahead of equality have ended up doing better by equality than those with the reverse priority” . The Prime Minister has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty. The view that we shall take on the Gracious Speech will be that our purpose in Opposition will be, first, to further those policies which lead to confidence in our economic and industrial future; secondly, to revitalise the wealth-creating sections of the mixed economy; thirdly, to ensure that the individual counts in society; and, fourthly, to try to see that constitutional changes are carried out in accordance with the traditions and achievem…",
+          "supporting_context_sha256": "3f2e75790b38583a7820a9c00cd8473bd48fc385aceaadb8d37baaed7b12b803",
+          "title": "Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)",
+          "transport_url": "https://web.archive.org/web/20210705020744id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F103146",
+          "url": "https://www.margaretthatcher.org/document/103146",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    },
+    "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09": {
+      "quote_id": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "quote_text": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure.",
+      "quote_text_sha256": "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09",
+      "sources": [
+        {
+          "archive_capture_digest": "RH3L6A4AW7D35WJELIP4ICFXOKCEJHOF",
+          "archive_capture_timestamp": "20241012102829",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "canonical_url": "https://www.margaretthatcher.org/document/109301",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "date": "2001-08-07",
+          "evidence_origin": "independently_reviewed_archival_retrieval",
+          "exact_supporting_passage": "Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure",
+          "exact_supporting_passage_sha256": "95fc8f11e337104d1730a2e7146c2795f5547286e80c536c78fc17bdb3fa7b3c",
+          "fetch_policy_version": "historical-context-restricted-fetch-v5",
+          "page_independently_inspected": true,
+          "page_sha256": "bc053f2c2a5b1dcd7313a98e2d51d8d48873cd928a7eadd27aded34e21f261a4",
+          "page_text_sha256": "a37c13a90812cde4cca09cc7b28366b7219958ba905a07d97701c0d7d3fda9f2",
+          "rationale": "The preserved v5 body was independently inspected and its SHA-256 matched the retrieval record. It identifies Margaret Thatcher, the documentary event and date, and contains the recorded passage. Original publisher identity is kept separate from retrieval transport.",
+          "recorded_at": "2026-07-23",
+          "retrieval_archive": "Internet Archive Wayback Machine",
+          "source_date": "August 7, 2001",
+          "source_date_raw": "2001 Aug 7 Tu",
+          "source_event": "Speech in Bermuda",
+          "source_id": "b746f965044f03f8f463f713048dbda4d574eb2e6e9024400e7d34314ec867d8",
+          "source_publisher": "Margaret Thatcher Foundation",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "official_primary_transcript",
+          "stable_locator": "Margaret Thatcher Foundation document 109301",
+          "supporting_context": "…l this progress the last century also saw the two worst tyrannies the world has ever known. The first, Nazism and its cousin fascism, was defeated in war. The second, communism, had a far more lingering legacy. THE GREAT EXPERIMENT AND THE COLLAPSE OF COMMUNISM For over seventy years it was as if the world was locked into a great experiment. On the one hand there was our way – the way of freedom. On the other was communism – the way of coercion. Communism held its people in a grip of terror. It brought neither dignity nor prosperity and in the end it collapsed under the weight of its own failure. The results of communist oppression were tragic. But sometimes they had their comic side. The Russians who are lucky to have such a marvelous sense of humour, if only because they’ve had so little to laugh about, recount a story about Leonid Brezhnev’s arrival at the pearly gates. St Peter tells him that he has not exactly led the sort of life that would qualify him for heaven but that he can choose between a capitalist and a socialist hell. To…",
+          "supporting_context_sha256": "f59994405f2e0404f2e1fad71d2e857131a761c66fff9240ca80defab2e0f494",
+          "title": "Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)",
+          "transport_url": "https://web.archive.org/web/20241012102829id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F109301",
+          "url": "https://www.margaretthatcher.org/document/109301",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18": {
       "quote_id": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
       "quote_text": "Never forget that the Marxist societies call themselves, and indeed are, the Union of Soviet Socialist Republics. Some of the aims of socialism, are the aims of a Marxist society, and they result in the subjugation of the rights of people to political theory.",
@@ -48,6 +631,7 @@
             "attribution_support",
             "source_event_support"
           ],
+          "canonical_url": "https://www.margaretthatcher.org/document/104653",
           "claims_supported": [
             "wording",
             "attribution",
@@ -63,6 +647,7 @@
           "source_date": "20 May 1981",
           "source_event": "Speech to Conservative Women's Conference",
           "source_id": "729ef0ab1006098f0e0b1dbfb6fefc99410908a4d980638d48c024ee268c55f1",
+          "source_publisher": "Margaret Thatcher Foundation",
           "source_quality_class": "strong_primary_evidence",
           "source_type": "official_primary_transcript",
           "stable_locator": "Margaret Thatcher Foundation document 104653",
@@ -73,9 +658,9 @@
       ]
     }
   },
-  "policy_version": "historical-context-curated-evidence-v2-source-adjudications",
-  "quote_count": 2,
-  "schema_version": 2,
+  "policy_version": "historical-context-curated-evidence-v3-archive-provenance",
+  "quote_count": 14,
+  "schema_version": 3,
   "source_adjudication_count": 1,
   "source_adjudications": [
     {
@@ -93,5 +678,5 @@
       "wording_coverage": "normalised"
     }
   ],
-  "source_count": 2
+  "source_count": 14
 }

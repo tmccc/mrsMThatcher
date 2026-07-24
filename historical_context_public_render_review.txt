@@ -15,37 +15,37 @@ attribution_eligible_quote_count: 610
 attribution_ineligible_completed_quote_count: 16
 render_failure_count: 0
 item_blocker_count: 0
-packets_with_source_merges: 243
-merged_internal_source_record_count: 352
-identity_ambiguity_count: 68
-packets_with_identity_ambiguities: 54
+packets_with_source_merges: 246
+merged_internal_source_record_count: 366
+identity_ambiguity_count: 66
+packets_with_identity_ambiguities: 52
 packets_with_no_reliable_source: 107
 eligible_packets_with_no_reliable_source: 96
-packets_with_multiple_public_sources: 43
-packets_with_generic_context: 467
-packets_with_generic_context_and_public_source: 360
+packets_with_multiple_public_sources: 40
+packets_with_generic_context: 462
+packets_with_generic_context_and_public_source: 355
 packets_with_generic_context_and_event_or_date_evidence: 0
-packets_with_generic_context_and_exact_verification: 148
+packets_with_generic_context_and_exact_verification: 146
 packets_with_meaning_omitted: 16
 packets_with_long_replies: 2
 duplicate_full_public_reply_group_count: 1
 duplicate_quote_text_group_count: 0
-canonical_identity_display_variant_count: 46
-packets_with_reused_identity_display_variants: 207
-packets_with_urlless_public_sources: 165
-urlless_public_source_entry_count: 165
-packets_with_generic_mtf_document_titles: 186
-generic_mtf_document_title_entry_count: 190
+canonical_identity_display_variant_count: 51
+packets_with_reused_identity_display_variants: 221
+packets_with_urlless_public_sources: 158
+urlless_public_source_entry_count: 158
+packets_with_generic_mtf_document_titles: 180
+generic_mtf_document_title_entry_count: 184
 editorial_queue_category_count: 9
 url_like_public_title_count: 0
 mtf_page_title_chrome_count: 0
 abbreviated_public_date_count: 0
-source_distribution: {"0":107,"1":476,"2":42,"3":1}
-raw_character_length: {"maximum":775,"median":419.5,"minimum":176}
-weighted_character_length: {"maximum":700,"median":399.0,"minimum":176}
+source_distribution: {"0":107,"1":479,"2":39,"3":1}
+raw_character_length: {"maximum":775,"median":418.0,"minimum":176}
+weighted_character_length: {"maximum":700,"median":398.0,"minimum":176}
 formatter_options: {"include_meaning":true,"include_source":true,"include_verification":true,"maximum_length":4000}
-source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"2045bdee4dc90ebab4720125cf0b442c033feb81a940130537fdfd1d3622347f","historical_context_packet_corrections.json":"d67ba6d18a8914a75fad53d35f66236bc6767e9e08db801469fcac33453dd6ba","historical_context_source_curated_evidence.json":"db2d7ce9d973fd7e1933178f7702ac49b36113388c5516592e23ad6e280fd867","historical_context_source_role_audit.json":"431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
-implementation_file_hashes: {"historical_context_formatter.py":"c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"51aa0d24163e80b9ef011a018b6e106779317441c6cd3c26eb729e46219a4c61"}
+source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd","historical_context_packet_corrections.json":"7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c","historical_context_source_curated_evidence.json":"8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4","historical_context_source_role_audit.json":"97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
+implementation_file_hashes: {"historical_context_formatter.py":"c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"2a1c4cb733a9f42286df199f13c3c4c091b769133907d58c89390c98bbe9c93f"}
 
 AUTOMATED BLOCKERS
 ------------------
@@ -53,13 +53,13 @@ None.
 
 EDITORIAL REVIEW QUEUES
 -----------------------
-{"additional_quote_id_count":34,"flag":"IDENTITY_AMBIGUITIES","packet_count":54,"sample_quote_ids":["03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631","3faefc589e861823bd4f1f30807535defbadc6177404872bf326e1297c8fb13d","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427"]}
+{"additional_quote_id_count":32,"flag":"IDENTITY_AMBIGUITIES","packet_count":52,"sample_quote_ids":["03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","3faefc589e861823bd4f1f30807535defbadc6177404872bf326e1297c8fb13d","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939"]}
 {"additional_quote_id_count":87,"flag":"NO_RELIABLE_SOURCE","packet_count":107,"sample_quote_ids":["0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5","0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a","04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550","063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7","08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82","08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa","0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c","0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc","1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc","1085ff6a77a0bf02ea5c2621cc8d546e47637f2e363979687c62ba73f16504fa","13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f","141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5","15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712","184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13","1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55","2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9","25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9","26706085134c745c4f3819322184e57689d7aef652a5011e734adcd86ff77dc7","272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996","2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2"]}
-{"additional_quote_id_count":23,"flag":"MULTIPLE_PUBLIC_SOURCES","packet_count":43,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b","72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e"]}
-{"additional_quote_id_count":145,"flag":"URLLESS_PUBLIC_SOURCE","packet_count":165,"sample_quote_ids":["00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448","01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea","03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5","0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","1393eb73be2367fb280b57d3040e93f6ca7f569a77ec5e0a47f72940b9508637","16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f","19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296","1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500","1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315","1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662"]}
-{"additional_quote_id_count":166,"flag":"GENERIC_MTF_DOCUMENT_TITLE","packet_count":186,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29","115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","17223b25e42fe5b09b18f7b69eebd7224faeb7d764af5536dd57899eb0201f78","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
-{"additional_quote_id_count":187,"flag":"REUSED_IDENTITY_DISPLAY_VARIANT","packet_count":207,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11","1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a","1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d","178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1","1993fc02d1ec12c56b6b181dcb12f2c2145b3a373861a365088fe2b1137a9192","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1"]}
-{"additional_quote_id_count":340,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":360,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
+{"additional_quote_id_count":20,"flag":"MULTIPLE_PUBLIC_SOURCES","packet_count":40,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b","72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e","78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf"]}
+{"additional_quote_id_count":138,"flag":"URLLESS_PUBLIC_SOURCE","packet_count":158,"sample_quote_ids":["00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448","01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea","03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5","0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","1393eb73be2367fb280b57d3040e93f6ca7f569a77ec5e0a47f72940b9508637","16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f","19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296","1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500","1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315","1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662"]}
+{"additional_quote_id_count":160,"flag":"GENERIC_MTF_DOCUMENT_TITLE","packet_count":180,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29","115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","17223b25e42fe5b09b18f7b69eebd7224faeb7d764af5536dd57899eb0201f78","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
+{"additional_quote_id_count":201,"flag":"REUSED_IDENTITY_DISPLAY_VARIANT","packet_count":221,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11","1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a","123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417","1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d","178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
+{"additional_quote_id_count":335,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":355,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
 {"additional_quote_id_count":0,"flag":"DUPLICATE_FULL_PUBLIC_REPLY","packet_count":3,"sample_quote_ids":["aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142","ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da","f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4"]}
 {"additional_quote_id_count":0,"flag":"LONG_REPLY","packet_count":2,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16"]}
 Queue members are marked by the same flag in ALL RENDERED QUOTATIONS.
@@ -77,13 +77,12 @@ IDENTITY AMBIGUITY INDEX
 {"kinds":["composite_or_conflicting_locator_preserved"],"quote_id":"2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e"}
-{"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631"}
 {"kinds":["uncorroborated_metadata_locator_provenance"],"quote_id":"3faefc589e861823bd4f1f30807535defbadc6177404872bf326e1297c8fb13d"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464"}
 {"kinds":["distinct_explicit_documents_preserved"],"quote_id":"545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3"}
-{"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202"}
+{"kinds":["distinct_explicit_documents_preserved"],"quote_id":"5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427"}
 {"kinds":["uncorroborated_metadata_locator_provenance","uncorroborated_metadata_locator_provenance"],"quote_id":"693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939"}
@@ -103,7 +102,6 @@ IDENTITY AMBIGUITY INDEX
 {"kinds":["uncorroborated_metadata_locator_provenance","uncorroborated_metadata_locator_provenance"],"quote_id":"a017d22c575c01e7eb9c8287e1b62f85d07c34a1a663d2eac974d995ace7f83c"}
 {"kinds":["distinct_explicit_documents_preserved"],"quote_id":"a0817766a020e293c32e5eeb0023c0ffccfd8f4fa8731858ea7140add588d306"}
 {"kinds":["metadata_locator_document_conflict","metadata_locator_document_conflict"],"quote_id":"a8cc9b0e7ea3e7803172a7d3f3191c1687067c33a5c8ca3e42d1ed3205d1683f"}
-{"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc"}
 {"kinds":["uncorroborated_metadata_locator_provenance","uncorroborated_metadata_locator_provenance"],"quote_id":"b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"}
 {"kinds":["uncorroborated_metadata_locator_provenance"],"quote_id":"bfa95080906d7641a3588674108dc5b8943d24614cb41d2980e5767bc4378662"}
 {"kinds":["possible_same_mtf_document_identity_unresolved"],"quote_id":"d6ba4775ac47ca6aef09ec4913e591d30ad298af12dfacaa5c18fc235d53eb9d"}
@@ -137,7 +135,7 @@ CANONICAL IDENTITY DISPLAY VARIANTS
 {"canonical_identity":"margaret_thatcher_foundation:document:102963","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 102963","url":"https://www.margaretthatcher.org/document/102963"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Exeter Conservatives (\"Increasing tax means diminishing freedom\") (Document 102963)","url":"https://www.margaretthatcher.org/document/102963"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:102990","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 102990","url":"https://www.margaretthatcher.org/document/102990"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Central Council (\"The Historic Choice\") (Document 102990)","url":"https://www.margaretthatcher.org/document/102990"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:103329","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103329","url":"https://www.margaretthatcher.org/document/103329"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Grantham Conservatives (Document 103329)","url":"https://www.margaretthatcher.org/document/103329"}]}
-{"canonical_identity":"margaret_thatcher_foundation:document:103336","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103336","url":"https://www.margaretthatcher.org/document/103336"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\") (Document 103336)","url":"https://www.margaretthatcher.org/document/103336"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:103336","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103336","url":"https://www.margaretthatcher.org/document/103336"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\") (Document 103336)","url":"https://www.margaretthatcher.org/document/103336"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)","url":"https://www.margaretthatcher.org/document/103336"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:103411","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103411","url":"https://www.margaretthatcher.org/document/103411"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Greater London Young Conservatives (Iain Macleod Memorial Lecture - \"Dimensions of Conservatism\") (Document 103411)","url":"https://www.margaretthatcher.org/document/103411"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:103443","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103443","url":"https://www.margaretthatcher.org/document/103443"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (\"Confrontation with reality\") (Document 103443)","url":"https://www.margaretthatcher.org/document/103443"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:103522","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 103522","url":"https://www.margaretthatcher.org/document/103522"},{"source_line":"Source — Margaret Thatcher Foundation, Speech at St Lawrence Jewry (\"I BELIEVE - A speech on Christianity and Politics\") (Document 103522)","url":"https://www.margaretthatcher.org/document/103522"}]}
@@ -152,24 +150,29 @@ CANONICAL IDENTITY DISPLAY VARIANTS
 {"canonical_identity":"margaret_thatcher_foundation:document:104431","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104431","url":"https://www.margaretthatcher.org/document/104431"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference ('the lady's not for turning') [\"The Reason Why\"] (Document 104431)","url":"https://www.margaretthatcher.org/document/104431"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:104653","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 104653","url":"https://www.margaretthatcher.org/document/104653"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Women's Conference, Central Hall, Westminster, 20 May 1981 (Document 104653)","url":"https://www.margaretthatcher.org/document/104653"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:105454","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 105454","url":"https://www.margaretthatcher.org/document/105454"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 105454)","url":"https://www.margaretthatcher.org/document/105454"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:105472","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet (Document 105472)","url":"https://www.margaretthatcher.org/document/105472"},{"source_line":"Source — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)","url":"https://www.margaretthatcher.org/document/105472"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:105774","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 105774","url":"https://www.margaretthatcher.org/document/105774"},{"source_line":"Source — Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)","url":"https://www.margaretthatcher.org/document/105774"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:105799","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 105799","url":"https://www.margaretthatcher.org/document/105799"},{"source_line":"Source — Margaret Thatcher Foundation, The Second Carlton Lecture (\"Why democracy will last\") (Document 105799)","url":"https://www.margaretthatcher.org/document/105799"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:106265","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 106265","url":"https://www.margaretthatcher.org/document/106265"},{"source_line":"Source — Margaret Thatcher Foundation, Interview for The Guardian (Document 106265)","url":"https://www.margaretthatcher.org/document/106265"}]}
-{"canonical_identity":"margaret_thatcher_foundation:document:106498","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 106498","url":"https://www.margaretthatcher.org/document/106498"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 106498)","url":"https://www.margaretthatcher.org/document/106498"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:106498","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 106498)","url":"https://www.margaretthatcher.org/document/106498"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)","url":"https://www.margaretthatcher.org/document/106498"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:107200","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 107200","url":"https://www.margaretthatcher.org/document/107200"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Central Council (Document 107200)","url":"https://www.margaretthatcher.org/document/107200"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:107427","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 107427","url":"https://www.margaretthatcher.org/document/107427"},{"source_line":"Source — Margaret Thatcher Foundation, Interview for Press Association (10th anniversary as Prime Minister) (Document 107427)","url":"https://www.margaretthatcher.org/document/107427"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:107789","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 107789","url":"https://www.margaretthatcher.org/document/107789"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 107789)","url":"https://www.margaretthatcher.org/document/107789"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108217","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108217","url":"https://www.margaretthatcher.org/document/108217"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 108217)","url":"https://www.margaretthatcher.org/document/108217"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108282","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108282","url":"https://www.margaretthatcher.org/document/108282"},{"source_line":"Source — Margaret Thatcher Foundation, First Clare Booth Luce Lecture (Document 108282)","url":"https://www.margaretthatcher.org/document/108282"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108284","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108284","url":"https://www.margaretthatcher.org/document/108284"},{"source_line":"Source — Margaret Thatcher Foundation, Speech at Jagiellonian University in Krakow (Document 108284)","url":"https://www.margaretthatcher.org/document/108284"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:108285","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108285","url":"https://www.margaretthatcher.org/document/108285"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)","url":"https://www.margaretthatcher.org/document/108285"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108324","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108324","url":"https://www.margaretthatcher.org/document/108324"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the National Press Club (Document 108324)","url":"https://www.margaretthatcher.org/document/108324"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108337","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108337","url":"https://www.margaretthatcher.org/document/108337"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to Citibank in New Delhi (Document 108337)","url":"https://www.margaretthatcher.org/document/108337"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:108338","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Speech in Bombay (Document 108338)","url":"https://www.margaretthatcher.org/document/108338"},{"source_line":"Source — Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)","url":"https://www.margaretthatcher.org/document/108338"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108353","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108353","url":"https://www.margaretthatcher.org/document/108353"},{"source_line":"Source — Margaret Thatcher Foundation, Keith Joseph Memorial Lecture (\"Liberty and Limited Government\") (Document 108353)","url":"https://www.margaretthatcher.org/document/108353"}]}
-{"canonical_identity":"margaret_thatcher_foundation:document:108364","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108364","url":"https://www.margaretthatcher.org/document/108364"},{"source_line":"Source — Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\") (Document 108364)","url":"https://www.margaretthatcher.org/document/108364"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:108364","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\") (Document 108364)","url":"https://www.margaretthatcher.org/document/108364"},{"source_line":"Source — Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)","url":"https://www.margaretthatcher.org/document/108364"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108368","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108368","url":"https://www.margaretthatcher.org/document/108368"},{"source_line":"Source — Margaret Thatcher Foundation, Nicholas Ridley Memorial Lecture (Document 108368)","url":"https://www.margaretthatcher.org/document/108368"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108374","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108374","url":"https://www.margaretthatcher.org/document/108374"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the First International Conservative Congress (Document 108374)","url":"https://www.margaretthatcher.org/document/108374"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108381","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108381","url":"https://www.margaretthatcher.org/document/108381"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the International Free Enterprise dinner (Document 108381)","url":"https://www.margaretthatcher.org/document/108381"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108386","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108386","url":"https://www.margaretthatcher.org/document/108386"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the English-Speaking Union in New York (\"The Language of Liberty\") (Document 108386)","url":"https://www.margaretthatcher.org/document/108386"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:108387","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 108387","url":"https://www.margaretthatcher.org/document/108387"},{"source_line":"Source — Margaret Thatcher Foundation, Speech accepting an honorary degree from Hofstra University (Document 108387)","url":"https://www.margaretthatcher.org/document/108387"}]}
+{"canonical_identity":"margaret_thatcher_foundation:document:109301","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Speech in Bermuda (Document 109301)","url":"https://www.margaretthatcher.org/document/109301"},{"source_line":"Source — Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)","url":"https://www.margaretthatcher.org/document/109301"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:111266","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Document 111266","url":"https://www.margaretthatcher.org/document/111266"},{"source_line":"Source — Margaret Thatcher Foundation, Speech to the Atlantic Bridge (Document 111266)","url":"https://www.margaretthatcher.org/document/111266"}]}
 {"canonical_identity":"margaret_thatcher_foundation:document:111359","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, Article for Newsweek (\"Don't undo my work\") [no such thing as Majorism] (Document 111359)","url":"https://www.margaretthatcher.org/document/111359"},{"source_line":"Source — Margaret Thatcher Foundation, Document 111359","url":"https://www.margaretthatcher.org/document/111359"}]}
 {"canonical_identity":"margaret_thatcher_foundation:record:ccopr_883_77","public_displays":[{"source_line":"Source — Margaret Thatcher Foundation, CCOPR 883/77","url":""},{"source_line":"Source — Margaret Thatcher Foundation: CCOPR 883/77","url":""}]}
@@ -182,9 +185,11 @@ LONGEST PUBLIC REPLIES
 {"quote_id":"343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","raw_character_count":663,"weighted_character_count":567}
 {"quote_id":"19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","raw_character_count":629,"weighted_character_count":579}
 {"quote_id":"5fbdcee710fe7e18425f4eeefe811890b3c8a03803f78b23685ad11309840679","raw_character_count":620,"weighted_character_count":526}
+{"quote_id":"5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","raw_character_count":592,"weighted_character_count":542}
 {"quote_id":"c2633f930597a6a5281672a0525268067de6b21081ba014381622f9757e21919","raw_character_count":587,"weighted_character_count":562}
 {"quote_id":"486ac8259439d7b2857b5accce1e57ee83bce66c0408024af831510649a4ef5e","raw_character_count":585,"weighted_character_count":560}
 {"quote_id":"7c3abbd29080ede882430a4d7b6cd70223ff539f9f3ca5a192a4c172e827e226","raw_character_count":578,"weighted_character_count":553}
+{"quote_id":"abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc","raw_character_count":574,"weighted_character_count":549}
 {"quote_id":"f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d","raw_character_count":572,"weighted_character_count":464}
 {"quote_id":"1244294a90af385fe940a432fab296f43725644d318cb011c7080482115a0236","raw_character_count":567,"weighted_character_count":482}
 {"quote_id":"3fb0e6e6f45d742323a00b0d45fc0a0a524bc0ed0ba11a2c84b6c54c86fb2a0f","raw_character_count":562,"weighted_character_count":537}
@@ -194,8 +199,6 @@ LONGEST PUBLIC REPLIES
 {"quote_id":"2b7d9239193767ff1d0e7d16ea6589f1c5084bb8de36375806e6a00afc71b9b4","raw_character_count":553,"weighted_character_count":439}
 {"quote_id":"2f8ac7d9bbeae27faa9d2ad74d1cbd8864005464c00d02bd88938232ac09bdf2","raw_character_count":550,"weighted_character_count":469}
 {"quote_id":"545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","raw_character_count":548,"weighted_character_count":498}
-{"quote_id":"7cf7275ebbf5e64b621dfc2cc81cc891d5ae02bbcf0d567d2674baafe18bd66a","raw_character_count":539,"weighted_character_count":514}
-{"quote_id":"094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","raw_character_count":538,"weighted_character_count":488}
 
 ALL RENDERED QUOTATIONS
 =======================
@@ -682,7 +685,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Verified excerpt"
 Raw/weighted/max characters: 387/362/4000
 Internal records -> canonical groups -> public sources: 4 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:3","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Flags: ["MERGED_INTERNAL_RECORDS:3","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -1949,7 +1952,7 @@ Meaning decision: "Meaning retained because the packet records a distinct explan
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 398/373/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -4528,30 +4531,32 @@ Formatter version: "historical_context_reply_schema_v5"
 Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
-Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 470/445/4000
-Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE"]
+Verification label: "Exact wording verified"
+Raw/weighted/max characters: 406/381/4000
+Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
 {"canonical_identity":"margaret_thatcher_foundation:document:108338","canonical_url":"https://www.margaretthatcher.org/document/108338","document_numbers":["108338"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108338","roles":["attribution_support","wording_verification"],"source_id":"0d414279d76e1b746286e989061722abc116149b781fada61497aa86ccd0e962","title":"Speech in Bombay | Margaret Thatcher Foundation"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108338","canonical_url":"https://www.margaretthatcher.org/document/108338","document_numbers":["108338"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108338","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"ab7c85c9257789969109589e2436765ac88873e2bfbd7b54595b593246556046","title":"Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108338","canonical_url":"https://www.margaretthatcher.org/document/108338","document_numbers":["108338"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"54289d1e4e545cde1f678d747e699d7cebbbdd2c3e3081f0bbe35ba6ec4700b6","title":"Margaret Thatcher Foundation document 108338"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:108338","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech in Bombay (Document 108338)","public_url":"https://www.margaretthatcher.org/document/108338","source_ids":["0d414279d76e1b746286e989061722abc116149b781fada61497aa86ccd0e962"],"source_record_count":1}
+{"canonical_identity":"margaret_thatcher_foundation:document:108338","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)","public_url":"https://www.margaretthatcher.org/document/108338","source_ids":["0d414279d76e1b746286e989061722abc116149b781fada61497aa86ccd0e962","ab7c85c9257789969109589e2436765ac88873e2bfbd7b54595b593246556046","54289d1e4e545cde1f678d747e699d7cebbbdd2c3e3081f0bbe35ba6ec4700b6"],"source_record_count":3}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech in Bombay, India, 4 October 1994.
 
 Meaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.
 
-Verification — Attributed, but exact wording not independently verified
+Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Speech in Bombay (Document 108338)
+Source — Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)
 https://www.margaretthatcher.org/document/108338
 END PUBLIC REPLY
 
@@ -4997,9 +5002,9 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 472/447/4000
-Internal records -> canonical groups -> public sources: 4 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:3","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION"]
+Raw/weighted/max characters: 391/366/4000
+Internal records -> canonical groups -> public sources: 6 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:5"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -5007,22 +5012,24 @@ INTERNAL SOURCE RECORDS
 {"canonical_identity":"margaret_thatcher_foundation:document:105508","canonical_url":"https://www.margaretthatcher.org/document/105508","document_numbers":["105508"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105508","roles":["attribution_support","wording_verification"],"source_id":"221fce0278b32cea8c290be74a9a4a3a11583ffd868b1302adda5e529386bc9f","title":"Interview for Financial Times | Margaret Thatcher Foundation"}
 {"canonical_identity":"margaret_thatcher_foundation:document:105508","canonical_url":"https://www.margaretthatcher.org/document/105508","document_numbers":["105508"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105508","roles":["attribution_support","wording_verification"],"source_id":"15e9ea70164bed21b9ec446b3474685c9d266ac322a678bc35ffae0b6a6698e8","title":"Interview for Financial Times | Margaret Thatcher Foundation"}
 {"canonical_identity":"margaret_thatcher_foundation:document:105508","canonical_url":"https://www.margaretthatcher.org/document/105508","document_numbers":["105508"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105508","roles":["attribution_support","wording_verification"],"source_id":"d3c7e266b5efc018a07282b58d0a8c7efc7f0873648d6805d5851ca4c6d30fe8","title":"Interview for Financial Times | Margaret Thatcher Foundation"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105508","canonical_url":"https://www.margaretthatcher.org/document/105508","document_numbers":["105508"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105508","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"533581255159eecd991e9cec1c6d9834607cec63ac27c55bd2a39e70d3c8c3fe","title":"Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105508","canonical_url":"https://www.margaretthatcher.org/document/105508","document_numbers":["105508"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"2a2d23256bdf455fc729de9b12da3bea564d824daa485972f03fa389c0a04d16","title":"Margaret Thatcher Foundation document 105508"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:105508","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)","public_url":"https://www.margaretthatcher.org/document/105508","source_ids":["2b19ac4b05490170f439bd273380b549cb0fbe3bd63b7ae33cc13f21a96842fb","221fce0278b32cea8c290be74a9a4a3a11583ffd868b1302adda5e529386bc9f","15e9ea70164bed21b9ec446b3474685c9d266ac322a678bc35ffae0b6a6698e8","d3c7e266b5efc018a07282b58d0a8c7efc7f0873648d6805d5851ca4c6d30fe8"],"source_record_count":4}
+{"canonical_identity":"margaret_thatcher_foundation:document:105508","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)","public_url":"https://www.margaretthatcher.org/document/105508","source_ids":["2b19ac4b05490170f439bd273380b549cb0fbe3bd63b7ae33cc13f21a96842fb","221fce0278b32cea8c290be74a9a4a3a11583ffd868b1302adda5e529386bc9f","15e9ea70164bed21b9ec446b3474685c9d266ac322a678bc35ffae0b6a6698e8","d3c7e266b5efc018a07282b58d0a8c7efc7f0873648d6805d5851ca4c6d30fe8","533581255159eecd991e9cec1c6d9834607cec63ac27c55bd2a39e70d3c8c3fe","2a2d23256bdf455fc729de9b12da3bea564d824daa485972f03fa389c0a04d16"],"source_record_count":6}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Interview for Financial Times, 31 August 1984.
 
-Meaning — A successful government must maintain unwavering commitment to its core objectives and resist the temptation to compromise or yield to political opponents and populist distractions.
+Meaning — Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Interview for Financial Times (Document 105508)
+Source — Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)
 https://www.margaretthatcher.org/document/105508
 END PUBLIC REPLY
 
@@ -5530,34 +5537,32 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 461/436/4000
-Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
-Flags: ["MULTIPLE_PUBLIC_SOURCES:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Raw/weighted/max characters: 398/373/4000
+Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
 {"canonical_identity":"margaret_thatcher_foundation:document:105774","canonical_url":"https://www.margaretthatcher.org/document/105774","document_numbers":["105774"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105774","roles":["attribution_support","wording_verification"],"source_id":"97960de63c603321f16862189ea26053afb0708b11a46e02965cdd1a7590e24f","title":"Margaret Thatcher Foundation document 105774"}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:54d06910601311b606d3af73725e64ccd5f903fcdf6a48562a2d093910ea8f11","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"8ab9796dde1783d7275232a08ef6d9a13dd189514956933c8b5e0d164ac1c9fc","title":"Margaret Thatcher Foundation Archive, Interview transcript, October 25, 1984"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105774","canonical_url":"https://www.margaretthatcher.org/document/105774","document_numbers":["105774"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105774","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"9b1049a3bfa9cb04a594b7f6d271844960b8e1e8480f86566c7a4342fe2dba69","title":"Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105774","canonical_url":"https://www.margaretthatcher.org/document/105774","document_numbers":["105774"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"0d29c7d27d8ead777faf6b46a14f0a8565e02e5aac481c28ecd9978b61b3ad90","title":"Margaret Thatcher Foundation document 105774"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:105774","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 105774","public_url":"https://www.margaretthatcher.org/document/105774","source_ids":["97960de63c603321f16862189ea26053afb0708b11a46e02965cdd1a7590e24f"],"source_record_count":1}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:54d06910601311b606d3af73725e64ccd5f903fcdf6a48562a2d093910ea8f11","identity_basis":"bibliographic_identity","public_title":"Margaret Thatcher Foundation, Interview transcript, 25 October 1984","public_url":"","source_ids":["8ab9796dde1783d7275232a08ef6d9a13dd189514956933c8b5e0d164ac1c9fc"],"source_record_count":1}
+{"canonical_identity":"margaret_thatcher_foundation:document:105774","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)","public_url":"https://www.margaretthatcher.org/document/105774","source_ids":["97960de63c603321f16862189ea26053afb0708b11a46e02965cdd1a7590e24f","9b1049a3bfa9cb04a594b7f6d271844960b8e1e8480f86566c7a4342fe2dba69","0d29c7d27d8ead777faf6b46a14f0a8565e02e5aac481c28ecd9978b61b3ad90"],"source_record_count":3}
 
 IDENTITY AMBIGUITIES
-{"explicit_canonical_identity":"margaret_thatcher_foundation:document:105774","kind":"possible_same_mtf_document_identity_unresolved","packet_dates":["1984-10-25"],"source_ids":["8ab9796dde1783d7275232a08ef6d9a13dd189514956933c8b5e0d164ac1c9fc"],"weak_canonical_identity":"bibliographic:margaret_thatcher_foundation:54d06910601311b606d3af73725e64ccd5f903fcdf6a48562a2d093910ea8f11","weak_dates":["1984-10-25"]}
+None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Interview with a journalist (Lewis), 25 October 1984.
+Context — Interview for Birmingham Post, 25 October 1984.
 
-Meaning — Legitimate trade unionism should focus on the economic well-being of workers and the prosperity of their industry, rather than pursuing left-wing political agendas.
+Meaning — Thatcher defined ‘true trade unionists’ as focused on workers' fair treatment and the prosperity of their industry rather than politics.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Document 105774
+Source — Margaret Thatcher Foundation, Interview for Birmingham Post, 25 October 1984 (Document 105774)
 https://www.margaretthatcher.org/document/105774
-
-Source — Margaret Thatcher Foundation, Interview transcript, 25 October 1984
 END PUBLIC REPLY
 
 ================================================================================
@@ -8181,25 +8186,26 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 502/477/4000
-Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
-Flags: ["MULTIPLE_PUBLIC_SOURCES:2","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Raw/weighted/max characters: 592/542/4000
+Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
+Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:1","GENERIC_MTF_DOCUMENT_TITLE"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
 {"canonical_identity":"margaret_thatcher_foundation:document:108332","canonical_url":"https://www.margaretthatcher.org/document/108332","document_numbers":["108332"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108332","roles":["attribution_support","wording_verification"],"source_id":"d77828edaa840ee7f619df69bb355bcad4e5dda2f894cb4201f13d781e6a39f3","title":"Margaret Thatcher Foundation document 108332"}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:7c5674e27f90b156327df01adec6c55a02220c84224a71f9fc4717e783722531","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"3362127136dfb3a087351ce4931323fe1f27bcd200f8a5bd7580d587dd13b64f","title":"Margaret Thatcher Foundation Archive, THCR (March 21, 1994)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108331","canonical_url":"https://www.margaretthatcher.org/document/108331","document_numbers":["108331"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108331","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"0d4f9a355e2d63e2b1c95700c2f82963568214bc8205e6cfed7b4eb7801fcf8c","title":"Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108331","canonical_url":"https://www.margaretthatcher.org/document/108331","document_numbers":["108331"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"c0556fe3a21a557bb69b1560b1c0d45e00c982d3a75145cf8cc10bf579266763","title":"Margaret Thatcher Foundation document 108331"}
 
 CANONICAL PUBLIC SOURCE GROUPS
 {"canonical_identity":"margaret_thatcher_foundation:document:108332","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 108332","public_url":"https://www.margaretthatcher.org/document/108332","source_ids":["d77828edaa840ee7f619df69bb355bcad4e5dda2f894cb4201f13d781e6a39f3"],"source_record_count":1}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:7c5674e27f90b156327df01adec6c55a02220c84224a71f9fc4717e783722531","identity_basis":"bibliographic_identity","public_title":"Margaret Thatcher Foundation, THCR (21 March 1994)","public_url":"","source_ids":["3362127136dfb3a087351ce4931323fe1f27bcd200f8a5bd7580d587dd13b64f"],"source_record_count":1}
+{"canonical_identity":"margaret_thatcher_foundation:document:108331","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech in Santiago (\"Challenges of the 21st Century\"), 21 March 1994 (Document 108331)","public_url":"https://www.margaretthatcher.org/document/108331","source_ids":["0d4f9a355e2d63e2b1c95700c2f82963568214bc8205e6cfed7b4eb7801fcf8c","c0556fe3a21a557bb69b1560b1c0d45e00c982d3a75145cf8cc10bf579266763"],"source_record_count":2}
 
 IDENTITY AMBIGUITIES
-{"explicit_canonical_identity":"margaret_thatcher_foundation:document:108332","kind":"possible_same_mtf_document_identity_unresolved","packet_dates":["1994-03-21"],"source_ids":["3362127136dfb3a087351ce4931323fe1f27bcd200f8a5bd7580d587dd13b64f"],"weak_canonical_identity":"bibliographic:margaret_thatcher_foundation:7c5674e27f90b156327df01adec6c55a02220c84224a71f9fc4717e783722531","weak_dates":["1994-03-21"]}
+{"canonical_identities":["margaret_thatcher_foundation:document:108331","margaret_thatcher_foundation:document:108332"],"kind":"distinct_explicit_documents_preserved"}
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.
+Context — Speech in Santiago ("Challenges of the 21st Century"), 21 March 1994.
 
 Meaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.
 
@@ -8208,7 +8214,8 @@ Verification — Exact wording verified
 Source — Margaret Thatcher Foundation, Document 108332
 https://www.margaretthatcher.org/document/108332
 
-Source — Margaret Thatcher Foundation, THCR (21 March 1994)
+Source — Margaret Thatcher Foundation, Speech in Santiago ("Challenges of the 21st Century"), 21 March 1994 (Document 108331)
+https://www.margaretthatcher.org/document/108331
 END PUBLIC REPLY
 
 ================================================================================
@@ -8565,7 +8572,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Attributed, but exact wording not independently verified"
 Raw/weighted/max characters: 441/416/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -9067,30 +9074,31 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 425/400/4000
-Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:1","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
+Raw/weighted/max characters: 451/426/4000
+Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"margaret_thatcher_foundation:document:106498","canonical_url":"https://www.margaretthatcher.org/document/106498","document_numbers":["106498"],"evidence_targets":["wording"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEEogBsl1_5xfrT0eOatn7MPbENm6aoh4xaZXdthRFdo64A4vV5UkfPJNhRm3zNHPjNahw-wPVg9yYCJWvfoL3VREUrYfDNfpd0RWwgyCe8bIrjkFPzoUdt2-JAK__FyxlgYzwAXw4o78Zfhg==","roles":["wording_verification"],"source_id":"2e759163fb000f7167536ad90d6483506d1fd11d84bc4ec3cc43d2dbfdca26a4","title":"Margaret Thatcher Foundation Archive, Document 106498"}
-{"canonical_identity":"margaret_thatcher_foundation:document:106498","canonical_url":"https://www.margaretthatcher.org/document/106498","document_numbers":["106498"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"cbff91870712453d944520210753a44e5251cc348ca7818f42bb6ba833864bba","title":"Margaret Thatcher Foundation Archive, Document 106498"}
+{"canonical_identity":"margaret_thatcher_foundation:document:106498","canonical_url":"https://www.margaretthatcher.org/document/106498","document_numbers":["106498"],"evidence_targets":["wording"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEEogBsl1_5xfrT0eOatn7MPbENm6aoh4xaZXdthRFdo64A4vV5UkfPJNhRm3zNHPjNahw-wPVg9yYCJWvfoL3VREUrYfDNfpd0RWwgyCe8bIrjkFPzoUdt2-JAK__FyxlgYzwAXw4o78Zfhg==","roles":["wording_verification"],"source_id":"2e759163fb000f7167536ad90d6483506d1fd11d84bc4ec3cc43d2dbfdca26a4","title":"Margaret Thatcher Foundation document 106498"}
+{"canonical_identity":"margaret_thatcher_foundation:document:106498","canonical_url":"https://www.margaretthatcher.org/document/106498","document_numbers":["106498"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/106498","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"747547e744b7a4dd0b806df5d5ecd2f024c5e1761bd53d909b936fd7f80ef25a","title":"Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:106498","canonical_url":"https://www.margaretthatcher.org/document/106498","document_numbers":["106498"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"b2912f806beff1a673c42df0fb2e9f17d17476ad9b155c9a1c4692524e94aa9d","title":"Margaret Thatcher Foundation document 106498"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:106498","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 106498","public_url":"https://www.margaretthatcher.org/document/106498","source_ids":["2e759163fb000f7167536ad90d6483506d1fd11d84bc4ec3cc43d2dbfdca26a4","cbff91870712453d944520210753a44e5251cc348ca7818f42bb6ba833864bba"],"source_record_count":2}
+{"canonical_identity":"margaret_thatcher_foundation:document:106498","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)","public_url":"https://www.margaretthatcher.org/document/106498","source_ids":["2e759163fb000f7167536ad90d6483506d1fd11d84bc4ec3cc43d2dbfdca26a4","747547e744b7a4dd0b806df5d5ecd2f024c5e1761bd53d909b936fd7f80ef25a","b2912f806beff1a673c42df0fb2e9f17d17476ad9b155c9a1c4692524e94aa9d"],"source_record_count":3}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech to Conservative Party Conference, Bournemouth, 10 October 1986.
 
-Meaning — State planners lack accountability because taxpayers bear the financial burden of their mistakes, making private enterprise inherently more efficient and responsible.
+Meaning — Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Document 106498
+Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)
 https://www.margaretthatcher.org/document/106498
 END PUBLIC REPLY
 
@@ -9376,7 +9384,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Attributed, but exact wording not independently verified"
 Raw/weighted/max characters: 484/459/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -9940,32 +9948,33 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 428/403/4000
-Internal records -> canonical groups -> public sources: 4 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:3","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
+Raw/weighted/max characters: 449/424/4000
+Internal records -> canonical groups -> public sources: 5 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:4","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHvp5WPN-Q-_G0mwORi08BCOSi_h_JJEsuBaH44JVEeZBSWTDIuG6aMdpOGWlaNrZ6hW4o2K8nR63y6XufRZc4bWcmoBtde6iYjlb-p60ju3_4O8yVD8aaP7wj0u3ZcPUgKBR8lxgSJV_UOCg==","roles":["wording_verification"],"source_id":"80c39d2b0ecb744aafcc942368fd67a487d262eefe3c2d77ea0d67359136aecf","title":"Margaret Thatcher Foundation Archive, Document 103336"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHvp5WPN-Q-_G0mwORi08BCOSi_h_JJEsuBaH44JVEeZBSWTDIuG6aMdpOGWlaNrZ6hW4o2K8nR63y6XufRZc4bWcmoBtde6iYjlb-p60ju3_4O8yVD8aaP7wj0u3ZcPUgKBR8lxgSJV_UOCg==","roles":["wording_verification"],"source_id":"80c39d2b0ecb744aafcc942368fd67a487d262eefe3c2d77ea0d67359136aecf","title":"Margaret Thatcher Foundation document 103336"}
 {"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103336","roles":["attribution_support","wording_verification"],"source_id":"519b5c4ec1dd05592899e92f903655555077d2ac1932d9c8a51651f819be4572","title":"Margaret Thatcher Foundation document 103336"}
 {"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103336","roles":["attribution_support","wording_verification"],"source_id":"f06fd3ee377effd390567537e282b9410cd567545b3d6ffd7b132d965f0125a8","title":"Margaret Thatcher Foundation document 103336"}
-{"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"e5317548e51fb2340872012fee38293265cf0192289bb0e9b6b45820290f1c5a","title":"Margaret Thatcher Foundation Archive, Document 103336"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103336","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"b47efc5466e47fc26b182d9b5884fdc19b2ffe87d26fb609ee5d61c8831d532e","title":"Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103336","canonical_url":"https://www.margaretthatcher.org/document/103336","document_numbers":["103336"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"7627c7d0cf2462ee8342559d59e2e34c6975c80e59fd6bed476d5a6b3d7c51c7","title":"Margaret Thatcher Foundation document 103336"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:103336","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 103336","public_url":"https://www.margaretthatcher.org/document/103336","source_ids":["80c39d2b0ecb744aafcc942368fd67a487d262eefe3c2d77ea0d67359136aecf","519b5c4ec1dd05592899e92f903655555077d2ac1932d9c8a51651f819be4572","f06fd3ee377effd390567537e282b9410cd567545b3d6ffd7b132d965f0125a8","e5317548e51fb2340872012fee38293265cf0192289bb0e9b6b45820290f1c5a"],"source_record_count":4}
+{"canonical_identity":"margaret_thatcher_foundation:document:103336","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)","public_url":"https://www.margaretthatcher.org/document/103336","source_ids":["80c39d2b0ecb744aafcc942368fd67a487d262eefe3c2d77ea0d67359136aecf","519b5c4ec1dd05592899e92f903655555077d2ac1932d9c8a51651f819be4572","f06fd3ee377effd390567537e282b9410cd567545b3d6ffd7b132d965f0125a8","b47efc5466e47fc26b182d9b5884fdc19b2ffe87d26fb609ee5d61c8831d532e","7627c7d0cf2462ee8342559d59e2e34c6975c80e59fd6bed476d5a6b3d7c51c7"],"source_record_count":5}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech to Zurich Economic Society ("The New Renaissance"), 14 March 1977.
 
-Meaning — That the expansion of the state and socialist policies require punitive taxation, which ultimately destroys economic incentives, enterprise, and living standards.
+Meaning — Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.
 
 Verification — Historically verified variant
 
-Source — Margaret Thatcher Foundation, Document 103336
+Source — Margaret Thatcher Foundation, Speech to Zurich Economic Society ("The New Renaissance"), 14 March 1977 (Document 103336)
 https://www.margaretthatcher.org/document/103336
 END PUBLIC REPLY
 
@@ -14925,23 +14934,22 @@ Quote ID: 9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997
 Quotation: "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member."
 Speaker: "Margaret Thatcher"
 Attribution eligible: true
-Verification status: "exact"
+Verification status: "excerpt"
 Formatter version: "historical_context_reply_schema_v5"
-Template variant: "compact_no_public_url"
+Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
-Verification label: "Exact wording verified"
-Raw/weighted/max characters: 336/336/4000
-Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
+Verification label: "Verified excerpt"
+Raw/weighted/max characters: 408/357/4000
+Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
+Flags: []
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"bibliographic:hansard:7d8d3d3d7124b1fe7e102536049a9838ad5b2d8318821036f5404fea6ff1e3f9","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGzPUG7cx41WVzVEzdXMwo_OXSJ-QW5LcHa3uV8brQ8lj_CRakO2eIuOoJTCB_7BHZj4FI574Rp7BJNhRI2Zway31LugGaMMBQMFKuqLwQmqOtp-ujpV3p5YliBwtp3iBEwIAY5B5LdWzGJsSNlgtQ5tLJXqoHBzfWvYgRHpvWeinwAINcOQ4jpJVXnn9UMFH3yjhcRPuM-_9meUYOA0va5h1I=","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"4f3fbe78b8d186b84180f0e7a3c5ef2bf3cd1ab33ff9596574dcbbe6ce5a2ce5","title":"Hansard, House of Commons Debates, 10 March 1981"}
-{"canonical_identity":"bibliographic:hansard:7d8d3d3d7124b1fe7e102536049a9838ad5b2d8318821036f5404fea6ff1e3f9","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"68003293b8af8eb00d7663f2f30d570f75edf1bb098b32305dcf0c8774b034f2","title":"Hansard, House of Commons Debates, 10 March 1981"}
+{"canonical_identity":"url:https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements","canonical_url":"https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"canonical_url","raw_url":"https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"62c3318f33a63fac11b27a34fdf3aaab74801fa7e5516493282e40575ca82ce5","title":"UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"bibliographic:hansard:7d8d3d3d7124b1fe7e102536049a9838ad5b2d8318821036f5404fea6ff1e3f9","identity_basis":"bibliographic_identity","public_title":"Hansard, House of Commons Debates, 10 March 1981","public_url":"","source_ids":["4f3fbe78b8d186b84180f0e7a3c5ef2bf3cd1ab33ff9596574dcbbe6ce5a2ce5","68003293b8af8eb00d7663f2f30d570f75edf1bb098b32305dcf0c8774b034f2"],"source_record_count":2}
+{"canonical_identity":"url:https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements","identity_basis":"canonical_url","public_title":"UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)","public_url":"https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements","source_ids":["62c3318f33a63fac11b27a34fdf3aaab74801fa7e5516493282e40575ca82ce5"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
@@ -14950,11 +14958,12 @@ PUBLIC REPLY (VERBATIM)
 -----------------------
 Context — Prime Minister's Questions, House of Commons, 10 March 1981.
 
-Meaning — To publicly endorse Hayek's philosophy and suggest that Members of Parliament would benefit from understanding his arguments on liberty and the rule of law.
+Meaning — Thatcher praised two of Hayek's works and recommended them to almost every Member of Parliament.
 
-Verification — Exact wording verified
+Verification — Verified excerpt
 
-Source — Hansard, House of Commons Debates, 10 March 1981
+Source — UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)
+https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements
 END PUBLIC REPLY
 
 ================================================================================
@@ -15861,7 +15870,7 @@ Meaning decision: "Meaning retained because the argument is counter-intuitive or
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 404/379/4000
 Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
-Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:2","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:2","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -15905,7 +15914,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 416/391/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -16167,35 +16176,33 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 501/476/4000
-Internal records -> canonical groups -> public sources: 3 -> 2 -> 2
-Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:1","IDENTITY_AMBIGUITIES:1","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE","REUSED_IDENTITY_DISPLAY_VARIANT"]
+Raw/weighted/max characters: 574/549/4000
+Internal records -> canonical groups -> public sources: 4 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:3","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:93e6c57306e44a4f2cbb66604b9fe8b6193942fbefc3594e959e6305057486c4","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFjwEeo2Gbcs1PAHrA8vQbzTcfyq_4OI7iQ4-QxCAv1qhbPAYstxxeRWNunyobx26BWxk8vBQFpARPnmn_8WtbN60th_af5NWV3-ZyRCgu31qarpwjw6ka8oSX81yD-zgCGL03lpXOsVh-GGg==","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3","title":"Margaret Thatcher Foundation archive, Speech to the Institute of United States Studies, September 24, 1996."}
+{"canonical_identity":"margaret_thatcher_foundation:document:108364","canonical_url":"https://www.margaretthatcher.org/document/108364","document_numbers":["108364"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFjwEeo2Gbcs1PAHrA8vQbzTcfyq_4OI7iQ4-QxCAv1qhbPAYstxxeRWNunyobx26BWxk8vBQFpARPnmn_8WtbN60th_af5NWV3-ZyRCgu31qarpwjw6ka8oSX81yD-zgCGL03lpXOsVh-GGg==","roles":["attribution_support","wording_verification"],"source_id":"50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3","title":"Margaret Thatcher Foundation document 108364"}
 {"canonical_identity":"margaret_thatcher_foundation:document:108364","canonical_url":"https://www.margaretthatcher.org/document/108364","document_numbers":["108364"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108364","roles":["attribution_support","wording_verification"],"source_id":"a9b86ea9cb0806f391a65482228479989af995c3331b1ecb92265c2e61781d66","title":"Margaret Thatcher Foundation document 108364"}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:93e6c57306e44a4f2cbb66604b9fe8b6193942fbefc3594e959e6305057486c4","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"c5b4765e0a5f5a9ce13b2994174452332b361e98cbde77b2ba29675c1904b83e","title":"Margaret Thatcher Foundation archive, Speech to the Institute of United States Studies, September 24, 1996."}
+{"canonical_identity":"margaret_thatcher_foundation:document:108364","canonical_url":"https://www.margaretthatcher.org/document/108364","document_numbers":["108364"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108364","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"96f0aad16a4a0e81711b66901c32d1278de5dfccc058ec40379963957a9ebf45","title":"Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108364","canonical_url":"https://www.margaretthatcher.org/document/108364","document_numbers":["108364"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"a87b3421c1ddb1a29e41bf85032e89b9e439254d4b995dd173a5d9af3a1874a3","title":"Margaret Thatcher Foundation document 108364"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:108364","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 108364","public_url":"https://www.margaretthatcher.org/document/108364","source_ids":["a9b86ea9cb0806f391a65482228479989af995c3331b1ecb92265c2e61781d66"],"source_record_count":1}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:93e6c57306e44a4f2cbb66604b9fe8b6193942fbefc3594e959e6305057486c4","identity_basis":"bibliographic_identity","public_title":"Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.","public_url":"","source_ids":["50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3","c5b4765e0a5f5a9ce13b2994174452332b361e98cbde77b2ba29675c1904b83e"],"source_record_count":2}
+{"canonical_identity":"margaret_thatcher_foundation:document:108364","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, The James Bryce Lecture (\"Reason and Religion: The Moral Foundations of Freedom\"), Institute of United States Studies, 24 September 1996 (Document 108364)","public_url":"https://www.margaretthatcher.org/document/108364","source_ids":["50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3","a9b86ea9cb0806f391a65482228479989af995c3331b1ecb92265c2e61781d66","96f0aad16a4a0e81711b66901c32d1278de5dfccc058ec40379963957a9ebf45","a87b3421c1ddb1a29e41bf85032e89b9e439254d4b995dd173a5d9af3a1874a3"],"source_record_count":4}
 
 IDENTITY AMBIGUITIES
-{"explicit_canonical_identity":"margaret_thatcher_foundation:document:108364","kind":"possible_same_mtf_document_identity_unresolved","packet_dates":["1996-09-24"],"source_ids":["50acc4cca027b392fa00a7071b02ef5e1fefad4222bb926efb351c90c9c961d3","c5b4765e0a5f5a9ce13b2994174452332b361e98cbde77b2ba29675c1904b83e"],"weak_canonical_identity":"bibliographic:margaret_thatcher_foundation:93e6c57306e44a4f2cbb66604b9fe8b6193942fbefc3594e959e6305057486c4","weak_dates":["1996-09-24"]}
+None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — Lecture at the Institute of United States Studies, 24 September 1996.
+Context — The James Bryce Lecture ("Reason and Religion: The Moral Foundations of Freedom"), Institute of United States Studies, 24 September 1996.
 
-Meaning — Thatcher argued that political correctness is a modern manifestation of tyranny, designed to control thought by restricting what people can read and express.
+Meaning — Thatcher linked political correctness to the recurring impulse of tyrants to control what people read and therefore what they think.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Document 108364
+Source — Margaret Thatcher Foundation, The James Bryce Lecture ("Reason and Religion: The Moral Foundations of Freedom"), Institute of United States Studies, 24 September 1996 (Document 108364)
 https://www.margaretthatcher.org/document/108364
-
-Source — Margaret Thatcher Foundation, Speech to the Institute of United States Studies, 24 September 1996.
 END PUBLIC REPLY
 
 ================================================================================
@@ -16398,7 +16405,7 @@ Meaning decision: "Meaning retained because the packet records a distinct explan
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 374/349/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -16852,21 +16859,22 @@ Speaker: "Margaret Thatcher"
 Attribution eligible: true
 Verification status: "exact"
 Formatter version: "historical_context_reply_schema_v5"
-Template variant: "compact_no_public_url"
+Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 359/359/4000
-Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:1","URLLESS_PUBLIC_SOURCE"]
+Raw/weighted/max characters: 404/379/4000
+Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:020d3b3669c1fd7c51bcc69316129f1ec5c928f6d2424f31501368c0992008a6","canonical_url":"","document_numbers":[],"evidence_targets":["attribution"],"identity_basis":"bibliographic_identity","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGI_XYPVruxWaP_-E8lJJ7RBhAhwGDT_tyeU8JjNvAqIBINH1kZirmhtYwo4rVKRkYyaxy7c89TENohLxfwuYXXvWmr7OR1HoC20EhwOETAvwS7xyIZMQ7n-nhTj75EsqTZAbjrXIyLVo-W5g==","roles":["attribution_support"],"source_id":"db45091f4cca78022a8b21c1d431059591712691835a469fa466b64390529286","title":"Margaret Thatcher Foundation Archive, Speech to Polish Senate, October 3, 1991"}
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:020d3b3669c1fd7c51bcc69316129f1ec5c928f6d2424f31501368c0992008a6","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"e8d0d25aebe0833668570d5642ada470a2f87b9e7ba2144ff69bea2e38ca4d31","title":"Margaret Thatcher Foundation Archive, Speech to Polish Senate, October 3, 1991"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108285","canonical_url":"https://www.margaretthatcher.org/document/108285","document_numbers":["108285"],"evidence_targets":["attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGI_XYPVruxWaP_-E8lJJ7RBhAhwGDT_tyeU8JjNvAqIBINH1kZirmhtYwo4rVKRkYyaxy7c89TENohLxfwuYXXvWmr7OR1HoC20EhwOETAvwS7xyIZMQ7n-nhTj75EsqTZAbjrXIyLVo-W5g==","roles":["attribution_support"],"source_id":"db45091f4cca78022a8b21c1d431059591712691835a469fa466b64390529286","title":"Margaret Thatcher Foundation document 108285"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108285","canonical_url":"https://www.margaretthatcher.org/document/108285","document_numbers":["108285"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/108285","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"36a99bfc90aaeeafab6187948e15e0ec27bd1afa7c337ed947d300b0f2c37642","title":"Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:108285","canonical_url":"https://www.margaretthatcher.org/document/108285","document_numbers":["108285"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"ecf85a08aef935a02d73146ebea6396410d87d8bb151405a2ec6166be680db71","title":"Margaret Thatcher Foundation document 108285"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:020d3b3669c1fd7c51bcc69316129f1ec5c928f6d2424f31501368c0992008a6","identity_basis":"bibliographic_identity","public_title":"Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991","public_url":"","source_ids":["db45091f4cca78022a8b21c1d431059591712691835a469fa466b64390529286","e8d0d25aebe0833668570d5642ada470a2f87b9e7ba2144ff69bea2e38ca4d31"],"source_record_count":2}
+{"canonical_identity":"margaret_thatcher_foundation:document:108285","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)","public_url":"https://www.margaretthatcher.org/document/108285","source_ids":["db45091f4cca78022a8b21c1d431059591712691835a469fa466b64390529286","36a99bfc90aaeeafab6187948e15e0ec27bd1afa7c337ed947d300b0f2c37642","ecf85a08aef935a02d73146ebea6396410d87d8bb151405a2ec6166be680db71"],"source_record_count":3}
 
 IDENTITY AMBIGUITIES
 None.
@@ -16875,11 +16883,12 @@ PUBLIC REPLY (VERBATIM)
 -----------------------
 Context — Speech to the Polish Senate, 3 October 1991.
 
-Meaning — That only a capitalist system can effectively harness individual abilities and drive economic prosperity, whereas state-run systems inevitably fail to provide for the people.
+Meaning — In a speech to the Polish Senate, Thatcher argued that capitalism alone can mobilise individual talents, contrasting it with communist collectivism.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Speech to Polish Senate, 3 October 1991
+Source — Margaret Thatcher Foundation, Speech to the Polish Senate, 3 October 1991 (Document 108285)
+https://www.margaretthatcher.org/document/108285
 END PUBLIC REPLY
 
 ================================================================================
@@ -20244,31 +20253,32 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Verified excerpt"
-Raw/weighted/max characters: 443/418/4000
-Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
-Flags: ["MERGED_INTERNAL_RECORDS:1","GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Raw/weighted/max characters: 377/352/4000
+Internal records -> canonical groups -> public sources: 3 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:2","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"margaret_thatcher_foundation:document:105484","canonical_url":"https://www.margaretthatcher.org/document/105484","document_numbers":["105484"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9SEetr6rJQczgo50Gjnv6nvWVZmZNHFAwKyh7S0saeBHtenxk7Hg-rIRiRMSFFHIJn3hL4aNKjFEf0PHOmm898eBWu-W-1iNLdcGrgcEA-FIT7bdqP37uYRAAt1D_z5w7iOnuW9Iflyrjkg==","roles":["attribution_support","wording_verification"],"source_id":"80ba974c48c7be971cf7b51244a4e762dbb3b4453a76fc8feab59df36a56941d","title":"Margaret Thatcher Foundation Archive, Document 105484"}
-{"canonical_identity":"margaret_thatcher_foundation:document:105484","canonical_url":"https://www.margaretthatcher.org/document/105484","document_numbers":["105484"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"53ab1f3fb65de8dda03bd16967504d2c94d2086c031c350d32110d3f058fa4d3","title":"Margaret Thatcher Foundation Archive, Document 105484"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105472","canonical_url":"https://www.margaretthatcher.org/document/105472","document_numbers":["105472"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQE9SEetr6rJQczgo50Gjnv6nvWVZmZNHFAwKyh7S0saeBHtenxk7Hg-rIRiRMSFFHIJn3hL4aNKjFEf0PHOmm898eBWu-W-1iNLdcGrgcEA-FIT7bdqP37uYRAAt1D_z5w7iOnuW9Iflyrjkg==","roles":["attribution_support","wording_verification"],"source_id":"80ba974c48c7be971cf7b51244a4e762dbb3b4453a76fc8feab59df36a56941d","title":"Margaret Thatcher Foundation document 105472"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105472","canonical_url":"https://www.margaretthatcher.org/document/105472","document_numbers":["105472"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/105472","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"987577ec33faba36e5b9b8d29017f8147f610d59c704dd83a37962cd6e98b41c","title":"Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:105472","canonical_url":"https://www.margaretthatcher.org/document/105472","document_numbers":["105472"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"740970d9c1fec2dd96927a945d05b42ae3f611866ae7e43421ecaa62adbf58c3","title":"Margaret Thatcher Foundation document 105472"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"margaret_thatcher_foundation:document:105484","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 105484","public_url":"https://www.margaretthatcher.org/document/105484","source_ids":["80ba974c48c7be971cf7b51244a4e762dbb3b4453a76fc8feab59df36a56941d","53ab1f3fb65de8dda03bd16967504d2c94d2086c031c350d32110d3f058fa4d3"],"source_record_count":2}
+{"canonical_identity":"margaret_thatcher_foundation:document:105472","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)","public_url":"https://www.margaretthatcher.org/document/105472","source_ids":["80ba974c48c7be971cf7b51244a4e762dbb3b4453a76fc8feab59df36a56941d","987577ec33faba36e5b9b8d29017f8147f610d59c704dd83a37962cd6e98b41c","740970d9c1fec2dd96927a945d05b42ae3f611866ae7e43421ecaa62adbf58c3"],"source_record_count":3}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech at Lord Mayor's Banquet, 14 November 1983.
 
-Meaning — To dismantle the post-war consensus that the government could guarantee economic prosperity, arguing instead that wealth and living standards depend fundamentally on individual productivity.
+Meaning — Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.
 
 Verification — Verified excerpt
 
-Source — Margaret Thatcher Foundation, Document 105484
-https://www.margaretthatcher.org/document/105484
+Source — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)
+https://www.margaretthatcher.org/document/105472
 END PUBLIC REPLY
 
 ================================================================================
@@ -20403,7 +20413,7 @@ Meaning decision: "Meaning retained because the quotation contains a context-dep
 Verification label: "Historically verified variant"
 Raw/weighted/max characters: 392/367/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
@@ -20583,27 +20593,26 @@ Quote ID: dd317acd2b79a2e22aa2c73507484f512ad9646e10fc570590fc074f30d5e374
 Quotation: "The Prime Minister [James Callaghan] has chosen to put equality first. We suggest that he should choose to put liberty first. Then he will end up with liberty and fewer inequalities than if he puts equality first and wholly neglects liberty."
 Speaker: "Margaret Thatcher"
 Attribution eligible: true
-Verification status: "exact"
+Verification status: "variant"
 Formatter version: "historical_context_reply_schema_v5"
 Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
-Verification label: "Exact wording verified"
-Raw/weighted/max characters: 422/397/4000
-Internal records -> canonical groups -> public sources: 5 -> 2 -> 2
-Flags: ["MULTIPLE_PUBLIC_SOURCES:2","MERGED_INTERNAL_RECORDS:3","URLLESS_PUBLIC_SOURCE","GENERIC_MTF_DOCUMENT_TITLE"]
+Verification label: "Historically verified variant"
+Raw/weighted/max characters: 441/416/4000
+Internal records -> canonical groups -> public sources: 5 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:4"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"bibliographic:hansard:ffe86afb2c2561358b43f3eecdfb1cfcf62339b20e0f1b2258662f8f61e30b8c","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEXRBnX0Eke1FFYfY60jQvG-Zs64IeMHrqiZVR0SJx3Q54k_Xt-N04sVX0svHzsK0jZBESP5NM7puoklPX3_O8Kd0hxvUH6lpDa9fd4UYtFxE8DXuZz9QeJpNTLVc1HFNUrTC9KKaZbwwjBAARMxp6LzhCTgsUKwNhaaOCYwCuY-MpK3QaM-TmpjyjHNV5ujQ==","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"83945dad7b2d90b9222b949dacbdce5448dfeaddbe9a45d8aba341649e779828","title":"Hansard, HC Deb 24 November 1976 vol 921 cc18-31"}
-{"canonical_identity":"bibliographic:hansard:ffe86afb2c2561358b43f3eecdfb1cfcf62339b20e0f1b2258662f8f61e30b8c","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEwcAY9zSqOQ8BhEHff6XL44n63UryrMeoR_fLXnD05EI3ffkPIXUIz70M2QNYWuR1U-QI8CIDvQpbda_pPcj_B8OzScIdG_IuDDUl6OWFJ_II2gnQ-q6l49ZjF4SSGyukZkgmGXeL3FVT6SogBvSQB1MTGVPQHzyeANkd-6h1kkUWCpheJen6PjDJD9J1PnRVzDDgRGU8HQpb9Nr9M8xdHgN29WKyLgTqpuDc=","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"e5ca7aad1254066705d41f004c5a52ad7237ef0778f2a8dfc92590decf04261a","title":"Hansard, HC Deb 24 November 1976 vol 921 cc18-31"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103146","canonical_url":"https://www.margaretthatcher.org/document/103146","document_numbers":["103146"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHgUmIoCgFG59h5OUHnM0HdKi-5K5_7JQ_LHUoUlYAdSEg0-T1zblwxKW2O7xPfGtOCbWbbghMaekwVw4i1Q01sLxEhCWJPVw2yByh1M4xmg4pCmoHhYdKS_iW_IDbTkKXpdEvoS-EiwGeX0Q==","roles":["attribution_support","wording_verification"],"source_id":"1a006d14d0442568287c767218dc89bb527d66022ad3fa52f02ce2b9854eec3f","title":"Margaret Thatcher Foundation document 103146"}
 {"canonical_identity":"margaret_thatcher_foundation:document:103146","canonical_url":"https://www.margaretthatcher.org/document/103146","document_numbers":["103146"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103146","roles":["attribution_support","wording_verification"],"source_id":"117baf972457a2aceb1aba12e0fcffc38ba6ce4da7d8a35a8db8938a3cc0aaef","title":"Margaret Thatcher Foundation document 103146"}
 {"canonical_identity":"margaret_thatcher_foundation:document:103146","canonical_url":"https://www.margaretthatcher.org/document/103146","document_numbers":["103146"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103146","roles":["attribution_support","wording_verification"],"source_id":"6b95fc146c89317249abe22599734a3db1fbb9e966d7533c17dc0e1a3e23f30e","title":"Margaret Thatcher Foundation document 103146"}
-{"canonical_identity":"bibliographic:hansard:ffe86afb2c2561358b43f3eecdfb1cfcf62339b20e0f1b2258662f8f61e30b8c","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"b41c15fa232b918c13077cb29e5dfd37639beedfaadb351c7afa845bbd5b401b","title":"Hansard, HC Deb 24 November 1976 vol 921 cc18-31"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103146","canonical_url":"https://www.margaretthatcher.org/document/103146","document_numbers":["103146"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/103146","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"4dfe739d72f75cb344839e209ac37d8b3f674f801e15946fc33939060a6e70b1","title":"Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:103146","canonical_url":"https://www.margaretthatcher.org/document/103146","document_numbers":["103146"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"66793692608a3ceda3a17933a2c728c675c6802227a343409b716a8c800be85c","title":"Margaret Thatcher Foundation document 103146"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"bibliographic:hansard:ffe86afb2c2561358b43f3eecdfb1cfcf62339b20e0f1b2258662f8f61e30b8c","identity_basis":"bibliographic_identity","public_title":"Hansard, HC Deb 24 November 1976 vol 921 cc18-31","public_url":"","source_ids":["83945dad7b2d90b9222b949dacbdce5448dfeaddbe9a45d8aba341649e779828","e5ca7aad1254066705d41f004c5a52ad7237ef0778f2a8dfc92590decf04261a","b41c15fa232b918c13077cb29e5dfd37639beedfaadb351c7afa845bbd5b401b"],"source_record_count":3}
-{"canonical_identity":"margaret_thatcher_foundation:document:103146","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Document 103146","public_url":"https://www.margaretthatcher.org/document/103146","source_ids":["117baf972457a2aceb1aba12e0fcffc38ba6ce4da7d8a35a8db8938a3cc0aaef","6b95fc146c89317249abe22599734a3db1fbb9e966d7533c17dc0e1a3e23f30e"],"source_record_count":2}
+{"canonical_identity":"margaret_thatcher_foundation:document:103146","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)","public_url":"https://www.margaretthatcher.org/document/103146","source_ids":["1a006d14d0442568287c767218dc89bb527d66022ad3fa52f02ce2b9854eec3f","117baf972457a2aceb1aba12e0fcffc38ba6ce4da7d8a35a8db8938a3cc0aaef","6b95fc146c89317249abe22599734a3db1fbb9e966d7533c17dc0e1a3e23f30e","4dfe739d72f75cb344839e209ac37d8b3f674f801e15946fc33939060a6e70b1","66793692608a3ceda3a17933a2c728c675c6802227a343409b716a8c800be85c"],"source_record_count":5}
 
 IDENTITY AMBIGUITIES
 None.
@@ -20612,13 +20621,11 @@ PUBLIC REPLY (VERBATIM)
 -----------------------
 Context — Debate on the Address, House of Commons, 24 November 1976.
 
-Meaning — Prioritizing liberty over equality paradoxically leads to better outcomes for equality itself, whereas prioritizing equality destroys both.
+Meaning — Thatcher argued that putting liberty first would preserve liberty and produce fewer inequalities than putting equality first while neglecting liberty.
 
-Verification — Exact wording verified
+Verification — Historically verified variant
 
-Source — Hansard, HC Deb 24 November 1976 vol 921 cc18-31
-
-Source — Margaret Thatcher Foundation, Document 103146
+Source — Margaret Thatcher Foundation, Debate on the Address, House of Commons, 24 November 1976 (Document 103146)
 https://www.margaretthatcher.org/document/103146
 END PUBLIC REPLY
 
@@ -20901,20 +20908,21 @@ Speaker: "Margaret Thatcher"
 Attribution eligible: true
 Verification status: "exact"
 Formatter version: "historical_context_reply_schema_v5"
-Template variant: "compact_no_public_url"
+Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Exact wording verified"
-Raw/weighted/max characters: 299/299/4000
-Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["URLLESS_PUBLIC_SOURCE"]
+Raw/weighted/max characters: 370/345/4000
+Internal records -> canonical groups -> public sources: 2 -> 1 -> 1
+Flags: ["MERGED_INTERNAL_RECORDS:1","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:4a5b6e77663b8c4c304c96709e330a0c8a240a526f775a26a0efbb518f04d533","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"bibliographic_identity","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"c600e6df49a32fd72aa848e1757413110f59ea1f2b002a1f7860da67998d4966","title":"Margaret Thatcher Foundation archive, Speech in Bermuda (August 7, 2001)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:109301","canonical_url":"https://www.margaretthatcher.org/document/109301","document_numbers":["109301"],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/109301","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"b746f965044f03f8f463f713048dbda4d574eb2e6e9024400e7d34314ec867d8","title":"Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)"}
+{"canonical_identity":"margaret_thatcher_foundation:document:109301","canonical_url":"https://www.margaretthatcher.org/document/109301","document_numbers":["109301"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"962012d6950ab7de991f1afade54692acff7a3f49d28ac5e6206466ec2333058","title":"Margaret Thatcher Foundation document 109301"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-{"canonical_identity":"bibliographic:margaret_thatcher_foundation:4a5b6e77663b8c4c304c96709e330a0c8a240a526f775a26a0efbb518f04d533","identity_basis":"bibliographic_identity","public_title":"Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)","public_url":"","source_ids":["c600e6df49a32fd72aa848e1757413110f59ea1f2b002a1f7860da67998d4966"],"source_record_count":1}
+{"canonical_identity":"margaret_thatcher_foundation:document:109301","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)","public_url":"https://www.margaretthatcher.org/document/109301","source_ids":["b746f965044f03f8f463f713048dbda4d574eb2e6e9024400e7d34314ec867d8","962012d6950ab7de991f1afade54692acff7a3f49d28ac5e6206466ec2333058"],"source_record_count":2}
 
 IDENTITY AMBIGUITIES
 None.
@@ -20923,11 +20931,12 @@ PUBLIC REPLY (VERBATIM)
 -----------------------
 Context — Speech in Bermuda, 7 August 2001.
 
-Meaning — That communism was fundamentally flawed, relying on terror rather than delivering prosperity, which inevitably led to its collapse.
+Meaning — Thatcher said communism ruled through terror, brought neither dignity nor prosperity, and collapsed under the weight of its own failure.
 
 Verification — Exact wording verified
 
-Source — Margaret Thatcher Foundation, Speech in Bermuda (7 August 2001)
+Source — Margaret Thatcher Foundation, Speech in Bermuda, 7 August 2001 (Document 109301)
+https://www.margaretthatcher.org/document/109301
 END PUBLIC REPLY
 
 ================================================================================
@@ -22394,7 +22403,7 @@ Meaning decision: "Meaning retained because the packet records a distinct explan
 Verification label: "Exact wording verified"
 Raw/weighted/max characters: 405/380/4000
 Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION"]
+Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","GENERIC_CONTEXT_WITH_EXACT_VERIFICATION","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
