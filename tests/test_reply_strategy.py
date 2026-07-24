@@ -1811,7 +1811,7 @@ def test_v1_draft_audit_never_interprets_or_migrates_content(tmp_path: Path) -> 
 def test_real_repository_contains_only_authorised_completed_packets(
     real_repository: EvidenceRepository,
 ) -> None:
-    assert len(real_repository.packets) == 610
+    assert len(real_repository.packets) == 611
     assert len(real_repository.passages) > 7_000
     assert all(len(quote_id) == 64 for quote_id in real_repository.packets)
     assert all(len(evidence_id) == 64 for evidence_id in real_repository.passages)

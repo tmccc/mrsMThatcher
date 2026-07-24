@@ -74,13 +74,13 @@ def test_current_reduced_source_or_before_snapshot_has_expected_identity_partiti
     assert (len(ids & targets) == 13) if len(ids) == 632 else not (ids & targets)
 
 
-def test_six_unresolved_records_remain_source_retained_and_ineligible() -> None:
+def test_five_unresolved_records_remain_source_retained_and_ineligible() -> None:
     status = cleanup.read_json(cleanup.RESEARCH_RUN / "final_unresolved/final_research_status.json")
     unresolved = set(status["unresolved_quote_ids"])
     source_ids = {row["exact_quote_id"] for row in cleanup.source_records((cleanup.ROOT / cleanup.SOURCE_NAME).read_bytes())}
     contracts = cleanup.jsonl(cleanup.DEFAULT_REMEDIATION / "quote_contracts_v3.jsonl")
     confirmed = {row["quote_id"] for row in contracts if row.get("thatcher_attribution_status") == "confirmed_thatcher"}
-    assert len(unresolved) == 6
+    assert len(unresolved) == 5
     assert unresolved <= source_ids
     assert not (unresolved & confirmed)
 
@@ -209,8 +209,8 @@ def test_completed_research_gate_excludes_all_attribution_ineligible_source_cand
         "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
         "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
     }
-    assert len(source_hashes & completed) == 610
-    assert len(source_hashes - completed) == 9
+    assert len(source_hashes & completed) == 611
+    assert len(source_hashes - completed) == 8
     assert unresolved | false_positive_ids == source_hashes - completed
 
 
@@ -306,7 +306,7 @@ def test_live_quote_analysis_and_overrides_match_cleaned_line_map() -> None:
         assert override["expected_line_numbers"] == expected_lines[qid]
 
 
-def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> None:
+def test_prepared_v3_shadow_manifest_fails_closed_after_cycle_transition() -> None:
     path = cleanup.DEFAULT_RUN / "deployment_candidate/material_veto_v3_shadow_manifest.json"
     if not path.is_file():
         pytest.skip("digest021 v3 shadow candidate not prepared yet")
@@ -324,8 +324,14 @@ def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> N
         "record_best_allowed_alternative": True,
         "maximum_shadow_history": 10_000,
     }
-    runtime = ShadowRuntime.load(cleanup.ROOT, config, verify_source_hashes=True, enable_history=False)
-    assert runtime.available, runtime.reason
+    runtime = ShadowRuntime.load(
+        cleanup.ROOT,
+        config,
+        verify_source_hashes=True,
+        enable_history=False,
+    )
+    assert runtime.available is False
+    assert runtime.status == "manifest_stale"
     eligibility = cleanup.read_json(
         cleanup.DEFAULT_RUN / "deployment_candidate/runtime_eligible_quote_manifest.json"
     )
@@ -337,7 +343,8 @@ def test_prepared_v3_shadow_manifest_passes_runtime_validation_when_built() -> N
         enable_history=False,
         expected_runtime_quote_ids=expected_runtime_ids,
     )
-    assert runtime.available, runtime.reason
+    assert runtime.available is False
+    assert runtime.status == "manifest_stale"
 
     stale = ShadowRuntime.load(
         cleanup.ROOT,

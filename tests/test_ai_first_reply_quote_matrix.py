@@ -36,12 +36,12 @@ def test_complete_matrix_has_ten_scenarios_for_all_eligible_quotes(
     repository: EvidenceRepository,
     fixtures: list[dict],
 ) -> None:
-    assert repository.attribution_eligible_packet_count == 610
-    assert len(fixtures) == 6_100
-    assert len({row["case_id"] for row in fixtures}) == 6_100
+    assert repository.attribution_eligible_packet_count == 611
+    assert len(fixtures) == 6_110
+    assert len({row["case_id"] for row in fixtures}) == 6_110
     assert set(Counter(row["quote_id"] for row in fixtures).values()) == {10}
     assert Counter(row["scenario_id"] for row in fixtures) == {
-        row["scenario_id"]: 610 for row in matrix.SCENARIOS
+        row["scenario_id"]: 611 for row in matrix.SCENARIOS
     }
     assert all(row["quote_text"].casefold() != "unknown" for row in fixtures)
 
@@ -71,7 +71,7 @@ def test_context_distraction_does_not_leak_quote_into_incoming_contribution(
     fixtures: list[dict],
 ) -> None:
     cases = [row for row in fixtures if row["scenario_id"] == "quoted_context_distraction"]
-    assert len(cases) == 610
+    assert len(cases) == 611
     assert {row["contribution"] for row in cases} == {
         "Anyway, what should I cook for dinner tonight?"
     }
@@ -91,12 +91,14 @@ def test_paid_sample_is_balanced_and_risk_targeted_without_duplicates(
     )
 
     assert validation["passed"] is True
-    assert len(sample) == 810
-    assert len({row["case_id"] for row in sample}) == 810
+    assert len(sample) == 811
+    assert len({row["case_id"] for row in sample}) == 811
     balanced = [row for row in sample if row["sample_role"] == "balanced_corpus"]
     targeted = [row for row in sample if row["sample_role"] == "risk_targeted"]
-    assert len({row["quote_id"] for row in balanced}) == 610
-    assert set(Counter(row["scenario_id"] for row in balanced).values()) == {61}
+    assert len({row["quote_id"] for row in balanced}) == 611
+    balanced_counts = Counter(row["scenario_id"] for row in balanced)
+    assert max(balanced_counts.values()) - min(balanced_counts.values()) == 1
+    assert set(balanced_counts.values()) == {61, 62}
     assert len({row["quote_id"] for row in targeted}) == 200
     assert set(Counter(row["scenario_id"] for row in targeted).values()) == {20}
 

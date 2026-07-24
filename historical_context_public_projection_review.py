@@ -44,6 +44,9 @@ TRANSITION_MANIFEST_PATH = (
 POST_V9_TRANSITION_MANIFEST_PATH = (
     ROOT / "historical_context_v9_local_book_evidence_transition_manifest.json"
 )
+STATECRAFT_TRANSITION_MANIFEST_PATH = (
+    ROOT / "historical_context_v9_statecraft_primary_transition_manifest.json"
+)
 POST_V9_TRANSITION_KIND = (
     "historical_context_v9_reviewed_evidence_transition"
 )
@@ -74,6 +77,46 @@ POST_V9_BASELINE_CURATED_SOURCE_COUNT = 14
 POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
     "5b971a327a33bae293b2f89a2a2b5b1d59e638de8892e0fbc3e42442bd0b46d8"
 )
+POST_V9_TRANSITION_MANIFEST_SHA256 = (
+    "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f"
+)
+STATECRAFT_REVIEWED_BINDINGS = {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": (
+        "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+        "75fd4da816b92425452a48ce4ffd8dab2c538f857c8de0de5c18d085bd329456",
+    ),
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": (
+        "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+        "192e8d138fa01dbf160ede438db59ca5c1f26321df2d3b04ffeb60d11b396b95",
+    ),
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144": (
+        "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+        "1541cd79b74e97ede1bfd089ad8e0fe73f3096463d3c44edc5425ac8be9d7947",
+    ),
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": (
+        "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+        "67610f7a0dcd4474e811f05f0b5e0a1e8fbc6632afa85553acd43cc0281466ad",
+    ),
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": (
+        "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+        "9016f29ef388fe954005aa090add8fe86bd9fd8b1b1db4997548cd200257adf4",
+    ),
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173": (
+        "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+        "38efb1e0e9571009544c592a48385902e02d0d4d3fcb453eb31f073bcb1f7416",
+    ),
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d": (
+        "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+        "66276ffca1cca9b2b00344a329a7cc850652b700d26e033ca43ea659f25eb897",
+    ),
+}
+STATECRAFT_BASELINE_CURATED_SOURCE_COUNT = 19
+STATECRAFT_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
+    "0d017da429275711e6bb15eec441ed343c3a19bd92a8579c2670e771e0e09631"
+)
+STATECRAFT_NEW_COMPLETED_PACKET_IDS = frozenset({
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+})
 POST_V9_INPUT_NAMES = (
     "corpus_manifest.json",
     "historical_context_packet_corrections.json",
@@ -217,13 +260,15 @@ def _post_v9_input_hashes(research_dir: Path) -> dict[str, str]:
     return {name: _file_sha256(paths[name]) for name in POST_V9_INPUT_NAMES}
 
 
-def _load_post_v9_transition_manifest() -> dict[str, Any] | None:
+def _load_post_v9_transition_manifest(
+    path: Path = POST_V9_TRANSITION_MANIFEST_PATH,
+) -> dict[str, Any] | None:
     """Load one active post-v9 transition, or return baseline-only mode."""
-    if not POST_V9_TRANSITION_MANIFEST_PATH.exists():
+    if not path.exists():
         return None
     try:
         value = json.loads(
-            POST_V9_TRANSITION_MANIFEST_PATH.read_text(encoding="utf-8")
+            path.read_text(encoding="utf-8")
         )
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise RuntimeError("post-v9 transition manifest is invalid") from exc
@@ -283,12 +328,21 @@ def _validate_post_v9_transition(
     expected_bindings: dict[str, tuple[str, str]],
     expected_baseline_source_count: int,
     expected_baseline_source_ids_sha256: str,
+    later_source_ids: set[str] | None = None,
+    expected_declared_baseline_fields: (
+        dict[str, list[str]] | None
+    ) = None,
 ) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
     """Validate and apply one hash-bound, disjoint post-v9 transition."""
     items = manifest["items"]
     transition_ids = set(items)
     if transition_ids != set(expected_bindings):
         raise RuntimeError("post-v9 transition does not contain the reviewed scope")
+    if (
+        expected_declared_baseline_fields is not None
+        and set(expected_declared_baseline_fields) != transition_ids
+    ):
+        raise RuntimeError("post-v9 declared baseline scope differs")
     transition_id_hash = hashlib.sha256("".join(
         f"{quote_id}\n" for quote_id in sorted(transition_ids)
     ).encode("utf-8")).hexdigest()
@@ -314,12 +368,15 @@ def _validate_post_v9_transition(
     reviewed_source_ids = {
         source_id for source_id, _candidate_id in expected_bindings.values()
     }
+    later_source_ids = set(later_source_ids or ())
+    active_curated_source_ids = all_curated_source_ids - later_source_ids
     baseline_source_ids = all_curated_source_ids - reviewed_source_ids
+    baseline_source_ids -= later_source_ids
     baseline_source_ids_hash = hashlib.sha256("".join(
         f"{source_id}\n" for source_id in sorted(baseline_source_ids)
     ).encode("utf-8")).hexdigest()
     if (
-        len(all_curated_source_ids)
+        len(active_curated_source_ids)
         != expected_baseline_source_count + len(reviewed_source_ids)
         or len(baseline_source_ids) != expected_baseline_source_count
         or baseline_source_ids_hash
@@ -405,7 +462,14 @@ def _validate_post_v9_transition(
             if isinstance(source, dict)
         }
         source_ids = {row["source_id"] for row in canonical_bindings}
-        baseline_fields = _public_fields_without_sources(audit, source_ids)
+        reconstructed_baseline_fields = _public_fields_without_sources(
+            audit, source_ids
+        )
+        baseline_fields = (
+            list(expected_declared_baseline_fields[quote_id])
+            if expected_declared_baseline_fields is not None
+            else reconstructed_baseline_fields
+        )
         current_fields = list(current_field_map[quote_id])
         declared_baseline = item.get(
             "v9_baseline_public_context_supported_fields"
@@ -595,6 +659,9 @@ def build_review(
     transition_items = transition["items"]
     transition_ids = set(transition_items)
     post_v9_transition = _load_post_v9_transition_manifest()
+    statecraft_transition = _load_post_v9_transition_manifest(
+        STATECRAFT_TRANSITION_MANIFEST_PATH
+    )
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
@@ -625,15 +692,46 @@ def build_review(
     }
     historical_v9_field_map = dict(current_field_map)
     post_v9_records: list[dict[str, Any]] = []
-    if post_v9_transition is not None:
-        historical_v9_field_map, post_v9_records = (
+    statecraft_source_ids = {
+        source_id for source_id, _candidate_id
+        in STATECRAFT_REVIEWED_BINDINGS.values()
+    }
+    if statecraft_transition is not None:
+        historical_v9_field_map, statecraft_records = (
             _validate_post_v9_transition(
-                post_v9_transition,
+                statecraft_transition,
                 packets=packets,
                 curated=curated,
                 current_field_map=current_field_map,
                 historical_transition_ids=transition_ids,
                 expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_bindings=STATECRAFT_REVIEWED_BINDINGS,
+                expected_baseline_source_count=(
+                    STATECRAFT_BASELINE_CURATED_SOURCE_COUNT
+                ),
+                expected_baseline_source_ids_sha256=(
+                    STATECRAFT_BASELINE_CURATED_SOURCE_IDS_SHA256
+                ),
+                expected_declared_baseline_fields={
+                    quote_id: [] for quote_id in STATECRAFT_REVIEWED_BINDINGS
+                },
+            )
+        )
+        post_v9_records.extend(statecraft_records)
+    if post_v9_transition is not None:
+        if (
+            _file_sha256(POST_V9_TRANSITION_MANIFEST_PATH)
+            != POST_V9_TRANSITION_MANIFEST_SHA256
+        ):
+            raise RuntimeError("frozen local-book transition manifest differs")
+        historical_v9_field_map, local_book_records = (
+            _validate_post_v9_transition(
+                post_v9_transition,
+                packets=packets,
+                curated=curated,
+                current_field_map=historical_v9_field_map,
+                historical_transition_ids=transition_ids,
+                expected_input_hashes=post_v9_transition["input_hashes"],
                 expected_bindings=POST_V9_REVIEWED_BINDINGS,
                 expected_baseline_source_count=(
                     POST_V9_BASELINE_CURATED_SOURCE_COUNT
@@ -641,12 +739,16 @@ def build_review(
                 expected_baseline_source_ids_sha256=(
                     POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256
                 ),
+                later_source_ids=statecraft_source_ids,
             )
         )
+        post_v9_records.extend(local_book_records)
+    post_v9_records.sort(key=lambda record: record["quote_id"])
     unchanged_field_map = {
         quote_id: fields
         for quote_id, fields in historical_v9_field_map.items()
         if quote_id not in transition_ids
+        and quote_id not in STATECRAFT_NEW_COMPLETED_PACKET_IDS
     }
     transition_id_hash = hashlib.sha256("".join(
         f"{quote_id}\n" for quote_id in sorted(transition_ids)
@@ -654,7 +756,7 @@ def build_review(
     if (
         CURRENT_POLICY != V9_POLICY
         or set(packets) != set(current_field_map)
-        or len(packets) != 626
+        or len(packets) != 627
         or transition_ids != independently_reviewed_ids
         or len(transition_ids) != 12
         or transition_id_hash != transition.get(
@@ -678,16 +780,23 @@ def build_review(
         for record in post_v9_records
         for binding in record["source_bindings"]
     }
+    post_v9_quote_ids = {
+        record["quote_id"] for record in post_v9_records
+    }
     for quote_id in sorted(packets):
         packet = packets[quote_id]
         audit = packet["_source_role_audit"]
         if audit.get("policy_version") != V9_POLICY:
             raise RuntimeError(f"unexpected source-role policy for {quote_id}")
         transition_item = transition_items.get(quote_id)
-        v7_fields = _v7_public_context_supported_fields(
-            packet,
-            transition_item,
-            later_source_ids=post_v9_source_ids,
+        v7_fields = (
+            list(historical_v9_field_map[quote_id])
+            if transition_item is None and quote_id in post_v9_quote_ids
+            else _v7_public_context_supported_fields(
+                packet,
+                transition_item,
+                later_source_ids=post_v9_source_ids,
+            )
         )
         v9_fields = list(historical_v9_field_map[quote_id])
         v8_fields = (
@@ -911,6 +1020,10 @@ def build_review(
         input_hashes[POST_V9_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
             POST_V9_TRANSITION_MANIFEST_PATH
         )
+    if statecraft_transition is not None:
+        input_hashes[STATECRAFT_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
+            STATECRAFT_TRANSITION_MANIFEST_PATH
+        )
     counts = {
         "change_count": len(records),
         "date_only_day_precision_count": date_precision_counts["day"],
@@ -1005,6 +1118,7 @@ def _validate_output_path(
             "historical_context_public_projection_review.py",
             "historical_context_v8_v9_transition_manifest.json",
             "historical_context_v9_local_book_evidence_transition_manifest.json",
+            "historical_context_v9_statecraft_primary_transition_manifest.json",
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",
             "quote_analysis.json",

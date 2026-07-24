@@ -36,7 +36,7 @@ RUN_VERSION = "ai-first-quote-matrix-v13"
 GRADING_VERSION = "ai-first-quote-matrix-grading-v4"
 FIXTURE_VERSION = "ai-first-quote-scenarios-v2"
 FIXTURE_CURRENT_DATE = "2026-07-21"
-EXPECTED_QUOTE_COUNT = 610
+EXPECTED_QUOTE_COUNT = 611
 EXPECTED_SCENARIO_COUNT = 10
 DEFAULT_TARGETED_PER_SCENARIO = 20
 DEFAULT_HARD_LIMIT_USD = 20.0
@@ -413,8 +413,15 @@ def validate_matrix(
     targeted = [row for row in sample if row["sample_role"] == "risk_targeted"]
     if len({row["quote_id"] for row in balanced}) != EXPECTED_QUOTE_COUNT:
         errors.append("balanced sample does not cover every eligible quotation")
-    if set(Counter(row["scenario_id"] for row in balanced).values()) != {61}:
-        errors.append("balanced sample does not assign exactly 61 quotes to every scenario")
+    balanced_counts = Counter(row["scenario_id"] for row in balanced)
+    if (
+        set(balanced_counts) != set(SCENARIO_BY_ID)
+        or max(balanced_counts.values()) - min(balanced_counts.values()) > 1
+    ):
+        errors.append(
+            "balanced sample does not distribute quotes across scenarios "
+            "with a maximum difference of one"
+        )
     if len({row["quote_id"] for row in targeted}) != len(targeted):
         errors.append("risk-targeted sample must use distinct quotations")
     if set(Counter(row["scenario_id"] for row in targeted).values()) != {targeted_per_scenario}:

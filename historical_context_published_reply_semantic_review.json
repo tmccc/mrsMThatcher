@@ -1,14 +1,14 @@
 {
   "current_render_follow_up": {
-    "already_resolved_by_current_conservative_rendering": 30,
+    "already_resolved_by_current_conservative_rendering": 31,
     "known_104653_corrected_for_future_rendering": true,
     "published_history_modified": false,
-    "remaining_future_correction_or_research_items": 15,
+    "remaining_future_correction_or_research_items": 21,
     "remaining_original_future_correction_items": 4,
-    "remaining_original_insufficient_evidence_items": 4,
+    "remaining_original_insufficient_evidence_items": 3,
     "remaining_post_baseline_future_correction_items": 2,
-    "remaining_post_baseline_insufficient_evidence_items": 5,
-    "reviewed_non_supported_or_uncertain": 45
+    "remaining_post_baseline_insufficient_evidence_items": 12,
+    "reviewed_non_supported_or_uncertain": 52
   },
   "history_policy": "Published history is immutable; every recommendation applies only to future rendering.",
   "input_evidence": {
@@ -20,26 +20,26 @@
       "successful_document_count": 262
     },
     "published_history": {
-      "completed_entry_count": 86,
-      "parent_post_ids_sha256": "1a47bbac72d323c80348063aa9d6215966719ef99e8f74fe0523cdf0feb630e6",
+      "completed_entry_count": 93,
+      "parent_post_ids_sha256": "f1458844626f74d2b0d336f1602ca2c56ae2f7a9064d6fc661fc1eb554c7ce71",
       "path": "historical_context_reply_history.json",
-      "quote_ids_sha256": "221400fdb6e44712574250d0e8eccf2f2a8c4761dbba66c0531f9857b6150f9d",
-      "sha256": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
-      "unique_quote_count": 86
+      "quote_ids_sha256": "2415af1d613d3bca664f9f7d4d43dd2998fe3a56edeadecbabb579febead6109",
+      "sha256": "fdb2e55a7855757b459a7f6636206a5cb3931cc75768512102f55a922aedb607",
+      "unique_quote_count": 93
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-      "sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7"
+      "sha256": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b"
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "05150e8311e7d867e002a109e31d11bf4527fa1fd63401f204db01550712eae9"
+      "sha256": "636941cf5053516a08e11e8fdacbef02903637861c80796aec7eb9ade14ef7df"
     }
   },
   "manual_review_totals": {
     "future_correction_needed": 33,
-    "insufficient_to_assess": 12,
-    "reviewed": 86,
+    "insufficient_to_assess": 19,
+    "reviewed": 93,
     "supported_as_published": 41
   },
   "records": [
@@ -669,14 +669,22 @@
       "reply_post_id": "2077876754593501466"
     },
     {
-      "current_reply_sha256": "e97ffda874fb6a722a59781d04591113af6d3a2b32de7dcfcd924e15d6ac4ea2",
+      "current_reply_sha256": "6b97a21495977740337fc7fb5cd9418d7f28683e04def7786e64127bb489458d",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d",
+          "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
       "follow_up_status": "remains_open",
       "history_index": 22,
@@ -1033,23 +1041,31 @@
       "reply_post_id": "2078323772893860012"
     },
     {
-      "current_reply_sha256": "62a14d699c6807f7e4528192c27e258953b7e9ad7970f392dc9d7af65a9b1714",
+      "current_reply_sha256": "bf1076314f4e10934bf42771c8f32ba880f562aa449520290753e2c210d4ff88",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5",
+          "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
-      "follow_up_status": "remains_open",
+      "follow_up_status": "resolved_by_current_rendering",
       "history_index": 35,
       "parent_post_id": "2078358562552639754",
       "published_reply_sha256": "57def5d35f113a800eb5f71f4ea46917db04707c9ead3c88c2d72f71f431d7bd",
       "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
       "quote_text_sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
-      "reason": "A primary-edition locator for Statecraft is still needed before source and verification can be upgraded.",
+      "reason": "The inspected first edition of Statecraft establishes Thatcher authorship, the 2002 publication, the complete exact wording and printed-page locator; the prior source-access insufficiency is resolved without broadening the retained Meaning.",
       "reply_post_id": "2078358564884656388"
     },
     {
@@ -1546,18 +1562,24 @@
       "reply_post_id": "2078982733368332786"
     },
     {
-      "current_reply_sha256": "326528fb398101d6b03055cae090af82805e5376cdfb22f53da911717ee036c8",
+      "current_reply_sha256": "604ff8daa9ff9a1162e8328d768d8bd75554e27d01d0db525033c026fa1ddf20",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
         "renderable_source_ids": [
+          "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04",
           "4b7416e71ce98a16d4932f7a993632cc4370c835d9a218e169a81c2a045750c9"
         ],
         "renderable_source_quality_classes": [
-          "reliable_secondary_evidence"
+          "reliable_secondary_evidence",
+          "strong_primary_evidence"
         ],
-        "wording_confidence": "medium"
+        "wording_confidence": "high"
       },
       "follow_up_status": "remains_open",
       "history_index": 54,
@@ -1570,14 +1592,22 @@
       "reply_post_id": "2079015766389580179"
     },
     {
-      "current_reply_sha256": "c8513ac35486e547f77b36b86c4b312687747ea5741c961308f16603de952271",
+      "current_reply_sha256": "9158081fa7b97ac477948baf7b6682e388de0758d6b5e33a38ac00127371dbda",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb",
+          "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
       "follow_up_status": "remains_open",
       "history_index": 55,
@@ -2214,18 +2244,24 @@
       "reply_post_id": "2079890592461377745"
     },
     {
-      "current_reply_sha256": "7ad5f19b342bf7b12a64304c3c5d54589dd3638def92630ee13f15cc38832239",
+      "current_reply_sha256": "2c3cc82152413198572a7f08367f2ddaf120f5581970325ac17cb4b19312c0a2",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
         "renderable_source_ids": [
-          "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd"
+          "dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9",
+          "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd",
+          "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc"
         ],
         "renderable_source_quality_classes": [
-          "reliable_secondary_evidence"
+          "reliable_secondary_evidence",
+          "strong_primary_evidence"
         ],
-        "wording_confidence": "medium"
+        "wording_confidence": "high"
       },
       "follow_up_status": "remains_open",
       "history_index": 77,
@@ -2298,7 +2334,7 @@
       "quote_id": "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
       "quote_text": "The spirit of freedom is too strong and too resilient to be crushed by the tanks of tyrants. The same is true in other parts of the world which suffer from the brutality of despotism.",
       "quote_text_sha256": "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2079996021556281357"
     },
     {
@@ -2325,7 +2361,7 @@
       "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
       "quote_text": "The Britain I want is a country which once again is known throughout the world for its integrity, its industry, the calibre of its people and its valiant championship of justice and truth.",
       "quote_text_sha256": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2080033593817027066"
     },
     {
@@ -2354,18 +2390,26 @@
       "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "quote_text": "You know, there's a vindictive streak to Socialism that seems to be indelible.",
       "quote_text_sha256": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2080069766874579146"
     },
     {
-      "current_reply_sha256": "22d91951dbb53d4546b92ef9b6cd845c645579b4efb37fefbdd96fdd7399517b",
+      "current_reply_sha256": "780370e5bb461928a19fce065ca831be17683b26bb16b8a32d6a2e3096f3fcc3",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853",
+          "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
       "follow_up_status": "remains_open",
       "history_index": 82,
@@ -2374,7 +2418,7 @@
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
       "quote_text_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2080104320809197722"
     },
     {
@@ -2434,7 +2478,7 @@
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one.",
       "quote_text_sha256": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2080172660042969461"
     },
     {
@@ -2465,6 +2509,198 @@
       "quote_text_sha256": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
       "reason": "The published Meaning turns three adjacent exhortations into a categorical claim that government intervention inherently taxes productive citizens to subsidise unproductive ones. The retained source identity supports wording and attribution, but not that inherent causal mechanism; future rendering must stay within the quotation's stated claims.",
       "reply_post_id": "2080547589422813532"
+    },
+    {
+      "current_reply_sha256": "88c2fed8bded612e0410445fa5d661684f75c10bf749ab3000382f0891d685f7",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "616330cce820c3a2240ba3f9b93ceb17829abf3fc033befb50cf783136025021"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 86,
+      "parent_post_id": "2080583098136137868",
+      "published_reply_sha256": "88c2fed8bded612e0410445fa5d661684f75c10bf749ab3000382f0891d685f7",
+      "quote_id": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+      "quote_text": "Our opponents offer only division and discord, socialism and separatism.",
+      "quote_text_sha256": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080583100665397633"
+    },
+    {
+      "current_reply_sha256": "8b6dd2491e0d96ea7ce64b73d579dd48a659b941e363a8e2f504592ec96d52ab",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 87,
+      "parent_post_id": "2080615883446112512",
+      "published_reply_sha256": "8b6dd2491e0d96ea7ce64b73d579dd48a659b941e363a8e2f504592ec96d52ab",
+      "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+      "quote_text": "Socialism and Britain go ill together. It is not the British character.",
+      "quote_text_sha256": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080615885719408962"
+    },
+    {
+      "current_reply_sha256": "41b8b261b13a188c2bb27683a9311701fba3c2fd5e85bc482bdc02dc4324eaeb",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "108011",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "17b512de0fbad7ce87864d35d22b39648114d06e1de662674ec902944822f91e",
+          "3cc446755efb4dd32bc90602ad6440354c2f8718cb0eb906ce7ac81e012d5998"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 88,
+      "parent_post_id": "2080651968033284316",
+      "published_reply_sha256": "41b8b261b13a188c2bb27683a9311701fba3c2fd5e85bc482bdc02dc4324eaeb",
+      "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "quote_text": "Freedom and Socialism just don't mix.",
+      "quote_text_sha256": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080651970029699503"
+    },
+    {
+      "current_reply_sha256": "b20902227f2b29cc0053647a663f2a47bde82d2eff149d46ff6a6d6e9134991c",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "103411",
+            "machine_status": "no_machine_detected_discrepancy"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "16941e8d6cb75002a1f431bd1ab89a9214cb4a71a1193713cedf7bab18d1f200",
+          "61f2b2d23e7a2ba58f586961f3f52d8ecbd4b06c06732940bdbb29421e50e3c2",
+          "76434eb92a64eaddb707285133be4be82eef3cc82ddd35f74af0451ae303823b"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 89,
+      "parent_post_id": "2080684906418450495",
+      "published_reply_sha256": "b20902227f2b29cc0053647a663f2a47bde82d2eff149d46ff6a6d6e9134991c",
+      "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+      "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses.",
+      "quote_text_sha256": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080684909178298865"
+    },
+    {
+      "current_reply_sha256": "92905be73c65e62732acf04ecec14b2fff000330c9ffa1237fd027b316234336",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [],
+        "renderable_source_quality_classes": [],
+        "wording_confidence": "unknown"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 90,
+      "parent_post_id": "2080715229747421348",
+      "published_reply_sha256": "92905be73c65e62732acf04ecec14b2fff000330c9ffa1237fd027b316234336",
+      "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "quote_text": "Don't follow the crowd, let the crowd follow you.",
+      "quote_text_sha256": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080715231861297379"
+    },
+    {
+      "current_reply_sha256": "f7e414caf6b05bd826ac6724f772a0eb6ff92ff22bdb964619f5a16b072cd956",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "105799",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "2123bae7d635744886eb8cfd17c86fb097ef0711766e7fb2f2934cc8bb53b88f",
+          "410c21baa74a6bb7221b812e6725c02462cc402e02bf301f3225a9505cb437ac",
+          "b33b6a3e0ed83c687aadd2bafbf3c1e4c90b7257374759917b1436119e12ee69"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 91,
+      "parent_post_id": "2080747547212091482",
+      "published_reply_sha256": "f7e414caf6b05bd826ac6724f772a0eb6ff92ff22bdb964619f5a16b072cd956",
+      "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
+      "quote_text_sha256": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080747549737046398"
+    },
+    {
+      "current_reply_sha256": "fb228fcfed97b9122768d9b8cee7a0d7ca9f61d709804eff6b1bacb03534573c",
+      "disposition": "insufficient_to_assess",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104052",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "2efc09671a797971aa18e5ae44822558bd4ef00bc3f34b3db05247f2b446f695",
+          "8bc90b686ea7d0ece83d2ddef3a304844d441a79df84cdb11f665f2ea5eee638"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 92,
+      "parent_post_id": "2080785372007567631",
+      "published_reply_sha256": "fb228fcfed97b9122768d9b8cee7a0d7ca9f61d709804eff6b1bacb03534573c",
+      "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+      "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover.",
+      "quote_text_sha256": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+      "reason": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reply_post_id": "2080785374213808155"
     }
   ],
   "remaining_items": [
@@ -2472,11 +2708,6 @@
       "disposition": "future_correction_needed",
       "issue": "Meaning strengthens a threat to liberty into inevitable coercion and destruction; primary book evidence is not retained.",
       "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c"
-    },
-    {
-      "disposition": "insufficient_to_assess",
-      "issue": "A primary-edition locator for Statecraft is still needed before source and verification can be upgraded.",
-      "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90"
     },
     {
       "disposition": "insufficient_to_assess",
@@ -2515,33 +2746,68 @@
     },
     {
       "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7"
     },
     {
       "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea"
     },
     {
       "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b"
     },
     {
       "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144"
     },
     {
       "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae"
     },
     {
       "disposition": "future_correction_needed",
       "issue": "The published Meaning turns three adjacent exhortations into a categorical claim that government intervention inherently taxes productive citizens to subsidise unproductive ones. The retained source identity supports wording and attribution, but not that inherent causal mechanism; future rendering must stay within the quotation's stated claims.",
       "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b"
+    },
+    {
+      "disposition": "insufficient_to_assess",
+      "issue": "This reply entered production history after the prior reviewed semantic ledger. It is outside the present evidence-admission scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10"
     }
   ],
   "review_kind": "historical_context_published_reply_primary_source_semantic_review",
@@ -2565,16 +2831,23 @@
   "review_scope": {
     "original_review_baseline_count": 77,
     "original_review_quote_ids_sha256": "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976",
-    "post_baseline_review_count": 9,
+    "post_baseline_review_count": 16,
     "post_baseline_review_quote_ids": [
       "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
+      "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
       "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
       "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
       "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+      "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
       "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
       "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+      "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+      "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
       "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37"
     ]
   },
@@ -2602,9 +2875,9 @@
     },
     {
       "future_correction_needed": 2,
-      "insufficient_to_assess": 6,
-      "reviewed": 8,
-      "sorted_history_slice": "[78:86]",
+      "insufficient_to_assess": 13,
+      "reviewed": 15,
+      "sorted_history_slice": "[78:93]",
       "supported_as_published": 0
     }
   ],

@@ -292,8 +292,8 @@ def build_retrieval_document(quote_id: str, packet: dict[str, Any]) -> dict[str,
 def validate_corpus_invariants(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str], dict[str, Any]]:
     """Validate corpus invariants."""
     packets, unresolved = load_and_validate_corpus(research_run)
-    if len(packets) != 626 or len(unresolved) != 6:
-        raise RuntimeError(f"hybrid index requires 626 completed and six unresolved records; got {len(packets)} and {len(unresolved)}")
+    if len(packets) != 627 or len(unresolved) != 5:
+        raise RuntimeError(f"hybrid index requires 627 completed and five unresolved records; got {len(packets)} and {len(unresolved)}")
     if set(packets) & set(unresolved):
         raise RuntimeError("completed and unresolved quote sets overlap")
     for quote_id, packet in packets.items():
@@ -560,7 +560,7 @@ def validate_index(retrieval_dir: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> 
         raise RuntimeError("shadow model unavailable")
     if sha256_file(matrix_path) != manifest.get("embeddings_sha256") or sha256_file(ids_path) != manifest.get("quote_ids_sha256"):
         raise RuntimeError("shadow index file hash mismatch")
-    if len(ids) != 626 or len(documents) != 626 or ids != [item["quote_id"] for item in documents]:
+    if len(ids) != 627 or len(documents) != 627 or ids != [item["quote_id"] for item in documents]:
         raise RuntimeError("shadow index ordering/count mismatch")
     template_hash = sha256_bytes("\n".join(item["text"] for item in documents).encode("utf-8"))
     if template_hash != manifest.get("document_template_hash"):
@@ -568,7 +568,7 @@ def validate_index(retrieval_dir: Path, model_dir: Path = DEFAULT_MODEL_DIR) -> 
     if any(item.get("document_sha256") != sha256_bytes(str(item.get("text") or "").encode("utf-8")) for item in documents):
         raise RuntimeError("shadow retrieval document item hash mismatch")
     matrix = np.load(matrix_path, mmap_mode="r", allow_pickle=False)
-    if matrix.shape != (626, MODEL_DIMENSIONS) or matrix.dtype != np.float32:
+    if matrix.shape != (627, MODEL_DIMENSIONS) or matrix.dtype != np.float32:
         raise RuntimeError("shadow embedding matrix shape or dtype mismatch")
     norms = np.linalg.norm(np.asarray(matrix), axis=1)
     if not np.allclose(norms, 1.0, atol=1e-4):
@@ -674,8 +674,8 @@ class HybridRetriever:
             for quote_id, packet in packets.items()
             if packet_is_attributed_to_margaret_thatcher(packet)
         }
-        if len(self.eligible_quote_ids) != 610:
-            raise RuntimeError("shadow retrieval requires exactly 610 attribution-eligible packets")
+        if len(self.eligible_quote_ids) != 611:
+            raise RuntimeError("shadow retrieval requires exactly 611 attribution-eligible packets")
         self.quote_ids = json.loads((retrieval_dir / "index" / "quote_ids.json").read_text(encoding="utf-8"))
         self.matrix = np.load(retrieval_dir / "index" / "embeddings.npy", mmap_mode="r", allow_pickle=False)
         self.thresholds = json.loads((retrieval_dir / "thresholds.json").read_text(encoding="utf-8"))

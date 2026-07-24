@@ -73,7 +73,7 @@ def test_runtime_regular_post_gate_uses_all_610_attribution_eligible_quotes(
         bot, "COMPLETED_QUOTE_RESEARCH_FILE", RESEARCH / "research_packets.json"
     )
     eligible = bot.completed_research_quote_hashes()
-    assert len(eligible) == 610
+    assert len(eligible) == 611
 
 
 def test_exact_65_withdrawn_wording_exclusions_are_restored(
@@ -133,7 +133,7 @@ def test_restored_610_quote_cycle_histories_do_not_false_exhaust_or_write_receip
         ROOT / "semantic_alignment_research" / "quote_research_full_001" / "research_packets.json",
     )
     eligible = bot.completed_research_quote_hashes()
-    assert len(eligible) == 610
+    assert len(eligible) == 611
 
     history_path = tmp_path / "lines_used.json"
     bot.save_used_set(history_path, set())

@@ -52,11 +52,11 @@ INTERNAL_COLLECTIONS = (
 IMMUTABLE_HASHES = {
     ROOT / "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    RESEARCH / "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
+    RESEARCH / "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    RESEARCH / "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
-    RESEARCH / "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
+    RESEARCH / "final_unresolved/final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
 }
 
 
@@ -1241,10 +1241,10 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
         assert len(display_entries) == len(set(display_entries)), quote_id
         source_distribution[len(rendered["sources"])] += 1
 
-    assert len(corpus[0]) == 626
-    assert len(corpus[1]) == 6
-    assert eligible == 610
-    assert source_distribution == Counter({0: 104, 1: 480, 2: 41, 3: 1})
+    assert len(corpus[0]) == 627
+    assert len(corpus[1]) == 5
+    assert eligible == 611
+    assert source_distribution == Counter({0: 100, 1: 478, 2: 46, 3: 3})
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1298,8 +1298,8 @@ def test_corpus_quote_eligibility_cycle_confidence_and_evidence_are_unchanged(
     raw_packets, raw_unresolved = raw_corpus
 
     assert before_hashes == IMMUTABLE_HASHES
-    assert unresolved == raw_unresolved and len(unresolved) == 6
-    assert set(packets) == set(raw_packets) and len(packets) == 626
+    assert unresolved == raw_unresolved and len(unresolved) == 5
+    assert set(packets) == set(raw_packets) and len(packets) == 627
     for quote_id, packet in packets.items():
         stripped = {key: value for key, value in packet.items() if key != "_source_role_audit"}
         assert stripped == raw_packets[quote_id]
@@ -1326,7 +1326,7 @@ def test_corpus_quote_eligibility_cycle_confidence_and_evidence_are_unchanged(
         runtime_manifest["runtime_quote_aliases"].get(quote_id, quote_id)
         for quote_id in runtime_ids
     }
-    assert len(eligible_ids) == 610
+    assert len(eligible_ids) == 611
     assert runtime_ids <= cycle_ids
     assert runtime_ids <= set(quote_analysis)
     assert resolved_runtime_ids == eligible_ids
@@ -1369,10 +1369,10 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
 
     assert written == built
     assert written["ready"] is True
-    assert written["counts"]["completed_packet_count"] == 626
-    assert written["counts"]["unresolved_quote_count"] == 6
-    assert written["counts"]["attribution_eligible_quote_count"] == 610
-    assert written["counts"]["rendered_packet_count"] == 626
+    assert written["counts"]["completed_packet_count"] == 627
+    assert written["counts"]["unresolved_quote_count"] == 5
+    assert written["counts"]["attribution_eligible_quote_count"] == 611
+    assert written["counts"]["rendered_packet_count"] == 627
     assert written["counts"]["blocking_item_violation_count"] == 0
     assert written["counts"]["invariant_violation_count"] == 0
     assert written["source_file_hashes"][
@@ -1390,7 +1390,7 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
         "duplicate_canonical_identity_group_count"
     ] == 36
     assert written["after_deduplication"] == {
-        "public_source_record_count": 565,
+        "public_source_record_count": 579,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,

@@ -49,11 +49,11 @@ SCHEMA_VERSION = 1
 HARNESS_VERSION = "quote-image-selection-harness-v1"
 TZ_NAME = "Europe/London"
 TZ = ZoneInfo(TZ_NAME)
-EXPECTED_COMPLETED = 626
-EXPECTED_UNRESOLVED = 6
+EXPECTED_COMPLETED = 627
+EXPECTED_UNRESOLVED = 5
 EXPECTED_ATTRIBUTION_EXCLUDED = 16
-EXPECTED_ATTRIBUTION_ACTIVE = 610
-EXPECTED_ACTIVE = 610
+EXPECTED_ATTRIBUTION_ACTIVE = 611
+EXPECTED_ACTIVE = 611
 DEFAULT_YEARS = (2026, 2028, 2029)
 SELECTION_CONFIG_KEYS = (
     "POST_SLEEP_MIN",
@@ -539,7 +539,7 @@ def verify_snapshot(snapshot: Path, manifest: dict[str, Any]) -> None:
     if int(manifest.get("completed_quote_count", 0)) != EXPECTED_ACTIVE:
         raise HarnessError(f"snapshot active completed quote count is not {EXPECTED_ACTIVE}")
     if int(manifest.get("historical_completed_packet_count", EXPECTED_COMPLETED)) != EXPECTED_COMPLETED:
-        raise HarnessError("snapshot historical completed packet count is not 626")
+        raise HarnessError("snapshot historical completed packet count is not 627")
     if int(manifest.get("unresolved_quote_count", 0)) != EXPECTED_UNRESOLVED:
         raise HarnessError("snapshot unresolved quote count is not six")
 

@@ -1,6 +1,53 @@
 {
   "created_at": "2026-07-24",
   "items": {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+      "quote_text_sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+          "exact_supporting_passage_sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 465,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "427",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously and identifies it as Thatcher's own authored text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "75fd4da816b92425452a48ce4ffd8dab2c538f857c8de0de5c18d085bd329456",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "supporting_context": "In a discussion of the political 'Third Way', Thatcher presents the sentence as criticism of relabelling socialist beliefs after earlier versions have become discredited.",
+          "supporting_context_sha256": "f55f43d60252733569ef35b609a652516ddc04b6fe2c138f6e58d5ca120a1eff",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "url": "",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": {
       "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
       "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
@@ -336,6 +383,53 @@
         }
       ]
     },
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": {
+      "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+      "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
+      "quote_text_sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
+          "exact_supporting_passage_sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 487,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "449",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored argument.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "192e8d138fa01dbf160ede438db59ca5c1f26321df2d3b04ffeb60d11b396b95",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "supporting_context": "Thatcher contrasts the performance of free societies and economies with socialist systems and answers contemporary predictions of capitalist decline.",
+          "supporting_context_sha256": "9f3cf78071ab403b396f7a8f807cb993450202ecb54ee3bd0e55098af8d99a49",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "url": "",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": {
       "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
       "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
@@ -421,6 +515,53 @@
         }
       ]
     },
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144": {
+      "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
+      "quote_text_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
+          "exact_supporting_passage_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 470,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "432",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "1541cd79b74e97ede1bfd089ad8e0fe73f3096463d3c44edc5425ac8be9d7947",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "supporting_context": "The surrounding discussion distinguishes equality before the law and equality of opportunity from government pursuit of equality of outcomes.",
+          "supporting_context_sha256": "9ba29e3549e8b76966e286236a3fb0021f826b42a89bfcfe83475e4b7015c40c",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "url": "",
+          "wording_match_kind": "exact"
+        }
+      ]
+    },
     "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997": {
       "quote_id": "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997",
       "quote_text": "I am a great admirer of Professor Hayek. Some of his books are absolutely supreme - \"The Constitution of Liberty\" and the three volumes on \"Law, Legislation and Liberty\" - and would be well read by almost every hon. Member.",
@@ -462,6 +603,100 @@
           "title": "UK Parliament, Prime Minister's Questions, House of Commons, 10 March 1981 (HC Deb 10 March 1981 vol 1000 c756)",
           "url": "https://api.parliament.uk/historic-hansard/commons/1981/mar/10/engagements",
           "wording_match_kind": "excerpt"
+        }
+      ]
+    },
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": {
+      "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty.",
+      "quote_text_sha256": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "When the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty.",
+          "exact_supporting_passage_sha256": "a890b6e4b6e92d3b09a68946123887f771b8ed01a7bfaab3eabaa89e161f8058",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 471,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "433",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page establishes a primary wording variant: the stored quotation inserts 'all' after 'When', while the primary text does not.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "67610f7a0dcd4474e811f05f0b5e0a1e8fbc6632afa85553acd43cc0281466ad",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "supporting_context": "The sentence concludes Thatcher's discussion of equality before the law, equality of opportunity and equality of outcomes.",
+          "supporting_context_sha256": "490fc20578a810e5abf57f346bec18fd7e473dae4e909e9b53c8387490390c23",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "url": "",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
+    },
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": {
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone.",
+      "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "The larger the slice taken by government, the smaller the cake available for everyone.",
+          "exact_supporting_passage_sha256": "26360242d791093b361831c58f4bc3efa9edb9a60a55408502fe346182c7329c",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 463,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "425",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page contains the sentence contiguously; the stored public quotation adds a leading editorial ellipsis which is absent from the primary text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "9016f29ef388fe954005aa090add8fe86bd9fd8b1b1db4997548cd200257adf4",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "supporting_context": "The sentence follows Thatcher's discussion of the ratio of public spending to national income and its relationship to economic growth.",
+          "supporting_context_sha256": "6c217da0b0010cb9af9e98c062c757d5ce1f31e3f6db608be5b8b81a00a45c63",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "url": "",
+          "wording_match_kind": "historical_variant"
         }
       ]
     },
@@ -656,6 +891,53 @@
           "transport_url": "https://web.archive.org/web/20240427111319id_/https%3A%2F%2Fwww.margaretthatcher.org%2Fdocument%2F105472",
           "url": "https://www.margaretthatcher.org/document/105472",
           "wording_match_kind": "excerpt"
+        }
+      ]
+    },
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173": {
+      "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "quote_text": "Constitutions have to be written on hearts, not just paper.",
+      "quote_text_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "Constitutions have to be written on hearts, not just paper.",
+          "exact_supporting_passage_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 294,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "256",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "38efb1e0e9571009544c592a48385902e02d0d4d3fcb453eb31f073bcb1f7416",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "supporting_context": "Thatcher argues that constitutional and human-rights documents must be grounded in national institutions, habits and culture.",
+          "supporting_context_sha256": "3676d27f1ab13767a69aac653cb991bea1d40aabbe719431e71671f4c62f78ab",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "url": "",
+          "wording_match_kind": "exact"
         }
       ]
     },
@@ -889,10 +1171,57 @@
           "wording_match_kind": "exact"
         }
       ]
+    },
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d": {
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "quote_text": "European history shows that, first, there's nothing necessarily benevolent about programmes of European integration; second, desire to achieve utopian plans often poses a grave threat to freedom; and third, European unity has been tried before - the outcome was far from happy.",
+      "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "sources": [
+        {
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "edition": "First edition, 2002",
+          "evidence_origin": "operator_supplied_bibliographic_citation",
+          "exact_supporting_passage": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand Utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy.",
+          "exact_supporting_passage_sha256": "79906e6cbeccd84fa12425a34b616a9bc521d8a4109558b673a3aa7fa34853f6",
+          "isbn": "978-0-00-715064-9",
+          "ocr_text_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+          "page_independently_inspected": true,
+          "pdf_page_index": 365,
+          "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+          "printed_page": "327",
+          "printed_page_visually_verified": true,
+          "publisher": "HarperCollins",
+          "rationale": "The inspected first-edition page establishes the complete primary passage and the documented differences from the shortened stored quotation.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_quality_class": "strong_primary_evidence",
+          "source_review_candidate_id": "66276ffca1cca9b2b00344a329a7cc850652b700d26e033ca43ea659f25eb897",
+          "source_type": "thatcher_authored_primary_book",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "supporting_context": "The passage follows discussion of earlier coercive projects for European unity and states three conclusions Thatcher draws from that history.",
+          "supporting_context_sha256": "c2d6faf3d795a3d9d8c8bf248c8d7e3d5af83b1f3fcdb5e8093cf998fd55c2e8",
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "url": "",
+          "wording_match_kind": "historical_variant"
+        }
+      ]
     }
   },
   "policy_version": "historical-context-curated-evidence-v3-archive-provenance",
-  "quote_count": 19,
+  "quote_count": 26,
   "schema_version": 3,
   "source_adjudication_count": 1,
   "source_adjudications": [
@@ -911,5 +1240,5 @@
       "wording_coverage": "normalised"
     }
   ],
-  "source_count": 19
+  "source_count": 26
 }

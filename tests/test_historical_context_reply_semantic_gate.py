@@ -161,7 +161,7 @@ def _install_bot_context(
     return events
 
 
-def test_real_gate_is_hash_bound_and_contains_exact_86_15_6_9_policy():
+def test_real_gate_is_hash_bound_and_contains_exact_92_20_6_14_policy():
     packets, _unresolved = load_and_validate_corpus(
         RESEARCH,
         require_source_role_audit=True,
@@ -181,20 +181,20 @@ def test_real_gate_is_hash_bound_and_contains_exact_86_15_6_9_policy():
     assert gate.reason == ""
     assert gate.ledger_sha256 == EXPECTED_LEDGER_SHA256
     assert gate.projection_sha256 == EXPECTED_PROJECTION_SHA256
-    assert len(gate.blocked_dispositions) == 15
+    assert len(gate.blocked_dispositions) == 21
     assert list(gate.blocked_dispositions.values()).count(
         "future_correction_needed"
     ) == 6
     assert list(gate.blocked_dispositions.values()).count(
         "insufficient_to_assess"
-    ) == 9
+    ) == 15
     assert gate.disposition(OPEN_FUTURE) == "future_correction_needed"
     assert gate.disposition(NEW_POST_BASELINE_FUTURE) == "future_correction_needed"
     assert gate.disposition(OPEN_INSUFFICIENT) == "insufficient_to_assess"
     assert gate.disposition(NEW_UNREVIEWED) == "insufficient_to_assess"
     assert gate.blocks(REMEDIATED_PRIMARY) is False
     assert gate.blocks(RESOLVED_104653) is False
-    assert len(eligible) == 610
+    assert len(eligible) == 611
     with pytest.raises(TypeError):
         gate.blocked_dispositions["f" * 64] = "future_correction_needed"  # type: ignore[index]
 

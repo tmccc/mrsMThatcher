@@ -1,7 +1,7 @@
 {
   "active": 0,
   "ambiguous_possible_exposure_usd": 0.220368,
-  "average_cost_per_valid_quote": 0.13366934031890657,
+  "average_cost_per_valid_quote": 0.09358985709728865,
   "combined_known_spend_usd": 58.68084039999998,
   "developer": {
     "completed": 147,
@@ -13,22 +13,22 @@
   "eta_seconds": 0.0,
   "mean_latency_seconds": 44.50270252755179,
   "pending": 0,
-  "permanent_failures": 6,
+  "permanent_failures": 5,
   "projected_final_spend_usd": 58.68084039999998,
   "remaining_nonterminal": 0,
   "resume_plan": {
-    "completed_will_be_skipped": 626,
+    "completed_will_be_skipped": 627,
     "developer_will_be_probed": false,
     "next_transport": "vertex_ai",
-    "permanent_failures_will_be_skipped": 6,
+    "permanent_failures_will_be_skipped": 5,
     "unfinished_quotes": 0
   },
   "run_id": "quote_research_full_001",
   "schema_version": 1,
   "total_quotes": 632,
   "transient_failures": 0,
-  "updated_at": "2026-07-14T10:13:34.024871Z",
-  "valid_packets": 626,
+  "updated_at": "2026-07-24T20:01:06Z",
+  "valid_packets": 627,
   "validation_failures": 0,
   "vertex": {
     "completed": 315,

@@ -11,9 +11,9 @@
     "duplicate_full_reply_group_count": 0,
     "event_only_downgrade_count": 2,
     "manual_hint_count": 9,
-    "post_v9_public_field_change_count": 5,
-    "post_v9_source_addition_count": 5,
-    "post_v9_transition_packet_count": 5,
+    "post_v9_public_field_change_count": 12,
+    "post_v9_source_addition_count": 12,
+    "post_v9_transition_packet_count": 12,
     "safe_date_only_count": 64,
     "safe_event_only_context_count": 1,
     "safe_event_only_fallback_count": 1,
@@ -2522,11 +2522,12 @@
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "historical_context_formatter.py": "02886eea0c734e36278a83a18a2e9a84862675b35a689db184a99f0c2494cd95",
-    "historical_context_public_projection_review.py": "af0088d723490c9f9933b4f0de8a292692fde150c85d8ea1f09b431ba1e21232",
-    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_public_projection_review.py": "0eba2f218302fa653de64545d56d76e4f4f986d0e28b190b794e50e1a5ccbaaa",
+    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
     "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
     "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
-    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+    "historical_context_v9_statecraft_primary_transition_manifest.json": "79ed91b04acf9c840a353eea334d2ffc2de136a2ddeef4cf5f7754edab5291d6",
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
   },
   "interpretation": {
     "duplicate_context_lines": "Shared dates legitimately reuse the deterministic date-only sentence; only duplicate full replies are blocking.",
@@ -2644,6 +2645,47 @@
   },
   "post_v9_transition_records": [
     {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that socialists repeatedly renamed their beliefs because earlier versions had become outdated and discredited.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "url": ""
+        }
+      ],
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "source_bindings": [
+        {
+          "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_review_candidate_id": "75fd4da816b92425452a48ce4ffd8dab2c538f857c8de0de5c18d085bd329456"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
       "context_line": "Context — The Downing Street Years (Memoir), 1993.",
       "current_public_context_supported_fields": [
         "source_event",
@@ -2712,6 +2754,178 @@
       "v9_baseline_public_context_supported_fields": []
     },
     {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "url": ""
+        }
+      ],
+      "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+      "source_bindings": [
+        {
+          "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_review_candidate_id": "192e8d138fa01dbf160ede438db59ca5c1f26321df2d3b04ffeb60d11b396b95"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "url": ""
+        }
+      ],
+      "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "source_bindings": [
+        {
+          "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_review_candidate_id": "1541cd79b74e97ede1bfd089ad8e0fe73f3096463d3c44edc5425ac8be9d7947"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "url": ""
+        }
+      ],
+      "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "source_bindings": [
+        {
+          "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_review_candidate_id": "67610f7a0dcd4474e811f05f0b5e0a1e8fbc6632afa85553acd43cc0281466ad"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Historically verified variant\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "House of Commons Hansard Debates for 15 October 2014 (pt 0004)",
+          "url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "url": ""
+        }
+      ],
+      "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "source_bindings": [
+        {
+          "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_review_candidate_id": "9016f29ef388fe954005aa090add8fe86bd9fd8b1b1db4997548cd200257adf4"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
       "context_line": "Context — The Path to Power (autobiography), 1995.",
       "current_public_context_supported_fields": [
         "source_event",
@@ -2738,6 +2952,47 @@
         {
           "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
           "source_review_candidate_id": "ab036aa67cf8241c90dcbfbe62e5887357118829a8a5c7cbd3dc223523cd7594"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "url": ""
+        }
+      ],
+      "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "source_bindings": [
+        {
+          "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_review_candidate_id": "38efb1e0e9571009544c592a48385902e02d0d4d3fcb453eb31f073bcb1f7416"
         }
       ],
       "v9_baseline_public_context_supported_fields": []
@@ -2808,6 +3063,55 @@
         {
           "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
           "source_review_candidate_id": "6759265bfb86c0564890a0435f625e8b98a9059ddb7e69c4534c51a064a7560e"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Historically verified variant\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
+          "url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "url": ""
+        }
+      ],
+      "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
+      "source_bindings": [
+        {
+          "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_review_candidate_id": "66276ffca1cca9b2b00344a329a7cc850652b700d26e033ca43ea659f25eb897"
         }
       ],
       "v9_baseline_public_context_supported_fields": []

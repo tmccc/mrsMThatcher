@@ -201,8 +201,11 @@ def test_two_429s_pause_and_route_trigger_and_later_cases_to_vertex(tmp_path):
 
 def test_bounded_provider_concurrency(tmp_path):
     data = manifest(3); tracker = Tracker()
-    outcomes = [response(rec, "developer") for rec in data["records"]]
-    status = runner(tmp_path, data, FakeDeveloper(outcomes, tracker), FakeVertex([]),
+    by_id = {rec["quote_id"]: rec for rec in data["records"]}
+    def routed(prompt):
+        rec = next(value for quote_id, value in by_id.items() if quote_id in prompt)
+        return response(rec, "developer")
+    status = runner(tmp_path, data, FakeDeveloper([routed] * 3, tracker), FakeVertex([]),
                     developer_concurrency=2).run()
     assert status["valid_packets"] == 3 and tracker.maximum == 2
 

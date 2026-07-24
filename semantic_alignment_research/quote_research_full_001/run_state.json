@@ -338,18 +338,16 @@
       "updated_at": "2026-07-13T21:25:29.362217Z"
     },
     "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
-      "active_transport": "developer_api",
+      "active_transport": "offline_operator_review",
       "attempt_epoch": 0,
-      "last_error": {
-        "kind": "exhausted_validation_failure",
-        "message": "at least one grounded source is required"
-      },
-      "status": "permanent_failure",
+      "completed_transport": "offline_operator_review",
+      "last_error": null,
+      "status": "valid",
       "transport_attempts": {
         "developer_api": 2,
         "vertex_ai": 0
       },
-      "updated_at": "2026-07-13T18:18:40.621211Z"
+      "updated_at": "2026-07-24T20:01:06Z"
     },
     "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a": {
       "active_transport": "developer_api",
@@ -7602,5 +7600,5 @@
   "run_id": "quote_research_full_001",
   "schema_version": 1,
   "shutdown_requested": false,
-  "updated_at": "2026-07-14T02:52:21.865175Z"
+  "updated_at": "2026-07-24T20:01:06Z"
 }

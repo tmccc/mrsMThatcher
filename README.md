@@ -189,9 +189,9 @@ The optional historical-context stage posts a neutral, corpus-backed threaded re
 after a regular quotation post has been confirmed. It does not change the quotation,
 image selection, schedule, or main-post receipt semantics. When enabled, startup validates
 the immutable archive against the counts and packet-file hash declared by its manifest and
-final status. The current archive declares 626 completed packets and six unresolved
-quotations. The current 619 canonical source records are then filtered to exactly 610
-attribution-eligible runtime quotations; six unresolved and three additional
+final status. The current archive declares 627 completed packets and five unresolved
+quotations. The current 619 canonical source records are then filtered to exactly 611
+attribution-eligible runtime quotations; five unresolved and three additional
 attribution-ineligible records remain unavailable for posting. A quote without an eligible
 completed packet receives no context reply.
 
@@ -256,7 +256,7 @@ Configure it through the ignored local configuration after review:
 
 The source corpus is loaded lazily on the first candidate that reaches the reply
 pipeline. Its partition and packet-file hash are checked against its own immutable
-manifest and final status, then the current archive is filtered to exactly 610
+manifest and final status, then the current archive is filtered to exactly 611
 attribution-eligible Thatcher packets. Production packet validation comes from
 the dependency-free `semantic_alignment/quote_research_schema.py`; it does not
 import the Gemini/Vertex research runner or provider SDK. A failed corpus load is

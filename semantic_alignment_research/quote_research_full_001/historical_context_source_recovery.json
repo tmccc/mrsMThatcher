@@ -1117,6 +1117,12 @@
       "quote_id": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a",
       "quote_text_sha256": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a"
     },
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "citation_sources": [],
+      "model_proposed_source_leads": [],
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text_sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
     "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a": {
       "citation_sources": [
         {
@@ -23936,6 +23942,6 @@
     }
   },
   "raw_response_set_sha256": "2835221d8f1e0210689ca2384428f21cefaab6fcfd66a026818dffbc7f00fec9",
-  "research_packet_count": 626,
+  "research_packet_count": 627,
   "schema_version": 1
 }

@@ -44,8 +44,8 @@ CONTRACT_MAX_OUTPUT_TOKENS = 4992
 PAIR_MAX_OUTPUT_TOKENS = 5792
 EXPECTED_CONTRACT_OUTPUT_TOKENS = 1200
 EXPECTED_PAIR_OUTPUT_TOKENS = 2800
-EXPECTED_QUOTES = 626
-EXPECTED_UNRESOLVED = 6
+EXPECTED_QUOTES = 627
+EXPECTED_UNRESOLVED = 5
 EXPECTED_BASELINE_IMAGES = 69
 EXPECTED_DISCOVERED_IMAGES = 22
 EXPECTED_IMAGES = EXPECTED_BASELINE_IMAGES + EXPECTED_DISCOVERED_IMAGES
@@ -1140,7 +1140,7 @@ def prepare(
     output_dir.mkdir(parents=True, exist_ok=True)
     packets, corpus_meta = load_completed_corpus(research_run)
     if len(packets) != EXPECTED_QUOTES or corpus_meta["unresolved_count"] != EXPECTED_UNRESOLVED:
-        raise RuntimeError("quote corpus does not reconcile to 626 completed and six unresolved")
+        raise RuntimeError("quote corpus does not reconcile to 627 completed and five unresolved")
     images, image_meta = load_image_corpus(project_dir, work_dir, packets)
     split = _load_frozen_split(project_dir)
     pilot = select_pilot(packets, images, split)
@@ -1326,7 +1326,7 @@ def build_pair_candidates(
     quote_db = read_json(project_dir / "quote_analysis.json")
     packet_ids = {row["quote_id"] for row in quote_manifest["records"]}
     if set(contracts) != packet_ids:
-        raise RuntimeError("pair candidate construction requires all 626 valid contracts")
+        raise RuntimeError("pair candidate construction requires all 627 valid contracts")
     quote_items, quote_analysis_aliases = _resolve_quote_analysis_items(
         quote_manifest["records"], quote_db,
     )
@@ -1446,7 +1446,7 @@ def build_production_top5_candidates(
     quote_db = read_json(project_dir / "quote_analysis.json")
     packet_ids = {row["quote_id"] for row in quote_manifest["records"]}
     if set(contracts) != packet_ids or len(packet_ids) != EXPECTED_QUOTES:
-        raise RuntimeError("production-oriented matrix requires all 626 valid contracts")
+        raise RuntimeError("production-oriented matrix requires all 627 valid contracts")
     quote_items, aliases = _resolve_quote_analysis_items(quote_manifest["records"], quote_db)
     image_rows = image_manifest["records"]
     current_image_ids = {
@@ -1540,11 +1540,11 @@ def build_material_veto_revision(
     v1_pair_db = read_json(source_dir / "pair_judgements.json")
     packets = quote_manifest.get("records") or []
     if len(packets) != EXPECTED_QUOTES or len({row["quote_id"] for row in packets}) != EXPECTED_QUOTES:
-        raise RuntimeError("v2 revision requires exactly 626 unique canonical packets")
+        raise RuntimeError("v2 revision requires exactly 627 unique canonical packets")
     if len(image_manifest.get("records") or []) != EXPECTED_IMAGES:
         raise RuntimeError("v2 revision requires the immutable 69+22 image corpus")
     if set(v1_contract_db.get("records") or {}) != {row["quote_id"] for row in packets}:
-        raise RuntimeError("v2 revision requires all 626 v1 contracts")
+        raise RuntimeError("v2 revision requires all 627 v1 contracts")
 
     images, attestation = attest_original_collection_identity(image_manifest["records"])
     images, relationship_audit = rebuild_source_grounded_relationship_assertions(images, packets)
@@ -1795,8 +1795,8 @@ def build_material_veto_revision(
         f"- Context-only entity requirements removed: {contract_metrics['context_only_entity_requirements_removed']}",
         f"- Source specificity constraints relaxed: {contract_metrics['source_specificity_relaxed']}", "",
         "## Coverage and reuse", "",
-        f"- Quotations represented: {candidate_value['quote_count']}/626",
-        f"- Current production winners represented: {candidate_value['current_winner_count']}/626",
+        f"- Quotations represented: {candidate_value['quote_count']}/627",
+        f"- Current production winners represented: {candidate_value['current_winner_count']}/627",
         f"- Unique top-eight/frozen pairs: {candidate_value['union_pair_count']}",
         f"- Judgements reusable without a new model call: {len(reused)}",
         f"- Pairs still requiring v2 judgement: {len(unresolved)}", "",
@@ -2214,7 +2214,7 @@ def finalise_material_veto_v2_offline(
     attested = read_json(output_dir / "attested_image_corpus_manifest.json")
     packets = read_json(source_dir / "quote_corpus_manifest.json").get("records") or []
     if len(packets) != EXPECTED_QUOTES:
-        raise RuntimeError("offline v2 finalisation requires all 626 canonical packets")
+        raise RuntimeError("offline v2 finalisation requires all 627 canonical packets")
     corrected_images, relationship_audit = rebuild_source_grounded_relationship_assertions(
         attested["records"], packets,
     )

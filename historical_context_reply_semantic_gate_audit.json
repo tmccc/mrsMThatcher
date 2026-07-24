@@ -2,50 +2,50 @@
   "audit_kind": "historical_context_reply_semantic_gate_audit",
   "blocked_render_failures": [],
   "coverage": {
-    "attribution_eligible_count": 610,
+    "attribution_eligible_count": 611,
     "completed_attribution_ineligible_count": 16,
-    "completed_packet_count": 626,
-    "regular_post_eligible_quote_ids_sha256": "7157a5e7173d33fb72c29e6b9d11e6f32c3c1113e8a657ff62b170deb3a3495c",
-    "runtime_cycle_quote_ids_sha256": "eaa380667720405bb5c8faa052236f19239f3cf691c438a55498cf1bf6131aab",
-    "runtime_cycle_resolved_quote_ids_sha256": "7157a5e7173d33fb72c29e6b9d11e6f32c3c1113e8a657ff62b170deb3a3495c",
-    "unresolved_quote_count": 6
+    "completed_packet_count": 627,
+    "regular_post_eligible_quote_ids_sha256": "196e381d83a351842bdbe85597a0573163a21dd6b3aba35f8265bc02b59b7213",
+    "runtime_cycle_quote_ids_sha256": "3587d6364e7473a263cc9298473c712eb7d70fe1bad273d4b4b52580c474f478",
+    "runtime_cycle_resolved_quote_ids_sha256": "196e381d83a351842bdbe85597a0573163a21dd6b3aba35f8265bc02b59b7213",
+    "unresolved_quote_count": 5
   },
   "decision_counts": {
-    "blocked_open_semantic_review": 15,
-    "eligible_allow": 595,
+    "blocked_open_semantic_review": 21,
+    "eligible_allow": 590,
     "ineligible_not_regular_post": 16
   },
   "gate": {
     "available": true,
-    "blocked_projection_sha256": "27a8fdcfb05cbda87d51bb5b035d7f960775552a5281a08c06a958c5ff15869f",
-    "blocked_quote_count": 15,
+    "blocked_projection_sha256": "04988bb6a89046e19c31979d493c1beec246e486bf837e3b780b3045262dd614",
+    "blocked_quote_count": 21,
     "disposition_counts": {
       "future_correction_needed": 6,
-      "insufficient_to_assess": 9
+      "insufficient_to_assess": 15
     },
     "failure_reason": "",
-    "reviewed_blocked_quote_count": 15,
-    "semantic_review_ledger_sha256": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea"
+    "reviewed_blocked_quote_count": 21,
+    "semantic_review_ledger_sha256": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
-    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_published_reply_semantic_review.json": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19",
+    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
-    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
-    "runtime_eligible_quote_manifest.json": "7b2951f9d9dded56d8d29c9d6af60c5aefe98700602a361feabbd83712605152"
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
+    "runtime_eligible_quote_manifest.json": "6018627b2f22d762c5af15022123bafae7456f7d9f04eff0cd98f6aa6a2c2045"
   },
   "invariant_failure_count": 0,
   "invariants": {
     "all_blocked_quotes_remain_regular_post_eligible": true,
-    "attribution_eligible_count_is_610": true,
+    "attribution_eligible_count_is_611": true,
     "blocked_quotes_have_inspectable_pre_gate_renderings": true,
     "blocked_quotes_have_reviewed_dispositions": true,
     "completed_ineligible_count_is_16": true,
-    "completed_packet_count_is_626": true,
+    "completed_packet_count_is_627": true,
     "document_104653_is_not_blocked": true,
     "gate_is_available": true,
     "runtime_cycle_membership_is_unchanged": true,
-    "unresolved_count_is_6": true
+    "unresolved_count_is_5": true
   },
   "policy_version": "historical-context-semantic-gate-v1-open-review-whole-reply",
   "records": [
@@ -272,6 +272,14 @@
       "public_reply_decision": "eligible_allow",
       "quote_id": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a",
       "quote_text": "Every step this Socialist Government takes to seize more power over our daily lives diminishes those lives and the freedom which is their essence and their strength. One of our principal and continuing priorities when we are returned to office will be to restore the freedoms which the Socialists have usurped."
+    },
+    {
+      "attribution_eligible": true,
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
     },
     {
       "attribution_eligible": true,
@@ -683,9 +691,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — Speech to Young Conservative Conference, 10 February 1990.\n\nMeaning — Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Young Conservative Conference (10 February 1990)",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
       "quote_text": "Freedom and Socialism just don't mix."
     },
@@ -779,9 +787,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
       "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed."
     },
@@ -1971,9 +1979,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure."
     },
@@ -2908,7 +2916,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes."
@@ -3099,9 +3107,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — Speech to Scottish Conservative Party Conference, 13 May 1978.\n\nMeaning — That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, speech dated 13 May 1978",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
       "quote_text": "Our opponents offer only division and discord, socialism and separatism."
     },
@@ -3179,9 +3187,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — True leaders forge their own path rather than conforming to popular opinion.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
       "quote_text": "Don't follow the crowd, let the crowd follow you."
     },
@@ -3236,7 +3244,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
       "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
@@ -3332,7 +3340,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+      "otherwise_rendered_public_reply_suppressed": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Historically verified variant\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
       "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone."
@@ -3427,9 +3435,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
       "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover."
     },
@@ -3931,9 +3939,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
       "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses."
     },
@@ -4211,9 +4219,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "insufficient_to_assess",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
       "quote_text": "Socialism and Britain go ill together. It is not the British character."
     },
@@ -4284,7 +4292,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+      "otherwise_rendered_public_reply_suppressed": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "quote_text": "Constitutions have to be written on hearts, not just paper."
@@ -4764,7 +4772,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+      "otherwise_rendered_public_reply_suppressed": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Historically verified variant\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
       "quote_text": "European history shows that, first, there's nothing necessarily benevolent about programmes of European integration; second, desire to achieve utopian plans often poses a grave threat to freedom; and third, European unity has been tried before - the outcome was far from happy."

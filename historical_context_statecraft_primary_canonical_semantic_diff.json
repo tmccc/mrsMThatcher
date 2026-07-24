@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_statecraft_primary_canonical_semantic_diff",
+  "generated_at": "2026-07-24T23:00:18Z",
+  "status": "passed",
+  "production_base_commit": "d813e5697dfe3dbc91992be66c9e885a490076c5",
+  "source_records_added": 7,
+  "exact_primary_records": 4,
+  "primary_variant_records": 3,
+  "packets_before": 626,
+  "packets_after": 627,
+  "unresolved_before": 6,
+  "unresolved_after": 5,
+  "ordinary_cycle_before": 610,
+  "ordinary_cycle_after": 611,
+  "completed_attribution_ineligible_before": 16,
+  "completed_attribution_ineligible_after": 16,
+  "quotation_text_changes": 0,
+  "quotation_id_changes": 0,
+  "unrelated_packet_changes": 0,
+  "packet_changes": {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "change": "new completed packet from operator-reviewed primary source",
+      "verification_status": "exact",
+      "printed_page": "427"
+    },
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": {
+      "change": "source identity, date, locator and verification metadata",
+      "verification_status": "exact",
+      "printed_page": "449"
+    },
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144": {
+      "change": "source event, locator and verification notes",
+      "verification_status": "exact",
+      "printed_page": "432"
+    },
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": {
+      "change": "primary text, locator, variant status and precise difference",
+      "verification_status": "variant",
+      "printed_page": "433",
+      "precise_difference": "The primary begins 'When the objectives'; the stored quotation begins 'When all the objectives'."
+    },
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": {
+      "change": "source event, locator, variant status and precise difference",
+      "verification_status": "variant",
+      "printed_page": "425",
+      "precise_difference": "The stored leading editorial ellipsis is absent from the primary sentence."
+    },
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173": {
+      "change": "source event, locator and verification notes",
+      "verification_status": "exact",
+      "printed_page": "256"
+    },
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d": {
+      "change": "primary text, locator and precise variant differences",
+      "verification_status": "variant",
+      "printed_page": "327",
+      "precise_difference": "The stored wording shortens the opening, contracts 'there is', omits 'the' and 'grand', and changes connective punctuation."
+    }
+  },
+  "invariants_passed": true
+}

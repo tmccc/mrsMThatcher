@@ -45,9 +45,9 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_HISTORY_PATH = ROOT / "historical_context_reply_history.json"
 AUDIT_KIND = "historical_context_evidence_truth_triage_audit"
 AUDIT_SCHEMA_VERSION = 2
-EXPECTED_COMPLETED_PACKET_COUNT = 626
+EXPECTED_COMPLETED_PACKET_COUNT = 627
 REVIEW_BASELINE_PUBLISHED_HISTORY_COUNT = 77
-EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT = 610
+EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT = 611
 
 GENERIC_CONTEXT = (
     "The surviving attribution does not establish an occasion, date or "
@@ -1016,11 +1016,11 @@ def build_audit(
     )
 
     invariants = {
-        "completed_packet_count_is_626": len(packets) == EXPECTED_COMPLETED_PACKET_COUNT,
+        "completed_packet_count_is_627": len(packets) == EXPECTED_COMPLETED_PACKET_COUNT,
         "published_history_includes_77_entry_review_baseline": (
             len(completed_history) >= REVIEW_BASELINE_PUBLISHED_HISTORY_COUNT
         ),
-        "attribution_eligible_count_is_610": (
+        "attribution_eligible_count_is_611": (
             len(eligible_ids) == EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT
         ),
         "every_history_quote_correlates_to_a_completed_packet": not correlation_errors,

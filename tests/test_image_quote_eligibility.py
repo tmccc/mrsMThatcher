@@ -31,8 +31,8 @@ def empty_result(candidate_id: str, image_hash: str) -> dict:
 def test_canonical_corpus_has_exactly_626_and_excludes_six_unresolved():
     packets, metadata = eligibility.load_completed_corpus(RESEARCH)
     ids = {row["quote_id"] for row in packets}
-    assert len(ids) == 626
-    assert metadata["unresolved_count"] == 6
+    assert len(ids) == 627
+    assert metadata["unresolved_count"] == 5
     assert not ids.intersection(metadata["unresolved_quote_ids"])
 
 
@@ -53,7 +53,7 @@ def test_compact_corpus_and_prompt_are_deterministic_and_do_not_leak_human_label
     first = eligibility.build_prompt(compact_one, images)
     second = eligibility.build_prompt(compact_two, images)
     assert first == second
-    assert len(compact_one) == 626
+    assert len(compact_one) == 627
     assert all(row["id"] in first for row in compact_one)
     assert "approve_pairing" not in first
     assert "prefer_existing_image" not in first

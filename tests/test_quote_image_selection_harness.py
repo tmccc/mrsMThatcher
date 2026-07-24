@@ -178,8 +178,8 @@ def test_canonical_completed_corpus_is_exact_partition(tmp_path: Path) -> None:
     (snapshot / "mrsMThatcher.txt").symlink_to(ROOT / "mrsMThatcher.txt")
     lines, unresolved = harness.write_eligible_quotes(snapshot)
     quote_ids = {hashlib.sha256(line.encode()).hexdigest() for line in lines}
-    assert len(lines) == len(quote_ids) == 610
-    assert len(unresolved) == 6
+    assert len(lines) == len(quote_ids) == 611
+    assert len(unresolved) == 5
     assert not (quote_ids & unresolved)
 
 

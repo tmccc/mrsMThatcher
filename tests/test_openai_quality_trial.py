@@ -22,7 +22,7 @@ REAL_RUN = "semantic_alignment_research/quote_research_full_001"
 def test_real_eligible_corpus_is_626_and_excludes_six():
     from pathlib import Path
     packets, unresolved, digest = load_corpus(Path(REAL_RUN))
-    assert len(packets) == 626 and len(unresolved) == 6
+    assert len(packets) == 627 and len(unresolved) == 5
     assert not (set(packets) & unresolved)
     assert len(digest) == 64
 

@@ -144,6 +144,26 @@ def test_strict_packet_validation_rejects_missing_or_extra_fields():
         validate_packet(bad, row)
 
 
+def test_operator_bibliographic_source_may_omit_public_url():
+    row = record()
+    value = packet(row)
+    value["sources"] = [{
+        "title": "Margaret Thatcher, Statecraft, first edition (2002), p. 427",
+        "url": "",
+        "source_type": "operator_supplied_bibliographic_citation",
+        "supports": [row["quote_text"]],
+    }]
+    assert validate_packet(value, row) == value
+
+
+def test_other_source_types_still_require_public_url():
+    row = record()
+    value = packet(row)
+    value["sources"][0]["url"] = ""
+    with pytest.raises(ValueError, match="identity fields"):
+        validate_packet(value, row)
+
+
 def test_first_429_then_success_does_not_pause(tmp_path):
     row = record()
     developer = FakeDeveloper([http_429(), successful(row, "developer")])

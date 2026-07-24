@@ -41,7 +41,7 @@ def test_runtime_context_reply_state_files_are_gitignored():
 
 def test_completed_corpus_validation_and_unresolved_rejection(corpus):
     packets, unresolved = corpus
-    assert len(packets) == 626 and len(unresolved) == 6 and not set(packets) & unresolved
+    assert len(packets) == 627 and len(unresolved) == 5 and not set(packets) & unresolved
     assert packet_for_posted_quote(packets, unresolved, next(iter(unresolved)), "anything") is None
 
 

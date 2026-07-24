@@ -1,20 +1,5 @@
 {
   "items": {
-    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
-      "attempts": {
-        "developer_api": 2,
-        "vertex_ai": 0
-      },
-      "failure": {
-        "kind": "exhausted_validation_failure",
-        "message": "at least one grounded source is required"
-      },
-      "input_hash": "b4477fd761db24823c4f1e54db258eba7bc7e042a3106b39cbfff72c6f8bd798",
-      "quote_hash": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-      "recorded_at": "2026-07-13T18:18:40.621196Z",
-      "transport": "developer_api"
-    },
     "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1": {
       "attempts": {
         "developer_api": 0,

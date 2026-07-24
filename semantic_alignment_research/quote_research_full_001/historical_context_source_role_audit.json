@@ -1,11 +1,11 @@
 {
-  "all_evidentiary_source_record_count": 3395,
-  "attribution_eligible_quote_count": 610,
-  "attribution_eligible_quote_ids_sha256": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
+  "all_evidentiary_source_record_count": 3410,
+  "attribution_eligible_quote_count": 611,
+  "attribution_eligible_quote_ids_sha256": "75cb0fdaa72f6c08b436195c3a617a29b8c826f599119a3369e6f3938cc2e84c",
   "audit_date": "2026-07-22",
-  "audited_source_record_count": 3116,
+  "audited_source_record_count": 3124,
   "curated_source_adjudication_count": 1,
-  "curated_source_count": 19,
+  "curated_source_count": 26,
   "gemini_researched_source_count": 1,
   "items": {
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": {
@@ -9426,6 +9426,251 @@
           "source_index": null,
           "source_quality_class": "strong_primary_evidence",
           "source_title": "Margaret Thatcher Foundation Document 102990",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "wording_status_after": "exact"
+    },
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "attribution_eligible": true,
+      "bounded_research_outcomes": {},
+      "confidence_after": {
+        "attribution": "high",
+        "date": "high",
+        "historical_context": "unknown",
+        "interpretation": "high",
+        "source_event": "high",
+        "wording": "high"
+      },
+      "confidence_before": "high",
+      "curated_source_adjudication_count": 0,
+      "curated_source_adjudications": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously and identifies it as Thatcher's own authored text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "supporting_context": "In a discussion of the political 'Third Way', Thatcher presents the sentence as criticism of relabelling socialist beliefs after earlier versions have become discredited.",
+          "supporting_context_sha256": "f55f43d60252733569ef35b609a652516ddc04b6fe2c138f6e58d5ca120a1eff",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+              "text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
+            }
+          ]
+        }
+      ],
+      "current_wording_status": "exact",
+      "date": "2002",
+      "locator_audit": {
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
+      },
+      "model_proposed_source_lead_count": 0,
+      "model_proposed_source_leads": [],
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "public_output_changes": [],
+      "public_verification_wording": "Exact wording verified",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+      "quote_text_sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "recovered_citation_count": 0,
+      "recovered_sources": [],
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously and identifies it as Thatcher's own authored text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "supporting_context": "In a discussion of the political 'Third Way', Thatcher presents the sentence as criticism of relabelling socialist beliefs after earlier versions have become discredited.",
+          "supporting_context_sha256": "f55f43d60252733569ef35b609a652516ddc04b6fe2c138f6e58d5ca120a1eff",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+              "text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "362f41484489dbd363fce24c412bf2b9ab179d8b59e0e0388a3715197b2b1a70",
+          "source_id": "8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "requires_further_research": false,
+      "researched_source_count": 0,
+      "researched_source_provider_counts": {},
+      "researched_sources": [],
+      "source_count": 1,
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
+      "sources": [
+        {
+          "action": "remove_from_rendered_output",
+          "assigned_roles": [
+            "rejected_irrelevant"
+          ],
+          "claims_not_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "claims_supported": [],
+          "confidence_before": "high",
+          "indicates_secondary_recollection": false,
+          "public_title": null,
+          "public_url": null,
+          "rationale": "The saved URL is not a valid HTTP(S) evidentiary locator.",
+          "source_fingerprint": "b7e35d344d1f936b430cc87de04df633c54295908276a001e8ea787681dd7cd5",
+          "source_id": "08f77c9eb8b9e15f9c60a369d2eb9951479e339fe32f6a26aa6283d82888b75f",
+          "source_index": 0,
+          "source_quality_class": "broken_or_non_verifying_url",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "source_type": "operator_supplied_bibliographic_citation",
+          "source_url": "",
+          "supporting_passages": [
+            {
+              "kind": "provider_grounded_response_segment",
+              "sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+              "text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
+            }
+          ]
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "362f41484489dbd363fce24c412bf2b9ab179d8b59e0e0388a3715197b2b1a70",
+          "source_id": "8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
           "source_type": "canonical_stable_locator",
           "source_url": "",
           "supporting_passages": [],
@@ -75332,24 +75577,72 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
-      "current_wording_status": "unverified",
-      "date": "Unknown",
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored argument.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "supporting_context": "Thatcher contrasts the performance of free societies and economies with socialist systems and answers contemporary predictions of capitalist decline.",
+          "supporting_context_sha256": "9f3cf78071ab403b396f7a8f807cb993450202ecb54ee3bd0e55098af8d99a49",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+              "text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure."
+            }
+          ]
+        }
+      ],
+      "current_wording_status": "exact",
+      "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 1,
       "model_proposed_source_leads": [
@@ -75383,12 +75676,14 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Exact wording not verified",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
       "quote_text_sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
@@ -75440,13 +75735,91 @@
           ]
         }
       ],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored argument.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "supporting_context": "Thatcher contrasts the performance of free societies and economies with socialist systems and answers contemporary predictions of capitalist decline.",
+          "supporting_context_sha256": "9f3cf78071ab403b396f7a8f807cb993450202ecb54ee3bd0e55098af8d99a49",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+              "text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "5c13bbd5dd175d61a1fe6b1be3ad4ad9a991922e06d22511a4adb19884e76cec",
+          "source_id": "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
       "source_count": 13,
-      "source_event": "Unknown",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "action": "requires_further_research",
@@ -75839,11 +76212,46 @@
           "supporting_passages": []
         }
       ],
-      "speaker": "Margaret Thatcher (attributed)",
-      "stable_locator": "Unknown",
-      "supported_public_roles": [],
-      "virtual_locator_sources": [],
-      "wording_status_after": "unverified"
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "5c13bbd5dd175d61a1fe6b1be3ad4ad9a991922e06d22511a4adb19884e76cec",
+          "source_id": "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "wording_status_after": "exact"
     },
     "6871cbac95a92fcbc6b383ed1031d694399351a54e3bf1c81bd86239a1b807e4": {
       "attribution_eligible": true,
@@ -110436,46 +110844,173 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "supporting_context": "The surrounding discussion distinguishes equality before the law and equality of opportunity from government pursuit of equality of outcomes.",
+          "supporting_context_sha256": "9ba29e3549e8b76966e286236a3fb0021f826b42a89bfcfe83475e4b7015c40c",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+              "text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "exact",
       "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Exact wording not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
       "quote_text_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "recovered_citation_count": 0,
       "recovered_sources": [],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete quotation contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "supporting_context": "The surrounding discussion distinguishes equality before the law and equality of opportunity from government pursuit of equality of outcomes.",
+          "supporting_context_sha256": "9ba29e3549e8b76966e286236a3fb0021f826b42a89bfcfe83475e4b7015c40c",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+              "text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "3e78600cc17e9e58f427e7220564f47bcb20d092b641e2727bd48774e46dbcea",
+          "source_id": "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
       "source_count": 3,
-      "source_event": "Statecraft: Strategies for a Changing World",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "action": "remove_from_rendered_output",
@@ -110569,9 +111104,44 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 432",
-      "supported_public_roles": [],
-      "virtual_locator_sources": [],
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "3e78600cc17e9e58f427e7220564f47bcb20d092b641e2727bd48774e46dbcea",
+          "source_id": "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
       "wording_status_after": "exact"
     },
     "92bc2b135f748c17b8df4653ec385e5f072ca5b99b4cee0988933eccbd13839f": {
@@ -123232,41 +123802,168 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
-      "current_wording_status": "exact",
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "public_url": "",
+          "rationale": "The inspected first-edition page establishes a primary wording variant: the stored quotation inserts 'all' after 'When', while the primary text does not.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "supporting_context": "The sentence concludes Thatcher's discussion of equality before the law, equality of opportunity and equality of outcomes.",
+          "supporting_context_sha256": "490fc20578a810e5abf57f346bec18fd7e473dae4e909e9b53c8387490390c23",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "a890b6e4b6e92d3b09a68946123887f771b8ed01a7bfaab3eabaa89e161f8058",
+              "text": "When the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
+            }
+          ]
+        }
+      ],
+      "current_wording_status": "variant",
       "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Exact wording not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Historically verified variant",
       "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
       "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty.",
       "quote_text_sha256": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
       "recovered_citation_count": 0,
       "recovered_sources": [],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "public_url": "",
+          "rationale": "The inspected first-edition page establishes a primary wording variant: the stored quotation inserts 'all' after 'When', while the primary text does not.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "supporting_context": "The sentence concludes Thatcher's discussion of equality before the law, equality of opportunity and equality of outcomes.",
+          "supporting_context_sha256": "490fc20578a810e5abf57f346bec18fd7e473dae4e909e9b53c8387490390c23",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "a890b6e4b6e92d3b09a68946123887f771b8ed01a7bfaab3eabaa89e161f8058",
+              "text": "When the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "273f52e38e23bff0f8fde5446ca823b487966900e75dc138c827dde4b370ea99",
+          "source_id": "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
@@ -123305,10 +124002,45 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Statecraft (2002)",
-      "supported_public_roles": [],
-      "virtual_locator_sources": [],
-      "wording_status_after": "exact"
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "273f52e38e23bff0f8fde5446ca823b487966900e75dc138c827dde4b370ea99",
+          "source_id": "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "wording_status_after": "variant"
     },
     "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3": {
       "attribution_eligible": true,
@@ -126684,33 +127416,83 @@
         "openai": "reliable_sources_found"
       },
       "confidence_after": {
-        "attribution": "medium",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "medium"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
-      "current_wording_status": "exact",
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the sentence contiguously; the stored public quotation adds a leading editorial ellipsis which is absent from the primary text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "supporting_context": "The sentence follows Thatcher's discussion of the ratio of public spending to national income and its relationship to economic growth.",
+          "supporting_context_sha256": "6c217da0b0010cb9af9e98c062c757d5ce1f31e3f6db608be5b8b81a00a45c63",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "26360242d791093b361831c58f4bc3efa9edb9a60a55408502fe346182c7329c",
+              "text": "The larger the slice taken by government, the smaller the cake available for everyone."
+            }
+          ]
+        }
+      ],
+      "current_wording_status": "variant",
       "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 0,
       "model_proposed_source_leads": [],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Wording partially supported by a retained source citation; exact wording not independently verified",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Historically verified variant",
       "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
       "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone.",
       "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
@@ -126768,9 +127550,86 @@
           ],
           "wording_match_kind": "exact_token_sequence",
           "wording_similarity": 1.0
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the sentence contiguously; the stored public quotation adds a leading editorial ellipsis which is absent from the primary text.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "supporting_context": "The sentence follows Thatcher's discussion of the ratio of public spending to national income and its relationship to economic growth.",
+          "supporting_context_sha256": "6c217da0b0010cb9af9e98c062c757d5ce1f31e3f6db608be5b8b81a00a45c63",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "26360242d791093b361831c58f4bc3efa9edb9a60a55408502fe346182c7329c",
+              "text": "The larger the slice taken by government, the smaller the cake available for everyone."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "6260d37686e09664bb331f2352b42ac1f3d57382de541ffda123367429da288e",
+          "source_id": "dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
         }
       ],
-      "requires_further_research": true,
+      "requires_further_research": false,
       "researched_source_count": 1,
       "researched_source_provider_counts": {
         "openai": 1
@@ -126830,7 +127689,7 @@
         }
       ],
       "source_count": 2,
-      "source_event": "Statecraft: Strategies for a Changing World (Book)",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "action": "remove_from_rendered_output",
@@ -126908,13 +127767,45 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 327 or 425 (editions vary)",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
       "supported_public_roles": [
         "attribution_support",
+        "source_event_support",
         "wording_verification"
       ],
-      "virtual_locator_sources": [],
-      "wording_status_after": "exact"
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "6260d37686e09664bb331f2352b42ac1f3d57382de541ffda123367429da288e",
+          "source_id": "dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "wording_status_after": "variant"
     },
     "a9b4ea7f342a8cbc4ae919c097a9e968d5617e956dd0439e8f423fb6c8dc9942": {
       "attribution_eligible": true,
@@ -160549,24 +161440,72 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "supporting_context": "Thatcher argues that constitutional and human-rights documents must be grounded in national institutions, habits and culture.",
+          "supporting_context_sha256": "3676d27f1ab13767a69aac653cb991bea1d40aabbe719431e71671f4c62f78ab",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+              "text": "Constitutions have to be written on hearts, not just paper."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "exact",
       "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 2,
       "model_proposed_source_leads": [
@@ -160629,25 +161568,104 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Exact wording not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "quote_text": "Constitutions have to be written on hearts, not just paper.",
       "quote_text_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "recovered_citation_count": 0,
       "recovered_sources": [],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "public_url": "",
+          "rationale": "The inspected first-edition page contains the complete sentence contiguously in Thatcher's authored discussion.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "supporting_context": "Thatcher argues that constitutional and human-rights documents must be grounded in national institutions, habits and culture.",
+          "supporting_context_sha256": "3676d27f1ab13767a69aac653cb991bea1d40aabbe719431e71671f4c62f78ab",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+              "text": "Constitutions have to be written on hearts, not just paper."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "cec9b63f09e7869b787a3b271654fab290250247158822b4573b4b930e4cdab0",
+          "source_id": "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
       "source_count": 2,
-      "source_event": "Publication of 'Statecraft: Strategies for a Changing World'",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "action": "remove_from_rendered_output",
@@ -160723,9 +161741,44 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 256",
-      "supported_public_roles": [],
-      "virtual_locator_sources": [],
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "cec9b63f09e7869b787a3b271654fab290250247158822b4573b4b930e4cdab0",
+          "source_id": "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
       "wording_status_after": "exact"
     },
     "dbfa68097a782d6daf0cb3db564af0377ee5d4b4664bf2d5b506487474578c1b": {
@@ -179870,24 +180923,72 @@
         "openai": "reliable_sources_found"
       },
       "confidence_after": {
-        "attribution": "medium",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "medium"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "public_url": "",
+          "rationale": "The inspected first-edition page establishes the complete primary passage and the documented differences from the shortened stored quotation.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "supporting_context": "The passage follows discussion of earlier coercive projects for European unity and states three conclusions Thatcher draws from that history.",
+          "supporting_context_sha256": "c2d6faf3d795a3d9d8c8bf248c8d7e3d5af83b1f3fcdb5e8093cf998fd55c2e8",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "79906e6cbeccd84fa12425a34b616a9bc521d8a4109558b673a3aa7fa34853f6",
+              "text": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand Utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "variant",
       "date": "2002",
       "locator_audit": {
-        "kind": null,
-        "precise": false,
-        "rationale": "Locator is absent, placeholder, generic, or insufficiently precise for public verification."
+        "kind": "thatcher_authored_book",
+        "precise": true,
+        "rationale": "Specific canonical locator retained for role-scoped rendering."
       },
       "model_proposed_source_lead_count": 1,
       "model_proposed_source_leads": [
@@ -179921,12 +181022,14 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Reported wording; no primary Thatcher transcript located",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Historically verified variant",
       "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
       "quote_text": "European history shows that, first, there's nothing necessarily benevolent about programmes of European integration; second, desire to achieve utopian plans often poses a grave threat to freedom; and third, European unity has been tried before - the outcome was far from happy.",
       "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
@@ -180073,9 +181176,86 @@
           ],
           "wording_match_kind": "exact_token_sequence",
           "wording_similarity": 1.0
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "public_url": "",
+          "rationale": "The inspected first-edition page establishes the complete primary passage and the documented differences from the shortened stored quotation.",
+          "recorded_at": "2026-07-24",
+          "source_date": "2002",
+          "source_event": "Publication of Statecraft: Strategies for a Changing World",
+          "source_fingerprint": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "supporting_context": "The passage follows discussion of earlier coercive projects for European unity and states three conclusions Thatcher draws from that history.",
+          "supporting_context_sha256": "c2d6faf3d795a3d9d8c8bf248c8d7e3d5af83b1f3fcdb5e8093cf998fd55c2e8",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "79906e6cbeccd84fa12425a34b616a9bc521d8a4109558b673a3aa7fa34853f6",
+              "text": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand Utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy."
+            }
+          ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "b7b034bed6cedac1330399d1fc74d142cee2d21d75ebeb090a05e56d7426b738",
+          "source_id": "406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
         }
       ],
-      "requires_further_research": true,
+      "requires_further_research": false,
       "researched_source_count": 1,
       "researched_source_provider_counts": {
         "openai": 1
@@ -180175,12 +181355,44 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 327",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
       "supported_public_roles": [
         "attribution_support",
+        "source_event_support",
         "wording_verification"
       ],
-      "virtual_locator_sources": [],
+      "virtual_locator_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "public_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "public_url": "",
+          "rationale": "The canonical packet contains a specific, independently usable locator.",
+          "source_fingerprint": "b7b034bed6cedac1330399d1fc74d142cee2d21d75ebeb090a05e56d7426b738",
+          "source_id": "406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "source_type": "canonical_stable_locator",
+          "source_url": "",
+          "supporting_passages": [],
+          "virtual_locator_record": true
+        }
+      ],
       "wording_status_after": "variant"
     },
     "f4a54ddbeb267a5ae0bcd3dda13214ffeda6e8f2b31854abcde83fe73420636c": {
@@ -192392,46 +193604,46 @@
   },
   "model_proposed_source_lead_count": 790,
   "openai_researched_source_count": 33,
-  "packet_count": 626,
+  "packet_count": 627,
   "policy_version": "historical-context-source-roles-v9-archive-provenance",
   "recovered_citation_source_count": 256,
   "researched_source_count": 34,
   "schema_version": 5,
-  "source_count": 2017,
+  "source_count": 2018,
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
+    "final_unresolved/final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
     "grounding_sources.json": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
-    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
     "historical_context_source_independent_review.json": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
     "historical_context_source_openai_research.json": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
-    "historical_context_source_recovery.json": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
+    "historical_context_source_recovery.json": "c176cf6cddd9f4d84be0e323f27aa7527a199c2fa3acea0d262ef93521df7f4a",
     "historical_context_source_research.json": "9fee2a3686b763411ea733c8e94489ecc89c3d25056e072dd30fad4bfae30af3",
     "historical_context_source_resolution.json": "6eba93db67ebe91f818656a1d2c54ec06e9add54fb494284734d49d2a18c5bcf",
-    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
   },
   "summary": {
-    "additional_virtual_locator_source_count": 279,
+    "additional_virtual_locator_source_count": 286,
     "all_evidentiary_source_quality_counts": {
-      "broken_or_non_verifying_url": 89,
+      "broken_or_non_verifying_url": 90,
       "circular_attribution": 246,
       "discovery_lead_only": 1036,
       "insufficiently_located_evidence": 1055,
       "irrelevant_or_corrupt": 38,
       "reliable_secondary_evidence": 37,
       "secondary_recollection": 5,
-      "strong_primary_evidence": 889
+      "strong_primary_evidence": 903
     },
-    "all_evidentiary_source_record_count": 3395,
-    "all_evidentiary_source_role_assignment_count": 4432,
+    "all_evidentiary_source_record_count": 3410,
+    "all_evidentiary_source_role_assignment_count": 4475,
     "all_evidentiary_source_role_counts": {
-      "attribution_support": 890,
+      "attribution_support": 904,
       "discovery_only": 2337,
       "historical_context_support": 1,
-      "rejected_irrelevant": 127,
+      "rejected_irrelevant": 128,
       "secondary_recollection": 5,
-      "source_event_support": 233,
-      "wording_verification": 839
+      "source_event_support": 247,
+      "wording_verification": 853
     },
     "changed_quote_ids": [
       "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
@@ -192931,24 +194143,24 @@
     "curated_source_quality_counts": {
       "reliable_secondary_evidence": 1,
       "secondary_recollection": 1,
-      "strong_primary_evidence": 17
+      "strong_primary_evidence": 24
     },
     "gemini_researched_source_quality_counts": {
       "reliable_secondary_evidence": 1
     },
     "headline_observed_source_disposition_counts": {
-      "accepted_evidence": 652,
+      "accepted_evidence": 659,
       "discovery_or_insufficient": 2091,
-      "rejected_or_non_verifying": 373,
-      "total": 3116
+      "rejected_or_non_verifying": 374,
+      "total": 3124
     },
     "headline_observed_source_provenance_counts": {
       "ai_located_independently_reviewed_sources": 34,
       "model_proposed_source_leads": 790,
-      "operator_curated_sources": 19,
-      "physical_packet_sources": 2017,
+      "operator_curated_sources": 26,
+      "physical_packet_sources": 2018,
       "recovered_citation_sources": 256,
-      "total": 3116
+      "total": 3124
     },
     "model_proposed_lead_quality_counts": {
       "discovery_lead_only": 789,
@@ -192993,7 +194205,6 @@
       "5dd9b4dca874178c620c4b0a6029af01f15e42573f320abcd1a99fdaf4904dc9",
       "5ec95cef5d0ad0f79c87c05b6a9e74eb10c0858b0f9cf737e34fd13ca381c42a",
       "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
-      "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
       "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
       "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
@@ -193013,14 +194224,12 @@
       "8f0426b8fbf61c24065fb2a216db165f9c03f343a3b603c011e6cef81dbbce28",
       "9050c36cd4f17dc30def88df507b39eaf60e3a7b5fd22a0034230685733f93db",
       "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
-      "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "92bc2b135f748c17b8df4653ec385e5f072ca5b99b4cee0988933eccbd13839f",
       "9c84eb3fbb816db3d01e30e4ab2c09b4c57ade38214abaf4d9db4aedb94da8f4",
       "9dc5ca4835ccbf852c20cfa4f12b1bbc0bca099cec991cf44704f69208ff7d9e",
       "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
       "9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21",
       "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
-      "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
       "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
       "aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142",
       "ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da",
@@ -193045,7 +194254,6 @@
       "d86c2c2eed058a7d24742cbd0d1e3c9284da25d7e99b6f58097bdaa8c4c49ad0",
       "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
       "d9acc52446c0e8c7b1ba16c04ffd21a9cf2329f8b64078f531aa132547445dba",
-      "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "de520cbe8c9d2b854073a3eb6c0dea4c5259da702dfbbf90e61e20516823d8ac",
       "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
       "e61f14550883eef5e138633ec95c5dcfe63a5834732fa31807ea33a7e936a2f2",
@@ -193066,11 +194274,11 @@
       "secondary_recollection": 1,
       "strong_primary_evidence": 26
     },
-    "packets_requiring_new_historical_research": 215,
+    "packets_requiring_new_historical_research": 209,
     "packets_whose_public_output_changes": 484,
-    "packets_with_no_reliable_source": 104,
+    "packets_with_no_reliable_source": 100,
     "physical_source_quality_counts": {
-      "broken_or_non_verifying_url": 89,
+      "broken_or_non_verifying_url": 90,
       "circular_attribution": 244,
       "discovery_lead_only": 173,
       "insufficiently_located_evidence": 1021,
@@ -193169,7 +194377,6 @@
       "674edd406aaf07fbc4ca5e75563eda331453fdd240176531871d0671c6473113",
       "677bda2ba3097d2452133f66a0eab9c9740a06a0be8d53bdd712f52b53ff7bab",
       "680c125e2370e410e2ab7bfac93b8f3348cdef51c05193c3367f4c9011d05896",
-      "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "696e819a33690f737c344d76d71131ec250fbbe4140c0f0d33ad19bb49fc3320",
       "69a1c2be69f8e802aaad1948b85557bdff3130e126a7602600b485e7cff048c8",
       "6ab5606d17db653ecb801f999769c5370c161fc54971eb480f30ac27a669f129",
@@ -193212,7 +194419,6 @@
       "9050c36cd4f17dc30def88df507b39eaf60e3a7b5fd22a0034230685733f93db",
       "90a6e7991136e4ca46e618b5ff3cc570de1d16f1f47f69bfdc11e7004b44ee1d",
       "91fc151a519c51105a185875ff1897d00796c29279de667c0fa047fbdfb8a31f",
-      "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "92bc2b135f748c17b8df4653ec385e5f072ca5b99b4cee0988933eccbd13839f",
       "93fa5a4803e47bf57ecf8f718cbed055e6de30ecb6d14ef9a47abaefe2db05c8",
       "9483feb67fe0f5e9ba136b25f35b90e428a533fe09ac3c492800c6f4d06a3c17",
@@ -193223,11 +194429,9 @@
       "9fb9d64dde4a7867de9d3b7d8ed9a353f83ad58648f014139f9b6e45a8536da1",
       "9fd092ecc3b3693cecc5058d3c41366a83c3bc4459e8efd8762d37b1ad67ce21",
       "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
-      "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
       "a7510dd49389e910c983d6d18e1b57a96b02b8c1d02e5e660aa80f1021226224",
       "a7f8b7c8dcea6f7ecddea2624f81c169e69f893bee4d5158d53ce35cdec1987a",
       "a8afc3ebabfea07d2de701cc086c1119649217548f8e662cb09d062ea0bb5d54",
-      "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
       "a9fad9cc9fc541d39017aabccaac1047f7079fb3ff7558c07373789e22072cb4",
       "aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142",
       "ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da",
@@ -193271,7 +194475,6 @@
       "d8d6c7072f6270973723a19a5957f4a8010ebe58d444fc58726504aff276c48d",
       "d93810db76524034d00b74387c67536715d3bf98a4f74399684140cac3be5350",
       "d9acc52446c0e8c7b1ba16c04ffd21a9cf2329f8b64078f531aa132547445dba",
-      "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "de520cbe8c9d2b854073a3eb6c0dea4c5259da702dfbbf90e61e20516823d8ac",
       "de695e5aea1c487f139905257f6c16f7b5f5267f0d69b3bb0954ccf73c1d68ab",
       "e076da1ca00fe2563b8b95f8e3b27f51ffada421b8e239c22d1b0c1cb176e31d",
@@ -193289,7 +194492,6 @@
       "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
       "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
       "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
-      "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
       "f610ee5b02c46536eb659f983ae1c978dd2a72e8bab8c333ae2220d39d403893",
       "f629116f926f3fb041cd75c05b006f924a89f09160a5982932732fb06fe624f0",
       "f67b4badcfd92e59baa0a91e247963365f3d09e942676a27fa88d25b60c227ee",
@@ -193302,34 +194504,33 @@
       "fe6283757bdf4159303c428a7b5e961b4c02a7abac61a25d4c38fada9fe5df01"
     ],
     "source_quality_counts": {
-      "broken_or_non_verifying_url": 89,
+      "broken_or_non_verifying_url": 90,
       "circular_attribution": 246,
       "discovery_lead_only": 1036,
       "insufficiently_located_evidence": 1055,
       "irrelevant_or_corrupt": 38,
       "reliable_secondary_evidence": 18,
       "secondary_recollection": 2,
-      "strong_primary_evidence": 632
+      "strong_primary_evidence": 639
     },
-    "source_role_assignment_count": 3731,
+    "source_role_assignment_count": 3753,
     "source_role_counts": {
-      "attribution_support": 611,
+      "attribution_support": 618,
       "discovery_only": 2337,
       "historical_context_support": 1,
-      "rejected_irrelevant": 127,
+      "rejected_irrelevant": 128,
       "secondary_recollection": 2,
-      "source_event_support": 83,
-      "wording_verification": 570
+      "source_event_support": 90,
+      "wording_verification": 577
     }
   },
-  "unresolved_quote_count": 6,
+  "unresolved_quote_count": 5,
   "unresolved_quote_ids": [
-    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
     "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
     "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
     "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
     "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
     "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6"
   ],
-  "virtual_locator_source_count": 279
+  "virtual_locator_source_count": 286
 }

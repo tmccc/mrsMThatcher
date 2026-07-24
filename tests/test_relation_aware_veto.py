@@ -861,8 +861,8 @@ def test_real_corpora_reconcile_without_unresolved_or_ineligible_images():
         project / "image_discovery_research/thatcher_image_hunt_002/integration_preparation",
         packets,
     )
-    assert len(packets) == 626
-    assert metadata["unresolved_count"] == 6
+    assert len(packets) == 627
+    assert metadata["unresolved_count"] == 5
     assert not set(metadata["unresolved_quote_ids"]).intersection(row["quote_id"] for row in packets)
     assert len(images) == 91
     assert image_metadata["baseline_count"] == 69

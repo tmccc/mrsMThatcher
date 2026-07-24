@@ -35,6 +35,7 @@ EXPECTED_UNRESOLVED = 6
 EXPECTED_NON_THATCHER = 9
 EXPECTED_UNGROUNDED = 4
 EXPECTED_REMOVED = 13
+EXPECTED_COMPLETED_ATTRIBUTION_INELIGIBLE = 16
 SCHEMA_VERSION = 1
 
 
@@ -163,6 +164,114 @@ def source_records(payload: bytes) -> list[dict[str, Any]]:
     if offset != len(payload):
         raise CleanupError("source record parser did not consume every byte")
     return records
+
+
+def rebuild_runtime_eligible_manifest(
+    project_dir: Path,
+    run_dir: Path,
+) -> dict[str, Any]:
+    """Rebuild only the runtime eligibility manifest from canonical inputs.
+
+    This deliberately does not rebuild the inactive semantic-veto shadow
+    candidate.  Completed and unresolved counts are derived from the canonical
+    research partition so a reviewed transition cannot leave a stale
+    hard-coded cycle-size assumption behind.
+    """
+    project_dir = project_dir.resolve()
+    if project_dir != ROOT:
+        raise CleanupError(f"project directory must be {ROOT}")
+    run_dir = run_dir.resolve()
+
+    from historical_context_formatter import (
+        THATCHER_ATTRIBUTION_RULE_VERSION,
+        packet_is_attributed_to_margaret_thatcher,
+    )
+
+    packets_path = (
+        project_dir
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+        / "research_packets.json"
+    )
+    unresolved_path = (
+        project_dir
+        / "semantic_alignment_research"
+        / "quote_research_full_001"
+        / "final_unresolved"
+        / "unresolved_cases.json"
+    )
+    eligibility_path = (
+        run_dir
+        / "deployment_candidate"
+        / "runtime_eligible_quote_manifest.json"
+    )
+    packets = read_json(packets_path).get("items") or {}
+    unresolved = read_json(unresolved_path).get("cases") or []
+    current_source_ids = {
+        row["quote_id"]
+        for row in source_records((project_dir / SOURCE_NAME).read_bytes())
+    }
+    if (
+        not isinstance(packets, dict)
+        or not isinstance(unresolved, list)
+        or len(packets) + len(unresolved) != EXPECTED_SOURCE_CANONICAL
+    ):
+        raise CleanupError(
+            "canonical completed/unresolved research partition is invalid"
+        )
+
+    runtime_quote_ids = {
+        quote_id(str(packet.get("quote_text") or ""))
+        for packet in packets.values()
+        if isinstance(packet, dict)
+        and packet_is_attributed_to_margaret_thatcher(packet)
+        and quote_id(str(packet.get("quote_text") or "")) in current_source_ids
+    }
+    completed_ineligible_count = len(packets) - len(runtime_quote_ids)
+    if completed_ineligible_count != EXPECTED_COMPLETED_ATTRIBUTION_INELIGIBLE:
+        raise CleanupError(
+            "canonical attribution-ineligible completed partition changed: "
+            f"{completed_ineligible_count}"
+        )
+
+    existing = read_json(eligibility_path)
+    aliases = existing.get("runtime_quote_aliases") or {}
+    if not isinstance(aliases, dict):
+        raise CleanupError("runtime quotation aliases are invalid")
+    resolved_runtime_ids = {
+        str(aliases.get(runtime_id) or runtime_id)
+        for runtime_id in runtime_quote_ids
+    }
+    if len(resolved_runtime_ids) != len(runtime_quote_ids):
+        raise CleanupError("runtime quotation aliases create duplicate identities")
+
+    manifest = {
+        "schema_version": 1,
+        "eligibility_rule_version": THATCHER_ATTRIBUTION_RULE_VERSION,
+        "source_record_count": len(current_source_ids),
+        "runtime_eligible_quote_count": len(runtime_quote_ids),
+        "runtime_eligible_quote_ids": sorted(runtime_quote_ids),
+        "resolved_manifest_quote_ids": sorted(resolved_runtime_ids),
+        "runtime_quote_aliases": dict(sorted(aliases.items())),
+        "stale_manifest_quote_evidence": existing.get(
+            "stale_manifest_quote_evidence"
+        ) or [],
+        "source_file_hashes": {
+            "active_source": sha256_file(project_dir / SOURCE_NAME),
+            "completed_quote_research": sha256_file(packets_path),
+            "attribution_predicate": sha256_file(
+                project_dir / "historical_context_formatter.py"
+            ),
+        },
+    }
+    atomic_write_json(eligibility_path, manifest)
+    return {
+        "manifest": str(eligibility_path),
+        "completed_packet_count": len(packets),
+        "unresolved_quote_count": len(unresolved),
+        "runtime_eligible_quote_count": len(runtime_quote_ids),
+        "completed_attribution_ineligible_count": completed_ineligible_count,
+    }
 
 
 def build_migrated_quote_analysis(
@@ -1803,6 +1912,9 @@ def parser() -> argparse.ArgumentParser:
     shadow_p = sub.add_parser("prepare-v3-shadow")
     shadow_p.add_argument("--project-dir", type=Path, default=ROOT)
     shadow_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
+    runtime_p = sub.add_parser("rebuild-runtime-eligibility")
+    runtime_p.add_argument("--project-dir", type=Path, default=ROOT)
+    runtime_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
     t56_p = sub.add_parser("investigate-t56")
     t56_p.add_argument("--project-dir", type=Path, default=ROOT)
     t56_p.add_argument("--run-dir", type=Path, default=DEFAULT_RUN)
@@ -1826,6 +1938,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = migrate_active_quote_analysis(args.project_dir, args.run_dir)
     elif args.command == "prepare-v3-shadow":
         result = prepare_v3_shadow_manifest(args.project_dir, args.run_dir)
+    elif args.command == "rebuild-runtime-eligibility":
+        result = rebuild_runtime_eligible_manifest(
+            args.project_dir,
+            args.run_dir,
+        )
     elif args.command == "investigate-t56":
         result = investigate_t56_selection(args.project_dir, args.run_dir)
     else:

@@ -55,8 +55,8 @@ def load_corpus(research_run: Path) -> tuple[dict[str, dict[str, Any]], set[str]
     records = {row["quote_id"]: row for row in read_json(research_run / "corpus_manifest.json")["records"]}
     status = read_json(research_run / "final_unresolved" / "final_research_status.json")
     unresolved = set(status["unresolved_quote_ids"])
-    if len(packets) != 626 or len(unresolved) != 6:
-        raise RuntimeError(f"expected 626 completed and 6 unresolved; found {len(packets)} and {len(unresolved)}")
+    if len(packets) != 627 or len(unresolved) != 5:
+        raise RuntimeError(f"expected 627 completed and 5 unresolved; found {len(packets)} and {len(unresolved)}")
     overlap = set(packets) & unresolved
     if overlap:
         raise RuntimeError(f"unresolved quotation encountered in completed packet set: {sorted(overlap)}")

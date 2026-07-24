@@ -1,76 +1,65 @@
 {
-  "attribution_eligible_ids_sha256_after": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
-  "attribution_eligible_ids_sha256_before": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
-  "attribution_eligible_quote_count_after": 610,
-  "attribution_eligible_quote_count_before": 610,
+  "attribution_eligible_ids_sha256_after": "75cb0fdaa72f6c08b436195c3a617a29b8c826f599119a3369e6f3938cc2e84c",
+  "attribution_eligible_ids_sha256_before": "75cb0fdaa72f6c08b436195c3a617a29b8c826f599119a3369e6f3938cc2e84c",
+  "attribution_eligible_quote_count_after": 611,
+  "attribution_eligible_quote_count_before": 611,
   "audit_path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-  "audit_sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+  "audit_sha256": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
   "canonical_research_files_modified": false,
-  "completed_packet_count": 626,
+  "completed_packet_count": 627,
   "curated_source_adjudication_count": 1,
   "quote_identity_unchanged": true,
   "raw_response_files_modified": false,
   "raw_source_history_preserved": true,
   "recovery_path": "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json",
-  "recovery_sha256": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
+  "recovery_sha256": "c176cf6cddd9f4d84be0e323f27aa7527a199c2fa3acea0d262ef93521df7f4a",
   "regular_post_eligibility_unchanged": true,
   "schema_version": 1,
   "source_files": {
     "mrsMThatcher.txt": {
-      "mtime_ns": 1784896129565222235,
       "sha256": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
       "size": 105792
     },
     "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": {
-      "mtime_ns": 1784896131357242113,
       "sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
       "size": 398842
     },
     "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": {
-      "mtime_ns": 1784896131357242113,
-      "sha256": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
-      "size": 1003
+      "sha256": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
+      "size": 925
     },
     "semantic_alignment_research/quote_research_full_001/grounding_sources.json": {
-      "mtime_ns": 1784896131397242556,
       "sha256": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
       "size": 17581706
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json": {
-      "mtime_ns": 1784898165943067394,
-      "sha256": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
-      "size": 73564
+      "sha256": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
+      "size": 94043
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json": {
-      "mtime_ns": 1784896131397242556,
       "sha256": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
       "size": 71103
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json": {
-      "mtime_ns": 1784896131397242556,
       "sha256": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
       "size": 753963
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json": {
-      "mtime_ns": 1784899667510431408,
-      "sha256": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
-      "size": 1334146
+      "sha256": "c176cf6cddd9f4d84be0e323f27aa7527a199c2fa3acea0d262ef93521df7f4a",
+      "size": 1334478
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_research.json": {
-      "mtime_ns": 1784896131405242645,
       "sha256": "9fee2a3686b763411ea733c8e94489ecc89c3d25056e072dd30fad4bfae30af3",
       "size": 20002
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json": {
-      "mtime_ns": 1784896131409242689,
       "sha256": "6eba93db67ebe91f818656a1d2c54ec06e9add54fb494284734d49d2a18c5bcf",
       "size": 1729096
     },
     "semantic_alignment_research/quote_research_full_001/research_packets.json": {
-      "mtime_ns": 1784896131461243266,
-      "sha256": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
-      "size": 6174379
+      "sha256": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
+      "size": 6177923
     }
   },
-  "unresolved_quote_count": 6
+  "unresolved_quote_count": 5
 }

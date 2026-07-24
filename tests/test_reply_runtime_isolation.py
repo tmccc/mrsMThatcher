@@ -57,7 +57,7 @@ def test_saved_corpus_validation_does_not_import_google_sdk(tmp_path: Path) -> N
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "626 6 610"
+    assert result.stdout.strip() == "627 5 611"
 
 
 def test_normal_bootstrap_does_not_require_google_sdk_or_research_tree(

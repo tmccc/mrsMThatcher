@@ -48,9 +48,9 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
         "duplicate_full_reply_group_count": 0,
         "event_only_downgrade_count": 2,
         "manual_hint_count": 9,
-        "post_v9_public_field_change_count": 5,
-        "post_v9_source_addition_count": 5,
-        "post_v9_transition_packet_count": 5,
+        "post_v9_public_field_change_count": 12,
+        "post_v9_source_addition_count": 12,
+        "post_v9_transition_packet_count": 12,
         "v8_to_v9_public_field_change_count": 6,
         "safe_date_only_count": 64,
         "safe_event_only_context_count": 1,
@@ -79,6 +79,13 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
         "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
         "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
         "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+        "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+        "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+        "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+        "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+        "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+        "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
     }
     assert all(
         record["public_reply_text"]

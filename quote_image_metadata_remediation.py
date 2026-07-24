@@ -69,8 +69,9 @@ MODEL = "gemini-3.1-pro-preview"
 THINKING_LEVEL = "HIGH"
 TEMPERATURE = 0.0
 PRICING_VERSION = "gemini-3.1-pro-preview-public-pricing-2026-07-17-v1"
+EXPECTED_COMPLETED_PACKETS = 627
 EXPECTED_QUOTES = 626
-EXPECTED_UNRESOLVED = 6
+EXPECTED_UNRESOLVED = 5
 EXPECTED_IMAGES = 91
 EXPECTED_ORIGINAL = 69
 HARD_SPEND_LIMIT_USD = 100.0
@@ -249,8 +250,11 @@ def load_packets() -> dict[str, dict[str, Any]]:
     """Load packets."""
     raw = read_json(RESEARCH_DIR / "research_packets.json")
     items = raw.get("items") or {}
-    if len(items) != EXPECTED_QUOTES or len(set(items)) != EXPECTED_QUOTES:
-        raise RemediationError("canonical completed research packet count differs from 626")
+    if (
+        len(items) != EXPECTED_COMPLETED_PACKETS
+        or len(set(items)) != EXPECTED_COMPLETED_PACKETS
+    ):
+        raise RemediationError("canonical completed research packet count differs from 627")
     unresolved = read_json(RESEARCH_DIR / "final_unresolved/final_research_status.json")
     unresolved_ids = set(unresolved.get("unresolved_quote_ids") or [])
     if len(unresolved_ids) != EXPECTED_UNRESOLVED or unresolved_ids & set(items):

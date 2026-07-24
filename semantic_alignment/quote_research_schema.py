@@ -51,6 +51,7 @@ EDITORIAL_FIELDS = (
     "common_visual_mistakes",
 )
 SOURCE_FIELDS = ("title", "url", "source_type", "supports")
+OPERATOR_BIBLIOGRAPHIC_SOURCE_TYPE = "operator_supplied_bibliographic_citation"
 
 STRING = {"type": "string"}
 STRING_LIST = {
@@ -175,7 +176,13 @@ def validate_packet(
             raise ValueError("source fields mismatch")
         if any(
             not isinstance(source[field], str) or not source[field].strip()
-            for field in ("title", "url", "source_type")
+            for field in ("title", "source_type")
+        ) or (
+            (
+                not isinstance(source["url"], str)
+                or not source["url"].strip()
+            )
+            and source["source_type"] != OPERATOR_BIBLIOGRAPHIC_SOURCE_TYPE
         ):
             raise ValueError("source identity fields must be non-empty")
         if (

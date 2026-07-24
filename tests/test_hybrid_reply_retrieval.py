@@ -36,10 +36,12 @@ RESEARCH = Path("semantic_alignment_research/quote_research_full_001")
 
 def test_corpus_invariants_and_unresolved_exclusion():
     packets, unresolved, metadata = validate_corpus_invariants(RESEARCH)
-    assert len(packets) == 626
-    assert len(unresolved) == 6
+    assert len(packets) == 627
+    assert len(unresolved) == 5
     assert set(packets).isdisjoint(unresolved)
-    assert metadata["research_packets_sha256"] == "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+    assert metadata["research_packets_sha256"] == (
+        "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
+    )
 
 
 def test_retrieval_document_is_deterministic_bounded_and_excludes_sources():
@@ -539,7 +541,7 @@ def test_digest_handles_malformed_lifecycle_register(tmp_path: Path):
 
 def test_index_output_parent_is_created_before_atomic_staging(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     packets = {}
-    for index in range(626):
+    for index in range(627):
         quote_id = f"{index:064x}"
         packets[quote_id] = {
             "quote_id": quote_id, "quote_text": f"Quote {index}", "verified_text": "",
@@ -562,5 +564,5 @@ def test_index_output_parent_is_created_before_atomic_staging(monkeypatch: pytes
     (model_dir / "model_manifest.json").write_text(json.dumps({"model_id": MODEL_ID}))
     output = tmp_path / "new" / "nested"
     manifest = build_index(tmp_path / "research", output, model_dir)
-    assert manifest["document_count"] == 626
+    assert manifest["document_count"] == 627
     assert (output / "index" / "embeddings.npy").is_file()

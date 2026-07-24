@@ -38,9 +38,9 @@ from historical_context_source_roles import (
 
 AUDIT_SCHEMA_VERSION = 1
 AUDIT_KIND = "historical_context_public_source_deduplication_audit"
-EXPECTED_COMPLETED_PACKET_COUNT = 626
-EXPECTED_UNRESOLVED_QUOTE_COUNT = 6
-EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT = 610
+EXPECTED_COMPLETED_PACKET_COUNT = 627
+EXPECTED_UNRESOLVED_QUOTE_COUNT = 5
+EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT = 611
 
 _DISPLAY_ROLE_EXCLUSIONS = frozenset({
     "secondary_recollection", "discovery_only", "rejected_irrelevant",
@@ -696,9 +696,9 @@ def build_audit(
         or item["diagnostics"]["repeated_archive_document_numbers"]
     ) for item in items.values())
     invariant_checks = {
-        "completed_packet_count_is_626": len(packets) == EXPECTED_COMPLETED_PACKET_COUNT,
-        "unresolved_quote_count_is_6": len(unresolved) == EXPECTED_UNRESOLVED_QUOTE_COUNT,
-        "attribution_eligible_count_is_610": (
+        "completed_packet_count_is_627": len(packets) == EXPECTED_COMPLETED_PACKET_COUNT,
+        "unresolved_quote_count_is_5": len(unresolved) == EXPECTED_UNRESOLVED_QUOTE_COUNT,
+        "attribution_eligible_count_is_611": (
             len(eligible_ids) == EXPECTED_ATTRIBUTION_ELIGIBLE_COUNT
         ),
         "every_completed_packet_rendered": rendered_count == len(packets),

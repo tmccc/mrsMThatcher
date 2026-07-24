@@ -45,6 +45,13 @@ POST_BASELINE_REVIEW_IDS = {
     "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
     "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
     "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+    "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+    "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+    "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+    "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+    "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+    "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
 }
 DISPOSITIONS = {
     "supported_as_published",
@@ -252,6 +259,12 @@ TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
         "things being equal' and 'British goods'; the hash-bound Meaning now "
         "states contribution rather than sole causation."
     ),
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": (
+        "The inspected first edition of Statecraft establishes Thatcher "
+        "authorship, the 2002 publication, the complete exact wording and "
+        "printed-page locator; the prior source-access insufficiency is "
+        "resolved without broadening the retained Meaning."
+    ),
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": (
         "Inspected primary document 108338 establishes the quotation, Bombay "
         "occasion and date; its surrounding passage supports the retained "
@@ -335,8 +348,8 @@ TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
 
 UNREVIEWED_POST_BASELINE_FINDINGS = {
     quote_id: (
-        "This reply entered production history after the reviewed 79-record "
-        "semantic ledger. It is outside the present 18-case remediation scope "
+        "This reply entered production history after the prior reviewed "
+        "semantic ledger. It is outside the present evidence-admission scope "
         "and is held closed without a historical conclusion until separately "
         "reviewed against retained evidence."
     )
@@ -347,6 +360,13 @@ UNREVIEWED_POST_BASELINE_FINDINGS = {
         "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
         "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
         "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+        "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+        "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+        "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+        "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+        "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+        "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+        "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
     }
 }
 

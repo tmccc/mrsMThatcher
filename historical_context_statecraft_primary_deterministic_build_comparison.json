@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_statecraft_primary_deterministic_build_comparison",
+  "generated_at": "2026-07-24T23:00:18Z",
+  "status": "passed",
+  "build_root": "/tmp/statecraft-double-build-93.sc3ZUD",
+  "first_build_file_count": 1908,
+  "second_build_file_count": 1908,
+  "missing_or_extra_files": [],
+  "differing_files": [],
+  "excluded_paths": [
+    ".git",
+    "__pycache__",
+    "index_history"
+  ],
+  "stable_file_manifest_sha256": "4ab3e4b16720691982ea808f43e07e91c9babe429a3d3b74e7f3aa8c20478c04",
+  "published_history_entry_count": 93,
+  "published_history_sha256": "fdb2e55a7855757b459a7f6636206a5cb3931cc75768512102f55a922aedb607",
+  "nondeterminism_repaired": {
+    "file": "semantic_alignment_research/historical_context_source_audit_001/source_snapshot_manifest.json",
+    "cause": "Filesystem mtime_ns was included in a content-derived source snapshot.",
+    "correction": "Removed mtime_ns; path, byte size and SHA-256 remain the deterministic source identity.",
+    "result": "Both complete builds are byte-identical."
+  }
+}

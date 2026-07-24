@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "validation_kind": "historical_context_statecraft_primary_admission",
+  "generated_at": "2026-07-24T23:00:18Z",
+  "status": "ADMISSION CANDIDATE VALIDATED — READY FOR CONTROLLED DEPLOYMENT",
+  "admission_worktree": "/disks/disk1/research/mrsMThatcher-statecraft-admission-20260724T200106Z",
+  "admission_branch": "production/statecraft-primary-admission-20260724T200106Z",
+  "base_commit": "d813e5697dfe3dbc91992be66c9e885a490076c5",
+  "production_commit": null,
+  "source_book": "Margaret Thatcher, Statecraft: Strategies for a Changing World, HarperCollins, first edition, 2002",
+  "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+  "ocr_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+  "source_records_admitted": 7,
+  "exact_primary_count": 4,
+  "primary_variant_count": 3,
+  "source_bindings_independently_verified": 7,
+  "completed_packets_before": 626,
+  "completed_packets_after": 627,
+  "unresolved_before": 6,
+  "unresolved_after": 5,
+  "ordinary_cycle_before": 610,
+  "ordinary_cycle_after": 611,
+  "ordinary_cycle_change_justified": "One previously unresolved quotation gained exact primary evidence and entered the ordinary attribution-eligible partition.",
+  "completed_attribution_ineligible_before": 16,
+  "completed_attribution_ineligible_after": 16,
+  "quotation_text_unchanged": true,
+  "quotation_ids_unchanged": true,
+  "unrelated_packet_changes": 0,
+  "statecraft_gate_ids_removed": [
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90"
+  ],
+  "statecraft_gate_ids_newly_completed_and_allowed": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+  ],
+  "statecraft_gate_ids_retained": [
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
+  ],
+  "gate_blocked_before": 15,
+  "gate_blocked_after": 21,
+  "gate_invariant_failures": 0,
+  "published_history_boundary_entries": 93,
+  "published_history_sha256": "fdb2e55a7855757b459a7f6636206a5cb3931cc75768512102f55a922aedb607",
+  "deterministic_double_build": {
+    "passed": true,
+    "file_count_per_build": 1908,
+    "differing_files": 0,
+    "stable_file_manifest_sha256": "4ab3e4b16720691982ea808f43e07e91c9babe429a3d3b74e7f3aa8c20478c04"
+  },
+  "tests": {
+    "last_complete_suite": {
+      "passed": 2317,
+      "failed": 1,
+      "warnings": 25,
+      "duration_seconds": 1022.58,
+      "sole_failure": "tests/test_quote_research_corpus.py::test_bounded_provider_concurrency",
+      "diagnosis": "The fake response fixture was list-order-dependent while concurrent threads start nondeterministically."
+    },
+    "flaky_fixture_correction": {
+      "general_fix": "Route fake responses by quote ID in the request prompt while retaining the concurrency assertion.",
+      "repeated_isolated_passes": 5,
+      "affected_module_passes": 11,
+      "affected_module_failures": 0
+    },
+    "final_compact_admission_suite": {
+      "passed": 137,
+      "failed": 0,
+      "warnings": 9,
+      "duration_seconds": 25.03
+    },
+    "redundant_aggregate_run": {
+      "passed_before_operator_interruption": 127,
+      "interrupted": true,
+      "reason": "Avoid repeating corpus-wide tests already covered by successful focused clusters."
+    },
+    "compilation_passed": true,
+    "git_diff_check_passed": true
+  },
+  "source_role_audit_sha256": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
+  "semantic_review_ledger_sha256": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19",
+  "blocked_projection_sha256": "04988bb6a89046e19c31979d493c1beec246e486bf837e3b780b3045262dd614",
+  "gate_audit_sha256": "06704bb9c46317239fdd66695d3209dcd1aec6c2befdc37302f4fc5f0dc3cc5e",
+  "runtime_eligible_manifest_sha256": "6018627b2f22d762c5af15022123bafae7456f7d9f04eff0cd98f6aa6a2c2045",
+  "production_deployed": false,
+  "push_succeeded": false,
+  "task_triggered_x_actions": 0,
+  "service_changed": false,
+  "rollback_performed": false,
+  "ready_for_commit_and_controlled_deployment": true
+}

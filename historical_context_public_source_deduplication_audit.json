@@ -8,7 +8,7 @@
     "malformed_or_nested_url_count": 0,
     "markdown_link_count": 0,
     "packets_with_duplicate_source_identity": 0,
-    "public_source_record_count": 565,
+    "public_source_record_count": 579,
     "public_source_role_leakage_count": 0,
     "repeated_archive_document_number_group_count": 0
   },
@@ -20,47 +20,47 @@
     "duplicate_canonical_url_group_count": 36,
     "legacy_exact_key_identity_conflict_count": 0,
     "packets_with_duplicate_source_identity": 36,
-    "public_source_record_count": 600,
+    "public_source_record_count": 612,
     "repeated_archive_document_number_excess_record_count": 35,
     "repeated_archive_document_number_group_count": 35
   },
   "counts": {
-    "attribution_eligible_quote_count": 610,
+    "attribution_eligible_quote_count": 611,
     "attribution_ineligible_completed_quote_count": 16,
     "blocking_item_violation_count": 0,
-    "completed_packet_count": 626,
-    "distinct_canonical_source_count": 565,
+    "completed_packet_count": 627,
+    "distinct_canonical_source_count": 579,
     "identity_ambiguity_count": 66,
-    "internal_source_record_count": 931,
+    "internal_source_record_count": 945,
     "internal_source_records_merged_for_public_display": 366,
     "invariant_violation_count": 0,
-    "packets_with_no_reliable_public_source": 104,
+    "packets_with_no_reliable_public_source": 100,
     "packets_with_public_source_merges": 246,
     "render_failure_count": 0,
-    "rendered_packet_count": 626,
-    "unresolved_quote_count": 6
+    "rendered_packet_count": 627,
+    "unresolved_quote_count": 5
   },
   "formatter_version": "historical_context_reply_schema_v5",
   "invariants": {
-    "attribution_eligible_quote_id_text_sha256": "e6bac37c9eac80134089896a84447ea48b621069379011acc07a94d0b4763c40",
-    "attribution_eligible_quote_ids_sha256": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
+    "attribution_eligible_quote_id_text_sha256": "8f4a08314c2b6e2cf74cb9bffdbad4b17580ce02de0ed89407fa49fee0f40ee8",
+    "attribution_eligible_quote_ids_sha256": "75cb0fdaa72f6c08b436195c3a617a29b8c826f599119a3369e6f3938cc2e84c",
     "attribution_ineligible_completed_quote_ids_sha256": "7b7c205cfc18d59800e5c697a81eb4a526d09db9cd29aab507a13c552956dba6",
     "checks": {
-      "attribution_eligible_count_is_610": true,
-      "completed_packet_count_is_626": true,
+      "attribution_eligible_count_is_611": true,
+      "completed_packet_count_is_627": true,
       "cycle_membership_equals_attribution_eligible_set": true,
       "every_completed_packet_rendered": true,
       "source_role_audit_covers_every_completed_packet": true,
-      "unresolved_quote_count_is_6": true
+      "unresolved_quote_count_is_5": true
     },
-    "completed_quote_id_text_sha256": "235eb63076bbc791c933e951525fbcde09537872241019e06d27fef6f86445eb",
-    "confidence_metadata_sha256": "8160f87230d26d590c0f675f1f976e4546cc07f7463adb3afcfd375cc45cd686",
-    "cycle_membership_count": 610,
-    "cycle_membership_quote_ids_sha256": "9ad73fda8a0863cd1ba99fea65d1ceccf506f77d4b39742214e5934efd12e7ed",
+    "completed_quote_id_text_sha256": "8470c74cab3001e80c989faed5a6edcb4b023238b062832aabcd0291c1433000",
+    "confidence_metadata_sha256": "18143f6396dec3cd31dca0919f89334e515b1d621c7e98b6fe1a89e174b7269d",
+    "cycle_membership_count": 611,
+    "cycle_membership_quote_ids_sha256": "db72c0c0e8cf766c5ac463bb3ad0d2538733d37e8c1938f59c90cf73c9bb87d2",
     "quote_analysis_record_count": 619,
-    "runtime_attribution_eligible_quote_hashes_sha256": "9ad73fda8a0863cd1ba99fea65d1ceccf506f77d4b39742214e5934efd12e7ed",
-    "source_role_audit_record_count": 626,
-    "unresolved_quote_ids_sha256": "1db175c4593e9663447a84a4d2974356f13a543285019655ca7fe53d9b49f774"
+    "runtime_attribution_eligible_quote_hashes_sha256": "db72c0c0e8cf766c5ac463bb3ad0d2538733d37e8c1938f59c90cf73c9bb87d2",
+    "source_role_audit_record_count": 627,
+    "unresolved_quote_ids_sha256": "0b37744c82446eecdb0f65a16628e1aafa5d797f99baa81db57e5fc4be6efb07"
   },
   "items": {
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": {
@@ -5382,6 +5382,265 @@
           "source_record_count": 2
         }
       ]
+    },
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "after_deduplication": {
+        "public_source_count": 2,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5:b114a50e72037ea33a3e8808fbb8d6bdeaa24ebc78634396ef718e9d085249ae",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7:395793907e6310caf5d20f3dcf048bf657d5b263c0d3346f6e6e03871ad4e1ac",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+            "url": ""
+          }
+        ]
+      },
+      "attribution_eligible": true,
+      "before_deduplication": {
+        "duplicate_canonical_identities": [],
+        "duplicate_canonical_identity_excess_records": 0,
+        "duplicate_canonical_url_excess_records": 0,
+        "duplicate_canonical_urls": [],
+        "legacy_exact_key_identity_conflicts": [],
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5:b114a50e72037ea33a3e8808fbb8d6bdeaa24ebc78634396ef718e9d085249ae"
+            ],
+            "canonical_identity": "source_record:fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5:b114a50e72037ea33a3e8808fbb8d6bdeaa24ebc78634396ef718e9d085249ae",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7:395793907e6310caf5d20f3dcf048bf657d5b263c0d3346f6e6e03871ad4e1ac"
+            ],
+            "canonical_identity": "source_record:8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7:395793907e6310caf5d20f3dcf048bf657d5b263c0d3346f6e6e03871ad4e1ac",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+            "url": ""
+          }
+        ],
+        "repeated_archive_document_number_excess_records": 0,
+        "repeated_archive_document_numbers": []
+      },
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5:b114a50e72037ea33a3e8808fbb8d6bdeaa24ebc78634396ef718e9d085249ae",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+            "url": ""
+          },
+          "source_ids": [
+            "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7:395793907e6310caf5d20f3dcf048bf657d5b263c0d3346f6e6e03871ad4e1ac",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+            "url": ""
+          },
+          "source_ids": [
+            "8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7"
+          ],
+          "source_record_count": 1
+        }
+      ],
+      "diagnostics": {
+        "duplicate_canonical_identities": [],
+        "duplicate_canonical_identity_excess_records": 0,
+        "duplicate_canonical_url_excess_records": 0,
+        "duplicate_canonical_urls": [],
+        "duplicate_raw_public_url_excess_records": 0,
+        "duplicate_raw_public_urls": [],
+        "formatter_projection_mismatches": [],
+        "identical_public_entries_with_distinct_identities": [],
+        "identical_sources_under_different_labels": [],
+        "identity_ambiguities": [],
+        "identity_conflicts": [],
+        "malformed_or_nested_urls": [],
+        "markdown_links": [],
+        "public_source_role_leakage": [],
+        "render_failure": false,
+        "repeated_archive_document_number_excess_records": 0,
+        "repeated_archive_document_numbers": [],
+        "urls_not_on_own_line": []
+      },
+      "distinct_canonical_source_count": 2,
+      "formatter_version": "historical_context_reply_schema_v5",
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5:b114a50e72037ea33a3e8808fbb8d6bdeaa24ebc78634396ef718e9d085249ae",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_427"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7:395793907e6310caf5d20f3dcf048bf657d5b263c0d3346f6e6e03871ad4e1ac",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "8aa064cb5f29f1326cf64757130e5d8dae1bdd44a8cbfb8c7d3aec15017b41c7",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+          "url": ""
+        }
+      ],
+      "merged_internal_source_record_count": 0,
+      "no_reliable_source": false,
+      "public_source_lines": [
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 427"
+      ],
+      "public_source_sections": [
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 427"
+      ],
+      "public_urls": [],
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+      "source_records_merged_for_public_display": []
     },
     "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a": {
       "after_deduplication": {
@@ -44632,8 +44891,23 @@
     },
     "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 2,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54:490dd0971cc56d85364f334c32a9aa87dd5fcda5d2940610d0a4b63382ec6a11",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5:a3446133e792c12da3afbb492349413c7e7e27d382521a2d6447572f8005a009",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -44642,12 +44916,108 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54:490dd0971cc56d85364f334c32a9aa87dd5fcda5d2940610d0a4b63382ec6a11"
+            ],
+            "canonical_identity": "source_record:9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54:490dd0971cc56d85364f334c32a9aa87dd5fcda5d2940610d0a4b63382ec6a11",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5:a3446133e792c12da3afbb492349413c7e7e27d382521a2d6447572f8005a009"
+            ],
+            "canonical_identity": "source_record:77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5:a3446133e792c12da3afbb492349413c7e7e27d382521a2d6447572f8005a009",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54:490dd0971cc56d85364f334c32a9aa87dd5fcda5d2940610d0a4b63382ec6a11",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+            "url": ""
+          },
+          "source_ids": [
+            "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5:a3446133e792c12da3afbb492349413c7e7e27d382521a2d6447572f8005a009",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+            "url": ""
+          },
+          "source_ids": [
+            "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -44668,17 +45038,110 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54:490dd0971cc56d85364f334c32a9aa87dd5fcda5d2940610d0a4b63382ec6a11",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_449"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5:a3446133e792c12da3afbb492349413c7e7e27d382521a2d6447572f8005a009",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "77c46452e8380903dc8a9b254c37192bd42f42db84a2d13bd8b24d9b70afb7c5",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 449"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 449"
       ],
       "public_urls": [],
       "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
@@ -65430,8 +65893,23 @@
     },
     "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 2,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079:b919e2f464527d27f1d02484a780694dbe67ab1a7e304a1d88d5677d60d0addd",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853:34646cd38fd5f6b30b67e97e1d02347cf21081c0c9f70671c3c013d447457b31",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -65440,12 +65918,108 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079:b919e2f464527d27f1d02484a780694dbe67ab1a7e304a1d88d5677d60d0addd"
+            ],
+            "canonical_identity": "source_record:81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079:b919e2f464527d27f1d02484a780694dbe67ab1a7e304a1d88d5677d60d0addd",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853:34646cd38fd5f6b30b67e97e1d02347cf21081c0c9f70671c3c013d447457b31"
+            ],
+            "canonical_identity": "source_record:4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853:34646cd38fd5f6b30b67e97e1d02347cf21081c0c9f70671c3c013d447457b31",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079:b919e2f464527d27f1d02484a780694dbe67ab1a7e304a1d88d5677d60d0addd",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+            "url": ""
+          },
+          "source_ids": [
+            "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853:34646cd38fd5f6b30b67e97e1d02347cf21081c0c9f70671c3c013d447457b31",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+            "url": ""
+          },
+          "source_ids": [
+            "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -65466,17 +66040,110 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079:b919e2f464527d27f1d02484a780694dbe67ab1a7e304a1d88d5677d60d0addd",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_432"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853:34646cd38fd5f6b30b67e97e1d02347cf21081c0c9f70671c3c013d447457b31",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "4599accd9f82414edfb8862695883fc9f0d534380d032bc594b1885fc3525853",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432"
       ],
       "public_urls": [],
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
@@ -72992,8 +73659,23 @@
     },
     "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 2,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f:30ec35c830394fb1dad2300dd823219efb2d4c0d3940e1a3f5f375466b35967d",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d:bdf46414e91c8dd4eb66a67c4b53e9764a3653c03e6f12e02fcf3676dcf325f1",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -73002,12 +73684,108 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f:30ec35c830394fb1dad2300dd823219efb2d4c0d3940e1a3f5f375466b35967d"
+            ],
+            "canonical_identity": "source_record:add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f:30ec35c830394fb1dad2300dd823219efb2d4c0d3940e1a3f5f375466b35967d",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d:bdf46414e91c8dd4eb66a67c4b53e9764a3653c03e6f12e02fcf3676dcf325f1"
+            ],
+            "canonical_identity": "source_record:61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d:bdf46414e91c8dd4eb66a67c4b53e9764a3653c03e6f12e02fcf3676dcf325f1",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f:30ec35c830394fb1dad2300dd823219efb2d4c0d3940e1a3f5f375466b35967d",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+            "url": ""
+          },
+          "source_ids": [
+            "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d:bdf46414e91c8dd4eb66a67c4b53e9764a3653c03e6f12e02fcf3676dcf325f1",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+            "url": ""
+          },
+          "source_ids": [
+            "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -73028,17 +73806,110 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f:30ec35c830394fb1dad2300dd823219efb2d4c0d3940e1a3f5f375466b35967d",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_433"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d:bdf46414e91c8dd4eb66a67c4b53e9764a3653c03e6f12e02fcf3676dcf325f1",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "61746e8fcc29baa6daa94eb14e1bba42e0a61fb2181eff04921582b3f524dd7d",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433"
       ],
       "public_urls": [],
       "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
@@ -75118,7 +75989,7 @@
     },
     "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 3,
         "public_sources": [
           {
             "canonical_identity": "url:https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
@@ -75126,6 +75997,20 @@
             "document_numbers": [],
             "title": "House of Commons Hansard Debates for 15 October 2014 (pt 0004)",
             "url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+          },
+          {
+            "canonical_identity": "source_record:fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc:f21e15891cba3af15b0e13ec52371adc629e5fef68d7e5c6b16f9cb86dbc5bca",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9:4b3dc2b6dc5a5fcc5b4f072d5c2bcfdc96e888ea15d2d50c84e3334512310cec",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+            "url": ""
           }
         ]
       },
@@ -75136,7 +76021,7 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -75158,6 +76043,26 @@
             ],
             "title": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004)",
             "url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+          },
+          {
+            "canonical_identities": [
+              "source_record:fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc:f21e15891cba3af15b0e13ec52371adc629e5fef68d7e5c6b16f9cb86dbc5bca"
+            ],
+            "canonical_identity": "source_record:fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc:f21e15891cba3af15b0e13ec52371adc629e5fef68d7e5c6b16f9cb86dbc5bca",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+            "url": ""
           }
         ],
         "repeated_archive_document_number_excess_records": 0,
@@ -75187,6 +76092,60 @@
             "de28b9d4280215895380d2d5a533e0d346df0092a61af2f8b960679ac886b0dd"
           ],
           "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc:f21e15891cba3af15b0e13ec52371adc629e5fef68d7e5c6b16f9cb86dbc5bca",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+            "url": ""
+          },
+          "source_ids": [
+            "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9:4b3dc2b6dc5a5fcc5b4f072d5c2bcfdc96e888ea15d2d50c84e3334512310cec",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+            "url": ""
+          },
+          "source_ids": [
+            "dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9"
+          ],
+          "source_record_count": 1
         }
       ],
       "diagnostics": {
@@ -75209,9 +76168,9 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 3,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 3,
       "internal_source_records": [
         {
           "authoritative_urls": [
@@ -75252,15 +76211,109 @@
           "supporting_passage_count": 1,
           "title": "House of Commons Hansard Debates for 15 Oct 2014 (pt 0004)",
           "url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc:f21e15891cba3af15b0e13ec52371adc629e5fef68d7e5c6b16f9cb86dbc5bca",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_425"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9:4b3dc2b6dc5a5fcc5b4f072d5c2bcfdc96e888ea15d2d50c84e3334512310cec",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "dd2d835c61524856eb7d2ce4f0fc37cdb5ca3c3942f4ff9e3c45408c9a7554d9",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+          "url": ""
         }
       ],
       "merged_internal_source_record_count": 0,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — House of Commons Hansard Debates for 15 October 2014 (pt 0004)"
+        "Source — House of Commons Hansard Debates for 15 October 2014 (pt 0004)",
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425"
       ],
       "public_source_sections": [
-        "Source — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+        "Source — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425"
       ],
       "public_urls": [
         "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
@@ -95249,8 +96302,23 @@
     },
     "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 2,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e:7c2876c86b14beff50ae3d80ac8715ad30e3f21ae2957c48a1f6ed8ab70a7154",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb:761765ec72edfd1a3f234c6875f704934e524c47aff0697ef5897fc9c930aa72",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -95259,12 +96327,108 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 2,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e:7c2876c86b14beff50ae3d80ac8715ad30e3f21ae2957c48a1f6ed8ab70a7154"
+            ],
+            "canonical_identity": "source_record:202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e:7c2876c86b14beff50ae3d80ac8715ad30e3f21ae2957c48a1f6ed8ab70a7154",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb:761765ec72edfd1a3f234c6875f704934e524c47aff0697ef5897fc9c930aa72"
+            ],
+            "canonical_identity": "source_record:0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb:761765ec72edfd1a3f234c6875f704934e524c47aff0697ef5897fc9c930aa72",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e:7c2876c86b14beff50ae3d80ac8715ad30e3f21ae2957c48a1f6ed8ab70a7154",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+            "url": ""
+          },
+          "source_ids": [
+            "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb:761765ec72edfd1a3f234c6875f704934e524c47aff0697ef5897fc9c930aa72",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+            "url": ""
+          },
+          "source_ids": [
+            "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -95285,17 +96449,110 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 2,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e:7c2876c86b14beff50ae3d80ac8715ad30e3f21ae2957c48a1f6ed8ab70a7154",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_256"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb:761765ec72edfd1a3f234c6875f704934e524c47aff0697ef5897fc9c930aa72",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "0be6f75c16f404cda0e30a4f20f06b454f0229dbf09eac9891cf5073b9ace8cb",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256"
       ],
       "public_urls": [],
       "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
@@ -107001,7 +108258,7 @@
     },
     "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 3,
         "public_sources": [
           {
             "canonical_identity": "url:https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
@@ -107009,6 +108266,20 @@
             "document_numbers": [],
             "title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
             "url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+          },
+          {
+            "canonical_identity": "source_record:076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934:6bf65d8d259b9f295adc6f4872ef7452be45daa9500108d42bb1cc092f15a306",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04:6c3e9b34d13b4f8325869a127b6839b5f7a7b3d9b3b43f325253742020c401f5",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+            "url": ""
           }
         ]
       },
@@ -107019,7 +108290,7 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -107041,6 +108312,26 @@
             ],
             "title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
             "url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+          },
+          {
+            "canonical_identities": [
+              "source_record:076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934:6bf65d8d259b9f295adc6f4872ef7452be45daa9500108d42bb1cc092f15a306"
+            ],
+            "canonical_identity": "source_record:076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934:6bf65d8d259b9f295adc6f4872ef7452be45daa9500108d42bb1cc092f15a306",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+            "url": ""
           }
         ],
         "repeated_archive_document_number_excess_records": 0,
@@ -107070,6 +108361,60 @@
             "4b7416e71ce98a16d4932f7a993632cc4370c835d9a218e169a81c2a045750c9"
           ],
           "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934:6bf65d8d259b9f295adc6f4872ef7452be45daa9500108d42bb1cc092f15a306",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+            "url": ""
+          },
+          "source_ids": [
+            "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934"
+          ],
+          "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04:6c3e9b34d13b4f8325869a127b6839b5f7a7b3d9b3b43f325253742020c401f5",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+            "url": ""
+          },
+          "source_ids": [
+            "406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04"
+          ],
+          "source_record_count": 1
         }
       ],
       "diagnostics": {
@@ -107092,9 +108437,9 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 3,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 3,
       "internal_source_records": [
         {
           "authoritative_urls": [
@@ -107133,15 +108478,109 @@
           "supporting_passage_count": 1,
           "title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
           "url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934:6bf65d8d259b9f295adc6f4872ef7452be45daa9500108d42bb1cc092f15a306",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:statecraft_strategies_for_a_changing_world_first_edition_2002_printed_page_327"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+          "url": ""
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04:6c3e9b34d13b4f8325869a127b6839b5f7a7b3d9b3b43f325253742020c401f5",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "2002"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "406ab1ea41352a6d27fce42f585ffa53035011e7c5fa67179ac1b571132f0f04",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "canonical_stable_locator",
+          "supporting_passage_count": 0,
+          "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+          "url": ""
         }
       ],
       "merged_internal_source_record_count": 0,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament"
+        "Source — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327"
       ],
       "public_source_sections": [
-        "Source — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+        "Source — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+        "Source — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+        "Source — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327"
       ],
       "public_urls": [
         "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
@@ -115347,13 +116786,13 @@
   "schema_version": 1,
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
+    "final_unresolved/final_research_status.json": "ae50570746fe1df12d947e11d84de488efb32e2a1a4777ea92a286eacc46194a",
     "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
-    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
-    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
+    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
   },
   "source_role_policy_version": "historical-context-source-roles-v9-archive-provenance"
 }

@@ -722,8 +722,8 @@ def strict_audit(trial_dir: Path) -> dict[str, Any]:
     sample = read_json(trial_dir / "review_sample_50.json", {}).get("items", [])
     hashes = read_json(trial_dir / "corpus_hashes.json", {})
     errors = []
-    if not manifest or manifest.get("eligible_count") != 626 or manifest.get("unresolved_count") != 6: errors.append("corpus count invariant")
-    if len(rows) != 626: errors.append("pairwise rendering count")
+    if not manifest or manifest.get("eligible_count") != 627 or manifest.get("unresolved_count") != 5: errors.append("corpus count invariant")
+    if len(rows) != 627: errors.append("pairwise rendering count")
     if not parity or not parity.get("passed"): errors.append("provenance parity")
     if len(sample) != 50 or len({row.get("quote_id") for row in sample}) != 50: errors.append("review sample")
     if set(blind) != {row.get("quote_id") for row in sample}: errors.append("blind assignment coverage")
@@ -738,7 +738,7 @@ def strict_audit(trial_dir: Path) -> dict[str, Any]:
         errors.append(f"current corpus render failed:{exc}")
         current_rows, current_unresolved, current_packets = {}, set(), {}
     if current_rows:
-        if len(current_unresolved) != 6: errors.append("current unresolved count")
+        if len(current_unresolved) != 5: errors.append("current unresolved count")
         if canonical_hash({qid: current_packets[qid] for qid in sorted(current_packets)}) != hashes.get("canonical_corpus_hash"): errors.append("canonical corpus hash")
         if canonical_hash(sorted(current_packets)) != hashes.get("eligible_quote_id_set_hash"): errors.append("eligible ID set hash")
         if select_review_sample(current_rows, 50) != sample: errors.append("deterministic sample drift")

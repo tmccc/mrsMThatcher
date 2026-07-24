@@ -10,6 +10,7 @@ import pytest
 from historical_context_published_reply_semantic_review import (
     MTF_REVIEW_PATH,
     OUTPUT_PATH,
+    POST_BASELINE_REVIEW_IDS,
     SOURCE_ROLE_AUDIT_PATH,
     TRUTH_AUDIT_PATH,
     _is_successful_mtf_page_record,
@@ -33,14 +34,14 @@ def test_published_reply_review_is_complete_hash_bound_and_reproducible():
 
     assert review == build_review()
     assert counts == {
-        "reviewed": 86,
+        "reviewed": 93,
         "supported_as_published": 41,
         "future_correction_needed": 33,
-        "insufficient_to_assess": 12,
-        "resolved": 30,
-        "remaining": 15,
+        "insufficient_to_assess": 19,
+        "resolved": 31,
+        "remaining": 21,
     }
-    assert len({record["quote_id"] for record in review["records"]}) == 86
+    assert len({record["quote_id"] for record in review["records"]}) == 93
     assert all(record["reason"].strip() for record in review["records"])
     assert all(record["evidence_basis"] for record in review["records"])
     assert before == {
@@ -119,17 +120,9 @@ def test_post_baseline_reply_is_explicitly_reviewed_and_not_default_supported(
     record = next(row for row in review["records"] if row["quote_id"] == quote_id)
 
     assert review["review_scope"]["original_review_baseline_count"] == 77
-    assert review["review_scope"]["post_baseline_review_quote_ids"] == [
-        "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
-        "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
-        "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
-        "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
-        "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
-        "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
-        "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-    ]
+    assert review["review_scope"]["post_baseline_review_quote_ids"] == sorted(
+        POST_BASELINE_REVIEW_IDS
+    )
     assert record["disposition"] == "future_correction_needed"
     assert record["follow_up_status"] == follow_up_status
     assert reason_fragment in record["reason"]

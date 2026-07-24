@@ -82,9 +82,9 @@ def _packet(**updates):
     return packet
 
 
-def test_exactly_626_eligible_and_six_unresolved(corpus):
+def test_exactly_627_completed_and_five_unresolved(corpus):
     packets, unresolved = corpus
-    assert len(packets) == 626 and len(unresolved) == 6
+    assert len(packets) == 627 and len(unresolved) == 5
     assert not set(packets) & unresolved
 
 
@@ -107,6 +107,9 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     transition = read_json(
         Path("historical_context_v8_v9_transition_manifest.json")
     )["items"]
+    statecraft_transition = read_json(
+        Path("historical_context_v9_statecraft_primary_transition_manifest.json")
+    )["items"]
     curated = read_json(
         RESEARCH / "historical_context_source_curated_evidence.json"
     )["items"]
@@ -120,11 +123,17 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
             for source in item.get("sources", [])
         )
     }
-    assert set(frozen) == set(packets)
+    newly_completed = {
+        "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    }
+    assert set(frozen) == set(packets) - newly_completed
     assert set(transition) == independently_reviewed_ids
     assert len(transition) == 12
     for quote_id, packet in packets.items():
         actual = v1.format_context_reply_v2(packet)
+        if quote_id in newly_completed:
+            assert actual is not None
+            continue
         expected = frozen[quote_id]
         assert actual is not None
         expected_text = expected["text"]
@@ -165,6 +174,13 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
                 "meaning_correction_applied"
             ]
             assert reviewed["canonical_packet_changed_fields"]
+        elif quote_id in statecraft_transition:
+            assert actual["text"] != expected_text
+            assert actual["source"]["title"] == packet["stable_locator"]
+            assert actual["source"]["url"] == ""
+            assert actual["source_omitted"] is False
+            assert actual["formatter_version"] == v1.HISTORICAL_CONTEXT_FORMATTER_V2
+            continue
         else:
             assert actual["text"] == expected_text
         assert actual["template_variant"] == expected["template_variant"]
@@ -232,7 +248,7 @@ def test_meaning_decision_is_deterministic():
 
 def test_source_and_verification_are_preserved_for_complete_corpus(prepared):
     rows = read_json(prepared / "complete_pairwise_renderings.json")["items"]
-    assert len(rows) == 626
+    assert len(rows) == 627
     for row in rows.values():
         assert row["v1"]["source"] == row["v2"]["source"]
         assert row["v1"]["verification_label"] == row["v2"]["verification_label"]
@@ -249,7 +265,7 @@ def test_all_v2_context_lines_use_british_date_order(prepared):
 
 def test_strict_provenance_audit_passes(prepared):
     audit = strict_audit(prepared)
-    assert audit == {"passed": True, "errors": [], "eligible_count": 626, "sample_count": 50}
+    assert audit == {"passed": True, "errors": [], "eligible_count": 627, "sample_count": 50}
     parity = read_json(prepared / "provenance_parity_audit.json")
     assert parity["blocking_regression_count"] == 0 and parity["passed"]
 

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_statecraft_primary_gate_before_after",
+  "generated_at": "2026-07-24T23:00:18Z",
+  "status": "recomputed_and_validated",
+  "base": {
+    "commit": "d813e5697dfe3dbc91992be66c9e885a490076c5",
+    "blocked_count": 15,
+    "allowed_count": 595,
+    "ordinary_cycle_count": 610,
+    "unresolved_count": 6
+  },
+  "candidate": {
+    "blocked_count": 21,
+    "allowed_count": 590,
+    "ordinary_cycle_count": 611,
+    "unresolved_count": 5,
+    "semantic_review_ledger_sha256": "80e2b8179283d722ae21b33cab7e03e8df8814fb05d3383af11f493e8bca5f19",
+    "blocked_projection_sha256": "04988bb6a89046e19c31979d493c1beec246e486bf837e3b780b3045262dd614"
+  },
+  "statecraft_gate_change": {
+    "removed": [
+      "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90"
+    ],
+    "newly_completed_and_allowed": [
+      "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    ],
+    "remain_blocked": [
+      "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+      "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+      "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+      "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
+    ]
+  },
+  "concurrent_history_boundary": {
+    "published_reply_history_before": 78,
+    "published_reply_history_after": 93,
+    "history_sha256": "fdb2e55a7855757b459a7f6636206a5cb3931cc75768512102f55a922aedb607",
+    "newly_open_review_ids_added": [
+      "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+      "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+      "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+      "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+      "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+      "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+      "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3"
+    ],
+    "explanation": "The net blocked count rises because seven replies were published after the base review and fail closed pending semantic review. This is independent of the Statecraft evidence admission."
+  },
+  "gate_invariant_failures": 0,
+  "ordinary_cycle_policy_changed": false
+}

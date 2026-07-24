@@ -85,30 +85,30 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     summary = review["summary"]
     assert summary["review_ready"] is True
     assert summary["audit_ready"] is True
-    assert summary["completed_packet_count"] == 626
-    assert summary["unresolved_quote_count"] == 6
-    assert summary["attribution_eligible_quote_count"] == 610
+    assert summary["completed_packet_count"] == 627
+    assert summary["unresolved_quote_count"] == 5
+    assert summary["attribution_eligible_quote_count"] == 611
     assert summary["attribution_ineligible_completed_quote_count"] == 16
     assert summary["render_failure_count"] == 0
     assert summary["item_blocker_count"] == 0
     assert summary["source_distribution"] == {
-        "0": 104, "1": 480, "2": 41, "3": 1,
+        "0": 100, "1": 478, "2": 46, "3": 3,
     }
     assert summary["packets_with_source_merges"] == 246
     assert summary["merged_internal_source_record_count"] == 366
     assert summary["identity_ambiguity_count"] == 66
     assert summary["packets_with_identity_ambiguities"] == 52
-    assert summary["packets_with_no_reliable_source"] == 104
-    assert summary["eligible_packets_with_no_reliable_source"] == 93
-    assert summary["packets_with_multiple_public_sources"] == 42
-    assert summary["packets_with_generic_context_and_public_source"] == 353
+    assert summary["packets_with_no_reliable_source"] == 100
+    assert summary["eligible_packets_with_no_reliable_source"] == 89
+    assert summary["packets_with_multiple_public_sources"] == 49
+    assert summary["packets_with_generic_context_and_public_source"] == 351
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
     ] == 0
     assert summary["packets_with_generic_context_and_exact_verification"] == 146
     assert summary["duplicate_full_public_reply_group_count"] == 1
-    assert summary["packets_with_urlless_public_sources"] == 162
-    assert summary["urlless_public_source_entry_count"] == 163
+    assert summary["packets_with_urlless_public_sources"] == 169
+    assert summary["urlless_public_source_entry_count"] == 177
     assert summary["packets_with_generic_mtf_document_titles"] == 180
     assert summary["generic_mtf_document_title_entry_count"] == 184
     assert summary["packets_with_reused_identity_display_variants"] == 221
@@ -142,7 +142,7 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     }
 
     entries = {entry["quote_id"]: entry for entry in review["entries"]}
-    assert len(entries) == 626
+    assert len(entries) == 627
     known = entries[KNOWN_107352_ID]
     assert known["internal_source_record_count"] == 2
     assert len(known["canonical_source_groups"]) == 1
@@ -177,9 +177,9 @@ def test_review_text_is_deterministic_complete_and_scan_friendly(review):
     second = review_module.render_review_text(review)
     assert first == second
     assert first.endswith("\n")
-    assert first.count("\nRECORD ") == 626
-    assert first.count("\nPUBLIC REPLY (VERBATIM)\n") == 626
-    assert first.count("\nEND PUBLIC REPLY\n") == 626
+    assert first.count("\nRECORD ") == 627
+    assert first.count("\nPUBLIC REPLY (VERBATIM)\n") == 627
+    assert first.count("\nEND PUBLIC REPLY\n") == 627
     assert "Automated validation status: PASS" in first
     assert "Human editorial review status: PENDING" in first
     assert "EDITORIAL REVIEW QUEUES\n-----------------------" in first

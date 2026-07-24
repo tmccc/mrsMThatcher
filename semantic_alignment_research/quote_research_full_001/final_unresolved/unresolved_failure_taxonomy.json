@@ -1,21 +1,8 @@
 {
   "counts": {
-    "provider omitted grounding metadata": 6
+    "provider omitted grounding metadata": 5
   },
   "items": {
-    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
-      "classification": "provider omitted grounding metadata",
-      "evidence": {
-        "missing_grounding_attempts": 5,
-        "transport_or_capacity_attempts": 1
-      },
-      "terminal_failure": {
-        "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-        "kind": "missing_grounding",
-        "message": "provider returned no linked grounding chunks/supports",
-        "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json"
-      }
-    },
     "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1": {
       "classification": "provider omitted grounding metadata",
       "evidence": {

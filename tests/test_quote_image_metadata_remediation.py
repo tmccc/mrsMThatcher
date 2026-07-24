@@ -117,10 +117,12 @@ def test_offline_network_guard_blocks_dns_and_socket() -> None:
 def test_corpus_contract_counts_and_unresolved_exclusion() -> None:
     packets = rem.load_packets()
     quotes, images = rem.load_contracts(RUN)
-    assert len(packets) == len(quotes) == 626
+    assert len(packets) == 627
+    assert len(quotes) == 626
+    assert set(quotes) < set(packets)
     assert len(images) == 91
     unresolved = json.loads((rem.RESEARCH_DIR / "final_unresolved/final_research_status.json").read_text())
-    assert len(unresolved["unresolved_quote_ids"]) == 6
+    assert len(unresolved["unresolved_quote_ids"]) == 5
     assert not set(unresolved["unresolved_quote_ids"]) & set(quotes)
 
 

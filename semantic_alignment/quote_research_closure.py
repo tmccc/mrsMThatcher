@@ -18,7 +18,6 @@ from .quote_research_gemini import (
 
 SCHEMA_VERSION = 1
 EXPECTED_UNRESOLVED = {
-    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
     "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
     "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
     "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
@@ -204,7 +203,7 @@ def build_unresolved_dossier(run_dir: Path) -> dict[str, Any]:
     manifest = {row["quote_id"]: row for row in records}
     unresolved = set((read_json(run_dir / "permanent_failures.json") or {}).get("items", {}))
     if unresolved != EXPECTED_UNRESOLVED:
-        raise RuntimeError(f"expected six fixed unresolved IDs, got {sorted(unresolved)}")
+        raise RuntimeError(f"expected five fixed unresolved IDs, got {sorted(unresolved)}")
     costs, _, _ = _cost_index(run_dir)
     histories: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for attempt_path in _attempt_files(run_dir):
@@ -333,8 +332,8 @@ def corpus_closure_audit(run_dir: Path, strict: bool = False) -> dict[str, Any]:
     full_run_ambiguous = float(main_cost.get("ambiguous_possible_exposure_usd") or 0)
     checks = {
         "manifest_count_632": len(manifest_ids) == 632,
-        "completed_count_626": len(packet_ids) == 626,
-        "unresolved_count_6": len(unresolved) == 6,
+        "completed_count_627": len(packet_ids) == 627,
+        "unresolved_count_5": len(unresolved) == 5,
         "no_duplicate_manifest_ids": len(records) == len(manifest_ids),
         "no_duplicate_completed_ids": len(packets) == len(packet_ids),
         "all_packets_schema_valid": not schema_errors,
@@ -393,8 +392,8 @@ def write_final_outputs(run_dir: Path, strict: bool = True) -> dict[str, Any]:
         status = {
             "schema_version": SCHEMA_VERSION, "record_kind": "final_quote_research_status",
             "generated_timestamp": utc_now(), "total_manifest_quotes": 632,
-            "completed_quotes": 626, "unresolved_quotes": 6,
-            "completion_percentage": 626 / 632 * 100,
+            "completed_quotes": 627, "unresolved_quotes": 5,
+            "completion_percentage": 627 / 632 * 100,
             "unresolved_quote_ids": sorted(EXPECTED_UNRESOLVED),
             "full_run_known_spend_usd": audit["costs"]["full_run_known_spend_usd"],
             "staged_recovery_known_spend_usd": audit["costs"]["staged_recovery_known_spend_usd"],
@@ -406,8 +405,8 @@ def write_final_outputs(run_dir: Path, strict: bool = True) -> dict[str, Any]:
         atomic_write_text(output / "corpus_closure_report.md", f"""# Quote Research Corpus Closure Report
 
 - Manifest records: 632
-- Completed packets: 626 ({status['completion_percentage']:.2f}%)
-- Unresolved: 6
+- Completed packets: 627 ({status['completion_percentage']:.2f}%)
+- Unresolved: 5
 - Canonical packet validation errors: {len(audit['schema_errors'])}
 - Immutable identity errors: {len(audit['identity_errors'])}
 - Staged recovery: 164/170 recovered (96.47%)
@@ -416,6 +415,6 @@ def write_final_outputs(run_dir: Path, strict: bool = True) -> dict[str, Any]:
 - Packet collection SHA-256: `{status['corpus_hash']}`
 - Corpus manifest SHA-256: `{audit['hashes']['corpus_manifest_sha256']}`
 
-All 632 IDs form a complete, disjoint partition between completed and unresolved records. All completed canonical packets validate and retain manifest quote identity. The six unresolved records remain technical/provider failures; no historical conclusion is inferred from that status. Automated paid recovery is closed because every remaining case exhausted two bounded cycles.
+All 632 IDs form a complete, disjoint partition between completed and unresolved records. All completed canonical packets validate and retain manifest quote identity. The five unresolved records remain technical/provider failures; no historical conclusion is inferred from that status. Automated paid recovery is closed because every remaining case exhausted two bounded cycles.
 """)
         return {"dossier": dossier, "audit": audit, "status": status}

@@ -14,7 +14,7 @@ REVIEWS=[ROOT/'openai_quality_trial_001',ROOT/'openai_quality_trial_002']
 
 def test_eligible_626_schema_identity_and_unresolved_exclusion():
     packets,unresolved,digest=load_corpus(RESEARCH)
-    assert len(packets)==626 and len(unresolved)==6 and not(set(packets)&unresolved) and len(digest)==64
+    assert len(packets)==627 and len(unresolved)==5 and not(set(packets)&unresolved) and len(digest)==64
 
 def test_calibration_has_40_and_18_neither():
     packets,_,_=load_corpus(RESEARCH);qa=json.loads(Path('quote_analysis.json').read_text())['items']
@@ -43,7 +43,7 @@ def test_full_audit_is_deterministic_resume_and_offline(tmp_path,monkeypatch):
     def blocked(*args,**kwargs):raise AssertionError('network forbidden')
     monkeypatch.setattr('socket.create_connection',blocked)
     out=tmp_path/'audit';calibrate(RESEARCH,REVIEWS,out);first=run_audit(RESEARCH,out,REVIEWS);second=run_audit(RESEARCH,out,REVIEWS)
-    assert first==second and len(first)==626
+    assert first==second and len(first)==627
     assert json.loads((out/'best_50_generation_candidates.json').read_text())['count']==50
     assert not (tmp_path/'mrsMThatcher2.py').exists()
 
@@ -83,11 +83,11 @@ def test_filters_sorts_and_next_unreviewed_inputs(tmp_path):
     out,base=_review_fixture(tmp_path);ids=list(base);save_human_review(out,ids[0],'A')
     reviews=json.loads((out/'manual_review_interface/human_reviews.json').read_text())['items']
     assert len(_filter_sort_records(base,reviews,'reviewed'))==1
-    assert len(_filter_sort_records(base,reviews,'unreviewed'))==625
+    assert len(_filter_sort_records(base,reviews,'unreviewed'))==626
     assert all(x['grade']=='A' for x in _filter_sort_records(base,reviews,'auto_a'))
     assert _filter_sort_records(base,reviews,'review_state')[0]['quote_id'] not in reviews
     for sort in ('priority','quote_order','confidence','risk','review_state'):
-        assert len(_filter_sort_records(base,reviews,'all',sort))==626
+        assert len(_filter_sort_records(base,reviews,'all',sort))==627
 
 
 def test_responsive_styles_and_disabled_generation_copy():

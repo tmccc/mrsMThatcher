@@ -39,7 +39,7 @@ def isolate_generated_closure_outputs(tmp_path, monkeypatch):
 
 def test_exactly_six_unresolved_and_complete_partition():
     audit = corpus_closure_audit(RUN, strict=True)
-    assert audit["counts"] == {"manifest": 632, "completed": 626, "unresolved": 6}
+    assert audit["counts"] == {"manifest": 632, "completed": 627, "unresolved": 5}
     assert audit["checks"]["completed_and_unresolved_disjoint"]
     assert audit["checks"]["manifest_partition_complete"]
     assert audit["checks"]["no_duplicate_completed_ids"]
@@ -88,7 +88,7 @@ def test_offline_guard_blocks_network_and_restores_socket():
 
 def test_closure_outputs_stay_in_research_directory():
     dossier = build_unresolved_dossier(RUN)
-    assert dossier["case_count"] == 6
+    assert dossier["case_count"] == 5
     output = RUN / "final_unresolved"
     assert output.is_dir()
     assert all(path.resolve().is_relative_to(RUN.resolve()) for path in output.iterdir())

@@ -160,14 +160,25 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
     )
     before_identity = _identity_snapshot(packets)
     before_eligible = _eligible_ids(packets)
-    if len(packets) != 626 or len(unresolved) != 6 or len(before_eligible) != 610:
+    manifest = _load_json(research_dir / "corpus_manifest.json")
+    declared_total = manifest.get("record_count")
+    if (
+        type(declared_total) is not int
+        or declared_total <= 0
+        or len(packets) + len(unresolved) != declared_total
+        or not before_eligible <= set(packets)
+    ):
         raise RuntimeError(
-            "refusing audit because canonical corpus invariants differ from 626/6/610"
+            "refusing audit because canonical corpus partitions differ"
         )
-    recovery = recover_saved_source_evidence(research_dir, packets)
-    validate_recovery(recovery, packets)
     recovery_path = research_dir / RECOVERY_FILENAME
-    atomic_write_json(recovery_path, recovery)
+    if recovery_path.exists():
+        recovery = _load_json(recovery_path)
+        validate_recovery(recovery, packets)
+    else:
+        recovery = recover_saved_source_evidence(research_dir, packets)
+        validate_recovery(recovery, packets)
+        atomic_write_json(recovery_path, recovery)
     resolution_path = research_dir / RESOLUTION_FILENAME
     resolution = None
     if resolution_path.exists():
@@ -225,7 +236,7 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
     after_eligible = _eligible_ids(attached)
     if before_identity != after_identity:
         raise RuntimeError("source-role audit changed quotation text, identity, status, or speaker")
-    if before_eligible != after_eligible or len(after_eligible) != 610:
+    if before_eligible != after_eligible:
         raise RuntimeError("source-role audit changed regular-post attribution eligibility")
     if unresolved != reloaded_unresolved:
         raise RuntimeError("source-role audit changed unresolved quotation partition")
@@ -258,7 +269,6 @@ def run_audit(research_dir: Path, output_dir: Path) -> dict[str, Any]:
         "source_files": {
             str(path): {
                 "size": path.stat().st_size,
-                "mtime_ns": path.stat().st_mtime_ns,
                 "sha256": file_sha256(path),
             }
             for path in source_files
@@ -349,6 +359,8 @@ def render_report(
     )
     quality = _source_summary(audit)
     summary = audit["summary"]
+    unresolved_count = int(audit["unresolved_quote_count"])
+    eligible_count = int(audit["attribution_eligible_quote_count"])
     provenance = summary["headline_observed_source_provenance_counts"]
     dispositions = summary["headline_observed_source_disposition_counts"]
     approximate_source_count = sum(
@@ -367,7 +379,8 @@ def render_report(
         "## Executive summary",
         "",
         f"The audit examined all **{audit['packet_count']} completed research packets** and "
-        f"all **{audit['source_count']} saved packet source records**. The six unresolved research "
+        f"all **{audit['source_count']} saved packet source records**. The "
+        f"{unresolved_count} unresolved research "
         "records remain outside the completed packet collection. The canonical packet file, quotation "
         "text, quote IDs, speakers, verification classifications and regular-post eligibility were not changed.",
         "",
@@ -511,7 +524,8 @@ def render_report(
         "",
         "## Further research required",
         "",
-        "These records remain in the 610-quotation posting population. This list concerns evidence quality only.",
+        f"These records remain in the {eligible_count}-quotation posting population. "
+        "This list concerns evidence quality only.",
         "",
         "| Quote ID | Quotation | Wording status | Attribution confidence | Wording confidence |",
         "|---|---|---|---|---|",
@@ -543,7 +557,8 @@ def render_report(
         for command in validation.get("commands", []):
             lines.append(f"- `{command['command']}`: **{command['result']}**")
         lines.extend([
-            f"- Exact 610-ID eligibility invariant: **{validation.get('eligible_ids_unchanged')}**",
+            f"- Exact {eligible_count}-ID eligibility invariant: "
+            f"**{validation.get('eligible_ids_unchanged')}**",
             f"- Quote IDs and text unchanged: **{validation.get('quote_identity_unchanged')}**",
             f"- Service PID/start/restart invariant: **{validation.get('service_untouched')}**",
         ])
@@ -593,8 +608,9 @@ def render_report(
         "verifiable source passage. Those records need further source-driven research before a public link can be restored. This abstention affects only "
         "historical-context evidence rendering; it does not remove or disable quotations.",
         "",
-        "All **610 attribution-eligible quotations remain eligible and unchanged**. The previously removed non-Thatcher records "
-        "remain absent, and the six unresolved research records remain ineligible.",
+        f"All **{eligible_count} attribution-eligible quotations remain eligible and unchanged**. "
+        "The previously removed non-Thatcher records remain absent, and the "
+        f"{unresolved_count} unresolved research records remain ineligible.",
         "",
         "READY FOR INDEPENDENT REVIEW" if validation.get("passed") else "AUDIT INCOMPLETE OR UNSAFE",
         "",

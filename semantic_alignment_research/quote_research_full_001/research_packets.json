@@ -2384,6 +2384,61 @@
       "verification_status": "exact",
       "verified_text": "Every step this Socialist Government takes to seize more power over our daily lives diminishes those lives and the freedom which is their essence and their strength. One of our principal and continuing priorities when we are returned to office will be to restore the freedoms which the Socialists have usurped."
     },
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "broader_principle": "Changing a political label does not by itself change the substance or record of the ideas being relabelled.",
+      "claimed_consequence": "Discredited socialist ideas may be presented again under new names.",
+      "completed_at": "2026-07-24T20:01:06Z",
+      "date": "2002",
+      "editorial_guidance": {
+        "common_visual_mistakes": [
+          "Presenting a renamed label as proof that the underlying policy changed."
+        ],
+        "desired_first_impression": "A pointed criticism of political rebranding.",
+        "historical_requirements": [
+          "Identify the source as Thatcher's 2002 authored book Statecraft."
+        ],
+        "must_be_visually_dominant": [
+          "The contrast between new titles and discredited older versions."
+        ],
+        "must_not_dominate": [
+          "Unrelated election or Cold War imagery."
+        ]
+      },
+      "entities": [
+        "Margaret Thatcher",
+        "socialists"
+      ],
+      "grounding_source_count": 1,
+      "historical_context": "In Statecraft, Thatcher used the sentence while criticising the political 'Third Way' as another relabelling of socialist beliefs.",
+      "immediate_subject": "The repeated relabelling of socialist beliefs.",
+      "intended_argument": "Thatcher argued that socialists repeatedly renamed their beliefs because earlier versions had become outdated and discredited.",
+      "literal_meaning": "Socialist ideas receive new titles after their previous versions lose credibility.",
+      "mechanism": "New terminology distances a political programme from the record of its earlier labels.",
+      "model": "operator-reviewed-primary-source-admission",
+      "prompt_version": "statecraft-primary-admission-v1",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+      "research_confidence": "high",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
+      "sources": [
+        {
+          "source_type": "operator_supplied_bibliographic_citation",
+          "supports": [
+            "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
+          ],
+          "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+          "url": ""
+        }
+      ],
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+      "text_variation_notes": "The stored quotation matches the inspected primary text.",
+      "transport": "offline_operator_review",
+      "unresolved_questions": [],
+      "validation_status": "valid",
+      "verification_status": "exact",
+      "verified_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
+    },
     "0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a": {
       "broader_principle": "Politics is downstream from culture and ideas; intellectual conviction is the prerequisite for lasting political change.",
       "claimed_consequence": "Winning the 'battle of ideas' will make the broader political 'war' much easier to win, leading to electoral success.",
@@ -19965,7 +20020,7 @@
       "broader_principle": "Free-market capitalism is inherently more capable of generating wealth, health, and security than state socialism.",
       "claimed_consequence": "Recognising that capitalist countries are the ones providing aid reinforces unwavering confidence in the free-market system.",
       "completed_at": "2026-07-13T21:24:40.668061Z",
-      "date": "Unknown",
+      "date": "2002",
       "editorial_guidance": {
         "common_visual_mistakes": [
           "Presenting the quote alongside an official portrait of Thatcher as if it were a verified historical statement."
@@ -19996,7 +20051,7 @@
       "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
       "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure.",
       "research_confidence": "high",
-      "source_event": "Unknown",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -20112,16 +20167,16 @@
           "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQH6BIcJgd4LnVM2mu5Akh_SJO4REC7zepL69oiS6I-oiJseJ7jMZPNJeYL4eqqnIxNzDv6DP37VZcKK5KJmCG3jvQLMDxHtpRCWSPb-jxaowojmCU4x1OKvgf1jsn8p_0GFxvSSQc63dj_tKZii3mcdX5QbTj4jWH5wdA=="
         }
       ],
-      "speaker": "Margaret Thatcher (attributed)",
-      "stable_locator": "Unknown",
-      "text_variation_notes": "Extensive searches of the Margaret Thatcher Foundation archives, Hansard, and general historical databases yield no record of this quotation. It is likely a modern fabrication or a severe paraphrase of her general arguments.",
+      "speaker": "Margaret Thatcher",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+      "text_variation_notes": "The stored quotation matches the inspected primary text.",
       "transport": "vertex_ai",
       "unresolved_questions": [
         "Where did this specific phrasing first originate?",
         "Is this a severe distortion of a genuine Thatcher quote regarding international aid and socialism?"
       ],
       "validation_status": "valid",
-      "verification_status": "unverified",
+      "verification_status": "exact",
       "verified_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure."
     },
     "6871cbac95a92fcbc6b383ed1031d694399351a54e3bf1c81bd86239a1b807e4": {
@@ -29769,7 +29824,7 @@
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
       "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes.",
       "research_confidence": "high",
-      "source_event": "Statecraft: Strategies for a Changing World",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -29798,8 +29853,8 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 432",
-      "text_variation_notes": "The quote is generally cited accurately, though sometimes presented alongside her other remarks on freedom and inequality from the same passage.",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+      "text_variation_notes": "The stored quotation matches the inspected primary text.",
       "transport": "vertex_ai",
       "unresolved_questions": [],
       "validation_status": "valid",
@@ -33187,15 +33242,15 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Statecraft (2002)",
-      "text_variation_notes": "The quote is generally cited exactly as written, often with dashes or hyphens separating the parenthetical clause.",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+      "text_variation_notes": "Primary variant: the stored quotation begins 'When all the objectives'; the inspected source begins 'When the objectives'.",
       "transport": "developer_api",
       "unresolved_questions": [
         "The exact page number in the original edition of Statecraft."
       ],
       "validation_status": "valid",
-      "verification_status": "exact",
-      "verified_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
+      "verification_status": "variant",
+      "verified_text": "When the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
     },
     "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3": {
       "broader_principle": "Prosperity is generated by private enterprise and individual effort, not by state planning or guarantees.",
@@ -34147,7 +34202,7 @@
       "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
       "quote_text": "...The larger the slice taken by government, the smaller the cake available for everyone.",
       "research_confidence": "high",
-      "source_event": "Statecraft: Strategies for a Changing World (Book)",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -34167,13 +34222,13 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 327 or 425 (editions vary)",
-      "text_variation_notes": "The quotation is consistently reproduced exactly as written in her 2002 book.",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+      "text_variation_notes": "Primary variant: the stored quotation has a leading editorial ellipsis; the inspected primary sentence does not.",
       "transport": "developer_api",
       "unresolved_questions": [
         "The exact page number varies between the UK and US editions of 'Statecraft' (cited as p. 327 and p. 425 in different sources)."
       ],
-      "verification_status": "exact",
+      "verification_status": "variant",
       "verified_text": "The larger the slice taken by government, the smaller the cake available for everyone."
     },
     "a9b4ea7f342a8cbc4ae919c097a9e968d5617e956dd0439e8f423fb6c8dc9942": {
@@ -43915,7 +43970,7 @@
       "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
       "quote_text": "Constitutions have to be written on hearts, not just paper.",
       "research_confidence": "high",
-      "source_event": "Publication of 'Statecraft: Strategies for a Changing World'",
+      "source_event": "Publication of Statecraft: Strategies for a Changing World",
       "sources": [
         {
           "source_type": "grounded_web_source",
@@ -43936,8 +43991,8 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 256",
-      "text_variation_notes": "The quotation is consistently cited in this exact form without significant variations.",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+      "text_variation_notes": "The stored quotation matches the inspected primary text.",
       "transport": "developer_api",
       "unresolved_questions": [],
       "validation_status": "valid",
@@ -48843,13 +48898,13 @@
         }
       ],
       "speaker": "Margaret Thatcher",
-      "stable_locator": "Page 327",
-      "text_variation_notes": "The uploaded quote paraphrases the opening clause, omits 'grand' before 'utopian plans', and alters the punctuation slightly.",
+      "stable_locator": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+      "text_variation_notes": "Primary variant: the stored wording shortens the opening, uses the contraction 'there's', omits 'the' and 'grand', and changes connective punctuation while preserving the three stated points.",
       "transport": "developer_api",
       "unresolved_questions": [],
       "validation_status": "valid",
       "verification_status": "variant",
-      "verified_text": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy."
+      "verified_text": "What we should grasp, however, from the lessons of European history is that, first, there is nothing necessarily benevolent about programmes of European integration; second, the desire to achieve grand Utopian plans often poses a grave threat to freedom; and third, European unity has been tried before, and the outcome was far from happy."
     },
     "f4a54ddbeb267a5ae0bcd3dda13214ffeda6e8f2b31854abcde83fe73420636c": {
       "broader_principle": "True liberty requires the tolerance of dissent and the robust protection of unpopular speech.",

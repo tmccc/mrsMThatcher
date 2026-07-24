@@ -43,10 +43,10 @@ RUNTIME_ELIGIBLE_MANIFEST = (
 )
 AUDIT_KIND = "historical_context_reply_semantic_gate_audit"
 SCHEMA_VERSION = 1
-EXPECTED_COMPLETED = 626
-EXPECTED_ELIGIBLE = 610
+EXPECTED_COMPLETED = 627
+EXPECTED_ELIGIBLE = 611
 EXPECTED_INELIGIBLE = 16
-EXPECTED_UNRESOLVED = 6
+EXPECTED_UNRESOLVED = 5
 KNOWN_104653_QUOTE_ID = (
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
 )
@@ -166,12 +166,12 @@ def build_audit(
     )
     invariants = {
         "gate_is_available": gate.available,
-        "completed_packet_count_is_626": len(packets) == EXPECTED_COMPLETED,
-        "attribution_eligible_count_is_610": len(eligible_ids) == EXPECTED_ELIGIBLE,
+        "completed_packet_count_is_627": len(packets) == EXPECTED_COMPLETED,
+        "attribution_eligible_count_is_611": len(eligible_ids) == EXPECTED_ELIGIBLE,
         "completed_ineligible_count_is_16": (
             len(packets) - len(eligible_ids) == EXPECTED_INELIGIBLE
         ),
-        "unresolved_count_is_6": len(unresolved) == EXPECTED_UNRESOLVED,
+        "unresolved_count_is_5": len(unresolved) == EXPECTED_UNRESOLVED,
         "runtime_cycle_membership_is_unchanged": (
             runtime_manifest.get("runtime_eligible_quote_count")
             == EXPECTED_ELIGIBLE

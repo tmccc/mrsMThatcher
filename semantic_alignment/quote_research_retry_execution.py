@@ -247,10 +247,23 @@ def validate_retry_manifest(run_dir: Path, manifest_path: Path, combined_ceiling
     if initial_validation:
         expected_retry_run = "retry_analysis/retry_validation_20"
     packets = (read_json(run_dir / "research_packets.json") or {}).get("items", {})
-    unrelated_overlap = [quote_id for quote_id in overlap if not (
-        packets[quote_id].get("recovered_via_paid_retry_validation") is True
-        and packets[quote_id].get("retry_run") == expected_retry_run
-    )]
+    unrelated_overlap = [
+        quote_id
+        for quote_id in overlap
+        if not (
+            (
+                packets[quote_id].get("recovered_via_paid_retry_validation")
+                is True
+                and packets[quote_id].get("retry_run") == expected_retry_run
+            )
+            or (
+                packets[quote_id].get("transport")
+                == "offline_operator_review"
+                and packets[quote_id].get("model")
+                == "operator-reviewed-primary-source-admission"
+            )
+        )
+    ]
     if unrelated_overlap:
         raise RuntimeError(f"completed/offline-recovered quotes present in retry manifest: {unrelated_overlap}")
     if initial_validation:

@@ -1,13 +1,14 @@
 {
   "purpose": "Exact IDs restored when the unattended-post wording gate was withdrawn.",
   "quote_count": 65,
-  "uncertainty_metadata_sha256": "6a42d5cfdb8f63e48273fdba3973a394217b7899cf626febaa96a47ecb356615",
+  "uncertainty_metadata_sha256": "13ac75096d42f9c73895406a0bb64b1a223ef39f0edde4553c5f5551f11952c0",
   "verification_status_counts": {
     "composite": 9,
+    "exact": 1,
     "excerpt": 2,
     "normalised": 1,
     "paraphrase": 6,
-    "unverified": 41,
+    "unverified": 40,
     "variant": 6
   },
   "research_confidence_counts": {

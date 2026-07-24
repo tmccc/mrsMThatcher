@@ -1,0 +1,130 @@
+{
+  "after_hashes": {
+    "final_research_status.json": "ab241ea90d971763e3628d693fed01b1e7be2f28c89601534f0063bd69eec932",
+    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
+  },
+  "audit_kind": "historical_context_statecraft_primary_admission",
+  "automatic_gate_change": false,
+  "before_hashes": {
+    "final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+  },
+  "book": {
+    "author": "Margaret Thatcher",
+    "book_id": "ebfa359ba0cc3c5fd9c9a82e9a4b906e60be5b258489d2c50a3df5216845b322",
+    "edition": "First edition",
+    "ocr_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+    "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872",
+    "publication_year": "2002",
+    "publisher": "HarperCollins",
+    "title": "Statecraft: Strategies for a Changing World"
+  },
+  "counts": {
+    "completed_after": 627,
+    "completed_before": 626,
+    "exact_primary": 4,
+    "primary_variant": 3,
+    "source_records_admitted": 7,
+    "unresolved_after": 5,
+    "unresolved_before": 6
+  },
+  "generated_at": "2026-07-24T20:01:06Z",
+  "network_requests": 0,
+  "private_input_hashes": {
+    "bibliographical_manifest_sha256": "94807e299a09702f88c5543719025d914792e3a222f280ae94485ef7a425650a",
+    "candidate_manifest_sha256": "669ca0782336004ad9f442d14cfbe5a778b6e694552e28691e2c269d3249423c",
+    "ocr_sha256": "24582e795eec4a7e46b674563ab53c05e1dbdc2c500f688fd7393a01f6490fe1",
+    "pdf_sha256": "6619eb3401336585ef5d27c46fdd2dbc101a66c484620b57c8cda62ab1140872"
+  },
+  "provider_requests": 0,
+  "quotation_text_changed": false,
+  "quote_ids": [
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
+  ],
+  "resolved_failure": {
+    "prior_permanent_failure": {
+      "attempts": {
+        "developer_api": 2,
+        "vertex_ai": 0
+      },
+      "failure": {
+        "kind": "exhausted_validation_failure",
+        "message": "at least one grounded source is required"
+      },
+      "input_hash": "b4477fd761db24823c4f1e54db258eba7bc7e042a3106b39cbfff72c6f8bd798",
+      "quote_hash": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+      "recorded_at": "2026-07-13T18:18:40.621196Z",
+      "transport": "developer_api"
+    },
+    "prior_run_state": {
+      "active_transport": "developer_api",
+      "attempt_epoch": 0,
+      "last_error": {
+        "kind": "exhausted_validation_failure",
+        "message": "at least one grounded source is required"
+      },
+      "status": "permanent_failure",
+      "transport_attempts": {
+        "developer_api": 2,
+        "vertex_ai": 0
+      },
+      "updated_at": "2026-07-13T18:18:40.621211Z"
+    },
+    "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+    "resolution": "operator_reviewed_primary_book"
+  },
+  "schema_version": 1,
+  "source_bindings": {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729": {
+      "candidate_id": "75fd4da816b92425452a48ce4ffd8dab2c538f857c8de0de5c18d085bd329456",
+      "printed_page": "427",
+      "source_id": "fa4a0ad84a0b41b9494093de1d0e8a2db725e04b2263079db8a68f50f812a5b5",
+      "verification_status": "exact"
+    },
+    "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90": {
+      "candidate_id": "192e8d138fa01dbf160ede438db59ca5c1f26321df2d3b04ffeb60d11b396b95",
+      "printed_page": "449",
+      "source_id": "9eae0aa97a4bb82e5a518e29d01c1706be4924e0bd3f765773ef49e5994f7f54",
+      "verification_status": "exact"
+    },
+    "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144": {
+      "candidate_id": "1541cd79b74e97ede1bfd089ad8e0fe73f3096463d3c44edc5425ac8be9d7947",
+      "printed_page": "432",
+      "source_id": "81f316c816a06cff0bd3bb02f1ad5420a406efba74e80723815fe409bdd63079",
+      "verification_status": "exact"
+    },
+    "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": {
+      "candidate_id": "67610f7a0dcd4474e811f05f0b5e0a1e8fbc6632afa85553acd43cc0281466ad",
+      "printed_page": "433",
+      "source_id": "add06ddd94e0829f5263b44e7ceb5f11136d8b789cc2e0d5b88ff53e2d93636f",
+      "verification_status": "variant"
+    },
+    "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7": {
+      "candidate_id": "9016f29ef388fe954005aa090add8fe86bd9fd8b1b1db4997548cd200257adf4",
+      "printed_page": "425",
+      "source_id": "fb04f2faf8f1297768446e9ccdd4014564f3fd34bb92ef0b3924f0e326895bbc",
+      "verification_status": "variant"
+    },
+    "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173": {
+      "candidate_id": "38efb1e0e9571009544c592a48385902e02d0d4d3fcb453eb31f073bcb1f7416",
+      "printed_page": "256",
+      "source_id": "202db856ef09a53e672eb76d13d1c6f61463af2f8bce4ce4e2a8848850be5f3e",
+      "verification_status": "exact"
+    },
+    "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d": {
+      "candidate_id": "66276ffca1cca9b2b00344a329a7cc850652b700d26e033ca43ea659f25eb897",
+      "printed_page": "327",
+      "source_id": "076e7b6c6babc17543676607ca7cd4289378ff7d0143334cbf1c4e0372601934",
+      "verification_status": "variant"
+    }
+  }
+}

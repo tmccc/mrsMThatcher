@@ -3,13 +3,13 @@
   "counts": {
     "accepted_and_lead_same_mtf_document_packet_count": 143,
     "claim_public_field_finding_kind_counts": {
-      "packet_claim_not_publicly_supported": 1518
+      "packet_claim_not_publicly_supported": 1509
     },
-    "claim_public_field_triage_finding_count": 1518,
-    "claim_public_field_triage_packet_count": 624,
+    "claim_public_field_triage_finding_count": 1509,
+    "claim_public_field_triage_packet_count": 625,
     "correlation_error_count": 0,
-    "current_context_without_calendar_date_count": 459,
-    "current_generic_context_count": 457,
+    "current_context_without_calendar_date_count": 453,
+    "current_generic_context_count": 451,
     "current_render_failure_count": 0,
     "eligible_same_document_event_or_date_priority_count": 136,
     "invariant_failure_count": 0,
@@ -24,32 +24,32 @@
     },
     "meaning_strengthening_indicator_packet_count": 178,
     "precise_mtf_identity_packet_count": 437,
-    "published_context_without_calendar_date_count": 23,
-    "published_generic_context_count": 9,
-    "published_meaning_strengthening_indicator_packet_count": 26,
-    "unsupported_claim_decomposition_count": 1518
+    "published_context_without_calendar_date_count": 28,
+    "published_generic_context_count": 14,
+    "published_meaning_strengthening_indicator_packet_count": 29,
+    "unsupported_claim_decomposition_count": 1509
   },
   "coverage": {
-    "attribution_eligible_packet_count": 610,
-    "completed_packet_count": 626,
-    "completed_quote_ids_sha256": "d6410475d043b3c60ee41b373d3503c3f11ade7b16621d759acba8d1821f349a",
-    "current_public_render_record_count": 626,
-    "published_history_entry_count": 86,
-    "published_history_parent_post_ids_sha256": "1a47bbac72d323c80348063aa9d6215966719ef99e8f74fe0523cdf0feb630e6",
-    "published_history_quote_ids_sha256": "221400fdb6e44712574250d0e8eccf2f2a8c4761dbba66c0531f9857b6150f9d",
-    "published_history_unique_quote_count": 86,
-    "published_reply_review_record_count": 86,
-    "unresolved_quote_count": 6
+    "attribution_eligible_packet_count": 611,
+    "completed_packet_count": 627,
+    "completed_quote_ids_sha256": "3cfe72deb790ab908fd6b60e2ca3ca11813ae6d7180992b4755fab5117904760",
+    "current_public_render_record_count": 627,
+    "published_history_entry_count": 93,
+    "published_history_parent_post_ids_sha256": "f1458844626f74d2b0d336f1602ca2c56ae2f7a9064d6fc661fc1eb554c7ce71",
+    "published_history_quote_ids_sha256": "2415af1d613d3bca664f9f7d4d43dd2998fe3a56edeadecbabb579febead6109",
+    "published_history_unique_quote_count": 93,
+    "published_reply_review_record_count": 93,
+    "unresolved_quote_count": 5
   },
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
-    "historical_context_reply_history.json": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
-    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
-    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_reply_history.json": "fdb2e55a7855757b459a7f6636206a5cb3931cc75768512102f55a922aedb607",
+    "historical_context_source_curated_evidence.json": "c90fe15bb8259c8b83f2b7100aff0112be4475d22bf054a890233b75683b8381",
+    "historical_context_source_role_audit.json": "dbed2f9c52da5261c8fe80cc1c85ab177614adba06051b67616c6fcfa98f3e2b",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
-    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+    "research_packets.json": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0"
   },
   "interpretation": {
     "automatic_evidence_rewrite_authorised": false,
@@ -60,8 +60,8 @@
     "source_title_occurrence_classification": "bibliographic_occurrence_risk_not_semantic_adjudication"
   },
   "invariants": {
-    "attribution_eligible_count_is_610": true,
-    "completed_packet_count_is_626": true,
+    "attribution_eligible_count_is_611": true,
+    "completed_packet_count_is_627": true,
     "every_completed_packet_has_a_current_public_render": true,
     "every_history_quote_correlates_to_a_completed_packet": true,
     "history_parent_post_ids_are_unique": true,
@@ -432,7 +432,9 @@
           "105799"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080747547212091482"
+        ],
         "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
         "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
         "source_event": "Speech to the Carlton Club",
@@ -1816,7 +1818,9 @@
           "104052"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080785372007567631"
+        ],
         "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
         "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover.",
         "source_event": "Article for the News of the World",
@@ -2042,7 +2046,9 @@
           "103411"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080684906418450495"
+        ],
         "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
         "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses.",
         "source_event": "Speech to Greater London Young Conservatives (Iain Macleod Memorial Lecture - 'Dimensions of Conservatism')",
@@ -2950,6 +2956,22 @@
         "public_context_supported_fields": [],
         "quote_id": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a",
         "source_event": "Speech to Conservative Central Council (\"The Historic Choice\")"
+      },
+      {
+        "attribution_eligible": true,
+        "date": "2002",
+        "findings": [
+          {
+            "field": "historical_context",
+            "kind": "packet_claim_not_publicly_supported"
+          }
+        ],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+        "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
       {
         "attribution_eligible": true,
@@ -7063,16 +7085,19 @@
       },
       {
         "attribution_eligible": true,
-        "date": "Unknown",
+        "date": "2002",
         "findings": [
           {
             "field": "historical_context",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
-        "source_event": "Unknown"
+        "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
       {
         "attribution_eligible": true,
@@ -9326,21 +9351,16 @@
         "date": "2002",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "source_event": "Statecraft: Strategies for a Changing World"
+        "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
       {
         "attribution_eligible": true,
@@ -10121,19 +10141,14 @@
         "date": "2002",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
         "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
@@ -10349,21 +10364,16 @@
         "date": "2002",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "source_event": "Statecraft: Strategies for a Changing World (Book)"
+        "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
       {
         "attribution_eligible": true,
@@ -12668,21 +12678,16 @@
         "date": "2002",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
-        "source_event": "Publication of 'Statecraft: Strategies for a Changing World'"
+        "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
       {
         "attribution_eligible": true,
@@ -13815,19 +13820,14 @@
         "date": "2002",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
         "source_event": "Publication of Statecraft: Strategies for a Changing World"
       },
@@ -16104,15 +16104,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "6871cbac95a92fcbc6b383ed1031d694399351a54e3bf1c81bd86239a1b807e4"
       },
       {
@@ -16887,15 +16878,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "92bc2b135f748c17b8df4653ec385e5f072ca5b99b4cee0988933eccbd13839f"
       },
       {
@@ -17175,15 +17157,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "a5d5247aeaf51c12cf4cde9b4e00709f034edc201bf2d62d8c39ca16c4854ff3"
       },
       {
@@ -17248,15 +17221,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
       },
       {
         "attribution_eligible": true,
@@ -18110,15 +18074,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "dbfa68097a782d6daf0cb3db564af0377ee5d4b4664bf2d5b506487474578c1b"
       },
       {
@@ -18462,15 +18417,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "f30769b32809ece4155829a8ee676b04941d7409287ccc1c6226337b161438b8"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
       },
       {
         "attribution_eligible": true,
@@ -19123,6 +19069,38 @@
         ],
         "quote_id": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a",
         "quote_text": "Every step this Socialist Government takes to seize more power over our daily lives diminishes those lives and the freedom which is their essence and their strength. One of our principal and continuing priorities when we are returned to office will be to restore the freedoms which the Socialists have usurped."
+      },
+      {
+        "attribution_eligible": true,
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that socialists repeatedly renamed their beliefs because earlier versions had become outdated and discredited.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 427",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 427",
+            "url": ""
+          }
+        ],
+        "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+        "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited."
       },
       {
         "attribution_eligible": true,
@@ -22802,9 +22780,33 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
+            "url": ""
+          }
+        ],
         "quote_id": "685ddfab242fe45cafc203a937769a4fe925423baf80e022b6e2e4411dd3ce90",
         "quote_text": "When socialist countries are to be found helping out capitalist countries in their hour of need rather than vice-versa, then - and only then - should we question the system which makes us rich, healthy and secure."
       },
@@ -24800,9 +24802,33 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
+            "url": ""
+          }
+        ],
         "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
         "quote_text": "'Social justice' can take a free society into still deeper and more treacherous waters if it is applied not only to equality of opportunity but also to equality of outcomes."
       },
@@ -25501,9 +25527,33 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
+            "url": ""
+          }
+        ],
         "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
         "quote_text": "When all the objectives of government include the achievement of equality - other than equality before the law - that government poses a threat to liberty."
       },
@@ -25707,8 +25757,11 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Historically verified variant\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
         "public_sources": [
           {
             "claims_supported": [
@@ -25717,6 +25770,26 @@
             ],
             "title": "House of Commons Hansard Debates for 15 October 2014 (pt 0004)",
             "url": "https://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm"
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
+            "url": ""
           }
         ],
         "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
@@ -27642,9 +27715,33 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
+            "url": ""
+          }
+        ],
         "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
         "quote_text": "Constitutions have to be written on hearts, not just paper."
       },
@@ -28687,8 +28784,11 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Historically verified variant\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
         "public_sources": [
           {
             "claims_supported": [
@@ -28697,6 +28797,26 @@
             ],
             "title": "European Union Membership (Economic Implications) Bill - Hansard - UK Parliament",
             "url": "https://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29"
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
+            "url": ""
           }
         ],
         "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
@@ -29747,7 +29867,9 @@
           "105799"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080747547212091482"
+        ],
         "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
         "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
         "source_event": "Speech to the Carlton Club",
@@ -31079,7 +31201,9 @@
           "104052"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080785372007567631"
+        ],
         "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
         "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover.",
         "source_event": "Article for the News of the World",
@@ -31305,7 +31429,9 @@
           "103411"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080684906418450495"
+        ],
         "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
         "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses.",
         "source_event": "Speech to Greater London Young Conservatives (Iain Macleod Memorial Lecture - 'Dimensions of Conservatism')",
@@ -32267,6 +32393,15 @@
             ],
             "meaning": "Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "core_or_fundamental",
+              "inevitability"
+            ],
+            "meaning": "Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.",
+            "parent_post_id": "2080651968033284316",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -34350,6 +34485,14 @@
             ],
             "meaning": "That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "inherence"
+            ],
+            "meaning": "That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.",
+            "parent_post_id": "2080583098136137868",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -35094,6 +35237,14 @@
             ],
             "meaning": "To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "core_or_fundamental"
+            ],
+            "meaning": "To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.",
+            "parent_post_id": "2080615883446112512",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -42061,6 +42212,61 @@
         "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
         "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
         "reply_post_id": "2080547589422813532"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080615883446112512",
+        "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+        "quote_text": "Socialism and Britain go ill together. It is not the British character.",
+        "reply_post_id": "2080615885719408962"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080684906418450495",
+        "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+        "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses.",
+        "reply_post_id": "2080684909178298865"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080715229747421348",
+        "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+        "quote_text": "Don't follow the crowd, let the crowd follow you.",
+        "reply_post_id": "2080715231861297379"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080747547212091482",
+        "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+        "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
+        "reply_post_id": "2080747549737046398"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080785372007567631",
+        "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+        "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover.",
+        "reply_post_id": "2080785374213808155"
       }
     ],
     "published_reply_reviews": [
@@ -42534,11 +42740,11 @@
           "inevitability",
           "suppression_or_destruction"
         ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 433\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 433",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "Government attempts to enforce equality of outcome inevitably require coercive measures that destroy individual liberty.",
-          "verification": "Research incomplete"
+          "verification": "Historically verified variant"
         },
         "parent_post_id": "2077908806642675908",
         "published_meaning_strengthening_indicators": [
@@ -42801,11 +43007,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 449\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 449",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "Capitalism's superiority is proven by the fact that capitalist nations routinely provide aid to socialist nations, rather than the reverse.",
-          "verification": "Research incomplete"
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2078358562552639754",
         "published_meaning_strengthening_indicators": [],
@@ -43189,11 +43395,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.\n\nVerification — Historically verified variant\n\nSource — European Union Membership (Economic Implications) Bill - Hansard - UK Parliament\nhttps://hansard.parliament.uk/Lords/2011-11-25/debates/11112523000569/EuropeanUnionMembership%28EconomicImplications%29Bill%28HL%29\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 327\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 327",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "That efforts to artificially unify Europe politically are historically fraught, often coercive, and pose a threat to national sovereignty and individual freedom.",
-          "verification": "Attributed, but exact wording not independently verified"
+          "verification": "Historically verified variant"
         },
         "parent_post_id": "2079015763638136971",
         "published_meaning_strengthening_indicators": [],
@@ -43212,11 +43418,11 @@
           "guarantee_or_certainty",
           "inherence"
         ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 256\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 256",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "A formal constitution is insufficient to guarantee freedom or democracy unless the people inherently believe in and uphold its underlying values.",
-          "verification": "Research incomplete"
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2079052325818155012",
         "published_meaning_strengthening_indicators": [
@@ -43678,11 +43884,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.\n\nVerification — Historically verified variant\n\nSource — House of Commons Hansard Debates for 15 October 2014 (pt 0004)\nhttps://publications.parliament.uk/pa/cm201415/cmhansrd/cm141015/debtext/141015-0004.htm\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 425\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 425",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "High levels of government taxation and intervention stifle economic growth and reduce overall wealth generation.",
-          "verification": "Attributed, but exact wording not independently verified"
+          "verification": "Historically verified variant"
         },
         "parent_post_id": "2079927932038893970",
         "published_meaning_strengthening_indicators": [],
@@ -43782,11 +43988,11 @@
         "current_meaning_strengthening_indicators": [
           "suppression_or_destruction"
         ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — Publication of Statecraft: Strategies for a Changing World, 2002.\n\nMeaning — Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, Statecraft: Strategies for a Changing World (first edition, 2002), p. 432\n\nSource — Statecraft: Strategies for a Changing World, first edition (2002), printed page 432",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
           "meaning": "Thatcher argued that while equality of opportunity is compatible with a free society, attempting to enforce equality of outcomes requires coercive state intervention that ultimately destroys freedom.",
-          "verification": "Research incomplete"
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2080104314182209656",
         "published_meaning_strengthening_indicators": [
@@ -43865,6 +44071,160 @@
         "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
         "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
         "reply_post_id": "2080547589422813532"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "current_public_reply_text": "Context — Speech to Scottish Conservative Party Conference, 13 May 1978.\n\nMeaning — That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, speech dated 13 May 1978",
+        "current_sections": {
+          "context": "Speech to Scottish Conservative Party Conference, 13 May 1978.",
+          "meaning": "That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2080583098136137868",
+        "published_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "published_reply_text": "Context — Speech to Scottish Conservative Party Conference, 13 May 1978.\n\nMeaning — That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, speech dated 13 May 1978",
+        "published_sections": {
+          "context": "Speech to Scottish Conservative Party Conference, 13 May 1978.",
+          "meaning": "That opposing parties inherently seek to divide the nation either through class warfare or literal geographic separation, whereas the Conservatives offer unity.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "9ec3e9ca9ac00dac4619d19fe5312503eeef8fdca7b1b22f2b9fe2866b79bcdc",
+        "quote_text": "Our opponents offer only division and discord, socialism and separatism.",
+        "reply_post_id": "2080583100665397633"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "core_or_fundamental"
+        ],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.",
+          "verification": "Research incomplete"
+        },
+        "parent_post_id": "2080615883446112512",
+        "published_meaning_strengthening_indicators": [
+          "core_or_fundamental"
+        ],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "To assert that socialist policies are fundamentally un-British and that conservative, free-market principles align with the true nature of the British people.",
+          "verification": "Research incomplete"
+        },
+        "quote_id": "d8af9aa2831786794c4dbc7cfa5b406f3d1206dfab27e8af5e867ae014ac64d3",
+        "quote_text": "Socialism and Britain go ill together. It is not the British character.",
+        "reply_post_id": "2080615885719408962"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "core_or_fundamental",
+          "inevitability"
+        ],
+        "current_public_reply_text": "Context — Speech to Young Conservative Conference, 10 February 1990.\n\nMeaning — Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Young Conservative Conference (10 February 1990)",
+        "current_sections": {
+          "context": "Speech to Young Conservative Conference, 10 February 1990.",
+          "meaning": "Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.",
+          "verification": "Exact wording verified"
+        },
+        "parent_post_id": "2080651968033284316",
+        "published_meaning_strengthening_indicators": [
+          "core_or_fundamental",
+          "inevitability"
+        ],
+        "published_reply_text": "Context — Speech to Young Conservative Conference, 10 February 1990.\n\nMeaning — Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Young Conservative Conference (10 February 1990)",
+        "published_sections": {
+          "context": "Speech to Young Conservative Conference, 10 February 1990.",
+          "meaning": "Thatcher argued that socialism inevitably requires state coercion to function, making it fundamentally incompatible with individual freedom.",
+          "verification": "Exact wording verified"
+        },
+        "quote_id": "21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7",
+        "quote_text": "Freedom and Socialism just don't mix.",
+        "reply_post_id": "2080651970029699503"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.",
+          "verification": "Historically verified variant"
+        },
+        "parent_post_id": "2080684906418450495",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 103411\nhttps://www.margaretthatcher.org/document/103411",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "State control over economic and social choices does not lead to equality, but rather creates a rigid hierarchy where a bureaucratic elite holds power over ordinary citizens.",
+          "verification": "Historically verified variant"
+        },
+        "quote_id": "cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f",
+        "quote_text": "Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes: the powerful and the powerless; the party-bureaucratic elite and the manipulated masses.",
+        "reply_post_id": "2080684909178298865"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — True leaders forge their own path rather than conforming to popular opinion.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "True leaders forge their own path rather than conforming to popular opinion.",
+          "verification": "Research incomplete"
+        },
+        "parent_post_id": "2080715229747421348",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — True leaders forge their own path rather than conforming to popular opinion.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "True leaders forge their own path rather than conforming to popular opinion.",
+          "verification": "Research incomplete"
+        },
+        "quote_id": "a19e13783f2b7b47348d1e95ece8445a69b5bb21b8312628c2cea66ccc2563ac",
+        "quote_text": "Don't follow the crowd, let the crowd follow you.",
+        "reply_post_id": "2080715231861297379"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.",
+          "verification": "Verified excerpt"
+        },
+        "parent_post_id": "2080747547212091482",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 105799\nhttps://www.margaretthatcher.org/document/105799",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "That democratic societies must actively protect the majority from aggressive, rule-breaking minorities who refuse to accept democratic outcomes and seek to impose their will through force.",
+          "verification": "Verified excerpt"
+        },
+        "quote_id": "283636fc2526ccd22c302f80f6c494c36ec1e612d16f9b5a145d4eca70b14e9b",
+        "quote_text": "There has come into existence a fashionable view that there is no need to accept the verdict of the majority, that the minority should be quite free to bully, even coerce, to get the verdict reversed.",
+        "reply_post_id": "2080747549737046398"
+      },
+      {
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.",
+          "verification": "Historically verified variant"
+        },
+        "parent_post_id": "2080785372007567631",
+        "published_meaning_strengthening_indicators": [],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Document 104052\nhttps://www.margaretthatcher.org/document/104052",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "A Conservative government will curb the excessive power of disruptive union elements and empower entrepreneurs to rebuild the British economy.",
+          "verification": "Historically verified variant"
+        },
+        "quote_id": "b2af0519a698004f70a0bb37e506a55513af31f07b745bc953728b54078f6a10",
+        "quote_text": "In our over-governed country, the creative majority have too little freedom & the tiny minority of wreckers have too much licence. The government I shall form next weekend will reverse this decisively. Help me free those who create wealth & to make the wreckers run for cover.",
+        "reply_post_id": "2080785374213808155"
       }
     ],
     "render_failures": [],
@@ -46416,6 +46776,45 @@
         "quote_text_sha256": "09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a",
         "reachability_reasons": [
           "field_not_admitted_by_source_role_audit"
+        ],
+        "supporting_internal_source_ids": [],
+        "supporting_renderable_source_ids": []
+      },
+      {
+        "attribution_eligible": true,
+        "claim_key": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729:historical_context:packet_claim_not_publicly_supported",
+        "claim_value": "In Statecraft, Thatcher used the sentence while criticising the political 'Third Way' as another relabelling of socialist beliefs.",
+        "claim_value_sha256": "273d049eaeb3607f508580ac8b606583a164f05f602cac8ba2452cd5cac9519b",
+        "confidence_after": "unknown",
+        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
+        "counterfactual_projection": {
+          "admitted_field": "historical_context",
+          "context_slot_changed": true,
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The repeated relabelling of socialist beliefs.",
+          "counterfactual_context_sha256": "9986cf353f94d53ac78a5cf756be55d5e294c75bffa5dbf148d50136117f23a2",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
+          "direct_claim_value_selected": false,
+          "effective_value_origin": "immediate_subject",
+          "public_render_succeeded": true
+        },
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "current_public_exposures": [],
+        "evidence_state": "no_audited_source_claim",
+        "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
+        "field": "historical_context",
+        "finding_kind": "packet_claim_not_publicly_supported",
+        "formatter_projection": "In Statecraft, Thatcher used the sentence while criticising the political 'Third Way' as another relabelling of socialist beliefs.",
+        "public_reachability": "internal_only_or_unreachable",
+        "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+        "quote_text_sha256": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+        "reachability_reasons": [
+          "direct_claim_value_not_selected",
+          "field_not_admitted_by_source_role_audit",
+          "shadowed_by_immediate_subject"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -64791,15 +65190,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The comparative economic success and resilience of capitalist versus socialist systems.",
-          "counterfactual_context_sha256": "10b70f80cbf31eeab62389f5fe18579cff137fdfc4f933663e7ded1972e99967",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The comparative economic success and resilience of capitalist versus socialist systems.",
+          "counterfactual_context_sha256": "8f8a0760f6ae4b7db6ed366bb96ef041b4c5c05fab9447691a9ad468a14dbfeb",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -74875,40 +75277,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144:date:packet_claim_not_publicly_supported",
-        "claim_value": "2002",
-        "claim_value_sha256": "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 2002, but does not establish its occasion.",
-          "counterfactual_context_sha256": "dc72807b39f492a1a22472fec8dc83a2ea2ff4b3a800417b58f4f54ed2315fd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "2002",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "quote_text_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "In her 2002 book 'Statecraft', Margaret Thatcher reflected on the Cold War's end and the ongoing ideological battles of the 21st century. She critiqued modern interpretations of 'social justice' that sought to enforce equal outcomes rather than just equal opportunities.",
         "claim_value_sha256": "ce15a7f0ed84617e12150f5254b2e9111517bd5d1829c02aa552d0c90b54a1b0",
@@ -74917,15 +75285,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The concept of 'social justice' and its application to equality of outcomes.",
-          "counterfactual_context_sha256": "2c424894b69250be080b9ac11051c2f0a8b0811bd613484538ab21ff5b226398",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The concept of 'social justice' and its application to equality of outcomes.",
+          "counterfactual_context_sha256": "20c6c6e3b037cb979434c4858c13bce75b7ab88a5083df52e66929c5a0684b3f",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -74939,40 +75310,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Statecraft: Strategies for a Changing World",
-        "claim_value_sha256": "1d969b1f70bd745dc98482baac9d5665d2f66e2fd67fb9ce013dec8cd5bd6649",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Statecraft: Strategies for a Changing World.",
-          "counterfactual_context_sha256": "d7612a58ce544a073e7cee08ec93263453eef914082a94c523ffb3455ba6341c",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Statecraft: Strategies for a Changing World",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "quote_text_sha256": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -78445,40 +78782,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c:date:packet_claim_not_publicly_supported",
-        "claim_value": "2002",
-        "claim_value_sha256": "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 2002, but does not establish its occasion.",
-          "counterfactual_context_sha256": "dc72807b39f492a1a22472fec8dc83a2ea2ff4b3a800417b58f4f54ed2315fd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "2002",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
-        "quote_text_sha256": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Written after her premiership, Thatcher's book Statecraft reflects on global politics, the Cold War, and conservative philosophy. She consistently argued against socialism and state-enforced egalitarianism.",
         "claim_value_sha256": "f679fdd28a2c9ddce39d94b8f9f8aa60cb578e8c1dd854afe8de77c7bd6058b5",
@@ -78487,15 +78790,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The role of government and the dangers of pursuing egalitarian outcomes.",
-          "counterfactual_context_sha256": "7b3b30a806ad9fb931b343aa66e2bdf2b772f1f65f665dfe6e07da062def5b00",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The role of government and the dangers of pursuing egalitarian outcomes.",
+          "counterfactual_context_sha256": "7b86610699cd797d5e54a23cf1f3f57275e792279a8b714b53e8db0547221c0e",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -78509,40 +78815,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Publication of Statecraft: Strategies for a Changing World",
-        "claim_value_sha256": "b7873baf76ff37604d0f08c325ed0429ffb17b44a6a90190b6e9626461052d2a",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World.",
-          "counterfactual_context_sha256": "ef618c089834cd468cf6be7b3d865c0458dd6c95ca7c243da328a6826739d68f",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Publication of Statecraft: Strategies for a Changing World",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
-        "quote_text_sha256": "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -79459,40 +79731,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7:date:packet_claim_not_publicly_supported",
-        "claim_value": "2002",
-        "claim_value_sha256": "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 2002, but does not establish its occasion.",
-          "counterfactual_context_sha256": "dc72807b39f492a1a22472fec8dc83a2ea2ff4b3a800417b58f4f54ed2315fd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "2002",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Thatcher published 'Statecraft' in 2002, reflecting on her political philosophy and the global geopolitical landscape after her premiership. She used the book to reiterate her core conservative economic principles regarding taxation and state intervention.",
         "claim_value_sha256": "b7f29b4282693247537e1da164d6f0f00a83d369aa1b2b559921040c199854bf",
@@ -79501,15 +79739,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The economic impact of government taxation and public spending.",
-          "counterfactual_context_sha256": "4a4ba4529c729e5ed7d3b11f2a8ff2d720aa6ca90c3eb40172031accf1b82a02",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The economic impact of government taxation and public spending.",
+          "counterfactual_context_sha256": "15a68afb803cee5ee6e6df2113d8d18e66e19997e4dbab2f533e04096f15e60a",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -79523,40 +79764,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Statecraft: Strategies for a Changing World (Book)",
-        "claim_value_sha256": "589348479ddeced5968f91a758fdff46c3e0cf2e0a1a3e8347c6188c93bd2883",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Statecraft: Strategies for a Changing World (Book).",
-          "counterfactual_context_sha256": "37500fef4cd578893c23e111a292fba6628e1df5b5a055a51fa44c3f62272350",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Statecraft: Strategies for a Changing World (Book)",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "quote_text_sha256": "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -90223,40 +90430,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173:date:packet_claim_not_publicly_supported",
-        "claim_value": "2002",
-        "claim_value_sha256": "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 2002, but does not establish its occasion.",
-          "counterfactual_context_sha256": "dc72807b39f492a1a22472fec8dc83a2ea2ff4b3a800417b58f4f54ed2315fd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "2002",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
-        "quote_text_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Following her premiership, Thatcher wrote 'Statecraft' to outline her views on international relations, the Cold War's end, and the future of global politics. She was highly critical of artificial political constructs, particularly the European Union, and emphasized that democratic institutions require deep cultural roots.",
         "claim_value_sha256": "425e0396b9761a7090ef2d593c98d28f0e168cbf7c759f5a8ec8557db762d55e",
@@ -90265,15 +90438,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The nature and viability of constitutions and democratic governance.",
-          "counterfactual_context_sha256": "bd01124402bf026b6370724be594a4c41aaa40d8f2b63533f2d558c32f792bfc",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The nature and viability of constitutions and democratic governance.",
+          "counterfactual_context_sha256": "9b0722479a5ae35e76d66718e48b625f90338f12f8e8b9485ca75ace57ea11d5",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -90287,40 +90463,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Publication of 'Statecraft: Strategies for a Changing World'",
-        "claim_value_sha256": "6bdb714babe6496e50abebc75dd81b28505356356da44f1cfb166f053eceec4d",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Publication of 'Statecraft: Strategies for a Changing World'.",
-          "counterfactual_context_sha256": "8607b3a1eedfd98142747ed52b7c2aebdc3baa3dc6440a6f1745c06451c306b3",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Publication of 'Statecraft: Strategies for a Changing World'",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
-        "quote_text_sha256": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -95318,40 +95460,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d:date:packet_claim_not_publicly_supported",
-        "claim_value": "2002",
-        "claim_value_sha256": "6c94e35ccc352d4e9ef0b99562cff995a5741ce8de8ad11b568892934daee366",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 2002, but does not establish its occasion.",
-          "counterfactual_context_sha256": "dc72807b39f492a1a22472fec8dc83a2ea2ff4b3a800417b58f4f54ed2315fd1",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "2002",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
-        "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Published in 2002, Thatcher's book 'Statecraft' reflected her deep Euroscepticism and opposition to the expanding political integration of the European Union following the Maastricht Treaty.",
         "claim_value_sha256": "a8c9ff70649f5496d6258ab38a863710144824ab093ab201d346c7d9390c6297",
@@ -95360,15 +95468,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The historical precedents and potential dangers of European political integration.",
-          "counterfactual_context_sha256": "7525ab414ec410c81a250c23238edd42ab9b9b1509d0d3fa5075aaadcbf0d319",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World, 2002: The historical precedents and potential dangers of European political integration.",
+          "counterfactual_context_sha256": "d006c9d468585f6b2db2cb522790413539004e93d19869f8245503068ea9959d",
+          "current_context": "Publication of Statecraft: Strategies for a Changing World, 2002.",
+          "current_context_sha256": "0d2d996ffa86852f901c516da5476eb0d9738ed268a869bcdfec0174a51d0a3e",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -95382,40 +95493,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Publication of Statecraft: Strategies for a Changing World",
-        "claim_value_sha256": "b7873baf76ff37604d0f08c325ed0429ffb17b44a6a90190b6e9626461052d2a",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Publication of Statecraft: Strategies for a Changing World.",
-          "counterfactual_context_sha256": "ef618c089834cd468cf6be7b3d865c0458dd6c95ca7c243da328a6826739d68f",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Publication of Statecraft: Strategies for a Changing World",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
-        "quote_text_sha256": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -98365,14 +98442,14 @@
   "schema_version": 2,
   "unsupported_claim_counts": {
     "by_attribution_eligibility": {
-      "eligible": 1483,
+      "eligible": 1474,
       "ineligible": 35
     },
     "by_attribution_eligibility_and_public_reachability": {
       "eligible": {
         "currently_rendered_exact_occurrence": 112,
-        "formatter_reachable_but_suppressed": 746,
-        "internal_only_or_unreachable": 625
+        "formatter_reachable_but_suppressed": 736,
+        "internal_only_or_unreachable": 626
       },
       "ineligible": {
         "currently_rendered_exact_occurrence": 0,
@@ -98382,7 +98459,7 @@
     },
     "by_context_slot_reachability": {
       "currently_rendered_exact_occurrence": 112,
-      "formatter_slot_reachable_but_not_currently_exposed": 1371,
+      "formatter_slot_reachable_but_not_currently_exposed": 1362,
       "formatter_slot_unreachable": 0,
       "production_ineligible": 35
     },
@@ -98406,18 +98483,18 @@
     },
     "by_evidence_state": {
       "internal_source_claim_only": 0,
-      "no_audited_source_claim": 1518,
+      "no_audited_source_claim": 1509,
       "renderable_source_claim_not_admitted": 0
     },
     "by_exclusive_unreachable_reason": {
       "attribution_ineligible": 35,
       "direct_claim_value_not_selected": 17,
-      "shadowed_by_immediate_subject": 608
+      "shadowed_by_immediate_subject": 609
     },
     "by_field": {
-      "date": 415,
-      "historical_context": 624,
-      "source_event": 479
+      "date": 410,
+      "historical_context": 625,
+      "source_event": 474
     },
     "by_field_and_current_public_surface": {
       "date": {
@@ -98442,48 +98519,48 @@
     "by_field_and_evidence_state": {
       "date": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 415,
+        "no_audited_source_claim": 410,
         "renderable_source_claim_not_admitted": 0
       },
       "historical_context": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 624,
+        "no_audited_source_claim": 625,
         "renderable_source_claim_not_admitted": 0
       },
       "source_event": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 479,
+        "no_audited_source_claim": 474,
         "renderable_source_claim_not_admitted": 0
       }
     },
     "by_field_and_public_reachability": {
       "date": {
         "currently_rendered_exact_occurrence": 1,
-        "formatter_reachable_but_suppressed": 405,
+        "formatter_reachable_but_suppressed": 400,
         "internal_only_or_unreachable": 9
       },
       "historical_context": {
         "currently_rendered_exact_occurrence": 0,
         "formatter_reachable_but_suppressed": 1,
-        "internal_only_or_unreachable": 623
+        "internal_only_or_unreachable": 624
       },
       "source_event": {
         "currently_rendered_exact_occurrence": 111,
-        "formatter_reachable_but_suppressed": 340,
+        "formatter_reachable_but_suppressed": 335,
         "internal_only_or_unreachable": 28
       }
     },
     "by_finding_kind": {
-      "packet_claim_not_publicly_supported": 1518
+      "packet_claim_not_publicly_supported": 1509
     },
     "by_public_reachability": {
       "currently_rendered_exact_occurrence": 112,
-      "formatter_reachable_but_suppressed": 746,
-      "internal_only_or_unreachable": 660
+      "formatter_reachable_but_suppressed": 736,
+      "internal_only_or_unreachable": 661
     },
     "current_public_exposure_instance_count": 112,
     "intended_argument_or_meaning_claims_in_this_1539_count": 0,
-    "total": 1518
+    "total": 1509
   },
   "unsupported_claim_decomposition_definitions": {
     "bibliographic_exact_occurrence": "A public source-title occurrence is an editorial exposure risk, not proof that an audited source supports the packet claim.",

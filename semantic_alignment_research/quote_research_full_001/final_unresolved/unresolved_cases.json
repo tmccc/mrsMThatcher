@@ -1,702 +1,6 @@
 {
-  "case_count": 6,
+  "case_count": 5,
   "cases": [
-    {
-      "attempt_count": 6,
-      "attempt_history": [
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 28.24378239409998,
-          "failure": {
-            "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_extracted.json",
-            "kind": "validation_failure",
-            "message": "at least one grounded source is required",
-            "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1.json"
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 1,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.026183400000000003,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "response_received",
-            "validation_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF5WuPN7EbWlY43VBnUb5byKIXinggNVXBiBjG7VQpEiUtwjmzfqAIWkBPIchfVMh90ODPstqtng8J9RBla04VLFzi3BnrbSrYNgXS2ePfpaVd89ckDnpol5Wv6hQp8_D3YyA=="
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "48b2fc8c8d5b08abd175ab156016c3f2ef64db8e4b90d5c37e7e8cb59cc7a16c",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 177
-                  }
-                ],
-                "cachedContentTokenCount": 177,
-                "candidatesTokenCount": 964,
-                "promptTokenCount": 753,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 753
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1119,
-                "totalTokenCount": 2836
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "e5fad5bfda96ac8a92edb4fc41b478c1f64163c24ee767584384698a63b5e1db",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-13T18:17:53.244736Z",
-          "response_status": "validation_failure",
-          "run": ".",
-          "terminal_timestamp": "2026-07-13T18:17:53.244736Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 1,
-          "usage": {
-            "cached_tokens": 177,
-            "input_tokens": 753,
-            "output_tokens": 2083,
-            "reasoning_tokens": 1119
-          }
-        },
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 18.92161357612349,
-          "failure": {
-            "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-            "kind": "validation_failure",
-            "message": "at least one grounded source is required",
-            "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json"
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 1,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.026844,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "response_received",
-            "validation_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGOvCSOKbCFUZJwzd-z51JBAM66Z0LSv8VABEdlZVk9AiGwij8KnDZvxX_h7y97qrMGUfCNwFQ0fJ0Ld9A4KiHdvmAnTudcjAsme8j9iHpsJPvd4bK2wtZgjlPUoLhkwSN-6xAiI07OqH430kJeoUwaW5c_-BCUqSVBfI0zgABeDAQGXg=="
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "bd98e7643d401f8274d7c4caf44a07538a558f70252c815d7382923b64f51a7c",
-              "usage": {
-                "candidatesTokenCount": 998,
-                "promptTokenCount": 1404,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1404
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1005,
-                "totalTokenCount": 3407
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "664b31dba254b46a286f2f9b9f6432294ec8286fff715b868900439884580018",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-13T18:18:21.636891Z",
-          "response_status": "validation_failure",
-          "run": ".",
-          "terminal_timestamp": "2026-07-13T18:18:21.636891Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 2,
-          "usage": {
-            "cached_tokens": 0,
-            "input_tokens": 1404,
-            "output_tokens": 2003,
-            "reasoning_tokens": 1005
-          }
-        },
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 0.15582286403514445,
-          "failure": {
-            "elapsed_seconds": 0.15582286403514445,
-            "http_status": 429,
-            "kind": "quota_429",
-            "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_requests_per_model_per_day, limit: 250, model: gemini-3.1-pro\nPlease retry in 17h27m18.002106018s.",
-            "provider_code": 429,
-            "provider_status": "RESOURCE_EXHAUSTED",
-            "raw_error_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_http_error.json",
-            "timeout_type": null
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 0,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.0,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "transient_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_http_error.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "db30bddce5263fd79dabceed6c63c509702ff81ac5961cf6a3909d34d1100f02",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-14T06:32:41.861056Z",
-          "response_status": "transient_failure",
-          "run": "retry_batches/retry_batch_030_002_run",
-          "terminal_timestamp": "2026-07-14T06:32:41.861056Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 1,
-          "usage": {
-            "cached_tokens": null,
-            "input_tokens": null,
-            "output_tokens": null,
-            "reasoning_tokens": null
-          }
-        },
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 23.85170649900101,
-          "failure": {
-            "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-            "kind": "missing_grounding",
-            "message": "provider returned no linked grounding chunks/supports",
-            "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json"
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 2,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.0166768,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "response_received",
-            "validation_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://alexanderadamsart.substack.com/p/britannia-do-you-miss-her-yet",
-                "https://www.newsmax.com/deroymurdock/liberal-word-games/2013/07/26/id/517228/"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "593a4c5880b177dcae66e655500385f03d3a6d9802cb677434fd7679e5334a10",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 244
-                  }
-                ],
-                "cachedContentTokenCount": 244,
-                "candidatesTokenCount": 808,
-                "promptTokenCount": 746,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 746
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 494,
-                "totalTokenCount": 2048
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "124e6d093405764c582546a8ad1037196b839161c505d1fed7401602321052bd",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-14T06:32:44.030443Z",
-          "response_status": "validation_failure",
-          "run": "retry_batches/retry_batch_030_002_run",
-          "terminal_timestamp": "2026-07-14T06:32:44.030443Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 2,
-          "usage": {
-            "cached_tokens": 244,
-            "input_tokens": 746,
-            "output_tokens": 1302,
-            "reasoning_tokens": 494
-          }
-        },
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 47.53502759290859,
-          "failure": {
-            "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_extracted.json",
-            "kind": "missing_grounding",
-            "message": "provider returned no linked grounding chunks/supports",
-            "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1.json"
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 2,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.01807,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "response_received",
-            "validation_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://alexanderadamsart.substack.com/p/britannia-do-you-miss-her-yet",
-                "https://www.newsmax.com/deroymurdock/liberal-word-games/2013/07/26/id/517226/"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "a908f26dd445f3dcf3bf8c5476a13b2fa0ca98fe01291403430fc8767fa960ef",
-              "usage": {
-                "candidatesTokenCount": 863,
-                "promptTokenCount": 743,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 743
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 519,
-                "totalTokenCount": 2125
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "7b9670e80854ff7a4ab491f2cf388771c4ff52cdbdc0b75af63facee2df1e4af",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-14T07:10:42.259174Z",
-          "response_status": "validation_failure",
-          "run": "retry_batches/retry_batch_030_002_recovery_19_run",
-          "terminal_timestamp": "2026-07-14T07:10:42.259174Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 1,
-          "usage": {
-            "cached_tokens": 0,
-            "input_tokens": 743,
-            "output_tokens": 1382,
-            "reasoning_tokens": 519
-          }
-        },
-        {
-          "attempt_epoch": 0,
-          "elapsed_seconds": 67.52065476914868,
-          "failure": {
-            "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-            "kind": "missing_grounding",
-            "message": "provider returned no linked grounding chunks/supports",
-            "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json"
-          },
-          "grounding_summary": {
-            "generated_search_query_count": 0,
-            "grounding_chunks": 0,
-            "grounding_supports": 0,
-            "model_written_url_count": 2,
-            "search_entry_html_present": false
-          },
-          "known_cost_usd": 0.020583599999999997,
-          "lifecycle_states": [
-            "prepared",
-            "sending",
-            "response_received",
-            "validation_failure"
-          ],
-          "model": "gemini-3.1-pro-preview",
-          "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://alexanderadamsart.substack.com/p/britannia-do-you-miss-her-yet",
-                "https://www.newsmax.com/deroymurdock/liberal-word-games/2013/07/26/id/517227/"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "77b62c2fac37f22a59fc15295c7545b63c7da9a395f6bbaa57df5462f5acb56e",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 148
-                  }
-                ],
-                "cachedContentTokenCount": 148,
-                "candidatesTokenCount": 743,
-                "promptTokenCount": 681,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 681
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 881,
-                "totalTokenCount": 2305
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "c988a466e1d61b26220cb4611d459a97d6799c9eadb90e74b29988d868991afe",
-              "usage": {}
-            }
-          ],
-          "request_timestamp": "2026-07-14T07:11:29.815402Z",
-          "response_status": "validation_failure",
-          "run": "retry_batches/retry_batch_030_002_recovery_19_run",
-          "terminal_timestamp": "2026-07-14T07:11:29.815402Z",
-          "transport": "developer_api",
-          "transport_attempt_number": 2,
-          "usage": {
-            "cached_tokens": 148,
-            "input_tokens": 681,
-            "output_tokens": 1624,
-            "reasoning_tokens": 881
-          }
-        }
-      ],
-      "exact_terminal_failure_reason": {
-        "extracted_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2_extracted.json",
-        "kind": "missing_grounding",
-        "message": "provider returned no linked grounding chunks/supports",
-        "raw_response_path": "raw_responses/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/developer_api_attempt_2.json"
-      },
-      "failure_evidence": {
-        "missing_grounding_attempts": 5,
-        "transport_or_capacity_attempts": 1
-      },
-      "historical_conclusion_from_technical_failure": false,
-      "historical_triage": {
-        "likely_source_event_type": "political speech, essay, or book passage",
-        "manual_difficulty": "moderate",
-        "possible_variants": [
-          "socialists spend much of their time seeking new names for their beliefs",
-          "old doctrines become outdated and discredited"
-        ],
-        "provisional_status": "presently indeterminate",
-        "repositories": [
-          "Margaret Thatcher Foundation speech and document archive",
-          "Thatcher books and collected writings",
-          "Conservative Party archive"
-        ],
-        "search_phrases": [
-          "\"Socialists have always spent much of their time\"",
-          "\"new titles for their beliefs\"",
-          "\"outdated and discredited\" socialism"
-        ],
-        "sufficient_evidence": "A dated primary transcript, publication scan, or archival catalogue entry containing the wording in context."
-      },
-      "implementation_defect": false,
-      "manifest_input_hash": "b4477fd761db24823c4f1e54db258eba7bc7e042a3106b39cbfff72c6f8bd798",
-      "manifest_occurrence_metadata": [
-        {
-          "line_number": 98
-        }
-      ],
-      "manifest_quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
-      "primary_failure_classification": "provider omitted grounding metadata",
-      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
-      "related_quote_family_ids": [],
-      "retry_runs": [
-        ".",
-        "retry_batches/retry_batch_030_002_run",
-        "retry_batches/retry_batch_030_002_recovery_19_run"
-      ]
-    },
     {
       "attempt_count": 6,
       "attempt_history": [
@@ -795,7 +99,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.021856,
@@ -807,79 +111,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQGSNIYZxW-JGcQERPhkx05yZ8fcJnjklaIB1tAOWhWI1Xk67G3aeii9WISmDIGvRZycIACBkEe6HYj9SVe4gu69Sr-2M3v8j1EEjM-L"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_005_run/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "0052b5cec203bf7e8625ff13e32373e6ccc7598a2bc1a62a4cdf8537f6ae163c",
-              "usage": {
-                "candidatesTokenCount": 766,
-                "promptTokenCount": 734,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 734
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 933,
-                "totalTokenCount": 2433
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_005_run/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "ff72006849867c0891b4efe15968b68485912aaa70b8cc475f4712d2645fcec4",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:10:15.221600Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_005_run",
@@ -918,85 +150,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_005_run/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "42541261f3ae817aa7b044adb208800f61b68b68f348ee16254697437ac6cbbe",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 3672
-                  }
-                ],
-                "cachedContentTokenCount": 3672,
-                "candidatesTokenCount": 674,
-                "promptTokenCount": 8392,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 8392
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 8606,
-                "totalTokenCount": 17672
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_005_run/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "4beef79584ee0b13ae8c2676f019c401603c1e88f767d63afddb06ee0d5c2871",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:10:49.440264Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_005_run",
@@ -1035,85 +189,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "aa7a5e1b170d42d85e5daa1c758b066708e02c20da6be44778794c877f8deee8",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 2303
-                  }
-                ],
-                "cachedContentTokenCount": 2303,
-                "candidatesTokenCount": 474,
-                "promptTokenCount": 5751,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 5751
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 5758,
-                "totalTokenCount": 11983
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "7da450ea0e8850141c1b3860415b89f9d1c0aee0a01ec133cbb77eb3798acfd1",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:41:40.901505Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -1152,85 +228,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "6635780d85c7de80dcff7e92a2e2c010458cf55164d54e4e9d0d4033faffe19b",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1298
-                  }
-                ],
-                "cachedContentTokenCount": 1298,
-                "candidatesTokenCount": 375,
-                "promptTokenCount": 3420,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 3420
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 3104,
-                "totalTokenCount": 6899
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/268ab7ec8f0d8688966d1008443f3cc3ed7a34293981c40f3b83ea5225f1dba1/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "ba9dc8bf51101fbbca21a81352651875ca789a694f5dbc51ae7ad73a3e75e957",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:42:37.064389Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -1306,11 +304,11 @@
             "raw_response_path": "raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_1.json"
           },
           "grounding_summary": {
-            "generated_search_query_count": 9,
+            "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
-            "search_entry_html_present": true
+            "model_written_url_count": 0,
+            "search_entry_html_present": false
           },
           "known_cost_usd": 0.170742,
           "lifecycle_states": [
@@ -1321,87 +319,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 9,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://www.margaretthatcher.org/"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_1.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": true,
-              "sha256": "bdbc26e883e43fba9e821430343736037ece59183d1f46f614d7a086d97ad559",
-              "usage": {
-                "candidates_token_count": 807,
-                "candidates_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 807
-                  }
-                ],
-                "prompt_token_count": 7215,
-                "prompt_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 7215
-                  }
-                ],
-                "thoughts_token_count": 1719,
-                "total_token_count": 9741,
-                "traffic_type": "ON_DEMAND"
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "c1533883f266c34a3bcff522bf447cd683279b10357d5a3bcd19b841d587c069",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-13T23:12:46.707691Z",
           "response_status": "validation_failure",
           "run": ".",
@@ -1425,11 +343,11 @@
             "raw_response_path": "raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_2.json"
           },
           "grounding_summary": {
-            "generated_search_query_count": 2,
+            "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
-            "search_entry_html_present": true
+            "model_written_url_count": 0,
+            "search_entry_html_present": false
           },
           "known_cost_usd": 0.048338,
           "lifecycle_states": [
@@ -1440,87 +358,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 2,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://www.margaretthatcher.org/document/103627"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_2.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": true,
-              "sha256": "32b9adbef2f350771e6eb3ddef3f5bf14befe64fe4fea2d6897694120903b1ef",
-              "usage": {
-                "candidates_token_count": 830,
-                "candidates_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 830
-                  }
-                ],
-                "prompt_token_count": 2657,
-                "prompt_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 2657
-                  }
-                ],
-                "thoughts_token_count": 422,
-                "total_token_count": 3909,
-                "traffic_type": "ON_DEMAND"
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/vertex_ai_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "892b0b048d94dfc49062bec9b528e6fe0986f6c24dfe45d5b9652cc15d686291",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-13T23:16:03.228726Z",
           "response_status": "validation_failure",
           "run": ".",
@@ -1547,7 +385,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.024735,
@@ -1559,86 +397,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEfxqM2Hk59YzlPpLBcImhgG7qvRevSpEF49BjI6MqtVerm89HbIBXSj0TOqLhw2pr2F3m32cASAlArnAF4lmPvh6pZTCx4nz26at8khzr-FBv_hK25H0gp9ua0uAagk0_9G6K2_4BVhxQSp-hVQU-m5rcK3S6L4q9-vwiAFP7Cpy4T3KxbjClJq0Pb"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_003_run/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "e938b172a81ab7abf285b43a4798c5f36daf60a749bf8df4fd85dd80db50f2f2",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 385
-                  }
-                ],
-                "cachedContentTokenCount": 385,
-                "candidatesTokenCount": 790,
-                "promptTokenCount": 792,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 792
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1197,
-                "totalTokenCount": 2779
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_003_run/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "790865e0c296cb599805f78c06932187ec48a0a76d125a042396f4d38dd893eb",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T07:50:15.460153Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_003_run",
@@ -1665,7 +424,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 2,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.032158,
@@ -1677,87 +436,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEMiiCT4W6bV5520L38tXTQGojvmWV6Kk808q1b9eqe9b6KATIadMtPFI1aXltB_gVPk2zXczq2ra-DoyM6b4RBPqHZAOYpH-Pg1ta00gBaW4hXkvkdMSBzgeb0WNjz4GTzQm5iEB2CKD_KJ2pDHu4NDvxN8iPDhvC0XbrsZXeJxpI3yXO0jPgvbA==",
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQF555npt7_Fw6r0UcpZbwXYXcWhGbEwcqLq1tuqtZhqEqF_iXtjAsbJCLzeNlQVnEVH4YJ29ltz_YI_IokGVgM3y11ElYjpK7kzKeVf8T-8QZOJOj7sRr7vODRxMAtlJ2tgQzGEgM_AzwIDVh-6ujcdLxvL4EFMVg=="
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_003_run/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "1110d1fd54854d7a3bd353f40d4055bdd970297b9ba51eb4b3dd03bf1c53a7e2",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 860
-                  }
-                ],
-                "cachedContentTokenCount": 860,
-                "candidatesTokenCount": 1171,
-                "promptTokenCount": 1481,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1481
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1391,
-                "totalTokenCount": 4043
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_003_run/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "25ed33df730b49bce6468e3e5473dd5e17461f92cca96ca39ed5d7cddd43f673",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T07:50:53.065377Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_003_run",
@@ -1784,7 +463,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.0330836,
@@ -1796,86 +475,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHp_b_3Prf3nbpyHNH67wMvXzFSkW3NAFZTTUVzU7JP9NQQEH5E0aVwBQM57tTN2ecQEVm2MWrclgUCHcfUpfO9vqfOacBG1JXYhX0TDD4Zah6RDxQ3WAg1K1v_C8ThNWQEOgrl9s-WYejsZw_hmvs6jwKoTjnnk-NVwkNhyQE8fIuPoLQ9"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "32aa22d1a2c1f8316a960f2463c8b5bbce897f09ca1bc6ce65914be9a0512abf",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 518
-                  }
-                ],
-                "cachedContentTokenCount": 518,
-                "candidatesTokenCount": 876,
-                "promptTokenCount": 1228,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1228
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1754,
-                "totalTokenCount": 3858
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "3c05f9547ce984ee05d99fc9b6cdf0613743a70f4c62b754aa48a1e48c4b23db",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:44:13.812360Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -1902,7 +502,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.020852,
@@ -1914,86 +514,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://www.margaretthatcher.org/"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "b18218a237e0fa8ecc987b3278b495e9d1777a934ae427968e73de7484aef328",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 100
-                  }
-                ],
-                "cachedContentTokenCount": 100,
-                "candidatesTokenCount": 781,
-                "promptTokenCount": 742,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 742
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 848,
-                "totalTokenCount": 2371
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/6037112de070bb4455915a61e36ef2d173eaa51316372c5fd52f64016226dfd0/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "569447ebd31c76d9552ff0225e8fc07717fb73857f244d0c856922983cbd1097",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T09:45:08.336484Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -2168,62 +689,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_004_run/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_1.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "ccb2c3e758ccbbbf9c378f9575440ba2028b44390a93c25e31c19ca10cdac740",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 9524
-                  }
-                ],
-                "cachedContentTokenCount": 9524,
-                "promptTokenCount": 15978,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 15978
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 17978,
-                "totalTokenCount": 33956
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_004_run/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "7d020bb74a48c963b823a243042f591e896eee3dd4a94d756f87ec2e91be4eb0",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T08:35:39.223550Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_004_run",
@@ -2250,7 +716,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.0382474,
@@ -2262,86 +728,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFlPIuk55JUJstEclNrE5J7spQvlWLXCUuycVYRHaRYkxwHzSJdtO7qZxJAn1wqTzQqUY_ds1AAuSmI4hYDqNBTnsBp-0u2mbOZbKWCmEapDu_TEfpjdKZIzmXx0v50ZQd_pVsWMWu4w5MTfIJ1eugVIRHG-lcSVCB5L9Y_5g=="
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_004_run/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "e7a294a99039f7cf55d73e5e7e1aa444e48759db9f2093c3212baaae3500d0c9",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1207
-                  }
-                ],
-                "cachedContentTokenCount": 1207,
-                "candidatesTokenCount": 722,
-                "promptTokenCount": 2042,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 2042
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 2306,
-                "totalTokenCount": 5070
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_004_run/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "dfa24008872ca20293ce2127b8d6239ea829460e5c6a77884cfc07c2c64046f8",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T08:38:41.213608Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_004_run",
@@ -2380,85 +767,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "8b4ee2837a1c6a1e12b31571bfd3f1ccc7391d93aea3915d7121ab4e7214ca18",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1484
-                  }
-                ],
-                "cachedContentTokenCount": 1484,
-                "candidatesTokenCount": 509,
-                "promptTokenCount": 3920,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 3920
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 3595,
-                "totalTokenCount": 8024
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "f759b03f3684a6bf33e87da0de05309a888e6d866a4539f0842bf48cc8a0e077",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T10:00:59.071637Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -2497,85 +806,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "cc5340e0467321b90ea1afe3e436c9c8659fcb664b7c975176d499dad05ec336",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 588
-                  }
-                ],
-                "cachedContentTokenCount": 588,
-                "candidatesTokenCount": 560,
-                "promptTokenCount": 3806,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 3806
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 3421,
-                "totalTokenCount": 7787
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/61fad2fe1381709d144b506708f1eba04502f4c0c0cfe82905530861e4d976c2/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "69731f27f5e369c3750bcdc2ec7516c62c483973cbef193a8856c9632ee16275",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T10:02:11.001604Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -2654,7 +885,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.0283526,
@@ -2666,88 +897,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQFVNDZpdOtG2vMkJcpWC2UxWwqntB-oct1vVZVNsuiL-rL2QP-uyOt_3Ae5dCfMIOrQLbupq9QKmhjCUESDVOFok--OWPRuy87hyu0U2Tep7KMxmS52A1uaadtY"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_1.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "325aed09d36cf4a601ffff6afdbb478fa025f89017e706c6d284536a0be0816d",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 243
-                  }
-                ],
-                "cachedContentTokenCount": 243,
-                "candidatesTokenCount": 865,
-                "promptTokenCount": 703,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 703
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 1417,
-                "totalTokenCount": 2985
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "929284e4b562e4f84fe0e385b3a5eed1b408a593a34fc7d3195b078bbc2106b0",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-13T18:15:07.983284Z",
           "response_status": "validation_failure",
           "run": ".",
@@ -2774,7 +924,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 1,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.015574,
@@ -2786,81 +936,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://quotefancy.com/quote/1532007/Margaret-Thatcher-You-don-t-tell-deliberate-lies-but-sometimes-you-have-to-be-evasive"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_2.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "00579d7c8f03454739cff2c863b29b70abf8345090b3c10ea4a118862f1291a6",
-              "usage": {
-                "candidatesTokenCount": 820,
-                "promptTokenCount": 1283,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1283
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 264,
-                "totalTokenCount": 2367
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "f2edf77fa1be1085fda4829cf2b093e131359fcccc9f870ba52ff36ef3c420ef",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-13T18:15:36.210351Z",
           "response_status": "validation_failure",
           "run": ".",
@@ -2969,7 +1045,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 2,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.019658,
@@ -2981,80 +1057,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEdvkJGVIPqK-jh2hO1lpeA9bP4Uu9OiSQffNkvquJ4d1TwxltwtSzkSlIbutWVF1qF9kFELHpGAYgyTVY_qNghfb9JGSBgXikHRpkwHVJwqAG3LpT84qYBo3-_KUy7o6HM6y3f1uAJ-xDKH2uBUUiF",
-                "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHs_Z9c5CFO9Nkm7FMLapYLQoT892vznq5vRgtiT2qdxdtiAhLLIbw5RP5Gvq3RjIDn9QVbVgZTPu8FIupYmIqScLFnJpY-N396HcsqzQTS3caySdyPC8ogNxw="
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "f13966f1c707d428817c5d0fa33992efd993d29c2de50088e015c5ace3deb115",
-              "usage": {
-                "candidatesTokenCount": 1038,
-                "promptTokenCount": 697,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 697
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 484,
-                "totalTokenCount": 2219
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "0e0e5ea042e1cf28fad07dbf881b752672cf6105c139fad08886e24e1ae681cf",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T07:13:37.355228Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_002_recovery_19_run",
@@ -3096,26 +1099,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_002_recovery_19_run/raw_responses/a88a0bd1754a0ca7d63a1f41a324b80c722f48facd5b138f4e0cbe7c175edd32/developer_api_attempt_2_http_error.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "01f5c7d4e4d8ec06c8098777e731b3d552ba518feb02b681f6c569edcd9c6f6d",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T07:14:02.647127Z",
           "response_status": "transient_failure",
           "run": "retry_batches/retry_batch_030_002_recovery_19_run",
@@ -3195,11 +1179,11 @@
             "raw_response_path": "raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1.json"
           },
           "grounding_summary": {
-            "generated_search_query_count": 19,
+            "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
             "model_written_url_count": 0,
-            "search_entry_html_present": true
+            "search_entry_html_present": false
           },
           "known_cost_usd": 0.329172,
           "lifecycle_states": [
@@ -3210,86 +1194,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 19,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "quote_id",
-                "quote_text",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1.json",
-              "quote_identity_result": "exact manifest identity",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": true,
-              "sha256": "c821be22baabc4531af86c90cd27389ec2bf0373eebc52f79ddcfb1fc90af77b",
-              "usage": {
-                "candidates_token_count": 743,
-                "candidates_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 743
-                  }
-                ],
-                "prompt_token_count": 11306,
-                "prompt_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 11306
-                  }
-                ],
-                "thoughts_token_count": 2637,
-                "total_token_count": 14686,
-                "traffic_type": "ON_DEMAND"
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "e655b612ad8e00378581fea34cd82785dfd92962671e74e1cd041ec42b46591f",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-13T23:28:43.294411Z",
           "response_status": "validation_failure",
           "run": ".",
@@ -3354,11 +1259,11 @@
             "raw_response_path": "raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1.json"
           },
           "grounding_summary": {
-            "generated_search_query_count": 20,
+            "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
             "model_written_url_count": 0,
-            "search_entry_html_present": true
+            "search_entry_html_present": false
           },
           "known_cost_usd": 0.36492600000000003,
           "lifecycle_states": [
@@ -3369,84 +1274,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 20,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_001_run/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": true,
-              "sha256": "faec12e151541536b9278ffcb17e58b1e53e337b8279ee2b7ffeb62242e27141",
-              "usage": {
-                "candidates_token_count": 671,
-                "candidates_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 671
-                  }
-                ],
-                "prompt_token_count": 19135,
-                "prompt_tokens_details": [
-                  {
-                    "modality": "TEXT",
-                    "token_count": 19135
-                  }
-                ],
-                "thoughts_token_count": 3217,
-                "total_token_count": 23023,
-                "traffic_type": "ON_DEMAND"
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_batch_030_001_run/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/vertex_ai_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "126416930e6747a976d5770369c5de96add69d500528a66422a714ab3a6b70f2",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T04:33:39.607185Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_batch_030_001_run",
@@ -3505,7 +1333,7 @@
             "generated_search_query_count": 0,
             "grounding_chunks": 0,
             "grounding_supports": 0,
-            "model_written_url_count": 3,
+            "model_written_url_count": 0,
             "search_entry_html_present": false
           },
           "known_cost_usd": 0.0481102,
@@ -3517,88 +1345,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [
-                "https://www.margaretthatcher.org/document/102621",
-                "https://www.margaretthatcher.org/document/104085",
-                "https://www.margaretthatcher.org/document/105688"
-              ],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/developer_api_attempt_1.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_result": "valid canonical packet schema",
-              "search_entry_html_present": false,
-              "sha256": "12c5d44c635b1f193ac68408d73857c21cad0a1181476508c153ad432121c6e1",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 1401
-                  }
-                ],
-                "cachedContentTokenCount": 1401,
-                "candidatesTokenCount": 950,
-                "promptTokenCount": 2228,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 2228
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 2898,
-                "totalTokenCount": 6076
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/developer_api_attempt_1_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "716a84e7356a61b50d44b0ea8a20b44c58a8d2951a71b4477198f636522efd31",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T10:07:26.640371Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -3637,85 +1384,7 @@
           ],
           "model": "gemini-3.1-pro-preview",
           "quote_id": "b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6",
-          "raw_responses": [
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": "gemini-3.1-pro-preview",
-              "model_written_urls": [],
-              "packet_parse_result": "parsed",
-              "parse_result": "raw_json_loaded",
-              "parsed_packet_fields": [
-                "broader_principle",
-                "claimed_consequence",
-                "date",
-                "editorial_guidance",
-                "entities",
-                "historical_context",
-                "immediate_subject",
-                "intended_argument",
-                "literal_meaning",
-                "mechanism",
-                "research_confidence",
-                "source_event",
-                "sources",
-                "speaker",
-                "stable_locator",
-                "text_variation_notes",
-                "unresolved_questions",
-                "verification_status",
-                "verified_text"
-              ],
-              "parser_repairs": [],
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/developer_api_attempt_2.json",
-              "quote_identity_result": "immutable_identity_not_model_editable; bound locally for validation",
-              "schema_validation_error": "at least one grounded source is required",
-              "schema_validation_result": "failed",
-              "search_entry_html_present": false,
-              "sha256": "d175c3004d5f1ca8d36ed4a76fafd5889411228d809088a14cceb3bff2738402",
-              "usage": {
-                "cacheTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 2489
-                  }
-                ],
-                "cachedContentTokenCount": 2489,
-                "candidatesTokenCount": 721,
-                "promptTokenCount": 4049,
-                "promptTokensDetails": [
-                  {
-                    "modality": "TEXT",
-                    "tokenCount": 4049
-                  }
-                ],
-                "serviceTier": "standard",
-                "thoughtsTokenCount": 3887,
-                "totalTokenCount": 8657
-              }
-            },
-            {
-              "generated_search_query_count": 0,
-              "grounding_chunk_count": 0,
-              "grounding_sources": [],
-              "grounding_support_count": 0,
-              "grounding_supports": [],
-              "model_version": null,
-              "model_written_urls": [],
-              "packet_parse_result": "failed",
-              "parse_result": "raw_json_loaded",
-              "parser_error": "no JSON object found",
-              "path": "/disks/disk1/etc/mrsMThatcher/semantic_alignment_research/quote_research_full_001/retry_batches/retry_validation_20/raw_responses/b7be9a9edba96d14bd408336b514b2504407a80ddad4435d2eb19f29c6b472b6/developer_api_attempt_2_extracted.json",
-              "quote_identity_result": "not assessable",
-              "schema_validation_result": "not attempted because parsing failed",
-              "search_entry_html_present": false,
-              "sha256": "eac1fd0a555fe3aa2b8cf494edd4041b389c749f89794beb881e5b16bb7375f8",
-              "usage": {}
-            }
-          ],
+          "raw_responses": [],
           "request_timestamp": "2026-07-14T10:08:38.318034Z",
           "response_status": "validation_failure",
           "run": "retry_batches/retry_validation_20",
@@ -3781,7 +1450,7 @@
       ]
     }
   ],
-  "generated_at": "2026-07-14T11:29:53.308138Z",
+  "generated_at": "2026-07-24T20:01:06Z",
   "record_kind": "final_unresolved_cases",
   "schema_version": 1
 }

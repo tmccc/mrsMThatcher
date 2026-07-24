@@ -435,11 +435,11 @@ def test_representative_public_outputs_are_evidence_accurate_without_diagnostics
 def test_complete_audit_preserves_all_quote_identities_and_eligibility(corpus, audit):
     packets, unresolved = corpus
     eligible = {q for q, packet in packets.items() if packet_is_attributed_to_margaret_thatcher(packet)}
-    assert len(packets) == 626
-    assert len(unresolved) == 6
-    assert len(eligible) == 610
-    assert audit["packet_count"] == 626
-    assert audit["attribution_eligible_quote_count"] == 610
+    assert len(packets) == 627
+    assert len(unresolved) == 5
+    assert len(eligible) == 611
+    assert audit["packet_count"] == 627
+    assert audit["attribution_eligible_quote_count"] == 611
     assert set(audit["items"]) == set(packets)
     assert all(audit["items"][q]["quote_text"] == packet["quote_text"]
                for q, packet in packets.items())
@@ -461,7 +461,7 @@ def test_audited_and_audit_free_corpora_have_identical_eligible_quotes(corpus):
 
     assert audited_unresolved == raw_unresolved
     assert audited_eligible == raw_eligible
-    assert len(audited_eligible) == 610
+    assert len(audited_eligible) == 611
     assert {
         quote_id: packet["quote_text"] for quote_id, packet in audited.items()
     } == {
@@ -555,7 +555,7 @@ def test_every_eligible_public_rendering_omits_detailed_confidence(corpus):
         packet for packet in packets.values()
         if packet_is_attributed_to_margaret_thatcher(packet)
     ]
-    assert len(eligible) == 610
+    assert len(eligible) == 611
     allowed_labels = {
         "Exact wording verified",
         "Historically verified variant",
@@ -779,7 +779,7 @@ def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corp
     packets, _ = corpus
     queue = residual_queue(audit)
     preflight = build_preflight(packets, audit, queue)
-    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 104
+    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 100
     assert len(set(queue)) == len(queue)
     assert queue[0] == THAMES_ID
     assert "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a" not in queue
@@ -1170,9 +1170,10 @@ def test_grounded_result_removes_tracking_parameters_before_source_identity(corp
 
 
 def test_later_hansard_quotation_is_secondary_not_primary(corpus):
-    packet = corpus[0][
+    packet = copy.deepcopy(corpus[0][
         "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
-    ]
+    ])
+    packet["verification_status"] = "exact"
 
     class LaterHansardResponse(_FakeResponse):
         url = (
@@ -1269,9 +1270,10 @@ def test_guarded_approximate_wording_rejects_material_semantic_changes(
 
 
 def test_approximate_source_cannot_verify_exact_packet_wording(corpus):
-    packet = corpus[0][
+    packet = copy.deepcopy(corpus[0][
         "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
-    ]
+    ])
+    packet["verification_status"] = "exact"
     variant = packet["verified_text"].replace("larger", "greater")
 
     verified, reason = verify_grounding_source(
