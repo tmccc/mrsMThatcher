@@ -223,6 +223,7 @@ HISTORICAL_CONTEXT_RESEARCH_DIR = BASE_DIR / "semantic_alignment_research" / "qu
 COMPLETED_QUOTE_RESEARCH_FILE = HISTORICAL_CONTEXT_RESEARCH_DIR / "research_packets.json"
 HISTORICAL_CONTEXT_REPLY_HISTORY_FILE = BASE_DIR / "historical_context_reply_history.json"
 HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE = BASE_DIR / "historical_context_reply_receipt.json"
+HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE = BASE_DIR / "historical_context_reply_outbox.json"
 historical_context_reply = {
     "enabled": False,
     "maximum_length": 4000,
@@ -621,6 +622,9 @@ class ReplyEvidenceUnavailable(RuntimeError):
 _PRODUCTION_BOOTSTRAPPED = False
 _QUOTE_IMAGE_SEMANTIC_VETO_SHADOW: object | None = None
 _HISTORICAL_CONTEXT_SEMANTIC_GATE: object | None = None
+_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT: tuple[dict, dict] | None = None
+_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON: str | None = None
+_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON: str | None = None
 _REPLY_EVIDENCE_REPOSITORY: object | None = None
 _REPLY_EVIDENCE_LOAD_ERROR: str | None = None
 
@@ -1058,6 +1062,8 @@ def production_bootstrap(
     configure_file_logging: bool = True,
 ) -> None:
     """Apply and validate deployment-local configuration exactly once."""
+    global _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT
+    global _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
     global _PRODUCTION_BOOTSTRAPPED, log
     if _PRODUCTION_BOOTSTRAPPED:
         return
@@ -1068,14 +1074,68 @@ def production_bootstrap(
     )
     if errors:
         raise LocalConfigError(f"Invalid runtime config after loading {LOCAL_CONFIG_FILE}: " + "; ".join(errors))
-    load_runtime_resources = not (SELF_TEST_REQUESTED or INITIALISE_REQUESTED)
-    if load_runtime_resources and historical_context_reply["enabled"]:
-        from historical_context_formatter import load_and_validate_corpus
-        historical_packets, _historical_unresolved = load_and_validate_corpus(
-            HISTORICAL_CONTEXT_RESEARCH_DIR,
-            require_source_role_audit=True,
+    load_runtime_resources = not (
+        SELF_TEST_REQUESTED or INITIALISE_REQUESTED or TEST_MODE
+    )
+    if load_runtime_resources:
+        load_completed_research_quote_hashes()
+        # History validation is read-only here because bootstrap precedes the
+        # single-process lock. Durable receipt/outbox reconciliation happens
+        # immediately after that lock is acquired.
+        from historical_context_formatter import HistoricalContextReplyStore
+
+        context_store = HistoricalContextReplyStore(
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
         )
-        initialise_historical_context_semantic_gate(historical_packets)
+        try:
+            context_store.history()
+        except Exception as exc:
+            if HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE.exists():
+                log.critical(
+                    "Historical-context history is incompatible while a durable "
+                    "context receipt exists; refusing production startup",
+                    exc_info=True,
+                )
+                raise
+            _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON = (
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    if (
+        load_runtime_resources
+        and historical_context_reply["enabled"]
+        and _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON is None
+    ):
+        try:
+            from historical_context_formatter import load_and_validate_corpus
+
+            historical_packets, historical_unresolved = load_and_validate_corpus(
+                HISTORICAL_CONTEXT_RESEARCH_DIR,
+                require_source_role_audit=True,
+            )
+            _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT = (
+                historical_packets,
+                historical_unresolved,
+            )
+            initialise_historical_context_semantic_gate(historical_packets)
+        except Exception as exc:
+            _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON = (
+                f"{type(exc).__name__}: {exc}"
+            )
+    if load_runtime_resources and _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON:
+        reason = _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
+        log.critical(
+            "Historical-context runtime disabled for this process; ordinary "
+            "posting remains available. reason=%s",
+            reason,
+        )
+        log_event(
+            "historical_context_runtime",
+            status="unavailable",
+            reason=reason,
+            regular_post_eligibility_unchanged=True,
+        )
     if load_runtime_resources:
         initialise_quote_image_semantic_veto_shadow()
     else:
@@ -1091,6 +1151,44 @@ def require_production_bootstrap() -> None:
         raise RuntimeError(
             "Production bootstrap has not completed; "
             "call production_bootstrap() before entering an operational command"
+        )
+
+
+def reconcile_runtime_historical_context_state() -> None:
+    """Validate and reconcile durable context state while holding the process lock."""
+    global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    context_store = HistoricalContextReplyStore(
+        HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    try:
+        context_store.reconcile_receipt()
+    except Exception:
+        log.critical(
+            "Historical-context durable receipt could not be reconciled; "
+            "refusing production startup to preserve the ambiguity barrier",
+            exc_info=True,
+        )
+        raise
+    try:
+        historical_context_outbox_store().snapshot()
+    except Exception as exc:
+        _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+            f"{type(exc).__name__}: {exc}"
+        )
+        log.critical(
+            "Historical-context outbox is invalid or unavailable; the quote "
+            "lane will fail its pre-post check while unrelated lanes continue",
+            exc_info=True,
+        )
+        log_event(
+            "historical_context_outbox",
+            status="unavailable",
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
+            unrelated_lanes_available=True,
         )
 
 
@@ -1123,7 +1221,20 @@ def initialise_installation() -> int:
     require_production_bootstrap()
     candidates = [INSTALLATION_MARKER_FILE, STATE_FILE, LINES_USED_FILE, IMAGES_USED_FILE]
     candidates.extend(STATE_FILE.with_name(f"{STATE_FILE.name}.bak{i}") for i in range(1, STATE_BACKUP_COUNT + 1))
-    candidates.extend((REGULAR_POST_RECEIPT_FILE, MEME_POST_RECEIPT_FILE, CONFIRMED_REPLY_RECEIPT_FILE, AMBIGUOUS_POST_OUTCOME_FILE))
+    candidates.extend(
+        (
+            REGULAR_POST_RECEIPT_FILE,
+            MEME_POST_RECEIPT_FILE,
+            CONFIRMED_REPLY_RECEIPT_FILE,
+            AMBIGUOUS_POST_OUTCOME_FILE,
+            HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+            HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+            HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE,
+            HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.with_name(
+                f"{HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.name}.lock"
+            ),
+        )
+    )
     existing = [path for path in candidates if path.exists()]
     if existing:
         raise RuntimeError(
@@ -5274,13 +5385,21 @@ def maybe_post_historical_context_reply(
             # hidden merely because the lane is now disabled, the packet is
             # unavailable, or the current quote is blocked by policy.
             store.reconcile_receipt()
+        if _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON and not dry_run:
+            return {
+                "status": "failed_terminal",
+                "reason": _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON,
+            }
         if not historical_context_reply.get("enabled") and not dry_run:
             return {"status": "disabled"}
 
-        packets, unresolved = load_and_validate_corpus(
-            HISTORICAL_CONTEXT_RESEARCH_DIR,
-            require_source_role_audit=True,
-        )
+        if _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT is None:
+            packets, unresolved = load_and_validate_corpus(
+                HISTORICAL_CONTEXT_RESEARCH_DIR,
+                require_source_role_audit=True,
+            )
+        else:
+            packets, unresolved = _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT
         packet = packet_for_posted_quote(packets, unresolved, quote_hash, quote_text)
         if packet is None:
             log.warning("No completed canonical research packet for quote_hash=%s; context reply skipped", quote_hash)
@@ -5427,8 +5546,9 @@ def maybe_post_historical_context_reply(
                 reason="ambiguous_outcome",
             )
             raise
-        # No independent context failure record is guaranteed for preparation or persistence
-        # errors. Propagate so the confirmed main-post receipt remains available for replay.
+        # The caller owns an independent durable outbox obligation. Propagate so it can
+        # record a retryable or terminal context-only outcome without relabelling the
+        # already-confirmed main post.
         log.error(
             "Historical context reply failed independently for parent_post_id=%s quote_hash=%s: %s",
             parent_post_id,
@@ -5442,6 +5562,652 @@ def maybe_post_historical_context_reply(
             reason=type(exc).__name__,
         )
         raise
+
+
+def historical_context_outbox_store():
+    """Return the durable store for auxiliary context-reply obligations."""
+    from historical_context_outbox import HistoricalContextOutbox
+
+    return HistoricalContextOutbox(HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE)
+
+
+def require_historical_context_outbox_writable() -> None:
+    """Fail before a main X post when its context state cannot be persisted."""
+    global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
+    if (
+        not historical_context_reply.get("enabled")
+        or _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
+    ):
+        return
+    if _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON:
+        raise RuntimeError(
+            "historical-context outbox is unavailable: "
+            f"{_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON}"
+        )
+    try:
+        historical_context_outbox_store().verify_writable()
+    except Exception as exc:
+        _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+            f"{type(exc).__name__}: {exc}"
+        )
+        raise RuntimeError(
+            "historical-context outbox failed the pre-post durability check"
+        ) from exc
+
+
+def canonical_context_obligation_quote_id(quote_hash: str, quote_text: str) -> str:
+    """Resolve a stable canonical packet identity without fuzzy matching."""
+    if _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT is None:
+        return str(quote_hash)
+    from historical_context_formatter import packet_for_posted_quote
+
+    packets, unresolved = _HISTORICAL_CONTEXT_CORPUS_SNAPSHOT
+    packet = packet_for_posted_quote(
+        packets,
+        unresolved,
+        str(quote_hash),
+        str(quote_text),
+    )
+    return str(packet["quote_id"]) if packet is not None else str(quote_hash)
+
+
+def enqueue_historical_context_obligation(receipt: dict) -> dict:
+    """Persist an optional context obligation before releasing a main receipt."""
+    global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
+    store = historical_context_outbox_store()
+    parent_post_id = str(receipt["post_id"])
+    confirmed_epoch = int(receipt["quote_post_epoch"])
+    if (
+        not historical_context_reply.get("enabled")
+        or _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
+    ):
+        reason = (
+            "historical_context_runtime_unavailable"
+            if _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON
+            else "historical_context_reply_disabled"
+        )
+        try:
+            obligation = store.enqueue(
+                parent_post_id,
+                main_post_confirmed_epoch=confirmed_epoch,
+                not_required_reason=reason,
+            )
+        except Exception as exc:
+            _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                f"{type(exc).__name__}: {exc}"
+            )
+            log.error(
+                "Could not persist a not-required historical-context state; "
+                "the confirmed main post remains independent. parent_post_id=%s "
+                "reason=%s",
+                parent_post_id,
+                reason,
+                exc_info=True,
+            )
+            log_event(
+                "posting_transaction_state",
+                parent_post_id=parent_post_id,
+                main_post_state="main_post_confirmed",
+                context_reply_state="context_reply_not_required",
+                context_state_persisted=False,
+                reason=reason,
+            )
+            return {
+                "parent_post_id": parent_post_id,
+                "main_post": {
+                    "state": "main_post_confirmed",
+                    "confirmed_epoch": confirmed_epoch,
+                },
+                "context_reply": {
+                    "state": "context_reply_not_required",
+                    "reason": reason,
+                    "updated_epoch": confirmed_epoch,
+                },
+            }
+    else:
+        quote_text = str(receipt.get("text") or "")
+        obligation = store.enqueue(
+            parent_post_id,
+            main_post_confirmed_epoch=confirmed_epoch,
+            quote_id=canonical_context_obligation_quote_id(
+                str(receipt["quote_hash"]),
+                quote_text,
+            ),
+            quote_text=quote_text,
+        )
+    log_event(
+        "posting_transaction_state",
+        parent_post_id=parent_post_id,
+        main_post_state=obligation["main_post"]["state"],
+        context_reply_state=obligation["context_reply"]["state"],
+    )
+    return obligation
+
+
+def _record_context_outbox_failure(
+    store,
+    *,
+    parent_post_id: str,
+    attempt_number: int,
+    error: BaseException | str,
+    failed_epoch: int,
+    force_terminal: bool = False,
+) -> str:
+    """Record one bounded context failure and return its durable state."""
+    if force_terminal or attempt_number >= store.max_attempts:
+        obligation = store.record_terminal_failure(
+            parent_post_id,
+            attempt_number=attempt_number,
+            error=error,
+            failed_epoch=failed_epoch,
+        )
+    else:
+        obligation = store.record_retryable_failure(
+            parent_post_id,
+            attempt_number=attempt_number,
+            error=error,
+            failed_epoch=failed_epoch,
+        )
+    return str(obligation["context_reply"]["state"])
+
+
+def recover_interrupted_historical_context_attempt(
+    store,
+    obligation: dict,
+    *,
+    recovered_epoch: int,
+) -> dict:
+    """Resolve a durable interrupted claim without repeating its remote work."""
+    from historical_context_formatter import HistoricalContextReplyStore
+
+    parent_id = str(obligation["parent_post_id"])
+    context = obligation["context_reply"]
+    if context.get("state") != "context_reply_attempting":
+        raise ValueError("only an interrupted attempting state can be recovered")
+    attempt_number = int(context["attempt_count"])
+    context_store = HistoricalContextReplyStore(
+        HISTORICAL_CONTEXT_REPLY_HISTORY_FILE,
+        HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE,
+    )
+    # The sending receipt is the authoritative ambiguity barrier.  It must be
+    # reconciled (confirmed, definitely failed, or left ambiguous) before an
+    # interrupted outbox claim can be downgraded or retried.
+    context_store.reconcile_receipt()
+    history = context_store.history()
+    previous = history["items"].get(parent_id)
+    if isinstance(previous, dict) and previous.get("quote_id") != context["quote_id"]:
+        raise RuntimeError(
+            "context history identity conflicts with interrupted outbox attempt"
+        )
+    if isinstance(previous, dict) and previous.get("status") == "completed":
+        # HistoricalContextReplyStore counts only attempts which reached its
+        # remote-write transaction.  The outbox also counts formatter and
+        # policy failures, so the two ordinals are deliberately not compared.
+        # Matching parent and canonical quote identity plus a validated
+        # completed history record is the durable proof required here.
+        updated = store.record_confirmed(
+            parent_id,
+            attempt_number=attempt_number,
+            reply_post_id=str(previous["reply_post_id"]),
+            confirmed_epoch=recovered_epoch,
+        )
+        status = "recovered_confirmed_history"
+    else:
+        failure = "context attempt was interrupted before a durable outcome"
+        if isinstance(previous, dict) and previous.get("status") == "failed":
+            # The failed history may describe this remote attempt or an older
+            # one because pre-transaction failures are counted only by the
+            # outbox.  Either way, no confirmed reply exists; consuming the
+            # claimed outbox attempt without repeating remote work is the
+            # conservative recovery action.
+            failure = str(previous["failure"])
+        state_name = _record_context_outbox_failure(
+            store,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            error=failure,
+            failed_epoch=recovered_epoch,
+            force_terminal=attempt_number >= store.max_attempts,
+        )
+        updated = store.get(parent_id)
+        status = "recovered_interrupted_attempt"
+        if updated is None or updated["context_reply"]["state"] != state_name:
+            raise RuntimeError("interrupted context recovery was not durable")
+    return {
+        "parent_post_id": parent_id,
+        "status": status,
+        "context_reply_state": str(updated["context_reply"]["state"]),
+        "attempt_number": attempt_number,
+        "remote_work_repeated": False,
+    }
+
+
+def _process_due_historical_context_obligations(
+    *,
+    store,
+    parent_post_id: str | None = None,
+    limit: int = 1,
+    runtime_state: dict | None = None,
+) -> list[dict]:
+    """Retry only auxiliary context work; never invoke the main-post path."""
+    global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
+    from historical_context_outbox import DUE_STATES
+
+    if _HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON:
+        log.debug(
+            "Historical-context outbox processing deferred until a controlled "
+            "restart because this process disabled the context runtime"
+        )
+        return []
+    if _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON:
+        log.debug(
+            "Historical-context outbox processing is latched unavailable until "
+            "a controlled restart. reason=%s",
+            _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON,
+        )
+        return []
+    if lane_paused("disable_replies"):
+        log.info(
+            "Historical-context outbox processing deferred by reply runtime control"
+        )
+        return []
+    if runtime_state is not None and in_api_cooldown(
+        runtime_state,
+        scope="write",
+    ):
+        log.info(
+            "Historical-context outbox processing deferred by X write cooldown"
+        )
+        return []
+
+    current = now_epoch()
+    try:
+        if parent_post_id is None:
+            due = store.due(current, limit=max(1, int(limit)))
+        else:
+            requested = store.get(str(parent_post_id))
+            requested_context = (
+                requested.get("context_reply")
+                if isinstance(requested, dict)
+                else None
+            )
+            due = (
+                [requested]
+                if isinstance(requested_context, dict)
+                and requested_context.get("state") in DUE_STATES
+                and (
+                    requested_context.get("state")
+                    == "context_reply_attempting"
+                    or int(requested_context.get("next_attempt_epoch") or 0)
+                    <= current
+                )
+                else []
+            )
+    except Exception as exc:
+        _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+            f"{type(exc).__name__}: {exc}"
+        )
+        log.critical(
+            "Historical-context outbox unavailable; main-post lanes remain independent. "
+            "error_type=%s error=%s",
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
+        log_event(
+            "historical_context_outbox",
+            status="unavailable",
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
+        )
+        return []
+
+    results: list[dict] = []
+    for obligation in due:
+        parent_id = str(obligation["parent_post_id"])
+        context = obligation["context_reply"]
+        if context.get("state") not in DUE_STATES:
+            continue
+        if context.get("state") == "context_reply_attempting":
+            try:
+                recovered = recover_interrupted_historical_context_attempt(
+                    store,
+                    obligation,
+                    recovered_epoch=now_epoch(),
+                )
+            except Exception as exc:
+                if type(exc).__name__ == "AmbiguousContextReplyOutcome":
+                    record_ambiguous_remote_post(
+                        {
+                            "text": str(getattr(exc, "reply_text", "") or ""),
+                            "reply": {
+                                "in_reply_to_tweet_id": str(
+                                    getattr(exc, "parent_post_id", "")
+                                    or parent_id
+                                )
+                            },
+                        }
+                    )
+                _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+                log.critical(
+                    "Could not reconcile an interrupted historical-context "
+                    "attempt; no remote work was repeated. parent_post_id=%s",
+                    parent_id,
+                    exc_info=True,
+                )
+                results.append(
+                    {
+                        "parent_post_id": parent_id,
+                        "status": "interrupted_attempt_recovery_failed",
+                        "error_type": type(exc).__name__,
+                    }
+                )
+                break
+            log_event(
+                "historical_context_obligation",
+                **recovered,
+            )
+            results.append(recovered)
+            continue
+        try:
+            claimed = store.claim_attempt(
+                parent_id,
+                started_epoch=now_epoch(),
+            )
+            context = claimed["context_reply"]
+            attempt_number = int(context["attempt_count"])
+        except Exception as exc:
+            _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                f"{type(exc).__name__}: {exc}"
+            )
+            log.critical(
+                "Could not durably claim historical-context attempt; no context "
+                "work was performed. parent_post_id=%s",
+                parent_id,
+                exc_info=True,
+            )
+            log_event(
+                "historical_context_outbox",
+                status="claim_failed",
+                parent_post_id=parent_id,
+                error_type=type(exc).__name__,
+                reason=str(exc)[:500],
+            )
+            results.append(
+                {
+                    "parent_post_id": parent_id,
+                    "status": "outbox_claim_failed",
+                    "context_reply_state": str(context.get("state") or ""),
+                }
+            )
+            break
+        try:
+            result = maybe_post_historical_context_reply(
+                quote_hash=str(context["quote_id"]),
+                quote_text=str(context["quote_text"]),
+                parent_post_id=parent_id,
+            )
+        except Exception as exc:
+            if type(exc).__name__ == "AmbiguousContextReplyOutcome":
+                record_ambiguous_remote_post(
+                    {
+                        "text": str(getattr(exc, "reply_text", "") or ""),
+                        "reply": {
+                            "in_reply_to_tweet_id": str(
+                                getattr(exc, "parent_post_id", "") or parent_id
+                            )
+                        },
+                    }
+                )
+                state_name = "ambiguous_remote_outcome"
+            else:
+                try:
+                    state_name = _record_context_outbox_failure(
+                        store,
+                        parent_post_id=parent_id,
+                        attempt_number=attempt_number,
+                        error=exc,
+                        failed_epoch=now_epoch(),
+                    )
+                except Exception:
+                    _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                        "outbox outcome persistence failed"
+                    )
+                    log.critical(
+                        "Could not persist historical-context outbox failure "
+                        "parent_post_id=%s; main post remains confirmed",
+                        parent_id,
+                        exc_info=True,
+                    )
+                    state_name = "outbox_persistence_failed"
+            log.error(
+                "Confirmed main post remains successful; auxiliary historical-context "
+                "reply failed. parent_post_id=%s state=%s error_type=%s error=%s",
+                parent_id,
+                state_name,
+                type(exc).__name__,
+                exc,
+            )
+            log_event(
+                "historical_context_obligation",
+                status="failed",
+                parent_post_id=parent_id,
+                attempt_number=attempt_number,
+                context_reply_state=state_name,
+                error_type=type(exc).__name__,
+                reason=str(exc)[:500],
+            )
+            results.append(
+                {
+                    "parent_post_id": parent_id,
+                    "status": "failed",
+                    "context_reply_state": state_name,
+                }
+            )
+            continue
+
+        status = str(result.get("status") or "")
+        error_status_code = result.get("error_status_code")
+        if (
+            status == "failed"
+            and runtime_state is not None
+            and result.get("error_service") == "x"
+            and type(error_status_code) is int
+        ):
+            api_error = ApiError(
+                str(result.get("error") or "historical-context X reply failed"),
+                service="x",
+                status_code=error_status_code,
+                reset_epoch=(
+                    result.get("error_reset_epoch")
+                    if type(result.get("error_reset_epoch")) is int
+                    else None
+                ),
+            )
+            try:
+                record_api_error(runtime_state, api_error, "x", scope="write")
+                save_state(runtime_state)
+            except Exception:
+                log.critical(
+                    "Could not persist X write-cooldown metadata after a "
+                    "historical-context reply failure",
+                    exc_info=True,
+                )
+        try:
+            if status in {"completed", "already_completed"}:
+                reply_post_id = str(result.get("reply_post_id") or "")
+                updated = store.record_confirmed(
+                    parent_id,
+                    attempt_number=attempt_number,
+                    reply_post_id=reply_post_id,
+                    confirmed_epoch=now_epoch(),
+                )
+            elif status in {
+                "disabled",
+                "skipped_no_completed_packet",
+                "skipped_future_policy",
+                "skipped_unformattable_packet",
+            }:
+                if (
+                    int(context.get("attempt_count") or 0) == 1
+                    and "previous_failure" not in context
+                ):
+                    updated = store.mark_not_required(
+                        parent_id,
+                        reason=status,
+                        decided_epoch=now_epoch(),
+                    )
+                else:
+                    state_name = _record_context_outbox_failure(
+                        store,
+                        parent_post_id=parent_id,
+                        attempt_number=attempt_number,
+                        error=f"{status} after a prior retryable context attempt",
+                        failed_epoch=now_epoch(),
+                        force_terminal=True,
+                    )
+                    updated = store.get(parent_id)
+            elif status == "failed_terminal":
+                state_name = _record_context_outbox_failure(
+                    store,
+                    parent_post_id=parent_id,
+                    attempt_number=attempt_number,
+                    error=str(result.get("reason") or status),
+                    failed_epoch=now_epoch(),
+                    force_terminal=True,
+                )
+                updated = store.get(parent_id)
+            else:
+                state_name = _record_context_outbox_failure(
+                    store,
+                    parent_post_id=parent_id,
+                    attempt_number=attempt_number,
+                    error=str(result.get("error") or f"unexpected context status: {status}"),
+                    failed_epoch=now_epoch(),
+                    force_terminal=(
+                        type(error_status_code) is int
+                        and error_status_code in {403, 404}
+                    ),
+                )
+                updated = store.get(parent_id)
+        except Exception as exc:
+            _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+                f"{type(exc).__name__}: {exc}"
+            )
+            log.critical(
+                "Could not persist historical-context outbox outcome "
+                "parent_post_id=%s; main post remains confirmed",
+                parent_id,
+                exc_info=True,
+            )
+            results.append(
+                {
+                    "parent_post_id": parent_id,
+                    "status": "outbox_persistence_failed",
+                    "error_type": type(exc).__name__,
+                }
+            )
+            continue
+        state_name = str(updated["context_reply"]["state"])
+        log_event(
+            "historical_context_obligation",
+            status=status,
+            parent_post_id=parent_id,
+            attempt_number=attempt_number,
+            context_reply_state=state_name,
+        )
+        results.append(
+            {
+                "parent_post_id": parent_id,
+                "status": status,
+                "context_reply_state": state_name,
+            }
+        )
+    return results
+
+
+def process_due_historical_context_obligations(
+    *,
+    parent_post_id: str | None = None,
+    limit: int = 1,
+    runtime_state: dict | None = None,
+) -> list[dict]:
+    """Serialise complete context attempts across claims and remote outcomes."""
+    from historical_context_outbox import OutboxWorkerBusy
+
+    if ambiguous_remote_post_is_blocking():
+        log.critical(
+            "Historical-context auxiliary worker deferred by the unresolved "
+            "global remote-write ambiguity barrier"
+        )
+        return []
+    store = historical_context_outbox_store()
+    try:
+        with store.worker_lock():
+            return _process_due_historical_context_obligations(
+                store=store,
+                parent_post_id=parent_post_id,
+                limit=limit,
+                runtime_state=runtime_state,
+            )
+    except OutboxWorkerBusy:
+        log.info(
+            "Historical-context auxiliary worker already active; this tick "
+            "will not inspect or repeat its claimed work"
+        )
+        return []
+
+
+def safely_process_due_historical_context_obligations(
+    *,
+    parent_post_id: str | None = None,
+    limit: int = 1,
+    runtime_state: dict | None = None,
+) -> list[dict]:
+    """Isolate auxiliary context-worker faults from confirmed main-post lanes."""
+    global _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON
+    try:
+        return process_due_historical_context_obligations(
+            parent_post_id=parent_post_id,
+            limit=limit,
+            runtime_state=runtime_state,
+        )
+    except Exception as exc:
+        _HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON = (
+            f"{type(exc).__name__}: {exc}"
+        )
+        log.critical(
+            "Historical-context auxiliary worker failed at its isolation "
+            "boundary; confirmed main posts remain successful and unrelated "
+            "lanes remain available. parent_post_id=%s error_type=%s error=%s",
+            parent_post_id or "",
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
+        try:
+            log_event(
+                "historical_context_outbox",
+                status="worker_failed_isolated",
+                parent_post_id=str(parent_post_id or ""),
+                error_type=type(exc).__name__,
+                reason=str(exc)[:500],
+                main_post_success_preserved=True,
+            )
+        except Exception:
+            log.critical(
+                "Could not emit the isolated historical-context worker event",
+                exc_info=True,
+            )
+        return [
+            {
+                "parent_post_id": str(parent_post_id or ""),
+                "status": "worker_failed_isolated",
+                "error_type": type(exc).__name__,
+            }
+        ]
 
 
 def ensure_reconciled_regular_receipt_schedule_is_future(
@@ -5492,12 +6258,17 @@ def reconcile_regular_post_receipt(
             minimum_next_quote_epoch,
         )
     save_regular_post_protected_state(lines_used, images_used, state, durable=True)
-    maybe_post_historical_context_reply(
-        quote_hash=str(receipt["quote_hash"]),
-        quote_text=str(receipt.get("text") or ""),
-        parent_post_id=str(receipt["post_id"]),
-    )
+    enqueue_historical_context_obligation(receipt)
     remove_regular_post_receipt()
+    log.info(
+        "Confirmed main post reconciliation is complete; auxiliary context "
+        "obligation is independent. post_id=%s",
+        receipt["post_id"],
+    )
+    safely_process_due_historical_context_obligations(
+        parent_post_id=str(receipt["post_id"]),
+        runtime_state=state,
+    )
     return True
 
 
@@ -6795,8 +7566,8 @@ def load_quote_lines_and_analysis() -> tuple[list[str], dict | None, str]:
     return lines, quote_analysis, current_datetime().strftime("%m-%d")
 
 
-def completed_research_quote_hashes() -> set[str]:
-    """Return production-canonical hashes for completed research packets."""
+def load_completed_research_quote_hashes() -> set[str]:
+    """Load production-canonical hashes from completed research packets."""
     payload = load_json_object(COMPLETED_QUOTE_RESEARCH_FILE, label="completed quotation research")
     if payload is None:
         raise RuntimeError(
@@ -6824,6 +7595,11 @@ def completed_research_quote_hashes() -> set[str]:
     if not result:
         raise RuntimeError("Completed quotation research has no attribution-eligible packets")
     return result
+
+
+def completed_research_quote_hashes() -> set[str]:
+    """Return current attribution-eligible completed quotation hashes."""
+    return load_completed_research_quote_hashes()
 
 
 def quote_candidates_for_current_cycle(lines_used: set, *, excluded_quote_hashes: set[str] | None = None) -> list[dict]:
@@ -7476,6 +8252,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
     original_images_used = set(images_used)
 
     try:
+        require_historical_context_outbox_writable()
         if quote_used_history_has_legacy_indices(lines_used):
             raise CorruptUsedHistoryError(
                 "Quote used-history still contains legacy integer entries; refusing regular quote posting until source-verified migration is possible"
@@ -7645,11 +8422,7 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         )
         record_recent_own_post(state, str(posted_id))
         save_regular_post_protected_state(lines_used, images_used, state, durable=True)
-        maybe_post_historical_context_reply(
-            quote_hash=quote_hash,
-            quote_text=tweet,
-            parent_post_id=str(posted_id),
-        )
+        enqueue_historical_context_obligation(receipt)
         remove_regular_post_receipt()
     except Exception as exc:
         log.critical("Confirmed regular quote/image post_id=%s but protected local persistence failed", posted_id, exc_info=True)
@@ -7667,6 +8440,10 @@ def post_random_quote(lines_used: set, images_used: set, state: dict) -> None:
         image_hash=image_choice.get("image_hash"),
         image_score=image_choice.get("score"),
         quote_hash=quote_hash,
+    )
+    safely_process_due_historical_context_obligations(
+        parent_post_id=str(posted_id),
+        runtime_state=state,
     )
     log.info("Quote/image posted successfully. posted_id=%s", posted_id)
 
@@ -7998,56 +8775,118 @@ def maybe_schedule_meme_after_quote_post(state: dict, quote_post_epoch: int | No
     )
 
 
+def run_daily_meme_stage(stage: str, operation):
+    """Run one meme stage while preserving the original exception type."""
+    try:
+        return operation()
+    except Exception as exc:
+        log.error(
+            "Daily meme stage failed. stage=%s error_type=%s error=%s",
+            stage,
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
+        log_event(
+            "daily_meme_failure",
+            status="failed",
+            stage=stage,
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
+        )
+        raise
+
+
+def require_valid_meme_post_id(posted_id: object) -> None:
+    """Reject a meme response that lacks a confirmed numeric post identity."""
+    if not valid_post_id(posted_id):
+        raise RuntimeError(
+            "Daily meme post did not return a valid post id; meme state unchanged"
+        )
+
+
 def post_next_meme(state: dict) -> None:
     """Select and post the next daily meme transactionally."""
     log.info("Starting daily meme post cycle")
-    block_if_ambiguous_remote_post()
-    if both_main_post_receipts_exist():
-        log.critical(
-            "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
-            REGULAR_POST_RECEIPT_FILE,
-            MEME_POST_RECEIPT_FILE,
-        )
-        raise InvalidMemePostReceipt("Both main-post receipts exist; manual recovery required")
-    if reconcile_meme_post_receipt(state):
+    run_daily_meme_stage("remote_write_barrier", block_if_ambiguous_remote_post)
+
+    def validate_receipt_barriers() -> None:
+        if both_main_post_receipts_exist():
+            log.critical(
+                "Both regular and meme confirmed-post receipts exist; refusing meme posting until manually inspected: %s %s",
+                REGULAR_POST_RECEIPT_FILE,
+                MEME_POST_RECEIPT_FILE,
+            )
+            raise InvalidMemePostReceipt("Both main-post receipts exist; manual recovery required")
+
+    run_daily_meme_stage("receipt_barrier", validate_receipt_barriers)
+    if run_daily_meme_stage(
+        "meme_receipt_reconciliation",
+        lambda: reconcile_meme_post_receipt(state),
+    ):
         log.warning("Reconciled meme post receipt; not creating a second meme post in the same call")
         return
-    block_if_unresolved_regular_post_receipt()
+    run_daily_meme_stage(
+        "main_receipt_barrier",
+        block_if_unresolved_regular_post_receipt,
+    )
 
-    meme_path = choose_next_meme(state)
+    meme_path = run_daily_meme_stage(
+        "meme_eligibility_and_asset_selection",
+        lambda: choose_next_meme(state),
+    )
 
     if not meme_path:
         log.info("No meme available to post")
-        schedule_next_meme_post(state)
+        run_daily_meme_stage(
+            "schedule_update",
+            lambda: schedule_next_meme_post(state),
+        )
         return
 
-    analysis_index = load_meme_analysis_index()
-    image_summary = build_meme_cache_summary(meme_path, analysis_index)
+    analysis_index = run_daily_meme_stage(
+        "x_request_preparation",
+        load_meme_analysis_index,
+    )
+    image_summary = run_daily_meme_stage(
+        "x_request_preparation",
+        lambda: build_meme_cache_summary(meme_path, analysis_index),
+    )
 
     log.info("Posting meme image: %s", meme_path)
     log.debug("Meme image summary for cache: %r", image_summary)
 
-    media_id = upload_media(str(meme_path))
+    media_id = run_daily_meme_stage(
+        "media_upload",
+        lambda: upload_media(str(meme_path)),
+    )
 
-    response = create_post(
-        text=MEME_POST_TEXT,
-        media_ids=[media_id],
-        reply_to_id=None,
-        made_with_ai=False,
+    response = run_daily_meme_stage(
+        "x_post_request",
+        lambda: create_post(
+            text=MEME_POST_TEXT,
+            media_ids=[media_id],
+            reply_to_id=None,
+            made_with_ai=False,
+        ),
     )
 
     posted_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
     log.debug("Posted meme id=%s", posted_id)
 
-    if not valid_post_id(posted_id):
-        raise RuntimeError("Daily meme post did not return a valid post id; meme state unchanged")
+    run_daily_meme_stage(
+        "x_post_response_validation",
+        lambda: require_valid_meme_post_id(posted_id),
+    )
 
     try:
         meme_post_epoch = now_epoch()
         apply_state_fields(state, meme_delay_schedule_fields(int(meme_post_epoch) + 3600, "delayed_exception"))
         planned_state = copy.deepcopy(state)
         planned_state["last_meme_post_epoch"] = meme_post_epoch
-        planned_posted = set(str(x) for x in planned_state.get("posted_meme_filenames", []))
+        planned_posted = set(
+            str(x) for x in planned_state.get("posted_meme_filenames", [])
+        )
         planned_posted.add(meme_path.name)
         planned_state["posted_meme_filenames"] = sorted(planned_posted)
         meme_schedule_fields = next_meme_schedule_fields(planned_state, meme_post_epoch, mode="fallback")
@@ -8064,9 +8903,17 @@ def post_next_meme(state: dict) -> None:
         write_meme_post_receipt(receipt)
     except Exception as exc:
         log.critical(
-            "Confirmed meme post_id=%s but failed writing recovery receipt; attempting direct durable state save",
+            "Confirmed meme post_id=%s but stage=meme_receipt_creation failed; attempting direct durable state save",
             posted_id,
             exc_info=True,
+        )
+        log_event(
+            "daily_meme_failure",
+            status="failed",
+            stage="meme_receipt_creation",
+            post_id=str(posted_id),
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
         )
         try:
             state["last_main_post_id"] = str(posted_id)
@@ -8115,13 +8962,37 @@ def post_next_meme(state: dict) -> None:
         )
         record_recent_own_post(state, str(posted_id))
         save_state(state, durable=True)
-    except Exception:
-        log.critical("Confirmed meme post_id=%s but durable state save failed; receipt remains for reconciliation", posted_id, exc_info=True)
+    except Exception as exc:
+        log.critical(
+            "Confirmed meme post_id=%s but stage=durable_state_and_schedule_update failed; receipt remains for reconciliation",
+            posted_id,
+            exc_info=True,
+        )
+        log_event(
+            "daily_meme_failure",
+            status="failed",
+            stage="durable_state_and_schedule_update",
+            post_id=str(posted_id),
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
+        )
         raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but durable state save failed")
     try:
         remove_meme_post_receipt()
     except Exception as exc:
-        log.critical("Confirmed meme post_id=%s but receipt removal failed after durable state save", posted_id, exc_info=True)
+        log.critical(
+            "Confirmed meme post_id=%s but stage=meme_receipt_confirmation failed after durable state save",
+            posted_id,
+            exc_info=True,
+        )
+        log_event(
+            "daily_meme_failure",
+            status="failed",
+            stage="meme_receipt_confirmation",
+            post_id=str(posted_id),
+            error_type=type(exc).__name__,
+            reason=str(exc)[:500],
+        )
         raise ConfirmedPostLocalPersistenceError(f"Confirmed meme post {posted_id} but receipt removal failed") from exc
 
     log_event("main_post_posted", lane="daily_meme", post_id=posted_id, filename=meme_path.name)
@@ -10684,6 +11555,7 @@ def main() -> None:
     block_if_ambiguous_remote_post()
     random.seed()
     acquire_instance_lock()
+    reconcile_runtime_historical_context_state()
 
     log.info("Bot starting")
     log.info("Python executable=%s", sys.executable)
@@ -10829,6 +11701,13 @@ def main() -> None:
             sleep(60)
             continue
         ambiguity_pause_logged = False
+
+        safely_process_due_historical_context_obligations(
+            limit=1,
+            runtime_state=state,
+        )
+        if ambiguous_remote_post_is_blocking():
+            continue
 
         last_reply_check_epoch, last_quote_tweet_check_epoch = run_reply_lane_checks_for_tick(
             state,

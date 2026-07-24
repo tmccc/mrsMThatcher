@@ -92,6 +92,7 @@ _LEGACY_SOURCE_ROLE_AUDIT_VERSIONS = frozenset({
     "historical-context-source-roles-v4-multi-provider-guarded-approximate-80",
     "historical-context-source-roles-v5-independent-review-and-exclusive-counts",
     "historical-context-source-roles-v7-curated-source-adjudications",
+    "historical-context-source-roles-v8-claim-specific-public-context",
 })
 _MARGARET_THATCHER_CANONICAL_SPEAKER = "margaret thatcher"
 THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
@@ -99,6 +100,18 @@ THATCHER_ATTRIBUTION_RULE_VERSION = "canonical-principal-speaker-v2-reject-misat
 
 class AmbiguousContextReplyOutcome(RuntimeError):
     """A durable sending record exists, so repeating the reply could duplicate it."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        parent_post_id: str | None = None,
+        reply_text: str | None = None,
+    ):
+        """Preserve the durable parent and reply payload for ambiguity evidence."""
+        super().__init__(message)
+        self.parent_post_id = parent_post_id
+        self.reply_text = reply_text
 
 
 def utc_now() -> str:
@@ -1252,7 +1265,9 @@ class HistoricalContextReplyStore:
                 durable_unlink(self.receipt_path)
                 return False
             raise AmbiguousContextReplyOutcome(
-                "historical context reply was interrupted while sending; manual reconciliation required"
+                "historical context reply was interrupted while sending; manual reconciliation required",
+                parent_post_id=str(receipt["parent_post_id"]),
+                reply_text=str(receipt["reply_text"]),
             )
         if not self._valid_receipt(receipt):
             raise RuntimeError("invalid historical context reply receipt")
@@ -1316,15 +1331,33 @@ class HistoricalContextReplyStore:
                 self.record_failure(parent_post_id, quote_id, reply_text, error, formatter_metadata)
             except Exception as persistence_error:
                 raise AmbiguousContextReplyOutcome(
-                    "could not persist context reply failure history; manual reconciliation required"
+                    "could not persist context reply failure history; manual reconciliation required",
+                    parent_post_id=str(parent_post_id),
+                    reply_text=reply_text,
                 ) from persistence_error
             try:
                 durable_unlink(self.receipt_path)
             except Exception as persistence_error:
                 raise AmbiguousContextReplyOutcome(
-                    "could not clear context reply sending record; manual reconciliation required"
+                    "could not clear context reply sending record; manual reconciliation required",
+                    parent_post_id=str(parent_post_id),
+                    reply_text=reply_text,
                 ) from persistence_error
-            return {"status": "failed", "error": str(error)}
+            result: dict[str, Any] = {
+                "status": "failed",
+                "error": str(error),
+                "error_type": type(error).__name__,
+            }
+            service = getattr(error, "service", None)
+            status_code = getattr(error, "status_code", None)
+            reset_epoch = getattr(error, "reset_epoch", None)
+            if isinstance(service, str) and service:
+                result["error_service"] = service
+            if type(status_code) is int:
+                result["error_status_code"] = status_code
+            if type(reset_epoch) is int:
+                result["error_reset_epoch"] = reset_epoch
+            return result
 
         try:
             response = create_post(
@@ -1336,7 +1369,9 @@ class HistoricalContextReplyStore:
         except Exception as exc:
             if type(exc).__name__ == "AmbiguousRemotePostOutcome":
                 raise AmbiguousContextReplyOutcome(
-                    "remote context reply outcome is ambiguous; manual reconciliation required"
+                    "remote context reply outcome is ambiguous; manual reconciliation required",
+                    parent_post_id=str(parent_post_id),
+                    reply_text=reply_text,
                 ) from exc
             return finish_confirmed_failure(exc)
         reply_id = response.get("data", {}).get("id") if isinstance(response, dict) else None
@@ -1353,7 +1388,9 @@ class HistoricalContextReplyStore:
             atomic_write_json(self.receipt_path, receipt)
         except Exception as exc:
             raise AmbiguousContextReplyOutcome(
-                "could not persist confirmed reply receipt; manual reconciliation required"
+                "could not persist confirmed reply receipt; manual reconciliation required",
+                parent_post_id=str(parent_post_id),
+                reply_text=reply_text,
             ) from exc
         self.reconcile_receipt()
         return {"status": "completed", **receipt}

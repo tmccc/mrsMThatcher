@@ -128,6 +128,14 @@ def _install_bot_context(
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_RESEARCH_DIR", tmp_path / "research")
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_HISTORY_FILE", tmp_path / "history.json")
     monkeypatch.setattr(bot, "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE", tmp_path / "context-receipt.json")
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
+        tmp_path / "context-outbox.json",
+    )
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT", None)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON", None)
     monkeypatch.setattr(bot, "block_if_ambiguous_remote_post", lambda: None)
     monkeypatch.setattr(
         context_formatter,
@@ -555,6 +563,7 @@ def test_regular_receipt_replay_clears_after_policy_skip_without_context_write(
         "create_post",
         lambda **_kwargs: pytest.fail("blocked replay must not contact X"),
     )
+    monkeypatch.setattr(bot, "now_epoch", lambda: 1_800_000_000)
 
     lines_used: set[str] = set()
     images_used: set[str] = set()

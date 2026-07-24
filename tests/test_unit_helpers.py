@@ -306,6 +306,11 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         "HISTORICAL_CONTEXT_REPLY_RECEIPT_FILE",
         tmp_path / "historical_context_reply_receipt.json",
     )
+    monkeypatch.setattr(
+        bot,
+        "HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE",
+        tmp_path / "historical_context_reply_outbox.json",
+    )
     monkeypatch.setattr(bot, "CONFIRMED_REPLY_RECEIPT_FILE", tmp_path / "confirmed_reply_receipt.json")
     monkeypatch.setattr(bot, "AMBIGUOUS_POST_OUTCOME_FILE", tmp_path / "ambiguous_post_outcome.json")
     monkeypatch.setattr(bot, "CONTROL_FILE", tmp_path / "mrsMThatcher.control.json")
@@ -315,6 +320,9 @@ def isolate_regular_post_receipt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         {"signature": None, "data": {}, "has_valid": False, "failure_signature": None},
     )
     monkeypatch.setattr(bot, "_AMBIGUOUS_REMOTE_POST_SEEN", False)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_CORPUS_SNAPSHOT", None)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_RUNTIME_UNAVAILABLE_REASON", None)
+    monkeypatch.setattr(bot, "_HISTORICAL_CONTEXT_OUTBOX_UNAVAILABLE_REASON", None)
     monkeypatch.setattr(
         bot,
         "_HISTORICAL_CONTEXT_SEMANTIC_GATE",
@@ -3063,11 +3071,17 @@ def test_valid_receipt_reconciles_idempotently(
     }
     bot.atomic_write_json(receipt_file, receipt)
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: None)
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
     context_calls = []
     def context(**kwargs):
-        assert receipt_file.exists(), "startup reconciliation must retain the receipt through context dispatch"
+        assert not receipt_file.exists()
+        assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
         context_calls.append(kwargs)
-        return {"status": "completed"}
+        return {"status": "completed", "reply_post_id": "960001"}
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
 
     assert bot.reconcile_regular_post_receipt(lines_used, images_used, state) is True
@@ -3619,9 +3633,15 @@ def test_regular_post_context_stage_runs_only_after_durable_main_post(
         original_save(*args, **kwargs); saved["done"] = True
     def context(**kwargs):
         assert saved["done"] is True
-        assert bot.REGULAR_POST_RECEIPT_FILE.exists(), "receipt must bridge a crash before context dispatch"
+        assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+        assert bot.HISTORICAL_CONTEXT_REPLY_OUTBOX_FILE.exists()
         context_calls.append(kwargs)
-        return {"status": "completed"}
+        return {"status": "completed", "reply_post_id": "960001"}
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
     monkeypatch.setattr(bot, "save_regular_post_protected_state", tracked_save)
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", context)
     bot.post_random_quote(lines_used, images_used, state)
@@ -3633,26 +3653,38 @@ def test_context_failure_does_not_undo_confirmed_regular_post(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
     monkeypatch.setattr(bot, "maybe_post_historical_context_reply", lambda **kwargs: {"status": "failed"})
     bot.post_random_quote(lines_used, images_used, state)
     assert bot.quote_text_hash("Good quote.") in lines_used and state["last_main_post_id"] == "950001"
 
 
-def test_unpersisted_context_failure_retains_main_receipt_for_replay(
+def test_unpersisted_context_failure_retains_only_auxiliary_outbox_for_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     lines_used, images_used, state, *_ = configure_simple_quote_post(tmp_path, monkeypatch)
     monkeypatch.setattr(
         bot,
+        "historical_context_reply",
+        {**bot.historical_context_reply, "enabled": True},
+    )
+    monkeypatch.setattr(
+        bot,
         "maybe_post_historical_context_reply",
         lambda **kwargs: (_ for _ in ()).throw(RuntimeError("context preparation failed")),
     )
 
-    with pytest.raises(bot.ConfirmedPostLocalPersistenceError):
-        bot.post_random_quote(lines_used, images_used, state)
+    bot.post_random_quote(lines_used, images_used, state)
 
-    assert bot.REGULAR_POST_RECEIPT_FILE.exists()
+    assert not bot.REGULAR_POST_RECEIPT_FILE.exists()
+    outbox = bot.historical_context_outbox_store().get("950001")
+    assert outbox["main_post"]["state"] == "main_post_confirmed"
+    assert outbox["context_reply"]["state"] == "context_reply_failed_retryable"
     assert bot.quote_text_hash("Good quote.") in lines_used
     assert state["last_main_post_id"] == "950001"
 
@@ -4429,20 +4461,34 @@ def test_daily_meme_missing_post_id_fails_without_success_side_effects(
     meme_dir = tmp_path / "memes"
     meme_dir.mkdir()
     (meme_dir / "001_meme.png").write_bytes(b"meme")
-    events: list[str] = []
+    events: list[tuple[str, dict[str, object]]] = []
     monkeypatch.setattr(bot, "MEME_DIR", meme_dir)
     monkeypatch.setattr(bot, "MEME_ANALYSIS_FILE", tmp_path / "missing.json")
     monkeypatch.setattr(bot, "upload_media", lambda path: "media-1")
     monkeypatch.setattr(bot, "create_post", lambda **kwargs: {"data": {}})
     monkeypatch.setattr(bot, "save_state", lambda state, **kwargs: pytest.fail("save_state should not be called"))
-    monkeypatch.setattr(bot, "log_event", lambda event, **kwargs: events.append(event))
+    monkeypatch.setattr(
+        bot,
+        "log_event",
+        lambda event, **kwargs: events.append((event, kwargs)),
+    )
 
     state = {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
     with pytest.raises(RuntimeError, match="valid post id"):
         bot.post_next_meme(state)
 
     assert state == {"next_meme_post_epoch": 1_799_999_000, "posted_meme_filenames": []}
-    assert events == []
+    assert events == [
+        (
+            "daily_meme_failure",
+            {
+                "status": "failed",
+                "stage": "x_post_response_validation",
+                "error_type": "RuntimeError",
+                "reason": "Daily meme post did not return a valid post id; meme state unchanged",
+            },
+        )
+    ]
 
 
 def test_meme_post_uses_confirmed_time_across_midnight(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

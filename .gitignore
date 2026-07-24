@@ -3,6 +3,9 @@ lines_used.json
 images_used.json
 historical_context_reply_history.json
 historical_context_reply_receipt.json
+historical_context_reply_outbox.json
+historical_context_reply_outbox.json.lock
+historical_context_reply_outbox.json.worker.lock
 *.log
 *.log.*
 nohup.out

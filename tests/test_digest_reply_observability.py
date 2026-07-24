@@ -214,10 +214,11 @@ def test_historical_context_v5_public_labels_are_not_downgraded_to_unavailable()
     assert result["formatter_version_counts"]["historical_context_reply_schema_v5"] == len(labels)
 
 
-def test_current_and_previous_source_role_versions_are_reported():
+def test_controlled_source_role_versions_include_deployed_v8_and_current_v9():
     versions = (
         "historical-context-source-roles-v7-curated-source-adjudications",
         "historical-context-source-roles-v8-claim-specific-public-context",
+        "historical-context-source-roles-v9-archive-provenance",
     )
     result = digest.historical_context_quality_summary([
         event(
@@ -817,3 +818,65 @@ def test_secondary_output_is_locked_when_state_is_disabled(tmp_path, monkeypatch
     monkeypatch.setattr(digest, "run_digest", lambda *_args, **_kwargs: 0)
     assert digest.main([str(log), "--no-state", "--markdown-output", str(output)]) == 0
     assert locks == [output.with_suffix(".md.lock")]
+
+
+def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage():
+    structured = [
+        {
+            "event": "posting_transaction_state",
+            "parent_post_id": "900001",
+            "main_post_state": "main_post_confirmed",
+            "context_reply_state": "context_reply_pending",
+        },
+        {
+            "event": "historical_context_obligation",
+            "status": "failed",
+            "parent_post_id": "900001",
+            "context_reply_state": "context_reply_failed_retryable",
+            "attempt_number": 1,
+        },
+        {
+            "event": "historical_context_obligation",
+            "status": "failed_terminal",
+            "parent_post_id": "900002",
+            "context_reply_state": "context_reply_failed_terminal",
+            "attempt_number": 5,
+        },
+        {
+            "event": "daily_meme_failure",
+            "status": "failed",
+            "stage": "media_upload",
+            "error_type": "OSError",
+            "reason": "fixture failure",
+        },
+    ]
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 24, 1, index),
+            level="INFO",
+            src="log_event",
+            line=index,
+            msg="EVENT " + json.dumps(payload),
+            path="mrsMThatcher.log",
+            ordinal=index,
+        )
+        for index, payload in enumerate(structured, start=1)
+    ]
+
+    report = digest.analyse(records)
+    consistency = report["production_consistency"]
+    assert consistency["context_transaction_state_counts"] == {
+        "context_reply_pending": 1
+    }
+    assert consistency["context_obligation_state_counts"] == {
+        "context_reply_failed_retryable": 1,
+        "context_reply_failed_terminal": 1,
+    }
+    assert consistency["daily_meme_failure_stage_counts"] == {"media_upload": 1}
+    rendered = digest.render_markdown(report)
+    assert "Confirmed-main/context transaction states" in rendered
+    assert "context_reply_pending" in rendered
+    assert "context_reply_failed_retryable" in rendered
+    assert "context_reply_failed_terminal" in rendered
+    assert "Daily meme failures by stage" in rendered
+    assert "media_upload" in rendered

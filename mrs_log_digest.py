@@ -1972,6 +1972,7 @@ _HISTORICAL_CONTEXT_SOURCE_ROLE_AUDIT_VERSIONS = (
     "historical-context-source-roles-v6-curated-evidence",
     "historical-context-source-roles-v7-curated-source-adjudications",
     "historical-context-source-roles-v8-claim-specific-public-context",
+    "historical-context-source-roles-v9-archive-provenance",
     "unavailable",
 )
 _HISTORICAL_CONTEXT_CONFIDENCE_DIMENSIONS = (
@@ -2891,6 +2892,69 @@ def analyse(
                     reply_preview=event_obj.get("reply_preview") or "",
                 )
                 stats[f"historical_context_reply_status_{status}"] += 1
+            elif event_obj and event_obj.get("event") == "posting_transaction_state":
+                context_state = str(
+                    event_obj.get("context_reply_state") or "unavailable"
+                )
+                add_event(
+                    "posting_transaction_state",
+                    r.ts,
+                    parent_post_id=event_obj.get("parent_post_id") or "",
+                    main_post_state=event_obj.get("main_post_state") or "unavailable",
+                    context_reply_state=context_state,
+                    context_state_persisted=event_obj.get(
+                        "context_state_persisted"
+                    ),
+                    reason=event_obj.get("reason") or "",
+                )
+                stats[f"context_transaction_state_{context_state}"] += 1
+            elif event_obj and event_obj.get("event") == "historical_context_obligation":
+                context_state = str(
+                    event_obj.get("context_reply_state") or "unavailable"
+                )
+                status = str(event_obj.get("status") or "unknown")
+                add_event(
+                    "historical_context_obligation",
+                    r.ts,
+                    status=status,
+                    parent_post_id=event_obj.get("parent_post_id") or "",
+                    context_reply_state=context_state,
+                    attempt_number=event_obj.get("attempt_number"),
+                    remote_work_repeated=event_obj.get("remote_work_repeated"),
+                    error_type=event_obj.get("error_type") or "",
+                    reason=event_obj.get("reason") or "",
+                )
+                stats[f"context_obligation_state_{context_state}"] += 1
+                stats[f"context_obligation_status_{status}"] += 1
+            elif event_obj and event_obj.get("event") == "historical_context_outbox":
+                status = str(event_obj.get("status") or "unknown")
+                add_event(
+                    "historical_context_outbox",
+                    r.ts,
+                    status=status,
+                    parent_post_id=event_obj.get("parent_post_id") or "",
+                    error_type=event_obj.get("error_type") or "",
+                    reason=event_obj.get("reason") or "",
+                    main_post_success_preserved=event_obj.get(
+                        "main_post_success_preserved"
+                    ),
+                    unrelated_lanes_available=event_obj.get(
+                        "unrelated_lanes_available"
+                    ),
+                )
+                stats[f"historical_context_outbox_status_{status}"] += 1
+            elif event_obj and event_obj.get("event") == "daily_meme_failure":
+                stage = str(event_obj.get("stage") or "unavailable")
+                add_event(
+                    "daily_meme_failure",
+                    r.ts,
+                    status=event_obj.get("status") or "failed",
+                    stage=stage,
+                    post_id=event_obj.get("post_id") or "",
+                    error_type=event_obj.get("error_type") or "",
+                    reason=event_obj.get("reason") or "",
+                )
+                stats[f"daily_meme_failure_stage_{stage}"] += 1
             elif event_obj and event_obj.get("event") == "reply_strategy_decision":
                 retrieved_ids = event_obj.get("retrieved_quote_ids")
                 add_event(
@@ -4040,6 +4104,34 @@ def analyse(
                 key.removeprefix("historical_context_reply_status_"): value
                 for key, value in sorted(stats.items())
                 if key.startswith("historical_context_reply_status_")
+            },
+        },
+        "production_consistency": {
+            "events": [
+                item
+                for item in events
+                if item.get("kind")
+                in {
+                    "posting_transaction_state",
+                    "historical_context_obligation",
+                    "historical_context_outbox",
+                    "daily_meme_failure",
+                }
+            ],
+            "context_transaction_state_counts": {
+                key.removeprefix("context_transaction_state_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("context_transaction_state_")
+            },
+            "context_obligation_state_counts": {
+                key.removeprefix("context_obligation_state_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("context_obligation_state_")
+            },
+            "daily_meme_failure_stage_counts": {
+                key.removeprefix("daily_meme_failure_stage_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("daily_meme_failure_stage_")
             },
         },
         "historical_context_quality": context_quality,
@@ -5392,6 +5484,50 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "Historical context replies",
         ["time", "status", "parent_post_id", "quote_id", "weighted_character_count", "verification_label", "source_class", "historical_confidence", "formatter_version", "rendering_mode", "shortening_applied", "reason", "semantic_review_disposition", "semantic_review_ledger_sha256", "semantic_review_projection_sha256"]
         + (["reply_preview"] if report.get("verbose_replies") else []),
+    )
+    section(
+        "posting_transaction_state",
+        "Confirmed-main/context transaction states",
+        [
+            "time",
+            "parent_post_id",
+            "main_post_state",
+            "context_reply_state",
+            "context_state_persisted",
+            "reason",
+        ],
+    )
+    section(
+        "historical_context_obligation",
+        "Historical-context outbox obligations",
+        [
+            "time",
+            "status",
+            "parent_post_id",
+            "context_reply_state",
+            "attempt_number",
+            "remote_work_repeated",
+            "error_type",
+            "reason",
+        ],
+    )
+    section(
+        "historical_context_outbox",
+        "Historical-context outbox health",
+        [
+            "time",
+            "status",
+            "parent_post_id",
+            "error_type",
+            "main_post_success_preserved",
+            "unrelated_lanes_available",
+            "reason",
+        ],
+    )
+    section(
+        "daily_meme_failure",
+        "Daily meme failures by stage",
+        ["time", "stage", "post_id", "error_type", "reason"],
     )
     section(
         "reply_strategy_decision",

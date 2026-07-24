@@ -538,6 +538,39 @@ def test_overlong_numeric_response_id_is_failure_not_invalid_receipt(tmp_path):
     assert store.history()["items"]["111"]["status"] == "failed"
 
 
+def test_failed_context_post_preserves_rate_limit_metadata_for_runtime_control(
+    tmp_path,
+):
+    store = HistoricalContextReplyStore(
+        tmp_path / "history.json",
+        tmp_path / "receipt.json",
+    )
+
+    class RateLimitError(RuntimeError):
+        service = "x"
+        status_code = 429
+        reset_epoch = 9_500
+
+    result = store.post(
+        parent_post_id="111",
+        quote_id="a" * 64,
+        reply_text="Context",
+        create_post=lambda **_kwargs: (_ for _ in ()).throw(
+            RateLimitError("rate limited")
+        ),
+        now_epoch=lambda: 123,
+    )
+
+    assert result == {
+        "status": "failed",
+        "error": "rate limited",
+        "error_type": "RateLimitError",
+        "error_service": "x",
+        "error_status_code": 429,
+        "error_reset_epoch": 9_500,
+    }
+
+
 def test_long_reply_is_sent_unchanged_through_existing_post_path(tmp_path):
     store = HistoricalContextReplyStore(tmp_path / "history.json", tmp_path / "receipt.json")
     reply = "Context\n" + ("Historically grounded context. " * 20)
@@ -605,6 +638,53 @@ def test_formatter_v5_metadata_is_durable_and_prevents_duplicate_after_restart(
     )
     assert duplicate["status"] == "already_completed"
     assert len(calls) == 1
+
+
+def test_deployed_v8_metadata_is_durable_and_accepted_under_v9(
+    tmp_path,
+    corpus,
+    monkeypatch,
+):
+    import historical_context_source_roles
+
+    monkeypatch.setattr(
+        historical_context_source_roles,
+        "POLICY_VERSION",
+        "historical-context-source-roles-v9-archive-provenance",
+    )
+    packet = next(iter(corpus[0].values()))
+    formatted = format_context_reply_v2(packet)
+    assert formatted is not None
+    metadata = {
+        key: formatted[key]
+        for key in (
+            "formatter_version", "template_variant", "meaning_included",
+            "meaning_decision_reason", "raw_character_count",
+            "weighted_character_count", "verification_label", "source_class",
+            "historical_confidence", "shortening_applied",
+            "confidence_dimensions", "source_role_audit_version", "rendering_mode",
+        )
+    }
+    metadata["source_role_audit_version"] = (
+        "historical-context-source-roles-v8-claim-specific-public-context"
+    )
+    assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is True
+
+    store = HistoricalContextReplyStore(
+        tmp_path / "history.json", tmp_path / "receipt.json"
+    )
+    result = store.post(
+        parent_post_id="111",
+        quote_id=packet["quote_id"],
+        reply_text=formatted["text"],
+        formatter_metadata=metadata,
+        create_post=lambda **kwargs: {"data": {"id": "222"}},
+        now_epoch=lambda: 123,
+    )
+
+    assert result["status"] == "completed"
+    restarted = HistoricalContextReplyStore(store.history_path, store.receipt_path)
+    assert restarted.history()["items"]["111"]["formatter_metadata"] == metadata
 
 
 def test_legacy_v2_formatter_metadata_remains_valid_for_existing_receipts():
@@ -744,7 +824,17 @@ def test_legacy_v3_v4_formatter_metadata_still_rejects_unknown_source_role_polic
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
 
 
-def test_v5_formatter_metadata_rejects_unknown_source_role_policy(corpus):
+@pytest.mark.parametrize(
+    "source_role_audit_version",
+    [
+        "historical-context-source-roles-v8-unrecognised",
+        "historical-context-source-roles-v10-future",
+        "historical-context-source-roles-v999",
+    ],
+)
+def test_v5_formatter_metadata_rejects_unknown_or_future_source_role_policy(
+    tmp_path, corpus, source_role_audit_version
+):
     formatted = format_context_reply_v2(next(iter(corpus[0].values())))
     metadata = {
         key: formatted[key]
@@ -756,9 +846,28 @@ def test_v5_formatter_metadata_rejects_unknown_source_role_policy(corpus):
             "confidence_dimensions", "source_role_audit_version", "rendering_mode",
         )
     }
-    metadata["source_role_audit_version"] = "historical-context-source-roles-v999"
+    metadata["source_role_audit_version"] = source_role_audit_version
 
     assert HistoricalContextReplyStore._valid_formatter_metadata(metadata) is False
+    history_path = tmp_path / "history.json"
+    history_path.write_text(json.dumps({
+        "schema_version": 1,
+        "items": {
+            "111": {
+                "status": "failed",
+                "parent_post_id": "111",
+                "quote_id": formatted["quote_id"],
+                "reply_text": formatted["text"],
+                "attempt_count": 1,
+                "failure": "test failure",
+                "formatter_metadata": metadata,
+            },
+        },
+    }))
+    store = HistoricalContextReplyStore(history_path, tmp_path / "receipt.json")
+
+    with pytest.raises(RuntimeError, match="invalid failed context reply history"):
+        store.history()
 
 
 def test_v4_formatter_metadata_accepts_previous_source_role_policy(corpus):
