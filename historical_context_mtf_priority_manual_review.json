@@ -3255,6 +3255,7 @@
       "verified": 76
     },
     "comparisons_with_actionable_findings": 72,
+    "current_truth_priority_packet_count": 136,
     "date_mismatch_comparison_count": 27,
     "packet_dispositions": {
       "mismatch": 28,
@@ -3265,6 +3266,7 @@
     "packets_with_actionable_mismatch": 28,
     "priority_comparison_count": 148,
     "priority_packet_count": 139,
+    "reviewed_but_no_longer_current_priority_count": 3,
     "source_event_mismatch_comparison_count": 29,
     "source_event_uncertain_comparison_count": 3
   },
@@ -3275,16 +3277,17 @@
     "verified": "official archive identity, source event, date and quotation linkage align; semantic Meaning is not assessed"
   },
   "input_hashes": {
-    "historical_context_evidence_truth_audit.json": "762c8a17d2c6da2e79c419acd287380f6604ff4f0aa3a4f6acf48a6d614d6974",
+    "historical_context_evidence_truth_audit.json": "13606be310fe0bc4df1b32127f8aa16b4c9d70aeeed870b4e053a1bb851ebf8f",
     "historical_context_mtf_primary_review.json": "f93a27e1e5bdcb658430bf03c08ca2c5cac1c34121087bd4290fa77e5f543148"
   },
   "invariants": {
     "all_139_priority_packets_reviewed": true,
     "all_148_priority_comparisons_reviewed": true,
     "comparison_keys_unique": true,
+    "current_truth_priorities_are_a_reviewed_subset": true,
     "manual_title_judgements_are_in_scope": true,
+    "retired_priorities_have_current_event_and_date_support": true,
     "semantic_meaning_not_assessed": true,
-    "truth_and_mtf_priority_packet_sets_equal": true,
     "verified_packets_have_only_verified_comparisons": true
   },
   "manual_title_judgements": {
@@ -7705,7 +7708,14 @@
   "scope": {
     "assessment": "source identity, source event, date and quotation linkage",
     "automatic_evidence_promotion_authorised": false,
+    "current_truth_priority_packet_count": 136,
     "packet_or_evidence_mutation_authorised": false,
+    "reviewed_but_no_longer_current_priority_count": 3,
+    "reviewed_but_no_longer_current_priority_quote_ids": [
+      "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9"
+    ],
     "semantic_meaning_assessed": false
   }
 }

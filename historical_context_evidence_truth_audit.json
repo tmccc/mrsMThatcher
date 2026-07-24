@@ -24,9 +24,9 @@
     },
     "meaning_strengthening_indicator_packet_count": 178,
     "precise_mtf_identity_packet_count": 437,
-    "published_context_without_calendar_date_count": 22,
-    "published_generic_context_count": 8,
-    "published_meaning_strengthening_indicator_packet_count": 25,
+    "published_context_without_calendar_date_count": 23,
+    "published_generic_context_count": 9,
+    "published_meaning_strengthening_indicator_packet_count": 26,
     "unsupported_claim_decomposition_count": 1528
   },
   "coverage": {
@@ -34,17 +34,17 @@
     "completed_packet_count": 626,
     "completed_quote_ids_sha256": "d6410475d043b3c60ee41b373d3503c3f11ade7b16621d759acba8d1821f349a",
     "current_public_render_record_count": 626,
-    "published_history_entry_count": 85,
-    "published_history_parent_post_ids_sha256": "22114bb59e5996afe0f605436f4798384d9362749bd8ffd696e597efc8c8f3cc",
-    "published_history_quote_ids_sha256": "44aeb23f58b1ba292df2ccbef4b399f08d8b5d090226853e0b5de6aa355694f6",
-    "published_history_unique_quote_count": 85,
-    "published_reply_review_record_count": 85,
+    "published_history_entry_count": 86,
+    "published_history_parent_post_ids_sha256": "1a47bbac72d323c80348063aa9d6215966719ef99e8f74fe0523cdf0feb630e6",
+    "published_history_quote_ids_sha256": "221400fdb6e44712574250d0e8eccf2f2a8c4761dbba66c0531f9857b6150f9d",
+    "published_history_unique_quote_count": 86,
+    "published_reply_review_record_count": 86,
     "unresolved_quote_count": 6
   },
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "historical_context_packet_corrections.json": "7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c",
-    "historical_context_reply_history.json": "d9d6c3e63324eadea67fa8529d021c8e1f60b8b6af122553585767d3a740850e",
+    "historical_context_reply_history.json": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
     "historical_context_source_curated_evidence.json": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
     "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
@@ -1730,7 +1730,9 @@
           "104297"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080547587065622930"
+        ],
         "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
         "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
         "source_event": "Speech to Finchley Conservatives",
@@ -31006,7 +31008,9 @@
           "104297"
         ],
         "public_context_supported_fields": [],
-        "published_parent_post_ids": [],
+        "published_parent_post_ids": [
+          "2080547587065622930"
+        ],
         "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
         "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
         "source_event": "Speech to Finchley Conservatives",
@@ -34429,6 +34433,14 @@
             ],
             "meaning": "Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.",
             "surface": "current_public_meaning"
+          },
+          {
+            "indicators": [
+              "inherence"
+            ],
+            "meaning": "Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.",
+            "parent_post_id": "2080547587065622930",
+            "surface": "published_public_meaning"
           }
         ]
       },
@@ -42067,6 +42079,17 @@
         "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
         "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise.",
         "reply_post_id": "2080135339683807601"
+      },
+      {
+        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+        "flags": [
+          "published_generic_context",
+          "published_context_without_calendar_date"
+        ],
+        "parent_post_id": "2080547587065622930",
+        "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
+        "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
+        "reply_post_id": "2080547589422813532"
       }
     ],
     "published_reply_reviews": [
@@ -43849,6 +43872,30 @@
         "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
         "quote_text": "One reason I'm not a Marxist or a Socialist is because I know you can't fit people into theories. I was trained as a scientist - a chemist - and I know what a real theory is when I see one.",
         "reply_post_id": "2080172660042969461"
+      },
+      {
+        "current_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 104297\nhttps://www.margaretthatcher.org/document/104297",
+        "current_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.",
+          "verification": "Verified excerpt"
+        },
+        "parent_post_id": "2080547587065622930",
+        "published_meaning_strengthening_indicators": [
+          "inherence"
+        ],
+        "published_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 104297\nhttps://www.margaretthatcher.org/document/104297",
+        "published_sections": {
+          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "meaning": "Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.",
+          "verification": "Verified excerpt"
+        },
+        "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
+        "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
+        "reply_post_id": "2080547589422813532"
       }
     ],
     "render_failures": [],

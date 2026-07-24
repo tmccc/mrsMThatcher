@@ -247,8 +247,13 @@ def test_no_network_or_provider_code_in_cleanup_tool() -> None:
     assert not any(token in source.lower() for token in forbidden)
 
 
-def test_validator_queries_only_real_harness_columns() -> None:
-    connection = sqlite3.connect(f"file:{cleanup.HARNESS_RUN / 'simulation.sqlite3'}?mode=ro", uri=True)
+def test_validator_queries_only_real_harness_columns(tmp_path: Path) -> None:
+    import quote_image_selection_harness as harness
+
+    database_path = tmp_path / "simulation.sqlite3"
+    connection = harness.initialise_database(database_path)
+    connection.close()
+    connection = sqlite3.connect(f"file:{database_path}?mode=ro", uri=True)
     columns = {row[1] for row in connection.execute("PRAGMA table_info(simulation_events)")}
     connection.close()
     assert {"quote_id", "production_image_hash", "mode"} <= columns

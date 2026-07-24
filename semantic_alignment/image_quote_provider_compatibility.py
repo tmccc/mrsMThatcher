@@ -149,7 +149,12 @@ def _expected_cost(provider: str, input_tokens: int) -> float:
     return input_tokens * price["input"] / 1_000_000 + EXPECTED_OUTPUT_TOKENS * price["output"] / 1_000_000
 
 
-def prepare_trial(source_trial: Path, output_dir: Path) -> dict[str, Any]:
+def prepare_trial(
+    source_trial: Path,
+    output_dir: Path,
+    *,
+    prior_provider_state_dir: Path | None = None,
+) -> dict[str, Any]:
     """Prepare trial."""
     if output_dir.exists() and (output_dir / "compatibility_manifest.json").exists():
         existing = read_json(output_dir / "compatibility_manifest.json")
@@ -223,6 +228,11 @@ def prepare_trial(source_trial: Path, output_dir: Path) -> dict[str, Any]:
             "conservative_maximum_cost_usd": round(maximum, 6),
             "hard_limit_usd": PROVIDER_LIMITS_USD[provider],
         }
+    prior_provider_state_dir = (
+        prior_provider_state_dir
+        if prior_provider_state_dir is not None
+        else source_trial / "providers"
+    )
     preflight = {
         "schema_version": SCHEMA_VERSION,
         "planned_calls": len(items) * len(PROVIDERS),
@@ -239,7 +249,13 @@ def prepare_trial(source_trial: Path, output_dir: Path) -> dict[str, Any]:
         "tools_enabled": False,
         "network_calls_made": False,
         "prior_trial_ambiguous_exposure_usd": round(sum(
-            float((read_json(source_trial / "providers" / provider / "state.json") or {}).get("ambiguous_exposure_usd") or 0.0)
+            float(
+                (
+                    read_json(prior_provider_state_dir / provider / "state.json")
+                    or {}
+                ).get("ambiguous_exposure_usd")
+                or 0.0
+            )
             for provider in PROVIDERS
         ), 6),
         "prior_trial_exposure_is_outside_this_new_ceiling": True,

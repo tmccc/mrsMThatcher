@@ -17,7 +17,22 @@ SOURCE_TRIAL = ROOT / "semantic_alignment_research/image_quote_shortlist_rerank_
 
 def _prepared(tmp_path: Path) -> Path:
     output = tmp_path / "compatibility"
-    compatibility.prepare_trial(SOURCE_TRIAL, output)
+    prior_provider_state_dir = tmp_path / "prior_provider_states"
+    for provider, exposure in (
+        ("openai", 3.5),
+        ("anthropic", 4.285713),
+    ):
+        provider_dir = prior_provider_state_dir / provider
+        provider_dir.mkdir(parents=True)
+        (provider_dir / "state.json").write_text(
+            json.dumps({"ambiguous_exposure_usd": exposure}),
+            encoding="utf-8",
+        )
+    compatibility.prepare_trial(
+        SOURCE_TRIAL,
+        output,
+        prior_provider_state_dir=prior_provider_state_dir,
+    )
     return output
 
 
@@ -368,9 +383,15 @@ def test_openai_and_anthropic_workers_start_concurrently(tmp_path: Path, monkeyp
 
 def test_preparation_does_not_write_production_files(tmp_path: Path):
     watched = [ROOT / "image_analysis.json", ROOT / "bot_state.json"]
-    before = {path: compatibility.text_hash(path.read_text()) for path in watched}
+    before = {
+        path: compatibility.text_hash(path.read_text()) if path.is_file() else None
+        for path in watched
+    }
     _prepared(tmp_path)
-    after = {path: compatibility.text_hash(path.read_text()) for path in watched}
+    after = {
+        path: compatibility.text_hash(path.read_text()) if path.is_file() else None
+        for path in watched
+    }
     assert after == before
 
 

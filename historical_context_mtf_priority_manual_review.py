@@ -25,6 +25,8 @@ AUDIT_KIND = "historical_context_mtf_priority_manual_review"
 SCHEMA_VERSION = 1
 EXPECTED_PACKET_COUNT = 139
 EXPECTED_COMPARISON_COUNT = 148
+EXPECTED_CURRENT_PRIORITY_PACKET_COUNT = 136
+EXPECTED_RETIRED_PRIORITY_PACKET_COUNT = 3
 DISPOSITIONS = {"verified", "mismatch", "uncertain", "retrieval_failed"}
 
 # These are the event-title judgements that cannot be obtained from a token
@@ -206,6 +208,13 @@ def build_review(
     priority_ids = {
         row.get("quote_id") for row in priority_truth if isinstance(row, dict)
     }
+    current_renderings = {
+        row.get("quote_id"): row
+        for row in truth.get("records", {}).get(
+            "current_public_renderings", []
+        )
+        if isinstance(row, dict)
+    }
     source_records = sorted(
         (
             row for row in mtf.get("records", [])
@@ -218,12 +227,26 @@ def build_review(
     comparison_keys = [
         (row["quote_id"], row["document_number"]) for row in comparisons
     ]
+    reviewed_priority_ids = {row["quote_id"] for row in comparisons}
+    retired_priority_ids = reviewed_priority_ids - priority_ids
     manual_judgement_keys = set(_EVENT_MISMATCHES) | set(_EVENT_UNCERTAINTIES)
     if (
-        len(priority_ids) != EXPECTED_PACKET_COUNT
+        len(priority_ids) != EXPECTED_CURRENT_PRIORITY_PACKET_COUNT
+        or len(reviewed_priority_ids) != EXPECTED_PACKET_COUNT
+        or len(retired_priority_ids) != EXPECTED_RETIRED_PRIORITY_PACKET_COUNT
         or len(comparisons) != EXPECTED_COMPARISON_COUNT
         or len(set(comparison_keys)) != len(comparison_keys)
-        or {row["quote_id"] for row in comparisons} != priority_ids
+        or not priority_ids.issubset(reviewed_priority_ids)
+        or any(
+            not {"source_event", "date"}.issubset(
+                set(
+                    current_renderings.get(quote_id, {}).get(
+                        "public_context_supported_fields", []
+                    )
+                )
+            )
+            for quote_id in retired_priority_ids
+        )
         or any(row["disposition"] not in DISPOSITIONS for row in comparisons)
         or set(_EVENT_MISMATCHES) & set(_EVENT_UNCERTAINTIES)
         or not manual_judgement_keys <= set(comparison_keys)
@@ -306,6 +329,13 @@ def build_review(
             "semantic_meaning_assessed": False,
             "automatic_evidence_promotion_authorised": False,
             "packet_or_evidence_mutation_authorised": False,
+            "current_truth_priority_packet_count": len(priority_ids),
+            "reviewed_but_no_longer_current_priority_count": len(
+                retired_priority_ids
+            ),
+            "reviewed_but_no_longer_current_priority_quote_ids": sorted(
+                retired_priority_ids
+            ),
         },
         "disposition_definitions": {
             "verified": (
@@ -328,6 +358,10 @@ def build_review(
         },
         "counts": {
             "priority_packet_count": len(packets),
+            "current_truth_priority_packet_count": len(priority_ids),
+            "reviewed_but_no_longer_current_priority_count": len(
+                retired_priority_ids
+            ),
             "priority_comparison_count": len(comparisons),
             "comparison_dispositions": comparison_counts,
             "packet_dispositions": packet_counts,
@@ -362,8 +396,20 @@ def build_review(
                 len(comparisons) == EXPECTED_COMPARISON_COUNT
             ),
             "comparison_keys_unique": len(set(comparison_keys)) == len(comparison_keys),
-            "truth_and_mtf_priority_packet_sets_equal": (
-                {row["quote_id"] for row in comparisons} == priority_ids
+            "current_truth_priorities_are_a_reviewed_subset": (
+                priority_ids.issubset(reviewed_priority_ids)
+                and len(retired_priority_ids)
+                == EXPECTED_RETIRED_PRIORITY_PACKET_COUNT
+            ),
+            "retired_priorities_have_current_event_and_date_support": all(
+                {"source_event", "date"}.issubset(
+                    set(
+                        current_renderings[quote_id][
+                            "public_context_supported_fields"
+                        ]
+                    )
+                )
+                for quote_id in retired_priority_ids
             ),
             "manual_title_judgements_are_in_scope": (
                 manual_judgement_keys <= set(comparison_keys)

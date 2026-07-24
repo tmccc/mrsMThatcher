@@ -33,14 +33,14 @@ def test_published_reply_review_is_complete_hash_bound_and_reproducible():
 
     assert review == build_review()
     assert counts == {
-        "reviewed": 85,
+        "reviewed": 86,
         "supported_as_published": 41,
-        "future_correction_needed": 32,
+        "future_correction_needed": 33,
         "insufficient_to_assess": 12,
         "resolved": 26,
-        "remaining": 18,
+        "remaining": 19,
     }
-    assert len({record["quote_id"] for record in review["records"]}) == 85
+    assert len({record["quote_id"] for record in review["records"]}) == 86
     assert all(record["reason"].strip() for record in review["records"])
     assert all(record["evidence_basis"] for record in review["records"])
     assert before == {
@@ -125,6 +125,7 @@ def test_post_baseline_reply_is_explicitly_reviewed_and_not_default_supported(
         "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
         "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
         "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+        "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
         "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
         "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
         "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
@@ -132,6 +133,19 @@ def test_post_baseline_reply_is_explicitly_reviewed_and_not_default_supported(
     assert record["disposition"] == "future_correction_needed"
     assert record["follow_up_status"] == follow_up_status
     assert reason_fragment in record["reason"]
+
+
+def test_latest_history_row_is_explicitly_held_for_future_correction():
+    review = _load(OUTPUT_PATH)
+    quote_id = (
+        "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e"
+    )
+    record = next(row for row in review["records"] if row["quote_id"] == quote_id)
+
+    assert record["disposition"] == "future_correction_needed"
+    assert record["follow_up_status"] == "remains_open"
+    assert "categorical claim" in record["reason"]
+    assert "inherent causal mechanism" in record["reason"]
 
 
 def test_six_new_history_rows_are_held_closed_without_a_historical_conclusion():

@@ -24,29 +24,30 @@ def review():
     return build_review()
 
 
-def test_projection_review_covers_all_68_field_changes(review):
+def test_projection_review_covers_all_72_cumulative_field_changes(review):
     assert review["review_ready"] is True
     assert all(review["invariants"].values())
     assert review["counts"] == {
-        "change_count": 68,
-        "date_only_day_precision_count": 60,
+        "change_count": 72,
+        "date_only_day_precision_count": 59,
         "date_only_month_precision_count": 3,
         "date_only_year_precision_count": 2,
-        "downgraded_count": 67,
+        "downgraded_count": 66,
         "duplicate_context_group_count": 10,
         "duplicate_context_record_count": 26,
         "duplicate_full_reply_group_count": 0,
         "event_only_downgrade_count": 2,
         "manual_hint_count": 9,
-        "safe_date_only_count": 65,
+        "v8_to_v9_public_field_change_count": 6,
+        "safe_date_only_count": 64,
         "safe_event_only_context_count": 1,
         "safe_event_only_fallback_count": 1,
-        "upgraded_count": 1,
+        "upgraded_count": 6,
     }
-    assert len(review["downgraded_records"]) == 67
-    assert len(review["upgraded_records"]) == 1
+    assert len(review["downgraded_records"]) == 66
+    assert len(review["upgraded_records"]) == 6
     records = review["downgraded_records"] + review["upgraded_records"]
-    assert len({record["quote_id"] for record in records}) == 68
+    assert len({record["quote_id"] for record in records}) == 72
     assert all(record["public_reply_text"] for record in records)
     assert all(record["context_line"].startswith("Context — ") for record in records)
     assert {
@@ -55,7 +56,8 @@ def test_projection_review_covers_all_68_field_changes(review):
             for record in review["downgraded_records"]
         )
         for precision in ("day", "month", "year")
-    } == {"day": 60, "month": 3, "year": 2}
+    } == {"day": 59, "month": 3, "year": 2}
+    assert len(review["incremental_v8_to_v9_records"]) == 6
 
 
 def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):
@@ -78,6 +80,9 @@ def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):
     assert upgraded["context_line"] == DOCUMENT_104653_CONTEXT
     assert upgraded["v7_public_context_supported_fields"] == []
     assert upgraded["v8_public_context_supported_fields"] == [
+        "source_event", "date",
+    ]
+    assert upgraded["v9_public_context_supported_fields"] == [
         "source_event", "date",
     ]
 

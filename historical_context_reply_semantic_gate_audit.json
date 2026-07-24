@@ -11,28 +11,28 @@
     "unresolved_quote_count": 6
   },
   "decision_counts": {
-    "blocked_open_semantic_review": 18,
-    "eligible_allow": 592,
+    "blocked_open_semantic_review": 19,
+    "eligible_allow": 591,
     "ineligible_not_regular_post": 16
   },
   "gate": {
     "available": true,
-    "blocked_projection_sha256": "24ba5a4eaf29c74c0efc9d6356503e7cc17c4a891ff0631cc31df8a6adc03483",
-    "blocked_quote_count": 18,
+    "blocked_projection_sha256": "d035a0c26ec5a7d6b10367595dde403764ac3ee4623878d948a9446871490b00",
+    "blocked_quote_count": 19,
     "disposition_counts": {
-      "future_correction_needed": 8,
+      "future_correction_needed": 9,
       "insufficient_to_assess": 10
     },
     "failure_reason": "",
-    "reviewed_blocked_quote_count": 18,
-    "semantic_review_ledger_sha256": "8996d6465cb7fa44d6e0920ff9fb046cd5c3b41da3eb284f3df9f9254b9b4bd7"
+    "reviewed_blocked_quote_count": 19,
+    "semantic_review_ledger_sha256": "c03cb7244dda84a1590b046e8953b663b2ad4aa3bad458e5f890d53f61a1146d"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "8996d6465cb7fa44d6e0920ff9fb046cd5c3b41da3eb284f3df9f9254b9b4bd7",
+    "historical_context_published_reply_semantic_review.json": "c03cb7244dda84a1590b046e8953b663b2ad4aa3bad458e5f890d53f61a1146d",
     "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
-    "runtime_eligible_quote_manifest.json": "ffee95314329251303ca9ab0f38d8b7e141c3989e3308add2db8ab6de83f399e"
+    "runtime_eligible_quote_manifest.json": "7b2951f9d9dded56d8d29c9d6af60c5aefe98700602a361feabbd83712605152"
   },
   "invariant_failure_count": 0,
   "invariants": {
@@ -3227,9 +3227,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": null,
-      "otherwise_rendered_public_reply_suppressed": "",
-      "public_reply_decision": "eligible_allow",
+      "open_review_disposition": "future_correction_needed",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Government intervention inherently requires taxing productive citizens to subsidise unproductive ones, which undermines traditional British self-reliance and advances socialism.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Document 104297\nhttps://www.margaretthatcher.org/document/104297",
+      "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
       "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time."
     },

@@ -92,11 +92,30 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
     corrections = read_json(
         RESEARCH / "historical_context_packet_corrections.json"
     )["items"]
+    transition = read_json(
+        Path("historical_context_v8_v9_transition_manifest.json")
+    )["items"]
+    curated = read_json(
+        RESEARCH / "historical_context_source_curated_evidence.json"
+    )["items"]
+    independently_reviewed_ids = {
+        quote_id
+        for quote_id, item in curated.items()
+        if any(
+            str(source.get("evidence_origin") or "").startswith(
+                "independently_reviewed_"
+            )
+            for source in item.get("sources", [])
+        )
+    }
     assert set(frozen) == set(packets)
+    assert set(transition) == independently_reviewed_ids
+    assert len(transition) == 12
     for quote_id, packet in packets.items():
         actual = v1.format_context_reply_v2(packet)
         expected = frozen[quote_id]
         assert actual is not None
+        expected_text = expected["text"]
         if quote_id in corrections:
             correction = corrections[quote_id]
             original_meaning = expected["field_provenance"]["meaning"][
@@ -108,13 +127,34 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
             assert hashlib.sha256(
                 correction["corrected_value"].encode()
             ).hexdigest() == correction["corrected_value_sha256"]
-            assert actual["text"] == expected["text"].replace(
+            expected_text = expected_text.replace(
                 original_meaning,
                 correction["corrected_value"],
                 1,
             )
+        if quote_id in transition:
+            reviewed = transition[quote_id]
+            assert hashlib.sha256(
+                expected["text"].encode()
+            ).hexdigest() == reviewed[
+                "frozen_formatter_trial_text_sha256"
+            ]
+            assert hashlib.sha256(
+                expected_text.encode()
+            ).hexdigest() == reviewed[
+                "meaning_corrected_frozen_text_sha256"
+            ]
+            assert hashlib.sha256(
+                actual["text"].encode()
+            ).hexdigest() == reviewed[
+                "current_v9_formatter_text_sha256"
+            ]
+            assert bool(quote_id in corrections) is reviewed[
+                "meaning_correction_applied"
+            ]
+            assert reviewed["canonical_packet_changed_fields"]
         else:
-            assert actual["text"] == expected["text"]
+            assert actual["text"] == expected_text
         assert actual["template_variant"] == expected["template_variant"]
         assert actual["meaning_included"] == expected["meaning_included"]
         assert actual["meaning_decision_reason"] == expected["meaning_decision_reason"]

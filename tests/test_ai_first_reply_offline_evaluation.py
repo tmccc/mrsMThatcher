@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from tools.evaluate_ai_first_reply_strategy import evaluate, render
@@ -8,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_offline_evaluation_covers_fixtures_history_and_cost_without_network(
     monkeypatch,
+    tmp_path,
 ) -> None:
     def forbidden_socket(*_args, **_kwargs):
         raise AssertionError("offline reply evaluation must not use the network")
@@ -15,7 +17,23 @@ def test_offline_evaluation_covers_fixtures_history_and_cost_without_network(
     monkeypatch.setattr("socket.create_connection", forbidden_socket)
     monkeypatch.setattr("socket.socket.connect", forbidden_socket)
     monkeypatch.setattr("socket.socket.connect_ex", forbidden_socket)
-    result = evaluate(ROOT)
+    state_path = tmp_path / "bot_state.json"
+    state_path.write_text(
+        json.dumps(
+            {
+                "reply_strategy_history": [
+                    {
+                        "target_id": str(10_000 + index),
+                        "reply_text": "Thank you for your comment.",
+                        "mode": "social",
+                    }
+                    for index in range(25)
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    result = evaluate(ROOT, state_path=state_path)
 
     assert result["network_calls"] == 0
     assert result["model_calls"] == 0

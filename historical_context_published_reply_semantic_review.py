@@ -41,6 +41,7 @@ POST_BASELINE_REVIEW_IDS = {
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
     "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
     "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+    "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
     "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
     "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
     "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
@@ -122,6 +123,14 @@ OPEN_FINDINGS = {
     "9efcca12a991db11a019126881080676677742613499ab9623b2048120c23997": (
         "Meaning generalises a recommendation of two Hayek books into "
         "endorsement of his philosophy and specific arguments."
+    ),
+    "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e": (
+        "The published Meaning turns three adjacent exhortations into a "
+        "categorical claim that government intervention inherently taxes "
+        "productive citizens to subsidise unproductive ones. The retained "
+        "source identity supports wording and attribution, but not that "
+        "inherent causal mechanism; future rendering must stay within the "
+        "quotation's stated claims."
     ),
     "a4f1d422097a48114bf30a587c04cf05859ff030d2df3d5d9051c6ca57a7943c": (
         "Meaning strengthens a threat to liberty into inevitable coercion and "
@@ -556,7 +565,7 @@ def build_review(
     return {
         "schema_version": SCHEMA_VERSION,
         "review_kind": REVIEW_KIND,
-        "reviewed_at": "2026-07-22",
+        "reviewed_at": "2026-07-24",
         "history_policy": (
             "Published history is immutable; every recommendation applies only "
             "to future rendering."

@@ -9,7 +9,12 @@ import historical_context_evidence_truth_audit as truth_audit
 
 ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
-HISTORY = ROOT / "historical_context_reply_history.json"
+HISTORY = (
+    ROOT
+    / "tests"
+    / "fixtures"
+    / "historical_context_reply_history.reviewed.json"
+)
 KNOWN_104653_QUOTE_ID = (
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
 )
@@ -212,8 +217,8 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     assert audit["schema_version"] == 2
     decomposition = audit["records"]["unsupported_claim_decomposition"]
     decomposition_counts = audit["unsupported_claim_counts"]
-    assert len(decomposition) == 1539
-    assert audit["counts"]["unsupported_claim_decomposition_count"] == 1539
+    assert len(decomposition) == 1528
+    assert audit["counts"]["unsupported_claim_decomposition_count"] == 1528
     claim_keys = [row["claim_key"] for row in decomposition]
     assert claim_keys == sorted(claim_keys)
     assert len(claim_keys) == len(set(claim_keys))
@@ -226,33 +231,33 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     }
     assert all(not row["supporting_internal_source_ids"] for row in decomposition)
     assert all(not row["supporting_renderable_source_ids"] for row in decomposition)
-    assert decomposition_counts["total"] == 1539
+    assert decomposition_counts["total"] == 1528
     assert decomposition_counts[
         "intended_argument_or_meaning_claims_in_this_1539_count"
     ] == 0
     assert decomposition_counts["by_field"] == {
-        "source_event": 489,
-        "date": 425,
+        "source_event": 483,
+        "date": 420,
         "historical_context": 625,
     }
     assert decomposition_counts["by_attribution_eligibility"] == {
-        "eligible": 1504,
+        "eligible": 1493,
         "ineligible": 35,
     }
     assert decomposition_counts["by_public_reachability"] == {
         "currently_rendered_exact_occurrence": 113,
-        "formatter_reachable_but_suppressed": 765,
+        "formatter_reachable_but_suppressed": 754,
         "internal_only_or_unreachable": 661,
     }
     assert decomposition_counts["by_field_and_public_reachability"] == {
         "source_event": {
             "currently_rendered_exact_occurrence": 112,
-            "formatter_reachable_but_suppressed": 349,
+            "formatter_reachable_but_suppressed": 343,
             "internal_only_or_unreachable": 28,
         },
         "date": {
             "currently_rendered_exact_occurrence": 1,
-            "formatter_reachable_but_suppressed": 415,
+            "formatter_reachable_but_suppressed": 410,
             "internal_only_or_unreachable": 9,
         },
         "historical_context": {
@@ -266,7 +271,7 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
     ] == {
         "eligible": {
             "currently_rendered_exact_occurrence": 113,
-            "formatter_reachable_but_suppressed": 765,
+            "formatter_reachable_but_suppressed": 754,
             "internal_only_or_unreachable": 626,
         },
         "ineligible": {
@@ -285,13 +290,13 @@ def test_full_audit_correlates_history_and_corpus_without_mutating_inputs():
         "bibliographic_exact_occurrence": 113,
     }
     assert decomposition_counts["by_evidence_state"] == {
-        "no_audited_source_claim": 1539,
+        "no_audited_source_claim": 1528,
         "internal_source_claim_only": 0,
         "renderable_source_claim_not_admitted": 0,
     }
     assert decomposition_counts["by_context_slot_reachability"] == {
         "currently_rendered_exact_occurrence": 113,
-        "formatter_slot_reachable_but_not_currently_exposed": 1391,
+        "formatter_slot_reachable_but_not_currently_exposed": 1380,
         "production_ineligible": 35,
         "formatter_slot_unreachable": 0,
     }

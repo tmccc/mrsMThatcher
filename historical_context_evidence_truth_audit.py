@@ -645,6 +645,8 @@ def _unsupported_claim_counts(
         "by_finding_kind": dict(sorted(Counter(
             row["finding_kind"] for row in records
         ).items())),
+        # Retain the historical machine-readable key for schema-v2
+        # compatibility; the enclosing ``total`` is the authoritative count.
         "intended_argument_or_meaning_claims_in_this_1539_count": 0,
         "by_field": {
             field: sum(row["field"] == field for row in records)

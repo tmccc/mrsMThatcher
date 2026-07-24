@@ -31,14 +31,14 @@ def test_gate_audit_processes_every_packet_without_changing_regular_eligibility(
     assert audit["coverage"]["completed_attribution_ineligible_count"] == 16
     assert audit["coverage"]["unresolved_quote_count"] == 6
     assert audit["gate"]["available"] is True
-    assert audit["gate"]["blocked_quote_count"] == 18
+    assert audit["gate"]["blocked_quote_count"] == 19
     assert audit["gate"]["disposition_counts"] == {
-        "future_correction_needed": 8,
+        "future_correction_needed": 9,
         "insufficient_to_assess": 10,
     }
     assert audit["decision_counts"] == {
-        "blocked_open_semantic_review": 18,
-        "eligible_allow": 592,
+        "blocked_open_semantic_review": 19,
+        "eligible_allow": 591,
         "ineligible_not_regular_post": 16,
     }
     assert audit["invariant_failure_count"] == 0
@@ -58,7 +58,7 @@ def test_gate_audit_records_exact_suppressed_replies_and_allows_104653():
         for row in records
         if row["public_reply_decision"] == "blocked_open_semantic_review"
     ]
-    assert len(blocked) == 18
+    assert len(blocked) == 19
     assert all(row["attribution_eligible"] is True for row in blocked)
     assert all(row["open_review_disposition"] for row in blocked)
     assert all(
@@ -76,7 +76,10 @@ def test_gate_audit_cli_is_deterministic_and_does_not_mutate_inputs(tmp_path: Pa
         RESEARCH / "research_packets.json",
         RESEARCH / "historical_context_source_role_audit.json",
         ROOT / "historical_context_published_reply_semantic_review.json",
-        ROOT / "historical_context_reply_history.json",
+        ROOT
+        / "tests"
+        / "fixtures"
+        / "historical_context_reply_history.reviewed.json",
     ]
     before = {path: _hash(path) for path in protected}
     first = tmp_path / "historical_context_reply_semantic_gate_audit.first.json"

@@ -93,7 +93,7 @@ SOURCE_FILES = {
     "quote_research_packets": RESEARCH_DIR / "research_packets.json",
     "quote_research_manifest": RESEARCH_DIR / "corpus_manifest.json",
     "v2_quote_contracts": V2_DIR / "semantic_contracts_v2.json",
-    "v2_images": V2_DIR / "attested_image_corpus_manifest.json",
+    "v2_images": V2_DIR / "attested_image_corpus_manifest_postrun_corrected.json",
     "v2_pairs": V2_DIR / "pair_judgements_v2_postrun_corrected.json",
     "v2_candidates": V2_DIR / "production_top8_pair_candidates_v2_postrun_corrected.json",
     "v2_correction_audit": V2_DIR / "v2_postrun_correction_audit.json",
@@ -263,7 +263,11 @@ def load_packets() -> dict[str, dict[str, Any]]:
 
 def load_images_with_corrected_relationships() -> list[dict[str, Any]]:
     """Load images with corrected relationships."""
-    rows = copy.deepcopy(read_json(V2_DIR / "attested_image_corpus_manifest.json")["records"])
+    rows = copy.deepcopy(
+        read_json(V2_DIR / "attested_image_corpus_manifest_postrun_corrected.json")[
+            "records"
+        ]
+    )
     if len(rows) != EXPECTED_IMAGES or len({row["image_sha256"] for row in rows}) != EXPECTED_IMAGES:
         raise RemediationError("authorised historical image corpus differs from 91 unique images")
     changes = {
@@ -2155,9 +2159,16 @@ def _seasonal_validation(
     }
 
 
-def _generated_profiles(run_dir: Path) -> dict[str, Any]:
-    config = read_json(ROOT / "mrsMThatcher.local.json")
-    generated = read_json(ROOT / "generated_image_analysis.json")
+def _generated_profiles(
+    run_dir: Path,
+    *,
+    config_path: Path | None = None,
+    generated_analysis_path: Path | None = None,
+) -> dict[str, Any]:
+    config = read_json(config_path or ROOT / "mrsMThatcher.local.json")
+    generated = read_json(
+        generated_analysis_path or ROOT / "generated_image_analysis.json"
+    )
     count = len(generated.get("items") or {})
     required = int(config.get("GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN") or 0)
     profiles = []

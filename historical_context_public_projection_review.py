@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Review the v7-to-v8 public historical-context field projection offline.
+"""Review the cumulative v7-to-v9 public historical-context projection.
 
-The review reconstructs the v7 role-based projection from the current packet
-and source-role records, excluding the one source added during the v8 evidence
-correction.  It renders every changed packet with the real public formatter
-and writes only to the explicit output path.  It performs no network access
-and never changes packet or evidence data.
+The v8-to-v9 transition manifest freezes the twelve independently reviewed
+remediations so current v9 evidence cannot leak backwards into the reconstructed
+v7 baseline.  The review renders every cumulatively changed packet with the
+real public formatter and writes only to the explicit output path.  It performs
+no network access and never changes packet or evidence data.
 """
 from __future__ import annotations
 
@@ -24,13 +24,21 @@ from historical_context_formatter import (
     format_context_reply_public,
     load_and_validate_corpus,
 )
-from historical_context_source_roles import AUDIT_FILENAME
+from historical_context_source_roles import (
+    AUDIT_FILENAME,
+    POLICY_VERSION as CURRENT_POLICY,
+)
 
 
-REVIEW_SCHEMA_VERSION = 1
+ROOT = Path(__file__).resolve().parent
+REVIEW_SCHEMA_VERSION = 2
 REVIEW_KIND = "historical_context_public_projection_review"
 V7_POLICY = "historical-context-source-roles-v7-curated-source-adjudications"
 V8_POLICY = "historical-context-source-roles-v8-claim-specific-public-context"
+V9_POLICY = "historical-context-source-roles-v9-archive-provenance"
+TRANSITION_MANIFEST_PATH = (
+    ROOT / "historical_context_v8_v9_transition_manifest.json"
+)
 
 DOCUMENT_104653_QUOTE_ID = (
     "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18"
@@ -120,8 +128,44 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _v7_public_context_supported_fields(packet: dict[str, Any]) -> list[str]:
-    """Reconstruct the v7 role-based field projection from current records."""
+def _canonical_json_sha256(value: Any) -> str:
+    """Hash one canonical JSON value."""
+    return hashlib.sha256(json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
+
+
+def _load_transition_manifest() -> dict[str, Any]:
+    """Load the reviewed, hash-bound v8-to-v9 transition."""
+    value = json.loads(TRANSITION_MANIFEST_PATH.read_text(encoding="utf-8"))
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != 1
+        or value.get("manifest_kind")
+        != "historical_context_v8_v9_reviewed_transition"
+        or value.get("policy_transition") != {
+            "historical_baseline": V7_POLICY,
+            "from": V8_POLICY,
+            "to": V9_POLICY,
+        }
+        or not isinstance(value.get("items"), dict)
+    ):
+        raise RuntimeError("v8-to-v9 transition manifest is invalid")
+    return value
+
+
+def _v7_public_context_supported_fields(
+    packet: dict[str, Any],
+    transition_item: dict[str, Any] | None = None,
+) -> list[str]:
+    """Reconstruct v7 fields without importing v9 evidence into history."""
+    if transition_item is not None:
+        return list(
+            transition_item["v7_public_context_supported_fields"]
+        )
     audit = packet["_source_role_audit"]
     roles: set[str] = set()
     for source in audit.get("renderable_sources", []):
@@ -157,10 +201,10 @@ def _public_source_projection(rendered: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _public_date_precision(
-    packet: dict[str, Any], v8_fields: list[str],
+    packet: dict[str, Any], current_fields: list[str],
 ) -> str:
     """Classify the displayed precision of a date-only projection."""
-    if v8_fields != ["date"]:
+    if current_fields != ["date"]:
         return "not_applicable"
     public_date = _v2_british_date(packet.get("date"))
     for precision, pattern in (
@@ -175,7 +219,7 @@ def _public_date_precision(
 
 def _base_presentation_flags(
     packet: dict[str, Any],
-    v8_fields: list[str],
+    current_fields: list[str],
     context_line: str,
     public_sources: list[dict[str, Any]],
 ) -> list[str]:
@@ -194,12 +238,12 @@ def _base_presentation_flags(
         or not context_line.endswith((".", "?", "!"))
     ):
         flags.append("malformed_context")
-    if "date" not in v8_fields and _DATE_LIKE.search(body):
+    if "date" not in current_fields and _DATE_LIKE.search(body):
         flags.append("unadmitted_date_in_context")
     if "/" in body:
         flags.append("diagnostic_slash_in_context")
 
-    if v8_fields == ["date"]:
+    if current_fields == ["date"]:
         expected = (
             "Context — The surviving record dates this wording to "
             f"{_v2_british_date(packet.get('date'))}, but does not establish "
@@ -213,7 +257,7 @@ def _base_presentation_flags(
         })
         if matching_titles:
             flags.append("source_title_event_tension_manual_hint")
-    elif v8_fields == ["source_event"]:
+    elif current_fields == ["source_event"]:
         if context_line == SAFE_EVENT_ONLY_FALLBACK:
             flags.append("safe_event_only_fallback")
         elif not {
@@ -221,7 +265,7 @@ def _base_presentation_flags(
             "diagnostic_slash_in_context",
         } & set(flags):
             flags.append("safe_event_only_context")
-    elif v8_fields == ["source_event", "date"]:
+    elif current_fields == ["source_event", "date"]:
         flags.append("event_and_date_context")
     return sorted(flags)
 
@@ -241,7 +285,7 @@ def _duplicate_groups(
 
 
 def _assert_review(review: dict[str, Any]) -> None:
-    """Reject any result that no longer describes the reviewed 68 changes."""
+    """Reject any result that no longer describes the reviewed transition."""
     failed = sorted(
         name for name, passed in review["invariants"].items() if not passed
     )
@@ -256,19 +300,102 @@ def build_review(
 ) -> dict[str, Any]:
     """Build the deterministic, offline public projection review."""
     research_dir = research_dir.resolve()
+    transition = _load_transition_manifest()
+    transition_items = transition["items"]
+    transition_ids = set(transition_items)
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
     )
+    curated = json.loads(
+        (research_dir / "historical_context_source_curated_evidence.json")
+        .read_text(encoding="utf-8")
+    )
+    independently_reviewed_ids = {
+        quote_id
+        for quote_id, item in curated.get("items", {}).items()
+        if isinstance(item, dict)
+        and any(
+            str(source.get("evidence_origin") or "").startswith(
+                "independently_reviewed_"
+            )
+            for source in item.get("sources", [])
+            if isinstance(source, dict)
+        )
+    }
+    current_field_map = {
+        quote_id: list(
+            packet["_source_role_audit"].get(
+                "public_context_supported_fields", []
+            )
+        )
+        for quote_id, packet in packets.items()
+    }
+    unchanged_field_map = {
+        quote_id: fields
+        for quote_id, fields in current_field_map.items()
+        if quote_id not in transition_ids
+    }
+    transition_id_hash = hashlib.sha256("".join(
+        f"{quote_id}\n" for quote_id in sorted(transition_ids)
+    ).encode("utf-8")).hexdigest()
+    if (
+        CURRENT_POLICY != V9_POLICY
+        or set(packets) != set(current_field_map)
+        or len(packets) != 626
+        or transition_ids != independently_reviewed_ids
+        or len(transition_ids) != 12
+        or transition_id_hash != transition.get(
+            "transition_quote_ids_sha256"
+        )
+        or _canonical_json_sha256(unchanged_field_map)
+        != transition.get("unchanged_614_public_field_map_sha256")
+        or transition.get("counts") != {
+            "completed_packets": 626,
+            "reviewed_transition_packets": 12,
+            "unchanged_packets": 614,
+            "v8_to_v9_public_field_changes": 6,
+        }
+    ):
+        raise RuntimeError("v8-to-v9 transition scope differs")
+
     records: list[dict[str, Any]] = []
+    incremental_records: list[dict[str, Any]] = []
     for quote_id in sorted(packets):
         packet = packets[quote_id]
         audit = packet["_source_role_audit"]
-        if audit.get("policy_version") != V8_POLICY:
+        if audit.get("policy_version") != V9_POLICY:
             raise RuntimeError(f"unexpected source-role policy for {quote_id}")
-        v7_fields = _v7_public_context_supported_fields(packet)
-        v8_fields = list(audit.get("public_context_supported_fields", []))
-        if v7_fields == v8_fields:
+        transition_item = transition_items.get(quote_id)
+        v7_fields = _v7_public_context_supported_fields(
+            packet, transition_item,
+        )
+        v9_fields = list(audit.get("public_context_supported_fields", []))
+        v8_fields = (
+            list(transition_item["v8_public_context_supported_fields"])
+            if transition_item is not None
+            else list(v9_fields)
+        )
+        if transition_item is not None:
+            if (
+                transition_item.get("quote_text_sha256") != quote_id
+                or list(
+                    transition_item.get(
+                        "v9_public_context_supported_fields", []
+                    )
+                )
+                != v9_fields
+            ):
+                raise RuntimeError(
+                    f"v9 transition record differs for {quote_id}"
+                )
+            if v8_fields != v9_fields:
+                incremental_records.append({
+                    "quote_id": quote_id,
+                    "v8_public_context_supported_fields": v8_fields,
+                    "v9_public_context_supported_fields": v9_fields,
+                })
+        if v7_fields == v9_fields:
             continue
         rendered = format_context_reply_public(packet)
         if rendered is None:
@@ -278,14 +405,14 @@ def build_review(
         public_sources = _public_source_projection(rendered)
         records.append({
             "change_kind": (
-                "downgraded" if len(v8_fields) < len(v7_fields) else "upgraded"
+                "downgraded" if len(v9_fields) < len(v7_fields) else "upgraded"
             ),
             "context_line": context,
             "date": _clean(packet.get("date")),
             "presentation_flags": _base_presentation_flags(
-                packet, v8_fields, context, public_sources,
+                packet, v9_fields, context, public_sources,
             ),
-            "public_date_precision": _public_date_precision(packet, v8_fields),
+            "public_date_precision": _public_date_precision(packet, v9_fields),
             "public_reply_text": public_text,
             "public_sources": public_sources,
             "quote_id": quote_id,
@@ -293,6 +420,7 @@ def build_review(
             "source_event": _clean(packet.get("source_event")),
             "v7_public_context_supported_fields": v7_fields,
             "v8_public_context_supported_fields": v8_fields,
+            "v9_public_context_supported_fields": v9_fields,
         })
 
     downgraded = [row for row in records if row["change_kind"] == "downgraded"]
@@ -338,13 +466,13 @@ def build_review(
     pattern_counts = Counter(
         (
             tuple(record["v7_public_context_supported_fields"]),
-            tuple(record["v8_public_context_supported_fields"]),
+            tuple(record["v9_public_context_supported_fields"]),
         )
         for record in records
     )
     date_precision_counts = Counter(
         record["public_date_precision"] for record in downgraded
-        if record["v8_public_context_supported_fields"] == ["date"]
+        if record["v9_public_context_supported_fields"] == ["date"]
     )
     by_id = {record["quote_id"]: record for record in records}
     blocker_flags = {
@@ -353,25 +481,26 @@ def build_review(
         "duplicate_full_reply",
     }
     invariants = {
-        "change_count_is_68": len(records) == 68,
-        "downgraded_count_is_67": len(downgraded) == 67,
-        "upgraded_count_is_1": len(upgraded) == 1,
-        "date_only_downgrade_count_is_65": pattern_counts[
+        "change_count_is_72": len(records) == 72,
+        "downgraded_count_is_66": len(downgraded) == 66,
+        "upgraded_count_is_6": len(upgraded) == 6,
+        "date_only_downgrade_count_is_64": pattern_counts[
             (("source_event", "date"), ("date",))
-        ] == 65,
+        ] == 64,
         "event_only_downgrade_count_is_2": pattern_counts[
             (("source_event", "date"), ("source_event",))
         ] == 2,
-        "event_and_date_upgrade_count_is_1": pattern_counts[
+        "event_and_date_upgrade_count_is_6": pattern_counts[
             ((), ("source_event", "date"))
-        ] == 1,
-        "all_65_date_only_contexts_are_safe": flag_counts[
+        ] == 6,
+        "all_64_date_only_contexts_are_safe": flag_counts[
             "safe_date_only_context"
-        ] == 65,
-        "date_only_precision_is_60_day_3_month_2_year": (
+        ] == 64,
+        "date_only_precision_is_59_day_3_month_2_year": (
             date_precision_counts
-            == {"day": 60, "month": 3, "year": 2}
+            == {"day": 59, "month": 3, "year": 2}
         ),
+        "v8_to_v9_field_change_count_is_6": len(incremental_records) == 6,
         "b32_uses_safe_fallback": (
             by_id.get(B32_QUOTE_ID, {}).get("context_line")
             == SAFE_EVENT_ONLY_FALLBACK
@@ -393,7 +522,7 @@ def build_review(
                 "v7_public_context_supported_fields"
             ] == []
             and by_id[DOCUMENT_104653_QUOTE_ID][
-                "v8_public_context_supported_fields"
+                "v9_public_context_supported_fields"
             ] == ["source_event", "date"]
         ),
         "no_blocking_presentation_flags": not any(
@@ -410,17 +539,19 @@ def build_review(
             row["promotes_public_fields"] is False for row in manual_hints
         ),
     }
-    root = Path(__file__).resolve().parent
     input_hashes = {
         AUDIT_FILENAME: _file_sha256(research_dir / AUDIT_FILENAME),
         "corpus_manifest.json": _file_sha256(
             research_dir / "corpus_manifest.json"
         ),
         "historical_context_formatter.py": _file_sha256(
-            root / "historical_context_formatter.py"
+            ROOT / "historical_context_formatter.py"
         ),
         "historical_context_public_projection_review.py": _file_sha256(
             Path(__file__).resolve()
+        ),
+        TRANSITION_MANIFEST_PATH.name: _file_sha256(
+            TRANSITION_MANIFEST_PATH
         ),
         "research_packets.json": _file_sha256(
             research_dir / "research_packets.json"
@@ -439,6 +570,7 @@ def build_review(
             (("source_event", "date"), ("source_event",))
         ],
         "manual_hint_count": len(manual_hints),
+        "v8_to_v9_public_field_change_count": len(incremental_records),
         "safe_date_only_count": flag_counts["safe_date_only_context"],
         "safe_event_only_context_count": flag_counts[
             "safe_event_only_context"
@@ -464,15 +596,20 @@ def build_review(
                 "Source-title/event tensions are review hints only and never "
                 "promote a public field without claim-specific evidence."
             ),
-            "v7_reconstruction": (
-                "The role-based v7 projection is reconstructed from current "
-                "renderable records after excluding the explicitly identified "
-                "document 104653 source added with v8."
+            "policy_transition": (
+                "The cumulative v7-to-v9 projection uses the reviewed "
+                "v8-to-v9 transition manifest for the twelve changed packets; "
+                "the other 614 packets are hash-proven field-identical."
             ),
         },
         "invariants": invariants,
+        "incremental_v8_to_v9_records": incremental_records,
         "manual_hints": manual_hints,
-        "policy_comparison": {"from": V7_POLICY, "to": V8_POLICY},
+        "policy_comparison": {
+            "historical_baseline": V7_POLICY,
+            "from": V8_POLICY,
+            "to": V9_POLICY,
+        },
         "review_ready": all(invariants.values()),
         "schema_version": REVIEW_SCHEMA_VERSION,
         "upgraded_records": upgraded,
@@ -500,6 +637,7 @@ def _validate_output_path(
         for name in (
             "historical_context_formatter.py",
             "historical_context_public_projection_review.py",
+            "historical_context_v8_v9_transition_manifest.json",
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",
             "quote_analysis.json",
@@ -533,7 +671,7 @@ def _validate_output_path(
 def main(argv: list[str] | None = None) -> int:
     """Write one explicit deterministic review artifact."""
     parser = argparse.ArgumentParser(
-        description="Review v7-to-v8 public historical-context projections",
+        description="Review v7-to-v9 public historical-context projections",
     )
     parser.add_argument(
         "--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR,

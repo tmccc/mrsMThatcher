@@ -69,7 +69,10 @@ def minimal_context(tmp_path: Path, quote_id: str, veto: ShadowRuntime) -> harne
 
 def test_import_has_no_production_side_effects() -> None:
     paths = [ROOT / name for name in ("bot_state.json", "images_used.json", "lines_used.json")]
-    before = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+    before = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+        for path in paths
+    }
     result = subprocess.run(
         [sys.executable, "-c", "import sys; import quote_image_selection_harness; print('mrsMThatcher2' in sys.modules)"],
         cwd=ROOT,
@@ -77,7 +80,10 @@ def test_import_has_no_production_side_effects() -> None:
         capture_output=True,
         check=True,
     )
-    after = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}
+    after = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+        for path in paths
+    }
     assert result.stdout.strip() == "False"
     assert after == before
 

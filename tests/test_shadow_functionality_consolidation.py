@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 from collections import Counter
 from datetime import date
 from pathlib import Path
@@ -137,7 +136,7 @@ def test_restored_610_quote_cycle_histories_do_not_false_exhaust_or_write_receip
     assert len(eligible) == 610
 
     history_path = tmp_path / "lines_used.json"
-    shutil.copy2(ROOT / "lines_used.json", history_path)
+    bot.save_used_set(history_path, set())
     monkeypatch.setattr(bot, "LINES_USED_FILE", history_path)
     receipt_sentinels: list[tuple[Path, bytes]] = []
     for attribute in (

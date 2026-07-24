@@ -138,11 +138,12 @@ def scan_logs(paths: list[Path]) -> dict[str, Any]:
     }
 
 
-def evaluate(project_dir: Path) -> dict[str, Any]:
+def evaluate(project_dir: Path, *, state_path: Path | None = None) -> dict[str, Any]:
     """Evaluate fixtures, saved history and local evidence retrieval without a model."""
     adversarial_path = project_dir / "tests/fixtures/ai_first_reply_adversarial_cases.json"
     valid_path = project_dir / "tests/fixtures/ai_first_reply_valid_cases.json"
-    state_path = project_dir / "bot_state.json"
+    default_state_path = project_dir / "bot_state.json"
+    state_path = state_path or default_state_path
     research_dir = project_dir / "semantic_alignment_research/quote_research_full_001"
     adversarial = json.loads(adversarial_path.read_text(encoding="utf-8"))
     valid = json.loads(valid_path.read_text(encoding="utf-8"))
@@ -221,6 +222,11 @@ def evaluate(project_dir: Path) -> dict[str, Any]:
         "caveat": "The new prompts and structured outputs were not billed offline; these are historical-call extrapolations, not quotations.",
     }
 
+    try:
+        state_source_name = str(state_path.relative_to(project_dir))
+    except ValueError:
+        state_source_name = "provided_offline_state_fixture.json"
+
     return {
         "schema_version": 1,
         "strategy_version": STRATEGY_VERSION,
@@ -228,12 +234,9 @@ def evaluate(project_dir: Path) -> dict[str, Any]:
         "network_calls": 0,
         "model_calls": 0,
         "source_hashes": {
-            str(path.relative_to(project_dir)): (
-                hashlib.sha256(state_bytes).hexdigest()
-                if path == state_path
-                else sha256_file(path)
-            )
-            for path in (adversarial_path, valid_path, state_path)
+            str(adversarial_path.relative_to(project_dir)): sha256_file(adversarial_path),
+            str(valid_path.relative_to(project_dir)): sha256_file(valid_path),
+            state_source_name: hashlib.sha256(state_bytes).hexdigest(),
         },
         "adversarial_fixture": {
             "case_count": len(adversarial),
@@ -329,10 +332,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--state-path",
+        type=Path,
+        help="optional copied or synthetic bot-state fixture for isolated evaluation",
+    )
     args = parser.parse_args(argv)
     project_dir = args.project_dir.resolve()
     output_dir = args.output_dir.resolve()
-    result = evaluate(project_dir)
+    state_path = args.state_path.resolve() if args.state_path else None
+    result = evaluate(project_dir, state_path=state_path)
     atomic_json(output_dir / "offline_evaluation.json", result)
     report_path = output_dir / "offline_evaluation.md"
     atomic_text(report_path, render(result))

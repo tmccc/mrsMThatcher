@@ -161,7 +161,7 @@ def _install_bot_context(
     return events
 
 
-def test_real_gate_is_hash_bound_and_contains_exact_85_18_8_10_policy():
+def test_real_gate_is_hash_bound_and_contains_exact_86_19_9_10_policy():
     packets, _unresolved = load_and_validate_corpus(
         RESEARCH,
         require_source_role_audit=True,
@@ -181,10 +181,10 @@ def test_real_gate_is_hash_bound_and_contains_exact_85_18_8_10_policy():
     assert gate.reason == ""
     assert gate.ledger_sha256 == EXPECTED_LEDGER_SHA256
     assert gate.projection_sha256 == EXPECTED_PROJECTION_SHA256
-    assert len(gate.blocked_dispositions) == 18
+    assert len(gate.blocked_dispositions) == 19
     assert list(gate.blocked_dispositions.values()).count(
         "future_correction_needed"
-    ) == 8
+    ) == 9
     assert list(gate.blocked_dispositions.values()).count(
         "insufficient_to_assess"
     ) == 10

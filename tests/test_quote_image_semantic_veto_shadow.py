@@ -355,9 +355,20 @@ def test_missing_corrupt_and_stale_manifests_fail_open(tmp_path: Path) -> None:
 def test_preflight_and_replay_do_not_create_runtime_history(tmp_path: Path) -> None:
     result = shadow_preflight(PROJECT, MANIFEST)
     assert result["valid"] is True and result["network_calls"] == 0
-    before = {path: sha256_file(path) for path in (PROJECT / "bot_state.json", PROJECT / "lines_used.json", PROJECT / "images_used.json")}
+    runtime_paths = (
+        PROJECT / "bot_state.json",
+        PROJECT / "lines_used.json",
+        PROJECT / "images_used.json",
+    )
+    before = {
+        path: sha256_file(path) if path.is_file() else None
+        for path in runtime_paths
+    }
     replay = historical_replay(PROJECT, MANIFEST, since_days=30)
-    after = {path: sha256_file(path) for path in before}
+    after = {
+        path: sha256_file(path) if path.is_file() else None
+        for path in runtime_paths
+    }
     assert before == after
     assert replay["network_calls"] == 0
     assert replay["production_selection_change_failures"] == 0

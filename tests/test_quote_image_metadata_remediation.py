@@ -555,9 +555,26 @@ def test_candidate_lookup_rejects_duplicate_quote_image_identity() -> None:
 
 
 def test_generated_profiles_remain_out_of_scope_and_do_not_change_live_config(tmp_path: Path) -> None:
-    config_hash = rem.sha256_file(rem.ROOT / "mrsMThatcher.local.json")
-    payload = rem._generated_profiles(tmp_path)
+    config_path = rem.ROOT / "mrsMThatcher.local.json"
+    config_hash = rem.sha256_file(config_path) if config_path.is_file() else None
+    fixture_config_path = tmp_path / "mrsMThatcher.local.json"
+    fixture_config_path.write_text(
+        json.dumps(
+            {
+                "ENABLE_GENERATED_IMAGE_POOL": False,
+                "GENERATED_IMAGE_MIN_ORIGINAL_POSTS_BETWEEN": 10,
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = rem._generated_profiles(
+        tmp_path,
+        config_path=fixture_config_path,
+        generated_analysis_path=rem.ROOT / "generated_image_analysis.json",
+    )
     assert len(payload["profiles"]) == 7
     assert all(row["semantic_veto_status"] == "out_of_scope_generated" for row in payload["profiles"])
     assert payload["production_configuration_changed"] is False
-    assert rem.sha256_file(rem.ROOT / "mrsMThatcher.local.json") == config_hash
+    assert (
+        rem.sha256_file(config_path) if config_path.is_file() else None
+    ) == config_hash

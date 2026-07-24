@@ -243,7 +243,10 @@ def test_dry_run_makes_no_api_call_and_does_not_touch_production_files(
         Path("mrsMThatcher2.py"), Path("mrs_log_digest.py"), Path("bot_state.json"),
         Path("images_used.json"), Path("generated_image_analysis.json"),
     ]
-    before = {path: audit.sha256_file(path) for path in production_files}
+    before = {
+        path: audit.sha256_file(path) if path.is_file() else None
+        for path in production_files
+    }
 
     def forbidden(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("HTTP call attempted during dry run")
@@ -260,4 +263,7 @@ def test_dry_run_makes_no_api_call_and_does_not_touch_production_files(
     )
     assert audit.main() == 0
     assert not output.exists()
-    assert {path: audit.sha256_file(path) for path in production_files} == before
+    assert {
+        path: audit.sha256_file(path) if path.is_file() else None
+        for path in production_files
+    } == before

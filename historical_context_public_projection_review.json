@@ -1,20 +1,21 @@
 {
   "audit_kind": "historical_context_public_projection_review",
   "counts": {
-    "change_count": 68,
-    "date_only_day_precision_count": 60,
+    "change_count": 72,
+    "date_only_day_precision_count": 59,
     "date_only_month_precision_count": 3,
     "date_only_year_precision_count": 2,
-    "downgraded_count": 67,
+    "downgraded_count": 66,
     "duplicate_context_group_count": 10,
     "duplicate_context_record_count": 26,
     "duplicate_full_reply_group_count": 0,
     "event_only_downgrade_count": 2,
     "manual_hint_count": 9,
-    "safe_date_only_count": 65,
+    "safe_date_only_count": 64,
     "safe_event_only_context_count": 1,
     "safe_event_only_fallback_count": 1,
-    "upgraded_count": 1
+    "upgraded_count": 6,
+    "v8_to_v9_public_field_change_count": 6
   },
   "downgraded_records": [
     {
@@ -46,6 +47,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -79,6 +83,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -109,6 +116,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -149,6 +159,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -180,6 +193,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -213,6 +229,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -243,6 +262,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -276,6 +298,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -306,6 +331,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -339,6 +367,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -371,6 +402,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -401,6 +435,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -434,6 +471,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -466,6 +506,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -496,6 +539,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -537,6 +583,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -568,6 +617,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -598,6 +650,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "source_event"
+      ],
+      "v9_public_context_supported_fields": [
         "source_event"
       ]
     },
@@ -631,6 +686,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -663,6 +721,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -693,6 +754,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -725,6 +789,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -756,44 +823,8 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
-      ]
-    },
-    {
-      "change_kind": "downgraded",
-      "context_line": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.",
-      "date": "March 21, 1994",
-      "presentation_flags": [
-        "safe_date_only_context"
       ],
-      "public_date_precision": "day",
-      "public_reply_text": "Context — The surviving record dates this wording to 21 March 1994, but does not establish its occasion.\n\nMeaning — Western democracies must not cut defense spending based on false optimism, but rather prepare for unpredictable future threats by maintaining military and technological superiority.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Document 108332\nhttps://www.margaretthatcher.org/document/108332\n\nSource — Margaret Thatcher Foundation, THCR (21 March 1994)",
-      "public_sources": [
-        {
-          "claims_supported": [
-            "wording",
-            "attribution"
-          ],
-          "title": "Margaret Thatcher Foundation, Document 108332",
-          "url": "https://www.margaretthatcher.org/document/108332"
-        },
-        {
-          "claims_supported": [
-            "wording",
-            "attribution",
-            "date"
-          ],
-          "title": "Margaret Thatcher Foundation, THCR (21 March 1994)",
-          "url": ""
-        }
-      ],
-      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
-      "quote_text": "Perhaps the single greatest imperative in the Western world today is to reassess our defence requirements on cold, realistic and even pessimistic assumptions and to apply ourselves urgently to fill the gaps.",
-      "source_event": "Speech to Chilean businessmen in Santiago, Chile",
-      "v7_public_context_supported_fields": [
-        "source_event",
-        "date"
-      ],
-      "v8_public_context_supported_fields": [
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -835,6 +866,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -875,6 +909,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -906,6 +943,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -936,6 +976,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -969,6 +1012,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -999,6 +1045,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1032,6 +1081,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1062,6 +1114,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1103,6 +1158,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1143,6 +1201,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1175,6 +1236,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1204,6 +1268,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1236,6 +1303,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1270,6 +1340,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1302,6 +1375,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1332,6 +1408,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1364,6 +1443,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1395,6 +1477,9 @@
       ],
       "v8_public_context_supported_fields": [
         "source_event"
+      ],
+      "v9_public_context_supported_fields": [
+        "source_event"
       ]
     },
     {
@@ -1425,6 +1510,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1458,6 +1546,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1489,6 +1580,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1519,6 +1613,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1552,6 +1649,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1583,6 +1683,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1613,6 +1716,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1653,6 +1759,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1683,6 +1792,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1716,6 +1828,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1746,6 +1861,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1778,6 +1896,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1808,6 +1929,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1841,6 +1965,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1872,6 +1999,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1905,6 +2035,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -1936,6 +2069,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -1976,6 +2112,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -2007,6 +2146,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -2046,6 +2188,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -2087,6 +2232,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -2117,6 +2265,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -2149,6 +2300,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     },
@@ -2189,6 +2343,9 @@
       ],
       "v8_public_context_supported_fields": [
         "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "date"
       ]
     },
     {
@@ -2221,6 +2378,9 @@
         "date"
       ],
       "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "date"
       ]
     }
@@ -2304,35 +2464,89 @@
     }
   ],
   "duplicate_full_reply_groups": [],
+  "incremental_v8_to_v9_records": [
+    {
+      "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "quote_id": "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "v8_public_context_supported_fields": [
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    }
+  ],
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "historical_context_formatter.py": "c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4",
-    "historical_context_public_projection_review.py": "363ea00e8f82daab8e9d192a299ab00cd4b4674bb2e787cd6d426170979ac50a",
-    "historical_context_source_role_audit.json": "431793e66427d1d35da42858d9cc6b516f31667a07a21c5fc5cbe705441193a2",
-    "research_packets.json": "307b01f0c854ad8e16a50ed399bfa0cbd5f4b8c3d00709bfe02100a289143611"
+    "historical_context_formatter.py": "02886eea0c734e36278a83a18a2e9a84862675b35a689db184a99f0c2494cd95",
+    "historical_context_public_projection_review.py": "adbb3fa86c0fc2cea9b8335c5628453f85f9870313658a248b34d091401e2a2e",
+    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
+    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
   },
   "interpretation": {
     "duplicate_context_lines": "Shared dates legitimately reuse the deterministic date-only sentence; only duplicate full replies are blocking.",
     "manual_hints": "Source-title/event tensions are review hints only and never promote a public field without claim-specific evidence.",
-    "v7_reconstruction": "The role-based v7 projection is reconstructed from current renderable records after excluding the explicitly identified document 104653 source added with v8."
+    "policy_transition": "The cumulative v7-to-v9 projection uses the reviewed v8-to-v9 transition manifest for the twelve changed packets; the other 614 packets are hash-proven field-identical."
   },
   "invariants": {
-    "all_65_date_only_contexts_are_safe": true,
+    "all_64_date_only_contexts_are_safe": true,
     "b32_uses_safe_fallback": true,
-    "change_count_is_68": true,
+    "change_count_is_72": true,
     "clean_event_only_context_is_preserved": true,
-    "date_only_downgrade_count_is_65": true,
-    "date_only_precision_is_60_day_3_month_2_year": true,
+    "date_only_downgrade_count_is_64": true,
+    "date_only_precision_is_59_day_3_month_2_year": true,
     "document_104653_upgrade_is_correct": true,
-    "downgraded_count_is_67": true,
-    "event_and_date_upgrade_count_is_1": true,
+    "downgraded_count_is_66": true,
+    "event_and_date_upgrade_count_is_6": true,
     "event_only_downgrade_count_is_2": true,
     "manual_hint_count_is_9": true,
     "manual_hint_ids_match_reviewed_set": true,
     "manual_hints_do_not_promote_fields": true,
     "no_blocking_presentation_flags": true,
     "no_duplicate_full_reply": true,
-    "upgraded_count_is_1": true
+    "upgraded_count_is_6": true,
+    "v8_to_v9_field_change_count_is_6": true
   },
   "manual_hints": [
     {
@@ -2418,12 +2632,168 @@
     }
   ],
   "policy_comparison": {
-    "from": "historical-context-source-roles-v7-curated-source-adjudications",
-    "to": "historical-context-source-roles-v8-claim-specific-public-context"
+    "from": "historical-context-source-roles-v8-claim-specific-public-context",
+    "historical_baseline": "historical-context-source-roles-v7-curated-source-adjudications",
+    "to": "historical-context-source-roles-v9-archive-provenance"
   },
   "review_ready": true,
-  "schema_version": 1,
+  "schema_version": 2,
   "upgraded_records": [
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Speech in Bombay, India, 4 October 1994.",
+      "date": "October 4, 1994",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Speech in Bombay, India, 4 October 1994.\n\nMeaning — State ownership and control stifle economic freedom and efficiency; true market dynamics can only emerge when the government divests from business operations.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)\nhttps://www.margaretthatcher.org/document/108338",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech in Bombay, India, 4 October 1994 (Document 108338)",
+          "url": "https://www.margaretthatcher.org/document/108338"
+        }
+      ],
+      "quote_id": "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "quote_text": "Free enterprise has a universal truth at its heart: to create a genuine market in a state you have to take the state out of the market.",
+      "source_event": "Speech in Bombay, India",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Interview for Financial Times, 31 August 1984.",
+      "date": "August 31, 1984",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Interview for Financial Times, 31 August 1984.\n\nMeaning — Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)\nhttps://www.margaretthatcher.org/document/105508",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Interview for Financial Times, 31 August 1984 (Document 105508)",
+          "url": "https://www.margaretthatcher.org/document/105508"
+        }
+      ],
+      "quote_id": "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "quote_text": "You must have a government which believes very passionately in what it wants to do, is very strong in its sense of purpose and does not listen to siren voices.",
+      "source_event": "Interview for Financial Times",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Speech to Conservative Party Conference, Bournemouth, 10 October 1986.",
+      "date": "October 10, 1986",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Speech to Conservative Party Conference, Bournemouth, 10 October 1986.\n\nMeaning — Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)\nhttps://www.margaretthatcher.org/document/106498",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference, Bournemouth, 10 October 1986 (Document 106498)",
+          "url": "https://www.margaretthatcher.org/document/106498"
+        }
+      ],
+      "quote_id": "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "quote_text": "Governments should not run business.",
+      "source_event": "Speech to Conservative Party Conference, Bournemouth",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.",
+      "date": "March 14, 1977",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977.\n\nMeaning — Thatcher linked the expansion of socialism to penal taxation and adverse effects on living standards, incentives and enterprise.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)\nhttps://www.margaretthatcher.org/document/103336",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to Zurich Economic Society (\"The New Renaissance\"), 14 March 1977 (Document 103336)",
+          "url": "https://www.margaretthatcher.org/document/103336"
+        }
+      ],
+      "quote_id": "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7",
+      "quote_text": "There is a growing realisation in Britain that the progressives were wrong. They are being proved wrong by the failure of the very system they advocated. To finance the extension of Socialism on so vast a scale, taxation has risen to penal levels. We have all seen the results - for living standards, for incentive and for enterprise - of the excessive tax burden in Britain.",
+      "source_event": "Speech to Zurich Economic Society (\"The New Renaissance\")",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
+    {
+      "change_kind": "upgraded",
+      "context_line": "Context — Speech at Lord Mayor's Banquet, 14 November 1983.",
+      "date": "November 14, 1983",
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_date_precision": "not_applicable",
+      "public_reply_text": "Context — Speech at Lord Mayor's Banquet, 14 November 1983.\n\nMeaning — Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.\n\nVerification — Verified excerpt\n\nSource — Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)\nhttps://www.margaretthatcher.org/document/105472",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech at Lord Mayor's Banquet, 14 November 1983 (Document 105472)",
+          "url": "https://www.margaretthatcher.org/document/105472"
+        }
+      ],
+      "quote_id": "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9",
+      "quote_text": "The most debilitating myth was that the state can perpetually provide a higher standard of living regardless of individual effort. It can't and it never could.",
+      "source_event": "Speech at Lord Mayor's Banquet",
+      "v7_public_context_supported_fields": [],
+      "v8_public_context_supported_fields": [],
+      "v9_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ]
+    },
     {
       "change_kind": "upgraded",
       "context_line": "Context — Speech to Conservative Women's Conference, 20 May 1981.",
@@ -2450,6 +2820,10 @@
       "source_event": "Speech to Conservative Women's Conference",
       "v7_public_context_supported_fields": [],
       "v8_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "v9_public_context_supported_fields": [
         "source_event",
         "date"
       ]

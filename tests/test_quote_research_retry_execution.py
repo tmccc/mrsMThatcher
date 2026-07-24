@@ -168,10 +168,38 @@ def test_30_item_batch_requires_exact_seven_fifty_ceiling():
 
 
 def test_failed_batch_recovery_contains_only_19_unresolved(tmp_path):
-    source_manifest = PARENT / "retry_batches/retry_batch_030_002.json"
-    source_run = PARENT / "retry_batches/retry_batch_030_002_run"
+    retry_dir = tmp_path / "parent" / "retry_batches"
+    retry_dir.mkdir(parents=True)
+    source_manifest = retry_dir / "retry_batch_030_002.json"
+    source_manifest.write_text(
+        (PARENT / "retry_batches/retry_batch_030_002.json").read_text(
+            encoding="utf-8"
+        ),
+        encoding="utf-8",
+    )
+    reviewed_recovery = read_json(
+        PARENT / "retry_batches/retry_batch_030_002_recovery_19.json"
+    )
+    failed_ids = {
+        row["quote_id"] for row in reviewed_recovery["records"]
+    }
+    source_run = retry_dir / "retry_batch_030_002_run"
+    source_run.mkdir()
+    (source_run / "permanent_failures.json").write_text(
+        json.dumps({"items": {quote_id: {} for quote_id in failed_ids}}),
+        encoding="utf-8",
+    )
+    (source_run / "research_packets.json").write_text(
+        json.dumps({"items": {}}),
+        encoding="utf-8",
+    )
     output = tmp_path / "recovery_19.json"
-    result = build_failed_batch_recovery(PARENT, source_manifest, source_run, output)
+    result = build_failed_batch_recovery(
+        tmp_path / "parent",
+        source_manifest,
+        source_run,
+        output,
+    )
     failed = set(read_json(source_run / "permanent_failures.json")["items"])
     completed = set(read_json(source_run / "research_packets.json")["items"])
     ids = {row["quote_id"] for row in result["records"]}

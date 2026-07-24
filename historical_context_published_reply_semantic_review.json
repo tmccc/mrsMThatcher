@@ -3,12 +3,12 @@
     "already_resolved_by_current_conservative_rendering": 26,
     "known_104653_corrected_for_future_rendering": true,
     "published_history_modified": false,
-    "remaining_future_correction_or_research_items": 18,
+    "remaining_future_correction_or_research_items": 19,
     "remaining_original_future_correction_items": 7,
     "remaining_original_insufficient_evidence_items": 4,
-    "remaining_post_baseline_future_correction_items": 1,
+    "remaining_post_baseline_future_correction_items": 2,
     "remaining_post_baseline_insufficient_evidence_items": 6,
-    "reviewed_non_supported_or_uncertain": 44
+    "reviewed_non_supported_or_uncertain": 45
   },
   "history_policy": "Published history is immutable; every recommendation applies only to future rendering.",
   "input_evidence": {
@@ -20,12 +20,12 @@
       "successful_document_count": 262
     },
     "published_history": {
-      "completed_entry_count": 85,
-      "parent_post_ids_sha256": "22114bb59e5996afe0f605436f4798384d9362749bd8ffd696e597efc8c8f3cc",
+      "completed_entry_count": 86,
+      "parent_post_ids_sha256": "1a47bbac72d323c80348063aa9d6215966719ef99e8f74fe0523cdf0feb630e6",
       "path": "historical_context_reply_history.json",
-      "quote_ids_sha256": "44aeb23f58b1ba292df2ccbef4b399f08d8b5d090226853e0b5de6aa355694f6",
-      "sha256": "d9d6c3e63324eadea67fa8529d021c8e1f60b8b6af122553585767d3a740850e",
-      "unique_quote_count": 85
+      "quote_ids_sha256": "221400fdb6e44712574250d0e8eccf2f2a8c4761dbba66c0531f9857b6150f9d",
+      "sha256": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
+      "unique_quote_count": 86
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
@@ -33,13 +33,13 @@
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "d936c5c841827bd06c24c6624c4a0535b31d9cdde591aae9ab08789db5d8b8a2"
+      "sha256": "13606be310fe0bc4df1b32127f8aa16b4c9d70aeeed870b4e053a1bb851ebf8f"
     }
   },
   "manual_review_totals": {
-    "future_correction_needed": 32,
+    "future_correction_needed": 33,
     "insufficient_to_assess": 12,
-    "reviewed": 85,
+    "reviewed": 86,
     "supported_as_published": 41
   },
   "records": [
@@ -2406,6 +2406,35 @@
       "quote_text_sha256": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "reply_post_id": "2080172660042969461"
+    },
+    {
+      "current_reply_sha256": "aa84d002dda19b9e02b95372d6dbc27054874ca67f7847bd7feb803a5cc93833",
+      "disposition": "future_correction_needed",
+      "evidence_basis": {
+        "official_mtf_document_checks": [
+          {
+            "document_number": "104297",
+            "machine_status": "manual_review_required"
+          }
+        ],
+        "public_context_supported_fields": [],
+        "renderable_source_ids": [
+          "82f68a173d8e013df7ea2f7ae2b16d3aa404dd4628dc58c367a1bbcd106a7910"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
+      },
+      "follow_up_status": "remains_open",
+      "history_index": 85,
+      "parent_post_id": "2080547587065622930",
+      "published_reply_sha256": "aa84d002dda19b9e02b95372d6dbc27054874ca67f7847bd7feb803a5cc93833",
+      "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
+      "quote_text": "We will not take money in taxes from those who work hard and pay it out to those who don't. We are trying to roll back the tide of Socialism. We must get 'stuck in' and sort out our problems in our traditional British way instead of asking the Government to intervene every time.",
+      "quote_text_sha256": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
+      "reason": "The published Meaning turns three adjacent exhortations into a categorical claim that government intervention inherently taxes productive citizens to subsidise unproductive ones. The retained source identity supports wording and attribution, but not that inherent causal mechanism; future rendering must stay within the quotation's stated claims.",
+      "reply_post_id": "2080547589422813532"
     }
   ],
   "remaining_items": [
@@ -2498,6 +2527,11 @@
       "disposition": "insufficient_to_assess",
       "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae"
+    },
+    {
+      "disposition": "future_correction_needed",
+      "issue": "The published Meaning turns three adjacent exhortations into a categorical claim that government intervention inherently taxes productive citizens to subsidise unproductive ones. The retained source identity supports wording and attribution, but not that inherent causal mechanism; future rendering must stay within the quotation's stated claims.",
+      "quote_id": "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e"
     }
   ],
   "review_kind": "historical_context_published_reply_primary_source_semantic_review",
@@ -2521,13 +2555,14 @@
   "review_scope": {
     "original_review_baseline_count": 77,
     "original_review_quote_ids_sha256": "f23372c0227e63b89d2c4634b8a17dfbdc409f59d987a7c326fb0400d5991976",
-    "post_baseline_review_count": 8,
+    "post_baseline_review_count": 9,
     "post_baseline_review_quote_ids": [
       "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
       "01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea",
       "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
       "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
       "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
+      "a4a987cdde97c2a8a9a7ec8cfd0acdc49af065a217ef8ed0c2e817754fa5e97e",
       "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
       "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7",
       "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37"
@@ -2556,13 +2591,13 @@
       "supported_as_published": 11
     },
     {
-      "future_correction_needed": 1,
+      "future_correction_needed": 2,
       "insufficient_to_assess": 6,
-      "reviewed": 7,
-      "sorted_history_slice": "[78:85]",
+      "reviewed": 8,
+      "sorted_history_slice": "[78:86]",
       "supported_as_published": 0
     }
   ],
-  "reviewed_at": "2026-07-22",
+  "reviewed_at": "2026-07-24",
   "schema_version": 2
 }
