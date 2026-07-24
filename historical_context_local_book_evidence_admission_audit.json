@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_local_book_evidence_canonical_admission",
+  "generated_at": "2026-07-24T14:07:02Z",
+  "status": "candidate_validated_ready_for_controlled_deployment",
+  "production": {
+    "worktree": "/disks/disk1/etc/mrsMThatcher",
+    "branch": "master",
+    "head": "aa0906d7773d6741cd2b0e6b6cf5ddae30386ceb",
+    "upstream": "origin/master",
+    "ahead": 0,
+    "behind": 0,
+    "unmerged_paths": 0,
+    "staged_paths": 0,
+    "unrelated_gitignore_sha256": "efbaeb68a4320ac1c4b36195a853a57fdbfea4c1a11f8bc83cc6126fd0dd5a05",
+    "files_modified_by_admission_at_audit_time": false,
+    "service_signals_by_admission_at_audit_time": 0,
+    "x_actions": 0
+  },
+  "admission_worktree": {
+    "path": "/disks/disk1/research/mrsMThatcher-book-admission-20260724T122834Z",
+    "branch": "production/local-book-evidence-admission-20260724T122834Z",
+    "base_commit": "aa0906d7773d6741cd2b0e6b6cf5ddae30386ceb",
+    "canonical_inputs_modified": true,
+    "generated_canonical_outputs_modified": true
+  },
+  "editorial_review": {
+    "basename": "historical_context_five_sources_four_meaning_corrections_review_updated_20260724T120644Z.md",
+    "sha256": "cff04a652f580b43f411378bac4ac6195d583a90c447fceea02c48cfe1cb79a5",
+    "required_final_line_present": true
+  },
+  "source_admission": {
+    "reviewed_source_count": 5,
+    "verified_binding_count": 5,
+    "exact_primary_count": 2,
+    "primary_variant_count": 2,
+    "secondary_only_count": 1,
+    "curated_source_count_before": 14,
+    "curated_source_count_after": 19,
+    "existing_curated_records_changed": 0,
+    "all_pdf_hashes_match": true,
+    "all_extracted_text_hashes_match": true,
+    "all_printed_pages_visually_verified": true,
+    "all_source_ids_recomputed": true,
+    "collected_speeches_edition": "First U.S. edition, 1998; originally published in Britain and copyright 1997",
+    "quislings_original_event_verified": false,
+    "private_source_files_copied": false
+  },
+  "meaning_admission": {
+    "correction_count_before": 11,
+    "correction_count_after": 15,
+    "new_correction_count": 4,
+    "four_preferred_values_match_editorial_review": true,
+    "quislings_meaning_changed": false,
+    "unrelated_meaning_changes": 0
+  },
+  "implemented_code_requirements": [
+    {
+      "path": "historical_context_source_roles.py",
+      "base_sha256": "2a1c4cb733a9f42286df199f13c3c4c091b769133907d58c89390c98bbe9c93f",
+      "candidate_sha256": "a233e8a0fcec9f84e69ae7c406f089fb53b81ba81b256951414dc68f73b39227",
+      "change": "A curated exact match maps to full wording coverage for the wording claim only.",
+      "date_attribution_event_or_context_coverage_broadened": false
+    },
+    {
+      "path": "historical_context_public_projection_review.py",
+      "base_sha256": "adbb3fa86c0fc2cea9b8335c5628453f85f9870313658a248b34d091401e2a2e",
+      "candidate_sha256": "af0088d723490c9f9933b4f0de8a292692fde150c85d8ea1f09b431ba1e21232",
+      "change": "A separately hash-bound post-v9 transition is accepted only for the five exact reviewed quote/source/candidate bindings.",
+      "historical_v8_v9_manifest_changed": false,
+      "undeclared_source_or_field_change_fails_closed": true,
+      "all_five_later_projections_rendered_and_checked": true
+    },
+    {
+      "path": "historical_context_reply_semantic_gate.py",
+      "base_sha256": "171c51c4dce329a1e20287bc681d2fb1027c0c204e0d6da36eda2318190d5915",
+      "candidate_sha256": "90e00a66e67b7d2b1ba2b3a294e2da83ddcb8274b9e223e3705b04444b8658a4",
+      "change": "Exact fail-closed pins bind the reviewed 86-row ledger, 15 blocked IDs, dispositions and projection.",
+      "unknown_or_stale_ledger_fails_closed": true
+    }
+  ],
+  "supporting_builder_updates": {
+    "historical_context_published_reply_semantic_review.py": {
+      "base_sha256": "3134787e77b970091cbc673c148e1eda56933c2b7946466aca46d0bc87306ad6",
+      "candidate_sha256": "955142bfabca2080b937bd37f73227eef6e4fb9a9b6506d0cfc6f8d6d3ababeb",
+      "reason": "Records the four reviewed primary remediations while preserving Quislings as open."
+    },
+    "historical_context_reply_semantic_gate_audit.py": {
+      "base_sha256": "cbf1857cc96bfcc4dc8522079c144b0c511e42f249197f448d2808869a5466f0",
+      "candidate_sha256": "46b90c10b79546e0dc57fa4a765bc7c74536b5bdf0b55970d13c1e50b3190c4e",
+      "reason": "Uses the exact active fail-closed disposition pins rather than a second stale duplicate."
+    }
+  },
+  "semantic_diff": {
+    "effective_packet_field_changes": 4,
+    "effective_packet_changed_field": "intended_argument",
+    "public_reply_changes": 5,
+    "unrelated_public_semantic_changes": 0,
+    "source_role_items_changed": 13,
+    "reviewed_source_role_items_changed": 5,
+    "legacy_representation_only_items_changed": 8,
+    "legacy_representation_change": "claim_coverage.wording exact to full",
+    "legacy_confidence_role_public_field_render_or_gate_changes": 0
+  },
+  "gate_transition": {
+    "blocked_before": 19,
+    "blocked_after": 15,
+    "allowed_before": 591,
+    "allowed_after": 595,
+    "ids_added": [],
+    "ids_removed": [
+      "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+    ],
+    "quislings_remains_blocked": true,
+    "invariant_failures": 0
+  },
+  "corpus_invariants": {
+    "completed_packets_before": 626,
+    "completed_packets_after": 626,
+    "completed_attribution_ineligible_before": 16,
+    "completed_attribution_ineligible_after": 16,
+    "unresolved_before": 6,
+    "unresolved_after": 6,
+    "ordinary_cycle_before": 610,
+    "ordinary_cycle_after": 610,
+    "ordinary_cycle_order_unchanged": true,
+    "quotation_text_unchanged": true,
+    "quotation_ids_unchanged": true,
+    "semantic_veto_enforcement_changed": false,
+    "generated_image_pool_changed": false
+  },
+  "deterministic_build": {
+    "build_count": 2,
+    "generated_output_count": 13,
+    "byte_identical": true,
+    "source_ids_identical": true,
+    "gate_membership_identical": true,
+    "checksums_identical": true
+  },
+  "hashes": {
+    "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
+    "historical_context_public_projection_review.json": "d60aeafbbb345261a72a60e7005d8237377839bb3ef205f95346060c1bd3c02a",
+    "historical_context_published_reply_semantic_review.json": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
+    "historical_context_reply_semantic_gate_audit.json": "bd386244c7dc30c8757aa72fa722e2d961653291c373db824a2c9223cee79623"
+  },
+  "tests": {
+    "clean_baseline_complete_suite": {
+      "passed": 2300,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1052.52
+    },
+    "candidate_first_complete_suite": {
+      "passed": 2309,
+      "failures": 4,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1046.64,
+      "failure_cause": "Four stale exact-count and formatter-reason test expectations.",
+      "all_failure_signatures_repaired": true
+    },
+    "repaired_targeted_tests": {
+      "passed": 40,
+      "failures": 0,
+      "errors": 0,
+      "duration_seconds": 111.16
+    },
+    "candidate_final_complete_suite": {
+      "status": "passed",
+      "passed": 2313,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1035.31
+    },
+    "compilation_passed": true,
+    "git_diff_check_passed": true
+  },
+  "production_mutations_at_audit_time": {
+    "canonical_research": 0,
+    "gate": 0,
+    "unresolved_state": 0,
+    "quotation_text": 0,
+    "quotation_ids": 0,
+    "ordinary_cycle": 0,
+    "production_files": 0,
+    "service_signals": 0,
+    "x_actions": 0,
+    "commits": 0,
+    "pushes": 0,
+    "deployments": 0
+  },
+  "ready_for_controlled_deployment": true
+}

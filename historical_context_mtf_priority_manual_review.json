@@ -3277,7 +3277,7 @@
     "verified": "official archive identity, source event, date and quotation linkage align; semantic Meaning is not assessed"
   },
   "input_hashes": {
-    "historical_context_evidence_truth_audit.json": "13606be310fe0bc4df1b32127f8aa16b4c9d70aeeed870b4e053a1bb851ebf8f",
+    "historical_context_evidence_truth_audit.json": "05150e8311e7d867e002a109e31d11bf4527fa1fd63401f204db01550712eae9",
     "historical_context_mtf_primary_review.json": "f93a27e1e5bdcb658430bf03c08ca2c5cac1c34121087bd4290fa77e5f543148"
   },
   "invariants": {

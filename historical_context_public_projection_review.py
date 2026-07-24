@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Review the cumulative v7-to-v9 public historical-context projection.
+"""Review the frozen v7-to-v9 and later public historical-context projection.
 
 The v8-to-v9 transition manifest freezes the twelve independently reviewed
 remediations so current v9 evidence cannot leak backwards into the reconstructed
-v7 baseline.  The review renders every cumulatively changed packet with the
-real public formatter and writes only to the explicit output path.  It performs
-no network access and never changes packet or evidence data.
+v7 baseline.  An optional, separately reviewed post-v9 transition manifest can
+declare later evidence additions without rewriting that historical manifest.
+The review renders every cumulatively changed packet with the real public
+formatter and writes only to the explicit output path.  It performs no network
+access and never changes packet or evidence data.
 """
 from __future__ import annotations
 
@@ -31,13 +33,54 @@ from historical_context_source_roles import (
 
 
 ROOT = Path(__file__).resolve().parent
-REVIEW_SCHEMA_VERSION = 2
+REVIEW_SCHEMA_VERSION = 3
 REVIEW_KIND = "historical_context_public_projection_review"
 V7_POLICY = "historical-context-source-roles-v7-curated-source-adjudications"
 V8_POLICY = "historical-context-source-roles-v8-claim-specific-public-context"
 V9_POLICY = "historical-context-source-roles-v9-archive-provenance"
 TRANSITION_MANIFEST_PATH = (
     ROOT / "historical_context_v8_v9_transition_manifest.json"
+)
+POST_V9_TRANSITION_MANIFEST_PATH = (
+    ROOT / "historical_context_v9_local_book_evidence_transition_manifest.json"
+)
+POST_V9_TRANSITION_KIND = (
+    "historical_context_v9_reviewed_evidence_transition"
+)
+POST_V9_TRANSITION_STATUS = "canonical_admission_reviewed"
+POST_V9_REVIEWED_BINDINGS = {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": (
+        "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+        "41607f622b3f8d07407bc2b1b2be68e9624037b9d1b0f380f9c7398602257f29",
+    ),
+    "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351": (
+        "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+        "a2f98708d029eaf4b8bd309660db763502510be5a75627d214b5530d80f8a1f5",
+    ),
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": (
+        "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+        "ab036aa67cf8241c90dcbfbe62e5887357118829a8a5c7cbd3dc223523cd7594",
+    ),
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": (
+        "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+        "5a639e39d475ac8e22b59e890c45bb617d64ad3d15ca1b45a223ddc9a3628a73",
+    ),
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": (
+        "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+        "6759265bfb86c0564890a0435f625e8b98a9059ddb7e69c4534c51a064a7560e",
+    ),
+}
+POST_V9_BASELINE_CURATED_SOURCE_COUNT = 14
+POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256 = (
+    "5b971a327a33bae293b2f89a2a2b5b1d59e638de8892e0fbc3e42442bd0b46d8"
+)
+POST_V9_INPUT_NAMES = (
+    "corpus_manifest.json",
+    "historical_context_packet_corrections.json",
+    "historical_context_source_curated_evidence.json",
+    AUDIT_FILENAME,
+    "research_packets.json",
+    TRANSITION_MANIFEST_PATH.name,
 )
 
 DOCUMENT_104653_QUOTE_ID = (
@@ -157,9 +200,255 @@ def _load_transition_manifest() -> dict[str, Any]:
     return value
 
 
+def _post_v9_input_hashes(research_dir: Path) -> dict[str, str]:
+    """Return the exact production inputs bound by a later transition."""
+    paths = {
+        "corpus_manifest.json": research_dir / "corpus_manifest.json",
+        "historical_context_packet_corrections.json": (
+            research_dir / "historical_context_packet_corrections.json"
+        ),
+        "historical_context_source_curated_evidence.json": (
+            research_dir / "historical_context_source_curated_evidence.json"
+        ),
+        AUDIT_FILENAME: research_dir / AUDIT_FILENAME,
+        "research_packets.json": research_dir / "research_packets.json",
+        TRANSITION_MANIFEST_PATH.name: TRANSITION_MANIFEST_PATH,
+    }
+    return {name: _file_sha256(paths[name]) for name in POST_V9_INPUT_NAMES}
+
+
+def _load_post_v9_transition_manifest() -> dict[str, Any] | None:
+    """Load one active post-v9 transition, or return baseline-only mode."""
+    if not POST_V9_TRANSITION_MANIFEST_PATH.exists():
+        return None
+    try:
+        value = json.loads(
+            POST_V9_TRANSITION_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("post-v9 transition manifest is invalid") from exc
+    if (
+        not isinstance(value, dict)
+        or value.get("schema_version") != 1
+        or value.get("manifest_kind") != POST_V9_TRANSITION_KIND
+        or value.get("transition_status") != POST_V9_TRANSITION_STATUS
+        or value.get("policy_transition") != {
+            "from": V9_POLICY,
+            "to": V9_POLICY,
+        }
+        or not isinstance(value.get("items"), dict)
+        or not value["items"]
+    ):
+        raise RuntimeError("post-v9 transition manifest is invalid")
+    return value
+
+
+def _public_fields_without_sources(
+    audit: dict[str, Any],
+    excluded_source_ids: set[str],
+) -> list[str]:
+    """Reconstruct claim-specific fields with later sources removed."""
+    remaining = [
+        source
+        for source in audit.get("renderable_sources", [])
+        if source.get("source_id") not in excluded_source_ids
+    ]
+    return [
+        field
+        for field in ("source_event", "date", "historical_context")
+        if (
+            field != "date"
+            or audit.get("confidence_after", {}).get("date") != "unknown"
+        )
+        and any(
+            field in source.get("claims_supported", [])
+            and source.get("source_quality_class") in {
+                "strong_primary_evidence",
+                "reliable_secondary_evidence",
+                "secondary_recollection",
+            }
+            for source in remaining
+        )
+    ]
+
+
+def _validate_post_v9_transition(
+    manifest: dict[str, Any],
+    *,
+    packets: dict[str, dict[str, Any]],
+    curated: dict[str, Any],
+    current_field_map: dict[str, list[str]],
+    historical_transition_ids: set[str],
+    expected_input_hashes: dict[str, str],
+    expected_bindings: dict[str, tuple[str, str]],
+    expected_baseline_source_count: int,
+    expected_baseline_source_ids_sha256: str,
+) -> tuple[dict[str, list[str]], list[dict[str, Any]]]:
+    """Validate and apply one hash-bound, disjoint post-v9 transition."""
+    items = manifest["items"]
+    transition_ids = set(items)
+    if transition_ids != set(expected_bindings):
+        raise RuntimeError("post-v9 transition does not contain the reviewed scope")
+    transition_id_hash = hashlib.sha256("".join(
+        f"{quote_id}\n" for quote_id in sorted(transition_ids)
+    ).encode("utf-8")).hexdigest()
+    if (
+        transition_ids & historical_transition_ids
+        or not transition_ids <= set(packets)
+        or set(manifest.get("input_hashes", {})) != set(POST_V9_INPUT_NAMES)
+        or manifest.get("input_hashes") != expected_input_hashes
+        or manifest.get("transition_quote_ids_sha256") != transition_id_hash
+    ):
+        raise RuntimeError("post-v9 transition scope or inputs differ")
+
+    curated_items = curated.get("items", {})
+    if not isinstance(curated_items, dict):
+        raise RuntimeError("post-v9 transition curated evidence is invalid")
+    all_curated_source_ids = {
+        _clean(source.get("source_id"))
+        for curated_item in curated_items.values()
+        if isinstance(curated_item, dict)
+        for source in curated_item.get("sources", [])
+        if isinstance(source, dict)
+    }
+    reviewed_source_ids = {
+        source_id for source_id, _candidate_id in expected_bindings.values()
+    }
+    baseline_source_ids = all_curated_source_ids - reviewed_source_ids
+    baseline_source_ids_hash = hashlib.sha256("".join(
+        f"{source_id}\n" for source_id in sorted(baseline_source_ids)
+    ).encode("utf-8")).hexdigest()
+    if (
+        len(all_curated_source_ids)
+        != expected_baseline_source_count + len(reviewed_source_ids)
+        or len(baseline_source_ids) != expected_baseline_source_count
+        or baseline_source_ids_hash
+        != expected_baseline_source_ids_sha256
+    ):
+        raise RuntimeError("post-v9 transition contains undeclared curated sources")
+
+    baseline_field_map = dict(current_field_map)
+    records: list[dict[str, Any]] = []
+    seen_source_ids: set[str] = set()
+    seen_candidate_ids: set[str] = set()
+    source_addition_count = 0
+    public_field_change_count = 0
+    for quote_id in sorted(transition_ids):
+        item = items[quote_id]
+        if not isinstance(item, dict):
+            raise RuntimeError(
+                f"post-v9 transition item is invalid for {quote_id}"
+            )
+        bindings = item.get("source_bindings")
+        if not isinstance(bindings, list) or not bindings:
+            raise RuntimeError(
+                f"post-v9 transition bindings are invalid for {quote_id}"
+            )
+        canonical_bindings: list[dict[str, str]] = []
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                raise RuntimeError(
+                    f"post-v9 transition binding is invalid for {quote_id}"
+                )
+            source_id = _clean(binding.get("source_id"))
+            candidate_id = _clean(binding.get("source_review_candidate_id"))
+            if (
+                not re.fullmatch(r"[0-9a-f]{64}", source_id)
+                or not re.fullmatch(r"[0-9a-f]{64}", candidate_id)
+                or source_id in seen_source_ids
+                or candidate_id in seen_candidate_ids
+            ):
+                raise RuntimeError(
+                    f"post-v9 transition binding is invalid for {quote_id}"
+                )
+            seen_source_ids.add(source_id)
+            seen_candidate_ids.add(candidate_id)
+            canonical_bindings.append({
+                "source_id": source_id,
+                "source_review_candidate_id": candidate_id,
+            })
+        if canonical_bindings != sorted(
+            canonical_bindings,
+            key=lambda row: (
+                row["source_id"], row["source_review_candidate_id"],
+            ),
+        ):
+            raise RuntimeError(
+                f"post-v9 transition bindings are not canonical for {quote_id}"
+            )
+
+        declared_pairs = {
+            (row["source_id"], row["source_review_candidate_id"])
+            for row in canonical_bindings
+        }
+        if declared_pairs != {expected_bindings[quote_id]}:
+            raise RuntimeError(
+                f"post-v9 transition binding is not reviewed for {quote_id}"
+            )
+        curated_pairs = {
+            (
+                _clean(source.get("source_id")),
+                _clean(source.get("source_review_candidate_id")),
+            )
+            for source in curated_items.get(quote_id, {}).get("sources", [])
+            if isinstance(source, dict)
+            and (
+                _clean(source.get("source_id")),
+                _clean(source.get("source_review_candidate_id")),
+            )
+            in declared_pairs
+        }
+        audit = packets[quote_id]["_source_role_audit"]
+        audited_source_ids = {
+            _clean(source.get("source_id"))
+            for source in audit.get("curated_sources", [])
+            if isinstance(source, dict)
+        }
+        source_ids = {row["source_id"] for row in canonical_bindings}
+        baseline_fields = _public_fields_without_sources(audit, source_ids)
+        current_fields = list(current_field_map[quote_id])
+        declared_baseline = item.get(
+            "v9_baseline_public_context_supported_fields"
+        )
+        declared_current = item.get(
+            "current_public_context_supported_fields"
+        )
+        if (
+            item.get("quote_text_sha256") != quote_id
+            or curated_pairs != declared_pairs
+            or not source_ids <= audited_source_ids
+            or declared_baseline != baseline_fields
+            or declared_current != current_fields
+        ):
+            raise RuntimeError(
+                f"post-v9 transition evidence differs for {quote_id}"
+            )
+
+        baseline_field_map[quote_id] = baseline_fields
+        source_addition_count += len(canonical_bindings)
+        if baseline_fields != current_fields:
+            public_field_change_count += 1
+        records.append({
+            "current_public_context_supported_fields": current_fields,
+            "quote_id": quote_id,
+            "source_bindings": canonical_bindings,
+            "v9_baseline_public_context_supported_fields": baseline_fields,
+        })
+
+    if manifest.get("counts") != {
+        "transition_packets": len(transition_ids),
+        "source_additions": source_addition_count,
+        "public_field_changes": public_field_change_count,
+    }:
+        raise RuntimeError("post-v9 transition counts differ")
+    return baseline_field_map, records
+
+
 def _v7_public_context_supported_fields(
     packet: dict[str, Any],
     transition_item: dict[str, Any] | None = None,
+    *,
+    later_source_ids: set[str] | None = None,
 ) -> list[str]:
     """Reconstruct v7 fields without importing v9 evidence into history."""
     if transition_item is not None:
@@ -169,7 +458,9 @@ def _v7_public_context_supported_fields(
     audit = packet["_source_role_audit"]
     roles: set[str] = set()
     for source in audit.get("renderable_sources", []):
-        if source.get("source_id") in V8_ADDED_SOURCE_IDS:
+        if source.get("source_id") in (
+            V8_ADDED_SOURCE_IDS | (later_source_ids or set())
+        ):
             continue
         roles.update(source.get("assigned_roles", []))
     return [
@@ -303,6 +594,7 @@ def build_review(
     transition = _load_transition_manifest()
     transition_items = transition["items"]
     transition_ids = set(transition_items)
+    post_v9_transition = _load_post_v9_transition_manifest()
     packets, _ = load_and_validate_corpus(
         research_dir,
         require_source_role_audit=True,
@@ -331,9 +623,29 @@ def build_review(
         )
         for quote_id, packet in packets.items()
     }
+    historical_v9_field_map = dict(current_field_map)
+    post_v9_records: list[dict[str, Any]] = []
+    if post_v9_transition is not None:
+        historical_v9_field_map, post_v9_records = (
+            _validate_post_v9_transition(
+                post_v9_transition,
+                packets=packets,
+                curated=curated,
+                current_field_map=current_field_map,
+                historical_transition_ids=transition_ids,
+                expected_input_hashes=_post_v9_input_hashes(research_dir),
+                expected_bindings=POST_V9_REVIEWED_BINDINGS,
+                expected_baseline_source_count=(
+                    POST_V9_BASELINE_CURATED_SOURCE_COUNT
+                ),
+                expected_baseline_source_ids_sha256=(
+                    POST_V9_BASELINE_CURATED_SOURCE_IDS_SHA256
+                ),
+            )
+        )
     unchanged_field_map = {
         quote_id: fields
-        for quote_id, fields in current_field_map.items()
+        for quote_id, fields in historical_v9_field_map.items()
         if quote_id not in transition_ids
     }
     transition_id_hash = hashlib.sha256("".join(
@@ -361,6 +673,11 @@ def build_review(
 
     records: list[dict[str, Any]] = []
     incremental_records: list[dict[str, Any]] = []
+    post_v9_source_ids = {
+        binding["source_id"]
+        for record in post_v9_records
+        for binding in record["source_bindings"]
+    }
     for quote_id in sorted(packets):
         packet = packets[quote_id]
         audit = packet["_source_role_audit"]
@@ -368,9 +685,11 @@ def build_review(
             raise RuntimeError(f"unexpected source-role policy for {quote_id}")
         transition_item = transition_items.get(quote_id)
         v7_fields = _v7_public_context_supported_fields(
-            packet, transition_item,
+            packet,
+            transition_item,
+            later_source_ids=post_v9_source_ids,
         )
-        v9_fields = list(audit.get("public_context_supported_fields", []))
+        v9_fields = list(historical_v9_field_map[quote_id])
         v8_fields = (
             list(transition_item["v8_public_context_supported_fields"])
             if transition_item is not None
@@ -445,6 +764,27 @@ def build_review(
             flags.add("duplicate_full_reply")
         record["presentation_flags"] = sorted(flags)
 
+    for record in post_v9_records:
+        quote_id = record["quote_id"]
+        packet = packets[quote_id]
+        current_fields = record["current_public_context_supported_fields"]
+        rendered = format_context_reply_public(packet)
+        if rendered is None:
+            raise RuntimeError(
+                f"post-v9 public formatter failed for {quote_id}"
+            )
+        public_text = rendered["text"]
+        context = _context_line(public_text)
+        public_sources = _public_source_projection(rendered)
+        record.update({
+            "context_line": context,
+            "presentation_flags": _base_presentation_flags(
+                packet, current_fields, context, public_sources,
+            ),
+            "public_reply_text": public_text,
+            "public_sources": public_sources,
+        })
+
     manual_hints = [
         {
             "kind": "source_title_event_tension",
@@ -501,6 +841,16 @@ def build_review(
             == {"day": 59, "month": 3, "year": 2}
         ),
         "v8_to_v9_field_change_count_is_6": len(incremental_records) == 6,
+        "post_v9_transition_is_disjoint": not (
+            set(transition_items)
+            & {record["quote_id"] for record in post_v9_records}
+        ),
+        "post_v9_projections_are_safe": all(
+            not blocker_flags & set(record["presentation_flags"])
+            and bool(record["public_reply_text"])
+            and bool(record["public_sources"])
+            for record in post_v9_records
+        ),
         "b32_uses_safe_fallback": (
             by_id.get(B32_QUOTE_ID, {}).get("context_line")
             == SAFE_EVENT_ONLY_FALLBACK
@@ -557,6 +907,10 @@ def build_review(
             research_dir / "research_packets.json"
         ),
     }
+    if post_v9_transition is not None:
+        input_hashes[POST_V9_TRANSITION_MANIFEST_PATH.name] = _file_sha256(
+            POST_V9_TRANSITION_MANIFEST_PATH
+        )
     counts = {
         "change_count": len(records),
         "date_only_day_precision_count": date_precision_counts["day"],
@@ -570,6 +924,15 @@ def build_review(
             (("source_event", "date"), ("source_event",))
         ],
         "manual_hint_count": len(manual_hints),
+        "post_v9_public_field_change_count": sum(
+            record["v9_baseline_public_context_supported_fields"]
+            != record["current_public_context_supported_fields"]
+            for record in post_v9_records
+        ),
+        "post_v9_source_addition_count": sum(
+            len(record["source_bindings"]) for record in post_v9_records
+        ),
+        "post_v9_transition_packet_count": len(post_v9_records),
         "v8_to_v9_public_field_change_count": len(incremental_records),
         "safe_date_only_count": flag_counts["safe_date_only_context"],
         "safe_event_only_context_count": flag_counts[
@@ -599,7 +962,9 @@ def build_review(
             "policy_transition": (
                 "The cumulative v7-to-v9 projection uses the reviewed "
                 "v8-to-v9 transition manifest for the twelve changed packets; "
-                "the other 614 packets are hash-proven field-identical."
+                "the other 614 packets are hash-proven field-identical at the "
+                "frozen v9 baseline. Any later reviewed evidence transition is "
+                "hash-bound and reported separately."
             ),
         },
         "invariants": invariants,
@@ -610,6 +975,7 @@ def build_review(
             "from": V8_POLICY,
             "to": V9_POLICY,
         },
+        "post_v9_transition_records": post_v9_records,
         "review_ready": all(invariants.values()),
         "schema_version": REVIEW_SCHEMA_VERSION,
         "upgraded_records": upgraded,
@@ -638,6 +1004,7 @@ def _validate_output_path(
             "historical_context_formatter.py",
             "historical_context_public_projection_review.py",
             "historical_context_v8_v9_transition_manifest.json",
+            "historical_context_v9_local_book_evidence_transition_manifest.json",
             "historical_context_source_roles.py",
             "mrsMThatcher.txt",
             "quote_analysis.json",
@@ -660,7 +1027,9 @@ def _validate_output_path(
         if (
             not isinstance(existing, dict)
             or existing.get("audit_kind") != REVIEW_KIND
-            or existing.get("schema_version") != REVIEW_SCHEMA_VERSION
+            or existing.get("schema_version") not in {
+                2, REVIEW_SCHEMA_VERSION,
+            }
         ):
             raise ValueError(
                 "--overwrite target is not a prior projection-review artifact"
@@ -671,7 +1040,10 @@ def _validate_output_path(
 def main(argv: list[str] | None = None) -> int:
     """Write one explicit deterministic review artifact."""
     parser = argparse.ArgumentParser(
-        description="Review v7-to-v9 public historical-context projections",
+        description=(
+            "Review frozen v7-to-v9 and later public historical-context "
+            "projections"
+        ),
     )
     parser.add_argument(
         "--research-dir", type=Path, default=DEFAULT_RESEARCH_DIR,

@@ -246,6 +246,12 @@ RESOLVED_CORRECTION_FINDINGS = {
 
 
 TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": (
+        "The inspected primary memoir page establishes Thatcher authorship, "
+        "publication and the complete variant wording, including 'other "
+        "things being equal' and 'British goods'; the hash-bound Meaning now "
+        "states contribution rather than sole causation."
+    ),
     "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381": (
         "Inspected primary document 108338 establishes the quotation, Bombay "
         "occasion and date; its surrounding passage supports the retained "
@@ -270,6 +276,12 @@ TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
         "Inspected primary document 106498 establishes the speech, date and "
         "wording; a hash-bound Meaning correction now states the source's "
         "accountability claim without asserting inherent private superiority."
+    ),
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": (
+        "The inspected 1995 primary memoir page establishes Thatcher "
+        "authorship, publication and exact wording; the hash-bound Meaning "
+        "now confines itself to the source's comparison of the two forms of "
+        "socialism."
     ),
     "6cc1934843f9e7ab1ee3baf477359078f1b17a45b630dc779ee5561b3b9128f7": (
         "Inspected primary document 103336 establishes the Zurich speech and "
@@ -305,6 +317,18 @@ TARGETED_REMEDIATION_RESOLVED_FINDINGS = {
         "Inspected primary document 109301 establishes the Bermuda speech, "
         "date and wording; a hash-bound Meaning correction removes the "
         "unsupported inevitability claim."
+    ),
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": (
+        "The inspected primary speech collection establishes the 10 October "
+        "1975 conference event and complete variant wording; the hash-bound "
+        "Meaning now stays within the source's contrast between distinct, "
+        "unequal and equally important individuals."
+    ),
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": (
+        "The inspected primary memoir page establishes Thatcher authorship, "
+        "publication, exact wording and the retained post-war context; the "
+        "hash-bound Meaning removes the unsupported claim that this passage "
+        "itself justified all later free-market reforms."
     ),
 }
 
@@ -423,10 +447,10 @@ def _finding_reason(
     row: dict[str, Any],
     source_rows: list[dict[str, Any]],
 ) -> str:
-    if quote_id in INSUFFICIENT_FINDINGS:
-        return INSUFFICIENT_FINDINGS[quote_id]
     if quote_id in TARGETED_REMEDIATION_RESOLVED_FINDINGS:
         return TARGETED_REMEDIATION_RESOLVED_FINDINGS[quote_id]
+    if quote_id in INSUFFICIENT_FINDINGS:
+        return INSUFFICIENT_FINDINGS[quote_id]
     if quote_id in OPEN_FINDINGS:
         return OPEN_FINDINGS[quote_id]
     if quote_id in RESOLVED_CORRECTION_FINDINGS:

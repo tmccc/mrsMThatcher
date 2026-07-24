@@ -25,6 +25,7 @@ from historical_context_formatter import (
     packet_is_attributed_to_margaret_thatcher,
 )
 from historical_context_reply_semantic_gate import (
+    EXPECTED_DISPOSITION_COUNTS,
     POLICY_VERSION,
     SEMANTIC_REVIEW_PATH,
     load_historical_context_semantic_gate,
@@ -193,11 +194,7 @@ def build_audit(
             and effective_blocked_ids.issubset(eligible_ids)
         ),
         "blocked_quotes_have_reviewed_dispositions": (
-            disposition_counts
-            == Counter({
-                "future_correction_needed": 9,
-                "insufficient_to_assess": 10,
-            })
+            disposition_counts == Counter(EXPECTED_DISPOSITION_COUNTS)
         ),
         "blocked_quotes_have_inspectable_pre_gate_renderings": (
             not blocked_render_failures

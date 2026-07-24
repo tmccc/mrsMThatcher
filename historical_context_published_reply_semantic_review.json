@@ -1,13 +1,13 @@
 {
   "current_render_follow_up": {
-    "already_resolved_by_current_conservative_rendering": 26,
+    "already_resolved_by_current_conservative_rendering": 30,
     "known_104653_corrected_for_future_rendering": true,
     "published_history_modified": false,
-    "remaining_future_correction_or_research_items": 19,
-    "remaining_original_future_correction_items": 7,
+    "remaining_future_correction_or_research_items": 15,
+    "remaining_original_future_correction_items": 4,
     "remaining_original_insufficient_evidence_items": 4,
     "remaining_post_baseline_future_correction_items": 2,
-    "remaining_post_baseline_insufficient_evidence_items": 6,
+    "remaining_post_baseline_insufficient_evidence_items": 5,
     "reviewed_non_supported_or_uncertain": 45
   },
   "history_policy": "Published history is immutable; every recommendation applies only to future rendering.",
@@ -29,11 +29,11 @@
     },
     "source_role_audit": {
       "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-      "sha256": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908"
+      "sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7"
     },
     "truth_audit": {
       "path": "historical_context_evidence_truth_audit.json",
-      "sha256": "13606be310fe0bc4df1b32127f8aa16b4c9d70aeeed870b4e053a1bb851ebf8f"
+      "sha256": "05150e8311e7d867e002a109e31d11bf4527fa1fd63401f204db01550712eae9"
     }
   },
   "manual_review_totals": {
@@ -1168,23 +1168,30 @@
       "reply_post_id": "2078495551746662688"
     },
     {
-      "current_reply_sha256": "1a0c2b89a83c88c2f95ca06106811cde56b5f9bba63c19af12d5a847ff690331",
+      "current_reply_sha256": "7737d97442a77674394766daf59642e0e0b4d4c42de62ed0da4f35b179bb8cd4",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
-      "follow_up_status": "remains_open",
+      "follow_up_status": "resolved_by_current_rendering",
       "history_index": 40,
       "parent_post_id": "2078530881916977383",
       "published_reply_sha256": "6cd94391d662767b33cce76bdf0c24070853c867c8cf5dbd66d872eef994ac73",
       "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin.",
       "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
-      "reason": "Meaning adds totalitarian and anti-democratic claims without an edition-specific primary memoir page.",
+      "reason": "The inspected 1995 primary memoir page establishes Thatcher authorship, publication and exact wording; the hash-bound Meaning now confines itself to the source's comparison of the two forms of socialism.",
       "reply_post_id": "2078530884492267617"
     },
     {
@@ -1270,23 +1277,31 @@
       "reply_post_id": "2078630553884967420"
     },
     {
-      "current_reply_sha256": "144493e573b0e386161532f303bde391a653998e48289abd03edc2c388666e91",
+      "current_reply_sha256": "231b8cecefd40ef9004f43f4d906fe95e8b84f9aa2ef3afbc9021204138be944",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date",
+          "historical_context"
+        ],
+        "renderable_source_ids": [
+          "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
-      "follow_up_status": "remains_open",
+      "follow_up_status": "resolved_by_current_rendering",
       "history_index": 44,
       "parent_post_id": "2078665005155643594",
       "published_reply_sha256": "54454a019c7b939f142e2f007b308dece5de9e0e151796707abc5ddcccdfecc4",
       "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "quote_text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect.",
       "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-      "reason": "Meaning adds a causal justification for later free-market reforms without an edition-specific primary memoir page.",
+      "reason": "The inspected primary memoir page establishes Thatcher authorship, publication, exact wording and the retained post-war context; the hash-bound Meaning removes the unsupported claim that this passage itself justified all later free-market reforms.",
       "reply_post_id": "2078665007936532935"
     },
     {
@@ -1776,23 +1791,30 @@
       "reply_post_id": "2079253907008598336"
     },
     {
-      "current_reply_sha256": "47c661ea8ed38286396d2259812639b24b72c937b4c32c6102e5bff22dbbaef4",
+      "current_reply_sha256": "6a1bfd050dec7ced3ddcfab4f9b61cab780f892533ab94ad990f041466c860ce",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
-        "renderable_source_ids": [],
-        "renderable_source_quality_classes": [],
-        "wording_confidence": "unknown"
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
+        "renderable_source_ids": [
+          "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777"
+        ],
+        "renderable_source_quality_classes": [
+          "strong_primary_evidence"
+        ],
+        "wording_confidence": "high"
       },
-      "follow_up_status": "remains_open",
+      "follow_up_status": "resolved_by_current_rendering",
       "history_index": 62,
       "parent_post_id": "2079286616233844889",
       "published_reply_sha256": "1046d4474c182558710668c998ca0556a56281d3edc694039fb83a2da2c26381",
       "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
       "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive.",
       "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
-      "reason": "Meaning introduces market-clearing terminology and categorical causation without retained evidence.",
+      "reason": "The inspected primary memoir page establishes Thatcher authorship, publication and the complete variant wording, including 'other things being equal' and 'British goods'; the hash-bound Meaning now states contribution rather than sole causation.",
       "reply_post_id": "2079286619106947425"
     },
     {
@@ -2131,18 +2153,22 @@
       "reply_post_id": "2079694407180140571"
     },
     {
-      "current_reply_sha256": "36282c50556a067bdfa0640a389ace5334109f0413ce3f90c65af536afec177f",
+      "current_reply_sha256": "a525cf640641c29847212b7a414e6b6a26d70fdebb875631333a1f4daee994cc",
       "disposition": "future_correction_needed",
       "evidence_basis": {
         "official_mtf_document_checks": [],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
         "renderable_source_ids": [
+          "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
           "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9"
         ],
         "renderable_source_quality_classes": [
+          "reliable_secondary_evidence",
           "secondary_recollection"
         ],
-        "wording_confidence": "low"
+        "wording_confidence": "medium"
       },
       "follow_up_status": "remains_open",
       "history_index": 75,
@@ -2352,7 +2378,7 @@
       "reply_post_id": "2080104320809197722"
     },
     {
-      "current_reply_sha256": "511853d27e1ed5d1ec9d3caa95b0d60f46e6c0f839b68bfcd8c01b92a43337fc",
+      "current_reply_sha256": "a6e2e757bab363878f451bd182fc25a176215bc822f4b7ea7c620b3b311ee63c",
       "disposition": "insufficient_to_assess",
       "evidence_basis": {
         "official_mtf_document_checks": [
@@ -2361,23 +2387,27 @@
             "machine_status": "manual_review_required"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "source_event",
+          "date"
+        ],
         "renderable_source_ids": [
-          "28ecd16b29279a8d74c9cb1d0917815655a2d7342ea3928aca5da9cf4f877300"
+          "28ecd16b29279a8d74c9cb1d0917815655a2d7342ea3928aca5da9cf4f877300",
+          "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"
         ],
         "renderable_source_quality_classes": [
           "strong_primary_evidence"
         ],
         "wording_confidence": "high"
       },
-      "follow_up_status": "remains_open",
+      "follow_up_status": "resolved_by_current_rendering",
       "history_index": 83,
       "parent_post_id": "2080135333262377191",
       "published_reply_sha256": "511853d27e1ed5d1ec9d3caa95b0d60f46e6c0f839b68bfcd8c01b92a43337fc",
       "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
       "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise.",
       "quote_text_sha256": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-      "reason": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
+      "reason": "The inspected primary speech collection establishes the 10 October 1975 conference event and complete variant wording; the hash-bound Meaning now stays within the source's contrast between distinct, unequal and equally important individuals.",
       "reply_post_id": "2080135339683807601"
     },
     {
@@ -2455,16 +2485,6 @@
     },
     {
       "disposition": "future_correction_needed",
-      "issue": "Meaning adds totalitarian and anti-democratic claims without an edition-specific primary memoir page.",
-      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea"
-    },
-    {
-      "disposition": "future_correction_needed",
-      "issue": "Meaning adds a causal justification for later free-market reforms without an edition-specific primary memoir page.",
-      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
-    },
-    {
-      "disposition": "future_correction_needed",
       "issue": "Meaning adds artificiality, coercion and national sovereignty beyond the retained secondary wording.",
       "quote_id": "f4323817daee5cef16fa5d83879823f2da5506152fcb7b1b1ce5c777ac036d4d"
     },
@@ -2472,11 +2492,6 @@
       "disposition": "future_correction_needed",
       "issue": "Meaning adds freedom, democracy and inherence without a reliable retained source.",
       "quote_id": "db46e7519946d4312907a8b7c7337eea0daaf3689850c2ef35035a6bda062173"
-    },
-    {
-      "disposition": "future_correction_needed",
-      "issue": "Meaning introduces market-clearing terminology and categorical causation without retained evidence.",
-      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80"
     },
     {
       "disposition": "insufficient_to_assess",
@@ -2517,11 +2532,6 @@
       "disposition": "insufficient_to_assess",
       "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
       "quote_id": "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144"
-    },
-    {
-      "disposition": "insufficient_to_assess",
-      "issue": "This reply entered production history after the reviewed 79-record semantic ledger. It is outside the present 18-case remediation scope and is held closed without a historical conclusion until separately reviewed against retained evidence.",
-      "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37"
     },
     {
       "disposition": "insufficient_to_assess",

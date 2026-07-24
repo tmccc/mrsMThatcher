@@ -1,11 +1,11 @@
 {
-  "all_evidentiary_source_record_count": 3390,
+  "all_evidentiary_source_record_count": 3395,
   "attribution_eligible_quote_count": 610,
   "attribution_eligible_quote_ids_sha256": "1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5",
   "audit_date": "2026-07-22",
-  "audited_source_record_count": 3111,
+  "audited_source_record_count": 3116,
   "curated_source_adjudication_count": 1,
-  "curated_source_count": 14,
+  "curated_source_count": 19,
   "gemini_researched_source_count": 1,
   "items": {
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d": {
@@ -34585,7 +34585,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108338",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -34795,7 +34795,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108338",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -38642,7 +38642,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/105508",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -38941,7 +38941,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/105508",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -42990,7 +42990,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/105774",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -43197,7 +43197,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/105774",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -56824,18 +56824,66 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "public_url": "",
+          "rationale": "The inspected primary page verifies the passage and context but also proves that the stored wording is a substantive variant: it omits 'other things being equal' and omits 'British' before 'goods uncompetitive'.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1993",
+          "source_event": "The Downing Street Years (Memoir)",
+          "source_fingerprint": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_id": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Downing Street Years, first HarperPerennial edition (1995), printed page 272, 'Trade Unions'",
+          "supporting_context": "The passage appears under 'Trade Unions' in Thatcher's memoir. She next says that she and Norman Tebbit wanted to press ahead with further trade-union-law reforms.",
+          "supporting_context_sha256": "7f482e2ce99b7c8fee828109eef2a2f071d3eaf059f5f3064f243272721a7969",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "96bf33f9360324094358c3572c6e6b1f41a7f68d1cd773832a491b3d7b96fc99",
+              "text": "Unlike some of my colleagues, I never ceased to believe that, other things being equal, the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making British goods uncompetitive."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "variant",
       "date": "1993",
       "locator_audit": {
@@ -56875,13 +56923,14 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Historical variant not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Historically verified variant",
       "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
       "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive.",
       "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
@@ -56931,8 +56980,56 @@
           ]
         }
       ],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "public_url": "",
+          "rationale": "The inspected primary page verifies the passage and context but also proves that the stored wording is a substantive variant: it omits 'other things being equal' and omits 'British' before 'goods uncompetitive'.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1993",
+          "source_event": "The Downing Street Years (Memoir)",
+          "source_fingerprint": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_id": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Downing Street Years, first HarperPerennial edition (1995), printed page 272, 'Trade Unions'",
+          "supporting_context": "The passage appears under 'Trade Unions' in Thatcher's memoir. She next says that she and Norman Tebbit wanted to press ahead with further trade-union-law reforms.",
+          "supporting_context_sha256": "7f482e2ce99b7c8fee828109eef2a2f071d3eaf059f5f3064f243272721a7969",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "96bf33f9360324094358c3572c6e6b1f41a7f68d1cd773832a491b3d7b96fc99",
+              "text": "Unlike some of my colleagues, I never ceased to believe that, other things being equal, the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making British goods uncompetitive."
+            }
+          ]
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
@@ -57086,7 +57183,11 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Page 272",
-      "supported_public_roles": [],
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
       "virtual_locator_sources": [],
       "wording_status_after": "variant"
     },
@@ -59116,18 +59217,63 @@
       "attribution_eligible": true,
       "bounded_research_outcomes": {},
       "confidence_after": {
-        "attribution": "low",
-        "date": "unknown",
+        "attribution": "medium",
+        "date": "medium",
         "historical_context": "unknown",
         "interpretation": "high",
         "source_event": "unknown",
-        "wording": "low"
+        "wording": "medium"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "source_event",
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "public_url": "",
+          "rationale": "The inspected anthology page reproduces the complete stored text in a sidebar labelled 1978. It is useful secondary wording, attribution and broad-date evidence only: it does not identify the original occasion and is not resolution-support evidence.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1978",
+          "source_event": "Edited anthology reproduction",
+          "source_fingerprint": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_id": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_index": null,
+          "source_quality_class": "reliable_secondary_evidence",
+          "source_title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "source_type": "edited_secondary_quotation_anthology",
+          "source_url": "",
+          "stable_locator": "Margaret Thatcher: In Her Own Words (Biteback, 2010), printed page 79, sidebar dated 1978",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+              "text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "variant",
       "date": "1978",
       "locator_audit": {
@@ -59196,18 +59342,64 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
+      "public_context_supported_fields": [
+        "date"
+      ],
       "public_output_changes": [
         "discovery-only source suppressed",
         "verification wording made source-conservative"
       ],
-      "public_verification_wording": "Reported in Hugo Young, 'One of Us' (1989), p. 193; no primary Thatcher transcript located",
+      "public_verification_wording": "Reported wording; no primary Thatcher transcript located",
       "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
       "quote_text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it.",
       "quote_text_sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
       "recovered_citation_count": 0,
       "recovered_sources": [],
       "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "source_event",
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "public_url": "",
+          "rationale": "The inspected anthology page reproduces the complete stored text in a sidebar labelled 1978. It is useful secondary wording, attribution and broad-date evidence only: it does not identify the original occasion and is not resolution-support evidence.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1978",
+          "source_event": "Edited anthology reproduction",
+          "source_fingerprint": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_id": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_index": null,
+          "source_quality_class": "reliable_secondary_evidence",
+          "source_title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "source_type": "edited_secondary_quotation_anthology",
+          "source_url": "",
+          "stable_locator": "Margaret Thatcher: In Her Own Words (Biteback, 2010), printed page 79, sidebar dated 1978",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+              "text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it."
+            }
+          ]
+        },
         {
           "action": "keep",
           "assigned_roles": [
@@ -65041,7 +65233,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108331",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -65277,7 +65469,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108331",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -72111,7 +72303,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/106498",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -72257,7 +72449,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/106498",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -127901,7 +128093,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108364",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -128177,7 +128369,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108364",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -132927,7 +133119,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108285",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -133073,7 +133265,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/108285",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -147627,18 +147819,66 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
+        "attribution": "high",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "public_url": "",
+          "rationale": "The complete wording appears contiguously in Thatcher's memoir. The source uses lower-case 'national socialism'; the stored capitalisation is non-substantive. Page 29 is retained as an edition-specific locator without replacing the packet's possible different-edition page-31 citation.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1995",
+          "source_event": "The Path to Power (autobiography)",
+          "source_fingerprint": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Path to Power, HarperCollins (1995), printed page 29",
+          "supporting_context": "Thatcher says Douglas Reed's Insanity Fair contributed to this belief after describing communist and Nazi cooperation against democracy. The inspected edition places the passage on page 29.",
+          "supporting_context_sha256": "cdbd386f0d004f5f46f5ce8dc3a5304aafa240029c8322dc6218f5aacaad6f8a",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "e60c8afd5d38b3d93eaa8f1f7412eb7a244632f42ed65c5a32786826312c012d",
+              "text": "Nazism (national socialism) and communism (international socialism) were but two sides of the same coin."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "exact",
       "date": "1995",
       "locator_audit": {
@@ -147765,20 +148005,69 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
       ],
-      "public_verification_wording": "Exact wording not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin.",
       "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "recovered_citation_count": 0,
       "recovered_sources": [],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "public_url": "",
+          "rationale": "The complete wording appears contiguously in Thatcher's memoir. The source uses lower-case 'national socialism'; the stored capitalisation is non-substantive. Page 29 is retained as an edition-specific locator without replacing the packet's possible different-edition page-31 citation.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1995",
+          "source_event": "The Path to Power (autobiography)",
+          "source_fingerprint": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Path to Power, HarperCollins (1995), printed page 29",
+          "supporting_context": "Thatcher says Douglas Reed's Insanity Fair contributed to this belief after describing communist and Nazi cooperation against democracy. The inspected edition places the passage on page 29.",
+          "supporting_context_sha256": "cdbd386f0d004f5f46f5ce8dc3a5304aafa240029c8322dc6218f5aacaad6f8a",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "e60c8afd5d38b3d93eaa8f1f7412eb7a244632f42ed65c5a32786826312c012d",
+              "text": "Nazism (national socialism) and communism (international socialism) were but two sides of the same coin."
+            }
+          ]
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
@@ -147818,7 +148107,11 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "Page 31",
-      "supported_public_roles": [],
+      "supported_public_roles": [
+        "attribution_support",
+        "source_event_support",
+        "wording_verification"
+      ],
       "virtual_locator_sources": [],
       "wording_status_after": "exact"
     },
@@ -164033,7 +164326,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/109301",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -164146,7 +164439,7 @@
           "author_or_speaker": "Margaret Thatcher",
           "canonical_url": "https://www.margaretthatcher.org/document/109301",
           "claim_coverage": {
-            "wording": "exact"
+            "wording": "full"
           },
           "claims_not_supported": [
             "historical_context"
@@ -166348,17 +166641,65 @@
       "bounded_research_outcomes": {},
       "confidence_after": {
         "attribution": "high",
-        "date": "unknown",
+        "date": "high",
         "historical_context": "unknown",
         "interpretation": "high",
-        "source_event": "unknown",
+        "source_event": "high",
         "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "public_url": "",
+          "rationale": "The inspected collected-speech page corroborates the primary conference passage and its date. It also confirms substantive differences: 'numbers in a state computer', 'We are all unequal', and the word 'quite'. The OCR form 'beheve' is a scan error, not a source variant.",
+          "recorded_at": "2026-07-24",
+          "source_date": "October 10, 1975",
+          "source_event": "Speech to Conservative Party Conference",
+          "source_fingerprint": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_id": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "source_type": "published_primary_speech_collection",
+          "source_url": "",
+          "stable_locator": "The Collected Speeches of Margaret Thatcher, first U.S. edition, printed page 36; speech dated 10 October 1975",
+          "supporting_context": "The printed speech continues: 'We believe that everyone has the right to be unequal. But to us, every human being is equally important.'",
+          "supporting_context_sha256": "a2c76d428600ff0f744aedc5e2a24d92523d9f33bf8a2f4ffe543a24fa5c8d22",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "571223b4169973a96ae274ecb15a48fb82fb1c65a9679eab7607935b8647b0f7",
+              "text": "Some socialists seem to believe that people should be numbers in a state computer. We believe they should be individuals. We are all unequal. No one, thank heavens, is quite like anyone else, however much the socialists may pretend otherwise."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "variant",
       "date": "October 10, 1975",
       "locator_audit": {
@@ -166398,7 +166739,10 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
+      "public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
       "public_output_changes": [],
       "public_verification_wording": "Historically verified variant",
       "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
@@ -166490,6 +166834,53 @@
               "text": "ntry. [end p31] EQUALITY Now let me turn to something I spoke about in America. Some Socialists seem to believe that people should be numbers in a State computer. We believe they should be individuals. We are all unequal. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise. We believe that everyone has the right to be unequal but to us every human bein"
             }
           ]
+        },
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "normalised"
+          },
+          "claims_not_supported": [
+            "historical_context"
+          ],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "public_url": "",
+          "rationale": "The inspected collected-speech page corroborates the primary conference passage and its date. It also confirms substantive differences: 'numbers in a state computer', 'We are all unequal', and the word 'quite'. The OCR form 'beheve' is a scan error, not a source variant.",
+          "recorded_at": "2026-07-24",
+          "source_date": "October 10, 1975",
+          "source_event": "Speech to Conservative Party Conference",
+          "source_fingerprint": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_id": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "source_type": "published_primary_speech_collection",
+          "source_url": "",
+          "stable_locator": "The Collected Speeches of Margaret Thatcher, first U.S. edition, printed page 36; speech dated 10 October 1975",
+          "supporting_context": "The printed speech continues: 'We believe that everyone has the right to be unequal. But to us, every human being is equally important.'",
+          "supporting_context_sha256": "a2c76d428600ff0f744aedc5e2a24d92523d9f33bf8a2f4ffe543a24fa5c8d22",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "571223b4169973a96ae274ecb15a48fb82fb1c65a9679eab7607935b8647b0f7",
+              "text": "Some socialists seem to believe that people should be numbers in a state computer. We believe they should be individuals. We are all unequal. No one, thank heavens, is quite like anyone else, however much the socialists may pretend otherwise."
+            }
+          ]
         }
       ],
       "requires_further_research": false,
@@ -166544,6 +166935,7 @@
       "stable_locator": "Margaret Thatcher Foundation transcript, section titled 'EQUALITY'",
       "supported_public_roles": [
         "attribution_support",
+        "source_event_support",
         "wording_verification"
       ],
       "virtual_locator_sources": [],
@@ -175937,18 +176329,66 @@
         "openai": "no_locally_verified_source_from_search"
       },
       "confidence_after": {
-        "attribution": "unknown",
-        "date": "unknown",
-        "historical_context": "unknown",
+        "attribution": "high",
+        "date": "high",
+        "historical_context": "high",
         "interpretation": "high",
-        "source_event": "unknown",
-        "wording": "unknown"
+        "source_event": "high",
+        "wording": "high"
       },
       "confidence_before": "high",
       "curated_source_adjudication_count": 0,
       "curated_source_adjudications": [],
-      "curated_source_count": 0,
-      "curated_sources": [],
+      "curated_source_count": 1,
+      "curated_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "public_url": "",
+          "rationale": "The inspected memoir page contains the complete two-sentence quotation contiguously and identifies the author, publication and retrospective post-war context. Only line-break and hyphenation normalisation is required.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1993",
+          "source_event": "Publication of her memoir, The Downing Street Years",
+          "source_fingerprint": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Downing Street Years, first HarperPerennial edition (1995), printed page 7",
+          "supporting_context": "Thatcher presents the passage as a retrospective assessment of post-war democratic socialism, then writes that it accelerated Britain's relative industrial decline.",
+          "supporting_context_sha256": "ac482d0f79d1cb5188b2fa9c4c8f3f859d562ef1426168b85279011c6b6bd4b7",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+              "text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect."
+            }
+          ]
+        }
+      ],
       "current_wording_status": "exact",
       "date": "1993",
       "locator_audit": {
@@ -175988,20 +176428,70 @@
           "supporting_passages": []
         }
       ],
-      "public_context_supported_fields": [],
-      "public_output_changes": [
-        "discovery-only source suppressed",
-        "no reliable public source",
-        "verification wording made source-conservative"
+      "public_context_supported_fields": [
+        "source_event",
+        "date",
+        "historical_context"
       ],
-      "public_verification_wording": "Exact wording not independently verified by the retained evidence",
+      "public_output_changes": [
+        "discovery-only source suppressed"
+      ],
+      "public_verification_wording": "Exact wording verified",
       "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "quote_text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect.",
       "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "recovered_citation_count": 0,
       "recovered_sources": [],
-      "renderable_sources": [],
-      "requires_further_research": true,
+      "renderable_sources": [
+        {
+          "action": "keep",
+          "assigned_roles": [
+            "wording_verification",
+            "attribution_support",
+            "source_event_support",
+            "historical_context_support"
+          ],
+          "author_or_speaker": "Margaret Thatcher",
+          "claim_coverage": {
+            "wording": "full"
+          },
+          "claims_not_supported": [],
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "confidence_before": "high",
+          "curated_evidence_record": true,
+          "page_independently_inspected": true,
+          "public_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "public_url": "",
+          "rationale": "The inspected memoir page contains the complete two-sentence quotation contiguously and identifies the author, publication and retrospective post-war context. Only line-break and hyphenation normalisation is required.",
+          "recorded_at": "2026-07-24",
+          "source_date": "1993",
+          "source_event": "Publication of her memoir, The Downing Street Years",
+          "source_fingerprint": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_index": null,
+          "source_quality_class": "strong_primary_evidence",
+          "source_title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "source_type": "thatcher_authored_primary_book",
+          "source_url": "",
+          "stable_locator": "The Downing Street Years, first HarperPerennial edition (1995), printed page 7",
+          "supporting_context": "Thatcher presents the passage as a retrospective assessment of post-war democratic socialism, then writes that it accelerated Britain's relative industrial decline.",
+          "supporting_context_sha256": "ac482d0f79d1cb5188b2fa9c4c8f3f859d562ef1426168b85279011c6b6bd4b7",
+          "supporting_passages": [
+            {
+              "kind": "operator_supplied_book_passage",
+              "sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+              "text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect."
+            }
+          ]
+        }
+      ],
+      "requires_further_research": false,
       "researched_source_count": 0,
       "researched_source_provider_counts": {},
       "researched_sources": [],
@@ -176227,7 +176717,12 @@
       ],
       "speaker": "Margaret Thatcher",
       "stable_locator": "The Downing Street Years (1993)",
-      "supported_public_roles": [],
+      "supported_public_roles": [
+        "attribution_support",
+        "historical_context_support",
+        "source_event_support",
+        "wording_verification"
+      ],
       "virtual_locator_sources": [],
       "wording_status_after": "exact"
     },
@@ -191907,7 +192402,7 @@
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
     "grounding_sources.json": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
-    "historical_context_source_curated_evidence.json": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
     "historical_context_source_independent_review.json": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
     "historical_context_source_openai_research.json": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
     "historical_context_source_recovery.json": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
@@ -191923,19 +192418,20 @@
       "discovery_lead_only": 1036,
       "insufficiently_located_evidence": 1055,
       "irrelevant_or_corrupt": 38,
-      "reliable_secondary_evidence": 36,
+      "reliable_secondary_evidence": 37,
       "secondary_recollection": 5,
-      "strong_primary_evidence": 885
+      "strong_primary_evidence": 889
     },
-    "all_evidentiary_source_record_count": 3390,
-    "all_evidentiary_source_role_assignment_count": 4417,
+    "all_evidentiary_source_record_count": 3395,
+    "all_evidentiary_source_role_assignment_count": 4432,
     "all_evidentiary_source_role_counts": {
-      "attribution_support": 885,
+      "attribution_support": 890,
       "discovery_only": 2337,
+      "historical_context_support": 1,
       "rejected_irrelevant": 127,
       "secondary_recollection": 5,
-      "source_event_support": 229,
-      "wording_verification": 834
+      "source_event_support": 233,
+      "wording_verification": 839
     },
     "changed_quote_ids": [
       "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
@@ -192433,25 +192929,26 @@
     },
     "curated_source_adjudication_count": 1,
     "curated_source_quality_counts": {
+      "reliable_secondary_evidence": 1,
       "secondary_recollection": 1,
-      "strong_primary_evidence": 13
+      "strong_primary_evidence": 17
     },
     "gemini_researched_source_quality_counts": {
       "reliable_secondary_evidence": 1
     },
     "headline_observed_source_disposition_counts": {
-      "accepted_evidence": 647,
+      "accepted_evidence": 652,
       "discovery_or_insufficient": 2091,
       "rejected_or_non_verifying": 373,
-      "total": 3111
+      "total": 3116
     },
     "headline_observed_source_provenance_counts": {
       "ai_located_independently_reviewed_sources": 34,
       "model_proposed_source_leads": 790,
-      "operator_curated_sources": 14,
+      "operator_curated_sources": 19,
       "physical_packet_sources": 2017,
       "recovered_citation_sources": 256,
-      "total": 3111
+      "total": 3116
     },
     "model_proposed_lead_quality_counts": {
       "discovery_lead_only": 789,
@@ -192488,7 +192985,6 @@
       "44272f7a446dab5829fffc29addddf2b4de19217d6f541b15c92b38a3891d190",
       "456fc17b3dd9d2fea708f67ee16f70d10ea092484c43403006087beca8e71c62",
       "4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b",
-      "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
       "5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d",
       "5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483",
       "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
@@ -192539,7 +193035,6 @@
       "c657fe54330c41e625adb0a38f1b9a2b0069e1f10394b7e3488121fce123050b",
       "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
       "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
-      "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
       "cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e",
       "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
@@ -192559,7 +193054,6 @@
       "ec0799ceb8ea89c6b4472e2aba48ea71de7bf44fcb1fae6edfba90c42e3a7369",
       "ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1",
       "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
-      "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
       "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
       "f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74",
@@ -192572,9 +193066,9 @@
       "secondary_recollection": 1,
       "strong_primary_evidence": 26
     },
-    "packets_requiring_new_historical_research": 218,
+    "packets_requiring_new_historical_research": 215,
     "packets_whose_public_output_changes": 484,
-    "packets_with_no_reliable_source": 107,
+    "packets_with_no_reliable_source": 104,
     "physical_source_quality_counts": {
       "broken_or_non_verifying_url": 89,
       "circular_attribution": 244,
@@ -192653,7 +193147,6 @@
       "4d86b60909c026a4a30be158310945742a1c25477ced27f76cf805151054568f",
       "4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b",
       "4e92014dc14fd9cce562099b03ccfdf480fd5909414483edf4a3e28dc6e85c80",
-      "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
       "5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d",
       "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
       "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
@@ -192760,7 +193253,6 @@
       "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
       "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
       "c922a5806879e505e259a3bdadfddb61b1da4d1e3df2b0e9c1ba1012c063a508",
-      "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
       "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
       "cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e",
@@ -192794,7 +193286,6 @@
       "ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1",
       "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
       "f04bbe960191c8eb537ecf87aa340fb2ae28076d25b791c06a5f0d3a82c9886b",
-      "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
       "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
       "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
@@ -192816,18 +193307,19 @@
       "discovery_lead_only": 1036,
       "insufficiently_located_evidence": 1055,
       "irrelevant_or_corrupt": 38,
-      "reliable_secondary_evidence": 17,
+      "reliable_secondary_evidence": 18,
       "secondary_recollection": 2,
-      "strong_primary_evidence": 628
+      "strong_primary_evidence": 632
     },
-    "source_role_assignment_count": 3716,
+    "source_role_assignment_count": 3731,
     "source_role_counts": {
-      "attribution_support": 606,
+      "attribution_support": 611,
       "discovery_only": 2337,
+      "historical_context_support": 1,
       "rejected_irrelevant": 127,
       "secondary_recollection": 2,
-      "source_event_support": 79,
-      "wording_verification": 565
+      "source_event_support": 83,
+      "wording_verification": 570
     }
   },
   "unresolved_quote_count": 6,

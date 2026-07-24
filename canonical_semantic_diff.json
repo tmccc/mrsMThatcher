@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_local_book_evidence_canonical_semantic_diff",
+  "generated_at": "2026-07-24T13:34:42Z",
+  "status": "validated_admission_candidate",
+  "production_base_commit": "aa0906d7773d6741cd2b0e6b6cf5ddae30386ceb",
+  "reviewed_quote_ids": [
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+    "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+  ],
+  "source_admission": {
+    "before_count": 14,
+    "after_count": 19,
+    "added_count": 5,
+    "existing_records_changed": 0,
+    "exact_primary_count": 2,
+    "primary_variant_count": 2,
+    "secondary_only_count": 1
+  },
+  "meaning_changes": {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": {
+      "field": "intended_argument",
+      "value": "Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.",
+      "value_sha256": "dc094474eab3042b8b0fbb2949892271b1efa745901f314e53cbedd31cc2927a"
+    },
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": {
+      "field": "intended_argument",
+      "value": "Thatcher described Nazism and communism as closely related forms of socialism.",
+      "value_sha256": "c121aa750abd055ee48736a903739de3f3b66ce03f87ee1449afb7bae25494e4"
+    },
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": {
+      "field": "intended_argument",
+      "value": "Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.",
+      "value_sha256": "c0cfd99cee86cf5749de424616e025e2ef820e2bbdb9f8916adad9952c528e67"
+    },
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": {
+      "field": "intended_argument",
+      "value": "Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.",
+      "value_sha256": "3bbc6715208529c6b127f1792955c89557458a20a36c676dc1682c86052fe413"
+    }
+  },
+  "quislings": {
+    "meaning_changed": false,
+    "source_quality": "reliable_secondary_evidence",
+    "original_quotation_source_event_verified": false,
+    "semantic_follow_up_status": "remains_open",
+    "gate_disposition": "future_correction_needed",
+    "remains_blocked": true
+  },
+  "raw_canonical_invariants": {
+    "research_packets_sha256_before": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
+    "research_packets_sha256_after": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
+    "quotation_corpus_sha256_before": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
+    "quotation_corpus_sha256_after": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
+    "runtime_eligible_manifest_sha256_before": "7b2951f9d9dded56d8d29c9d6af60c5aefe98700602a361feabbd83712605152",
+    "runtime_eligible_manifest_sha256_after": "7b2951f9d9dded56d8d29c9d6af60c5aefe98700602a361feabbd83712605152",
+    "unresolved_quote_ids_sha256_before": "1db175c4593e9663447a84a4d2974356f13a543285019655ca7fe53d9b49f774",
+    "unresolved_quote_ids_sha256_after": "1db175c4593e9663447a84a4d2974356f13a543285019655ca7fe53d9b49f774"
+  },
+  "source_role_representation_normalisation": {
+    "reason": "The general exact-curated-wording rule now represents exact wording coverage as full for the wording claim only.",
+    "legacy_non_target_quote_ids": [
+      "34114f8f8fa580a2cb413c481408094ad2a8675ebb59955cf8c7d665897d8381",
+      "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad",
+      "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
+      "5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202",
+      "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5",
+      "abcd58e8e8ff8fa5fa8e3c37fcefb55702beb9f07029fec7c3cc38b966acc5cc",
+      "b572fbd2723c05ecef8f4e3eaa3a897834f612b7965ac72a62676c09dde6fdcd",
+      "dff8aab30bb4fd825ead87707ce7bf811989926bce9afdeab7b1030a29293d09"
+    ],
+    "changed_leaf": "claim_coverage.wording",
+    "before": "exact",
+    "after": "full",
+    "confidence_changes": 0,
+    "role_changes": 0,
+    "public_field_changes": 0,
+    "render_changes": 0,
+    "gate_changes": 0
+  },
+  "gate": {
+    "before_blocked": 19,
+    "after_blocked": 15,
+    "before_allowed": 591,
+    "after_allowed": 595,
+    "ids_added": [],
+    "ids_removed": [
+      "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+    ]
+  },
+  "counts": {
+    "completed_packets_before": 626,
+    "completed_packets_after": 626,
+    "unresolved_before": 6,
+    "unresolved_after": 6,
+    "ordinary_cycle_before": 610,
+    "ordinary_cycle_after": 610,
+    "quotation_text_changes": 0,
+    "quotation_id_changes": 0,
+    "meaning_changes": 4,
+    "unrelated_packet_semantic_changes": 0,
+    "unrelated_gate_changes": 0
+  },
+  "review_passed": true
+}

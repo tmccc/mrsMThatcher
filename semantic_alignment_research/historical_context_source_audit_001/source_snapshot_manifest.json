@@ -4,7 +4,7 @@
   "attribution_eligible_quote_count_after": 610,
   "attribution_eligible_quote_count_before": 610,
   "audit_path": "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json",
-  "audit_sha256": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+  "audit_sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
   "canonical_research_files_modified": false,
   "completed_packet_count": 626,
   "curated_source_adjudication_count": 1,
@@ -17,57 +17,57 @@
   "schema_version": 1,
   "source_files": {
     "mrsMThatcher.txt": {
-      "mtime_ns": 1784321739643212176,
+      "mtime_ns": 1784896129565222235,
       "sha256": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
       "size": 105792
     },
     "semantic_alignment_research/quote_research_full_001/corpus_manifest.json": {
-      "mtime_ns": 1783963515512240503,
+      "mtime_ns": 1784896131357242113,
       "sha256": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
       "size": 398842
     },
     "semantic_alignment_research/quote_research_full_001/final_unresolved/final_research_status.json": {
-      "mtime_ns": 1784789057844386278,
+      "mtime_ns": 1784896131357242113,
       "sha256": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
       "size": 1003
     },
     "semantic_alignment_research/quote_research_full_001/grounding_sources.json": {
-      "mtime_ns": 1784024013994332050,
+      "mtime_ns": 1784896131397242556,
       "sha256": "c05bac04e33a1f16e8990942657f4660a506edd2389229c2c4a8b4114f2cedb0",
       "size": 17581706
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_curated_evidence.json": {
-      "mtime_ns": 1784789026448013114,
-      "sha256": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
-      "size": 58228
+      "mtime_ns": 1784898165943067394,
+      "sha256": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+      "size": 73564
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_independent_review.json": {
-      "mtime_ns": 1784660031212614889,
+      "mtime_ns": 1784896131397242556,
       "sha256": "6251250f9ec102fa65ac2791b9945145df16135545034b5023f327bc7b24d6df",
       "size": 71103
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_openai_research.json": {
-      "mtime_ns": 1784655984916953334,
+      "mtime_ns": 1784896131397242556,
       "sha256": "fa70253d1696023f018009f3f12e05fdb6e6584a1582ba9db3d4f799952fd701",
       "size": 753963
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json": {
-      "mtime_ns": 1784789067800504546,
+      "mtime_ns": 1784899667510431408,
       "sha256": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
       "size": 1334146
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_research.json": {
-      "mtime_ns": 1784648734717283928,
+      "mtime_ns": 1784896131405242645,
       "sha256": "9fee2a3686b763411ea733c8e94489ecc89c3d25056e072dd30fad4bfae30af3",
       "size": 20002
     },
     "semantic_alignment_research/quote_research_full_001/historical_context_source_resolution.json": {
-      "mtime_ns": 1784644890274872469,
+      "mtime_ns": 1784896131409242689,
       "sha256": "6eba93db67ebe91f818656a1d2c54ec06e9add54fb494284734d49d2a18c5bcf",
       "size": 1729096
     },
     "semantic_alignment_research/quote_research_full_001/research_packets.json": {
-      "mtime_ns": 1784789026436012971,
+      "mtime_ns": 1784896131461243266,
       "sha256": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
       "size": 6174379
     }

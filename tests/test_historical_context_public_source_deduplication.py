@@ -54,7 +54,7 @@ IMMUTABLE_HASHES = {
     ROOT / "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     RESEARCH / "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
     RESEARCH / "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    RESEARCH / "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    RESEARCH / "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
     RESEARCH / "unresolved_quotes.json": "6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f",
     RESEARCH / "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
 }
@@ -1244,7 +1244,7 @@ def test_full_corpus_public_render_has_no_source_defects(corpus):
     assert len(corpus[0]) == 626
     assert len(corpus[1]) == 6
     assert eligible == 610
-    assert source_distribution == Counter({0: 107, 1: 479, 2: 39, 3: 1})
+    assert source_distribution == Counter({0: 104, 1: 480, 2: 41, 3: 1})
 
 
 def test_audit_conflict_guard_detects_distinctions_before_ready_status():
@@ -1390,7 +1390,7 @@ def test_isolated_full_corpus_audit_is_deterministic_and_offline(
         "duplicate_canonical_identity_group_count"
     ] == 36
     assert written["after_deduplication"] == {
-        "public_source_record_count": 560,
+        "public_source_record_count": 565,
         "packets_with_duplicate_source_identity": 0,
         "duplicate_canonical_identity_group_count": 0,
         "duplicate_canonical_url_group_count": 0,

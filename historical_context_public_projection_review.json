@@ -11,6 +11,9 @@
     "duplicate_full_reply_group_count": 0,
     "event_only_downgrade_count": 2,
     "manual_hint_count": 9,
+    "post_v9_public_field_change_count": 5,
+    "post_v9_source_addition_count": 5,
+    "post_v9_transition_packet_count": 5,
     "safe_date_only_count": 64,
     "safe_event_only_context_count": 1,
     "safe_event_only_fallback_count": 1,
@@ -2519,15 +2522,16 @@
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "historical_context_formatter.py": "02886eea0c734e36278a83a18a2e9a84862675b35a689db184a99f0c2494cd95",
-    "historical_context_public_projection_review.py": "adbb3fa86c0fc2cea9b8335c5628453f85f9870313658a248b34d091401e2a2e",
-    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    "historical_context_public_projection_review.py": "af0088d723490c9f9933b4f0de8a292692fde150c85d8ea1f09b431ba1e21232",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
     "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
+    "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
     "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
   },
   "interpretation": {
     "duplicate_context_lines": "Shared dates legitimately reuse the deterministic date-only sentence; only duplicate full replies are blocking.",
     "manual_hints": "Source-title/event tensions are review hints only and never promote a public field without claim-specific evidence.",
-    "policy_transition": "The cumulative v7-to-v9 projection uses the reviewed v8-to-v9 transition manifest for the twelve changed packets; the other 614 packets are hash-proven field-identical."
+    "policy_transition": "The cumulative v7-to-v9 projection uses the reviewed v8-to-v9 transition manifest for the twelve changed packets; the other 614 packets are hash-proven field-identical at the frozen v9 baseline. Any later reviewed evidence transition is hash-bound and reported separately."
   },
   "invariants": {
     "all_64_date_only_contexts_are_safe": true,
@@ -2545,6 +2549,8 @@
     "manual_hints_do_not_promote_fields": true,
     "no_blocking_presentation_flags": true,
     "no_duplicate_full_reply": true,
+    "post_v9_projections_are_safe": true,
+    "post_v9_transition_is_disjoint": true,
     "upgraded_count_is_6": true,
     "v8_to_v9_field_change_count_is_6": true
   },
@@ -2636,8 +2642,179 @@
     "historical_baseline": "historical-context-source-roles-v7-curated-source-adjudications",
     "to": "historical-context-source-roles-v9-archive-provenance"
   },
+  "post_v9_transition_records": [
+    {
+      "context_line": "Context — The Downing Street Years (Memoir), 1993.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — The Downing Street Years (Memoir), 1993.\n\nMeaning — Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "url": ""
+        }
+      ],
+      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "source_bindings": [
+        {
+          "source_id": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_review_candidate_id": "41607f622b3f8d07407bc2b1b2be68e9624037b9d1b0f380f9c7398602257f29"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — The surviving record dates this wording to 1978, but does not establish its occasion.",
+      "current_public_context_supported_fields": [
+        "date"
+      ],
+      "presentation_flags": [
+        "safe_date_only_context"
+      ],
+      "public_reply_text": "Context — The surviving record dates this wording to 1978, but does not establish its occasion.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193\n\nSource — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Hugo Young, 'One of Us' (1989), p. 193",
+          "url": ""
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "url": ""
+        }
+      ],
+      "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "source_bindings": [
+        {
+          "source_id": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_review_candidate_id": "a2f98708d029eaf4b8bd309660db763502510be5a75627d214b5530d80f8a1f5"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — The Path to Power (autobiography), 1995.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — The Path to Power (autobiography), 1995.\n\nMeaning — Thatcher described Nazism and communism as closely related forms of socialism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "url": ""
+        }
+      ],
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "source_bindings": [
+        {
+          "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_review_candidate_id": "ab036aa67cf8241c90dcbfbe62e5887357118829a8a5c7cbd3dc223523cd7594"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Speech to Conservative Party Conference, 10 October 1975.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "presentation_flags": [
+        "event_and_date_context"
+      ],
+      "public_reply_text": "Context — Speech to Conservative Party Conference, 10 October 1975.\n\nMeaning — Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777\n\nSource — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution"
+          ],
+          "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)",
+          "url": "https://www.margaretthatcher.org/document/102777"
+        },
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "url": ""
+        }
+      ],
+      "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "source_bindings": [
+        {
+          "source_id": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_review_candidate_id": "5a639e39d475ac8e22b59e890c45bb617d64ad3d15ca1b45a223ddc9a3628a73"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    {
+      "context_line": "Context — Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.",
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date",
+        "historical_context"
+      ],
+      "presentation_flags": [],
+      "public_reply_text": "Context — Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.\n\nMeaning — Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+      "public_sources": [
+        {
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "url": ""
+        }
+      ],
+      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "source_bindings": [
+        {
+          "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_review_candidate_id": "6759265bfb86c0564890a0435f625e8b98a9059ddb7e69c4534c51a064a7560e"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    }
+  ],
   "review_ready": true,
-  "schema_version": 2,
+  "schema_version": 3,
   "upgraded_records": [
     {
       "change_kind": "upgraded",

@@ -92,23 +92,23 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert summary["render_failure_count"] == 0
     assert summary["item_blocker_count"] == 0
     assert summary["source_distribution"] == {
-        "0": 107, "1": 479, "2": 39, "3": 1,
+        "0": 104, "1": 480, "2": 41, "3": 1,
     }
     assert summary["packets_with_source_merges"] == 246
     assert summary["merged_internal_source_record_count"] == 366
     assert summary["identity_ambiguity_count"] == 66
     assert summary["packets_with_identity_ambiguities"] == 52
-    assert summary["packets_with_no_reliable_source"] == 107
-    assert summary["eligible_packets_with_no_reliable_source"] == 96
-    assert summary["packets_with_multiple_public_sources"] == 40
-    assert summary["packets_with_generic_context_and_public_source"] == 355
+    assert summary["packets_with_no_reliable_source"] == 104
+    assert summary["eligible_packets_with_no_reliable_source"] == 93
+    assert summary["packets_with_multiple_public_sources"] == 42
+    assert summary["packets_with_generic_context_and_public_source"] == 353
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
     ] == 0
     assert summary["packets_with_generic_context_and_exact_verification"] == 146
     assert summary["duplicate_full_public_reply_group_count"] == 1
-    assert summary["packets_with_urlless_public_sources"] == 158
-    assert summary["urlless_public_source_entry_count"] == 158
+    assert summary["packets_with_urlless_public_sources"] == 162
+    assert summary["urlless_public_source_entry_count"] == 163
     assert summary["packets_with_generic_mtf_document_titles"] == 180
     assert summary["generic_mtf_document_title_entry_count"] == 184
     assert summary["packets_with_reused_identity_display_variants"] == 221

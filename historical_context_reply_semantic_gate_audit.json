@@ -11,25 +11,25 @@
     "unresolved_quote_count": 6
   },
   "decision_counts": {
-    "blocked_open_semantic_review": 19,
-    "eligible_allow": 591,
+    "blocked_open_semantic_review": 15,
+    "eligible_allow": 595,
     "ineligible_not_regular_post": 16
   },
   "gate": {
     "available": true,
-    "blocked_projection_sha256": "d035a0c26ec5a7d6b10367595dde403764ac3ee4623878d948a9446871490b00",
-    "blocked_quote_count": 19,
+    "blocked_projection_sha256": "27a8fdcfb05cbda87d51bb5b035d7f960775552a5281a08c06a958c5ff15869f",
+    "blocked_quote_count": 15,
     "disposition_counts": {
-      "future_correction_needed": 9,
-      "insufficient_to_assess": 10
+      "future_correction_needed": 6,
+      "insufficient_to_assess": 9
     },
     "failure_reason": "",
-    "reviewed_blocked_quote_count": 19,
-    "semantic_review_ledger_sha256": "c03cb7244dda84a1590b046e8953b663b2ad4aa3bad458e5f890d53f61a1146d"
+    "reviewed_blocked_quote_count": 15,
+    "semantic_review_ledger_sha256": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea"
   },
   "input_hashes": {
-    "historical_context_published_reply_semantic_review.json": "c03cb7244dda84a1590b046e8953b663b2ad4aa3bad458e5f890d53f61a1146d",
-    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    "historical_context_published_reply_semantic_review.json": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be",
     "runtime_eligible_quote_manifest.json": "7b2951f9d9dded56d8d29c9d6af60c5aefe98700602a361feabbd83712605152"
@@ -1475,9 +1475,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
       "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive."
     },
@@ -1540,7 +1540,7 @@
     {
       "attribution_eligible": true,
       "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193",
+      "otherwise_rendered_public_reply_suppressed": "Context — The surviving record dates this wording to 1978, but does not establish its occasion.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193\n\nSource — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
       "public_reply_decision": "blocked_open_semantic_review",
       "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
       "quote_text": "There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it."
@@ -3915,9 +3915,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Both ideologies are totalitarian and anti-democratic, representing different flavors of state control and socialism rather than opposite ends of the political spectrum.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
       "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin."
     },
@@ -4419,9 +4419,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "insufficient_to_assess",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
       "quote_text": "Some Socialists seem to believe that people should just be numbers. We believe they should be individuals. We are all unalike. No one, thank heavens, is like anyone else, however much the Socialists may pretend otherwise."
     },
@@ -4667,9 +4667,9 @@
     },
     {
       "attribution_eligible": true,
-      "open_review_disposition": "future_correction_needed",
-      "otherwise_rendered_public_reply_suppressed": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To argue that socialist policies had been thoroughly tested in Britain and definitively proven to be disastrous, justifying her subsequent free-market reforms.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-      "public_reply_decision": "blocked_open_semantic_review",
+      "open_review_disposition": null,
+      "otherwise_rendered_public_reply_suppressed": "",
+      "public_reply_decision": "eligible_allow",
       "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
       "quote_text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect."
     },

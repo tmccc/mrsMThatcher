@@ -3,13 +3,13 @@
   "counts": {
     "accepted_and_lead_same_mtf_document_packet_count": 143,
     "claim_public_field_finding_kind_counts": {
-      "packet_claim_not_publicly_supported": 1528
+      "packet_claim_not_publicly_supported": 1518
     },
-    "claim_public_field_triage_finding_count": 1528,
-    "claim_public_field_triage_packet_count": 625,
+    "claim_public_field_triage_finding_count": 1518,
+    "claim_public_field_triage_packet_count": 624,
     "correlation_error_count": 0,
-    "current_context_without_calendar_date_count": 464,
-    "current_generic_context_count": 462,
+    "current_context_without_calendar_date_count": 459,
+    "current_generic_context_count": 457,
     "current_render_failure_count": 0,
     "eligible_same_document_event_or_date_priority_count": 136,
     "invariant_failure_count": 0,
@@ -27,7 +27,7 @@
     "published_context_without_calendar_date_count": 23,
     "published_generic_context_count": 9,
     "published_meaning_strengthening_indicator_packet_count": 26,
-    "unsupported_claim_decomposition_count": 1528
+    "unsupported_claim_decomposition_count": 1518
   },
   "coverage": {
     "attribution_eligible_packet_count": 610,
@@ -43,10 +43,10 @@
   },
   "input_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
-    "historical_context_packet_corrections.json": "7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c",
+    "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
     "historical_context_reply_history.json": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
-    "historical_context_source_curated_evidence.json": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
-    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
@@ -5846,19 +5846,14 @@
         "date": "1993",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
         "source_event": "The Downing Street Years (Memoir)"
       },
@@ -5994,10 +5989,6 @@
         "date": "1978",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
             "kind": "packet_claim_not_publicly_supported"
           },
@@ -6006,7 +5997,9 @@
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date"
+        ],
         "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
         "source_event": "Private conversation with Sir Anthony Parsons"
       },
@@ -11775,19 +11768,14 @@
         "date": "1995",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
         "source_event": "The Path to Power (autobiography)"
       },
@@ -13017,19 +13005,14 @@
         "date": "October 10, 1975",
         "findings": [
           {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
             "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
             "kind": "packet_claim_not_publicly_supported"
           }
         ],
-        "public_context_supported_fields": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
         "source_event": "Speech to Conservative Party Conference"
       },
@@ -13612,27 +13595,6 @@
         "public_context_supported_fields": [],
         "quote_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d",
         "source_event": "Article in Newsweek titled 'Don't Undo What I Have Done'"
-      },
-      {
-        "attribution_eligible": true,
-        "date": "1993",
-        "findings": [
-          {
-            "field": "date",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "historical_context",
-            "kind": "packet_claim_not_publicly_supported"
-          },
-          {
-            "field": "source_event",
-            "kind": "packet_claim_not_publicly_supported"
-          }
-        ],
-        "public_context_supported_fields": [],
-        "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "source_event": "Publication of her memoir, The Downing Street Years"
       },
       {
         "attribution_eligible": true,
@@ -15710,15 +15672,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "5031e014fbb9f27c5e8b13477726933029935c580af556127d9e17a6a3125b63"
       },
       {
@@ -15747,15 +15700,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "5239794d7c4ed09128758fc60941d5552cae8ba372f46adb673e635c754fdb3a"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
       },
       {
         "attribution_eligible": true,
@@ -17806,15 +17750,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a"
       },
       {
@@ -18292,15 +18227,6 @@
           "current_generic_context",
           "current_context_without_calendar_date"
         ],
-        "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
         "quote_id": "e420176a6b146e2eda0f52594cc44bc7623c8c4f62a9125b1ea5d1b5e6def100"
       },
       {
@@ -18473,15 +18399,6 @@
           "current_context_without_calendar_date"
         ],
         "quote_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d"
-      },
-      {
-        "attribution_eligible": true,
-        "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-        "flags": [
-          "current_generic_context",
-          "current_context_without_calendar_date"
-        ],
-        "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
       },
       {
         "attribution_eligible": true,
@@ -21813,9 +21730,23 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — The Downing Street Years (Memoir), 1993.\n\nMeaning — Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+            "url": ""
+          }
+        ],
         "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
         "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive."
       },
@@ -21944,8 +21875,10 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193",
+        "public_context_supported_fields": [
+          "date"
+        ],
+        "public_reply_text": "Context — The surviving record dates this wording to 1978, but does not establish its occasion.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193\n\nSource — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
         "public_sources": [
           {
             "claims_supported": [
@@ -21953,6 +21886,15 @@
               "attribution"
             ],
             "title": "Hugo Young, 'One of Us' (1989), p. 193",
+            "url": ""
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "date"
+            ],
+            "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
             "url": ""
           }
         ],
@@ -26971,9 +26913,23 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Both ideologies are totalitarian and anti-democratic, representing different flavors of state control and socialism rather than opposite ends of the political spectrum.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — The Path to Power (autobiography), 1995.\n\nMeaning — Thatcher described Nazism and communism as closely related forms of socialism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+            "url": ""
+          }
+        ],
         "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
         "quote_text": "Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin."
       },
@@ -27968,8 +27924,11 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+        "public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Speech to Conservative Party Conference, 10 October 1975.\n\nMeaning — Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777\n\nSource — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
         "public_sources": [
           {
             "claims_supported": [
@@ -27978,6 +27937,16 @@
             ],
             "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)",
             "url": "https://www.margaretthatcher.org/document/102777"
+          },
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+            "url": ""
           }
         ],
         "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
@@ -28474,9 +28443,25 @@
       },
       {
         "attribution_eligible": true,
-        "public_context_supported_fields": [],
-        "public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To argue that socialist policies had been thoroughly tested in Britain and definitively proven to be disastrous, justifying her subsequent free-market reforms.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
-        "public_sources": [],
+        "public_context_supported_fields": [
+          "date",
+          "historical_context",
+          "source_event"
+        ],
+        "public_reply_text": "Context — Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.\n\nMeaning — Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+        "public_sources": [
+          {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date",
+              "historical_context"
+            ],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+            "url": ""
+          }
+        ],
         "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
         "quote_text": "No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism received in Britain. Yet it was a miserable failure in every respect."
       },
@@ -32953,20 +32938,6 @@
         "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
         "quote_text": "Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The unions had priced many of their members out of jobs by demanding excessive wages for insufficient output, so making goods uncompetitive.",
         "surfaces": [
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.",
-            "surface": "packet_intended_argument"
-          },
-          {
-            "indicators": [
-              "suppression_or_destruction"
-            ],
-            "meaning": "Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.",
-            "surface": "current_public_meaning"
-          },
           {
             "indicators": [
               "suppression_or_destruction"
@@ -42930,11 +42901,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Both ideologies are totalitarian and anti-democratic, representing different flavors of state control and socialism rather than opposite ends of the political spectrum.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — The Path to Power (autobiography), 1995.\n\nMeaning — Thatcher described Nazism and communism as closely related forms of socialism.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "Both ideologies are totalitarian and anti-democratic, representing different flavors of state control and socialism rather than opposite ends of the political spectrum.",
-          "verification": "Research incomplete"
+          "context": "The Path to Power (autobiography), 1995.",
+          "meaning": "Thatcher described Nazism and communism as closely related forms of socialism.",
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2078530881916977383",
         "published_meaning_strengthening_indicators": [],
@@ -43010,11 +42981,11 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — To argue that socialist policies had been thoroughly tested in Britain and definitively proven to be disastrous, justifying her subsequent free-market reforms.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_public_reply_text": "Context — Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.\n\nMeaning — Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.\n\nVerification — Exact wording verified\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "To argue that socialist policies had been thoroughly tested in Britain and definitively proven to be disastrous, justifying her subsequent free-market reforms.",
-          "verification": "Research incomplete"
+          "context": "Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.",
+          "meaning": "Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.",
+          "verification": "Exact wording verified"
         },
         "parent_post_id": "2078665005155643594",
         "published_meaning_strengthening_indicators": [],
@@ -43394,14 +43365,12 @@
         "reply_post_id": "2079253907008598336"
       },
       {
-        "current_meaning_strengthening_indicators": [
-          "suppression_or_destruction"
-        ],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.\n\nVerification — Research incomplete\n\nSource — No reliable source located",
+        "current_meaning_strengthening_indicators": [],
+        "current_public_reply_text": "Context — The Downing Street Years (Memoir), 1993.\n\nMeaning — Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.",
-          "verification": "Research incomplete"
+          "context": "The Downing Street Years (Memoir), 1993.",
+          "meaning": "Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.",
+          "verification": "Historically verified variant"
         },
         "parent_post_id": "2079286616233844889",
         "published_meaning_strengthening_indicators": [
@@ -43663,9 +43632,9 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193",
+        "current_public_reply_text": "Context — The surviving record dates this wording to 1978, but does not establish its occasion.\n\nMeaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.\n\nVerification — Attributed, but exact wording not independently verified\n\nSource — Hugo Young, 'One of Us' (1989), p. 193\n\nSource — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
+          "context": "The surviving record dates this wording to 1978, but does not establish its occasion.",
           "meaning": "Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.",
           "verification": "Attributed, but exact wording not independently verified"
         },
@@ -43835,10 +43804,10 @@
       },
       {
         "current_meaning_strengthening_indicators": [],
-        "current_public_reply_text": "Context — The surviving attribution does not establish an occasion, date or immediate historical issue.\n\nMeaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+        "current_public_reply_text": "Context — Speech to Conservative Party Conference, 10 October 1975.\n\nMeaning — Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.\n\nVerification — Historically verified variant\n\nSource — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777\n\nSource — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
         "current_sections": {
-          "context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "meaning": "Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.",
+          "context": "Speech to Conservative Party Conference, 10 October 1975.",
+          "meaning": "Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.",
           "verification": "Historically verified variant"
         },
         "parent_post_id": "2080135333262377191",
@@ -59204,40 +59173,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80:date:packet_claim_not_publicly_supported",
-        "claim_value": "1993",
-        "claim_value_sha256": "8e71b24534e9f3fb3a71263359fed2b7ffb008265e0d34383e319f1b6f5c08f2",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 1993, but does not establish its occasion.",
-          "counterfactual_context_sha256": "54386504e72a4267d48868f44e2e8221d57b1102b78bbb323ec523007c3d1756",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "1993",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
-        "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "During her premiership in the 1980s, Thatcher faced high unemployment and powerful trade unions. Her government implemented policies to curb union power, which she viewed as a primary cause of economic stagnation and job losses.",
         "claim_value_sha256": "4a883457fc5293b4af8be7dd2e798906f1880056f5c0685aaa83429c7ae794de",
@@ -59246,15 +59181,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The relationship between trade union power and unemployment levels.",
-          "counterfactual_context_sha256": "03ea749feb1aed74000e67e4142858bc53ca597879893755cd1bcfdc1bdd72d2",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "The Downing Street Years (Memoir), 1993: The relationship between trade union power and unemployment levels.",
+          "counterfactual_context_sha256": "66ff01dfad77e5badf7f29fa3770aebbf75a8feef826e3fc0edd01fe2ca1e31a",
+          "current_context": "The Downing Street Years (Memoir), 1993.",
+          "current_context_sha256": "3c8c7f382f815affd49d3596e3ee3b34154e4c7b0253608da4ff1afcd21c4871",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -59268,40 +59206,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "The Downing Street Years (Memoir)",
-        "claim_value_sha256": "2cf3a52ef495e62df31bc70f7f2a0bead66af9fde9bdf63099ce89855f2c540b",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "The Downing Street Years (Memoir).",
-          "counterfactual_context_sha256": "d1aa0024ba061014ccce2790ccb1714a9c376605430b8dd2c24f114a4f8a74e0",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "The Downing Street Years (Memoir)",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
-        "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -59835,40 +59739,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351:date:packet_claim_not_publicly_supported",
-        "claim_value": "1978",
-        "claim_value_sha256": "46635b56d3c7f0b7bb26adae2a1692debbfd145d4a0986a9137fe91e73e70360",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 1978, but does not establish its occasion.",
-          "counterfactual_context_sha256": "6e0eaca2871489d06a3a36a1df5a0ec7c1082bd1fa26f5d392accf92ed9fbdbc",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "1978",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
-        "quote_text_sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "In 1978, Margaret Thatcher was the Leader of the Opposition, preparing to challenge the Labour government. She was determined to break with the post-war consensus that had governed British politics, which she felt had led to national decline.",
         "claim_value_sha256": "f9fe135b80a14e19cae2da9999a73c15c832fd229bacd0b227ca148ad32b6996",
@@ -59877,15 +59747,17 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "Members of the Conservative Party who still supported consensus politics and compromise.",
-          "counterfactual_context_sha256": "c68088f2133344ac9a56e641e4ace528c1cc650bd9158e3b7495d3b33db5e2c3",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "1978: Members of the Conservative Party who still supported consensus politics and compromise.",
+          "counterfactual_context_sha256": "832e9072363d3a40794be39f2a87904ea731db2ec858bc9d6716a6b097103294",
+          "current_context": "The surviving record dates this wording to 1978, but does not establish its occasion.",
+          "current_context_sha256": "6e0eaca2871489d06a3a36a1df5a0ec7c1082bd1fa26f5d392accf92ed9fbdbc",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -59913,15 +59785,17 @@
         "counterfactual_projection": {
           "admitted_field": "source_event",
           "context_slot_changed": true,
-          "counterfactual_context": "Private conversation with Sir Anthony Parsons.",
-          "counterfactual_context_sha256": "19eff51f7dacc3bfa56bdb0c3b3965c96319c32bb8f15b3f0c9ba1e6efb50b76",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Private conversation with Sir Anthony Parsons, 1978.",
+          "counterfactual_context_sha256": "c895d08720a3da0a645d049ee86ad4576d6b3805434a49cface770d53c524756",
+          "current_context": "The surviving record dates this wording to 1978, but does not establish its occasion.",
+          "current_context_sha256": "6e0eaca2871489d06a3a36a1df5a0ec7c1082bd1fa26f5d392accf92ed9fbdbc",
           "direct_claim_value_selected": true,
           "effective_value_origin": "source_event",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": null,
@@ -86072,40 +85946,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea:date:packet_claim_not_publicly_supported",
-        "claim_value": "1995",
-        "claim_value_sha256": "e78f27ab3ef177a9926e6b90e572b9853ce6cf4d87512836e9ae85807ec9d7fe",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 1995, but does not establish its occasion.",
-          "counterfactual_context_sha256": "39009eae8e097d3fbd9a1ef4cd36300d76238b13ef4c5d81636a88dab2e7defb",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "1995",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
-        "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Thatcher was reflecting on her intellectual development and the books that influenced her during her youth, particularly during the 1940s, such as Herbert Agar's 'A Time for Greatness'.",
         "claim_value_sha256": "60dcdf10f04954903ff9e838dad5f50bb5123a8f42c3e7e3b58cd2766eb2603f",
@@ -86114,15 +85954,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The ideological similarities between Nazism and Communism.",
-          "counterfactual_context_sha256": "8d79d30f3521bd6af735202a35e966652da8ccb81cc81387db852001af47aaf0",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "The Path to Power (autobiography), 1995: The ideological similarities between Nazism and Communism.",
+          "counterfactual_context_sha256": "819182c964586eb49e3a44e4701099857a6b5700ab1179e3a570396642343449",
+          "current_context": "The Path to Power (autobiography), 1995.",
+          "current_context_sha256": "982da1981191eea0d018858802b49c2439485e07f281932232c438f36072ec45",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -86136,40 +85979,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "The Path to Power (autobiography)",
-        "claim_value_sha256": "56fc37d403930aff7c3a423b74318894b8adc4d7125dbcdfde1f632d51010100",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "The Path to Power (autobiography).",
-          "counterfactual_context_sha256": "e516bb37550a9d2d11d0440c4bcea6b1964474ffe88d166982d9cda1a372863a",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "The Path to Power (autobiography)",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
-        "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -91950,40 +91759,6 @@
       },
       {
         "attribution_eligible": true,
-        "claim_key": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37:date:packet_claim_not_publicly_supported",
-        "claim_value": "October 10, 1975",
-        "claim_value_sha256": "faefce0011c6da6e60697445279b382351523434a65ee50eed17f3fd9b4bfa76",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 10 October 1975, but does not establish its occasion.",
-          "counterfactual_context_sha256": "d698c0a77dea8ba6d97a0fcec62989447c5dcd1e64ad34bfdcedc6bfd7daeae5",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "10 October 1975",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-        "quote_text_sha256": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
         "claim_key": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37:historical_context:packet_claim_not_publicly_supported",
         "claim_value": "Thatcher delivered this speech during her first year as Leader of the Conservative Party, outlining her philosophical opposition to the incumbent Labour government. It established her ideological stance against state collectivism during the Cold War era.",
         "claim_value_sha256": "2536414bce97f6b635f42c584d5c0bcc5e2b1de33d18a1fc63cad138d4e606fb",
@@ -91992,15 +91767,18 @@
         "counterfactual_projection": {
           "admitted_field": "historical_context",
           "context_slot_changed": true,
-          "counterfactual_context": "The fundamental difference between socialist collectivism and conservative individualism.",
-          "counterfactual_context_sha256": "8aae55da0f8df7fd962a47c197cf3d93acaa5db60bfecfbccad03784307a8f64",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
+          "counterfactual_context": "Speech to Conservative Party Conference, 10 October 1975: The fundamental difference between socialist collectivism and conservative individualism.",
+          "counterfactual_context_sha256": "c098a3706b6adb69439db6bc7c2ce00054b520b48525f99d19a4c7383b5ea63d",
+          "current_context": "Speech to Conservative Party Conference, 10 October 1975.",
+          "current_context_sha256": "4f87922336e832eef6cd7cf0a1a9e043f56824a01a4048c6ca2c495dff4e5932",
           "direct_claim_value_selected": false,
           "effective_value_origin": "immediate_subject",
           "public_render_succeeded": true
         },
-        "current_public_context_supported_fields": [],
+        "current_public_context_supported_fields": [
+          "date",
+          "source_event"
+        ],
         "current_public_exposures": [],
         "evidence_state": "no_audited_source_claim",
         "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
@@ -92014,49 +91792,6 @@
           "direct_claim_value_not_selected",
           "field_not_admitted_by_source_role_audit",
           "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Speech to Conservative Party Conference",
-        "claim_value_sha256": "7027297f4dda059259fb03d3e0a2526fe400fa0b20db70c1980b5bc3872e04b1",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "currently_rendered_exact_occurrence",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Speech to Conservative Party Conference.",
-          "counterfactual_context_sha256": "21ab75976113a75a47edcf8a332ab9ee4aee3829b40b430df597b6a77f2ad495",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [
-          {
-            "basis": "contiguous_nfkc_casefolded_alphanumeric_token_sequence",
-            "exposure_kind": "bibliographic_exact_occurrence",
-            "public_source_index": 0,
-            "surface": "source_title",
-            "surface_text_sha256": "32caf1b51bfae5596660a58c1feb782afe73c16efa4bd784d8339be7ce2a4318"
-          }
-        ],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Speech to Conservative Party Conference",
-        "public_reachability": "currently_rendered_exact_occurrence",
-        "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-        "quote_text_sha256": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
-        "reachability_reasons": [
-          "exact_claim_projection_occurs_in_current_public_output",
-          "field_not_admitted_by_source_role_audit"
         ],
         "supporting_internal_source_ids": [],
         "supporting_renderable_source_ids": []
@@ -94638,110 +94373,6 @@
         "public_reachability": "formatter_reachable_but_suppressed",
         "quote_id": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d",
         "quote_text_sha256": "f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea:date:packet_claim_not_publicly_supported",
-        "claim_value": "1993",
-        "claim_value_sha256": "8e71b24534e9f3fb3a71263359fed2b7ffb008265e0d34383e319f1b6f5c08f2",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "date",
-          "context_slot_changed": true,
-          "counterfactual_context": "The surviving record dates this wording to 1993, but does not establish its occasion.",
-          "counterfactual_context_sha256": "54386504e72a4267d48868f44e2e8221d57b1102b78bbb323ec523007c3d1756",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "date",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "date",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "1993",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "reachability_reasons": [
-          "field_not_admitted_by_source_role_audit"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea:historical_context:packet_claim_not_publicly_supported",
-        "claim_value": "Thatcher wrote this in her memoirs reflecting on the post-war consensus and the state of the British economy before she took office in 1979. She argued that decades of socialist policies had led to Britain's economic decline, earning it the moniker 'the sick man of Europe'.",
-        "claim_value_sha256": "7645a69e0778c5941b105af5166fc9a452eba3dc08de3def5caa163773c92d6f",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "historical_context",
-          "context_slot_changed": true,
-          "counterfactual_context": "The failure of democratic socialism in Britain.",
-          "counterfactual_context_sha256": "6108102ccf9aec7c2e0bd74a6bc1260401bed2f4ff29fd7b0bfb9eb2a88f996a",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": false,
-          "effective_value_origin": "immediate_subject",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": "shadowed_by_immediate_subject",
-        "field": "historical_context",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Thatcher wrote this in her memoirs reflecting on the post-war consensus and the state of the British economy before she took office in 1979.",
-        "public_reachability": "internal_only_or_unreachable",
-        "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "reachability_reasons": [
-          "direct_claim_value_not_selected",
-          "field_not_admitted_by_source_role_audit",
-          "shadowed_by_immediate_subject"
-        ],
-        "supporting_internal_source_ids": [],
-        "supporting_renderable_source_ids": []
-      },
-      {
-        "attribution_eligible": true,
-        "claim_key": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea:source_event:packet_claim_not_publicly_supported",
-        "claim_value": "Publication of her memoir, The Downing Street Years",
-        "claim_value_sha256": "0c2467829fea6701ef704233506e85b4c942b538540e8d22a29ca03b2d8d4d4b",
-        "confidence_after": "unknown",
-        "context_slot_reachability": "formatter_slot_reachable_but_not_currently_exposed",
-        "counterfactual_projection": {
-          "admitted_field": "source_event",
-          "context_slot_changed": true,
-          "counterfactual_context": "Publication of her memoir, The Downing Street Years.",
-          "counterfactual_context_sha256": "b1f090dd6164a4dcac7e65801e846fd2bdc14be691152df3aefbf54a86b31790",
-          "current_context": "The surviving attribution does not establish an occasion, date or immediate historical issue.",
-          "current_context_sha256": "ef99f12000f6b99edf722781e8d3f06954ee84f33d267c24051859c427ebacdd",
-          "direct_claim_value_selected": true,
-          "effective_value_origin": "source_event",
-          "public_render_succeeded": true
-        },
-        "current_public_context_supported_fields": [],
-        "current_public_exposures": [],
-        "evidence_state": "no_audited_source_claim",
-        "exclusive_unreachable_reason": null,
-        "field": "source_event",
-        "finding_kind": "packet_claim_not_publicly_supported",
-        "formatter_projection": "Publication of her memoir, The Downing Street Years",
-        "public_reachability": "formatter_reachable_but_suppressed",
-        "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
-        "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
         "reachability_reasons": [
           "field_not_admitted_by_source_role_audit"
         ],
@@ -98734,14 +98365,14 @@
   "schema_version": 2,
   "unsupported_claim_counts": {
     "by_attribution_eligibility": {
-      "eligible": 1493,
+      "eligible": 1483,
       "ineligible": 35
     },
     "by_attribution_eligibility_and_public_reachability": {
       "eligible": {
-        "currently_rendered_exact_occurrence": 113,
-        "formatter_reachable_but_suppressed": 754,
-        "internal_only_or_unreachable": 626
+        "currently_rendered_exact_occurrence": 112,
+        "formatter_reachable_but_suppressed": 746,
+        "internal_only_or_unreachable": 625
       },
       "ineligible": {
         "currently_rendered_exact_occurrence": 0,
@@ -98750,43 +98381,43 @@
       }
     },
     "by_context_slot_reachability": {
-      "currently_rendered_exact_occurrence": 113,
-      "formatter_slot_reachable_but_not_currently_exposed": 1380,
+      "currently_rendered_exact_occurrence": 112,
+      "formatter_slot_reachable_but_not_currently_exposed": 1371,
       "formatter_slot_unreachable": 0,
       "production_ineligible": 35
     },
     "by_current_public_exposure_kind": {
-      "bibliographic_exact_occurrence": 113
+      "bibliographic_exact_occurrence": 112
     },
     "by_current_public_exposure_kind_instance": {
-      "bibliographic_exact_occurrence": 113
+      "bibliographic_exact_occurrence": 112
     },
     "by_current_public_surface": {
       "context": 0,
       "meaning": 0,
-      "source_title": 113,
+      "source_title": 112,
       "source_url": 0
     },
     "by_current_public_surface_instance": {
       "context": 0,
       "meaning": 0,
-      "source_title": 113,
+      "source_title": 112,
       "source_url": 0
     },
     "by_evidence_state": {
       "internal_source_claim_only": 0,
-      "no_audited_source_claim": 1528,
+      "no_audited_source_claim": 1518,
       "renderable_source_claim_not_admitted": 0
     },
     "by_exclusive_unreachable_reason": {
       "attribution_ineligible": 35,
       "direct_claim_value_not_selected": 17,
-      "shadowed_by_immediate_subject": 609
+      "shadowed_by_immediate_subject": 608
     },
     "by_field": {
-      "date": 420,
-      "historical_context": 625,
-      "source_event": 483
+      "date": 415,
+      "historical_context": 624,
+      "source_event": 479
     },
     "by_field_and_current_public_surface": {
       "date": {
@@ -98804,55 +98435,55 @@
       "source_event": {
         "context": 0,
         "meaning": 0,
-        "source_title": 112,
+        "source_title": 111,
         "source_url": 0
       }
     },
     "by_field_and_evidence_state": {
       "date": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 420,
+        "no_audited_source_claim": 415,
         "renderable_source_claim_not_admitted": 0
       },
       "historical_context": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 625,
+        "no_audited_source_claim": 624,
         "renderable_source_claim_not_admitted": 0
       },
       "source_event": {
         "internal_source_claim_only": 0,
-        "no_audited_source_claim": 483,
+        "no_audited_source_claim": 479,
         "renderable_source_claim_not_admitted": 0
       }
     },
     "by_field_and_public_reachability": {
       "date": {
         "currently_rendered_exact_occurrence": 1,
-        "formatter_reachable_but_suppressed": 410,
+        "formatter_reachable_but_suppressed": 405,
         "internal_only_or_unreachable": 9
       },
       "historical_context": {
         "currently_rendered_exact_occurrence": 0,
         "formatter_reachable_but_suppressed": 1,
-        "internal_only_or_unreachable": 624
+        "internal_only_or_unreachable": 623
       },
       "source_event": {
-        "currently_rendered_exact_occurrence": 112,
-        "formatter_reachable_but_suppressed": 343,
+        "currently_rendered_exact_occurrence": 111,
+        "formatter_reachable_but_suppressed": 340,
         "internal_only_or_unreachable": 28
       }
     },
     "by_finding_kind": {
-      "packet_claim_not_publicly_supported": 1528
+      "packet_claim_not_publicly_supported": 1518
     },
     "by_public_reachability": {
-      "currently_rendered_exact_occurrence": 113,
-      "formatter_reachable_but_suppressed": 754,
-      "internal_only_or_unreachable": 661
+      "currently_rendered_exact_occurrence": 112,
+      "formatter_reachable_but_suppressed": 746,
+      "internal_only_or_unreachable": 660
     },
-    "current_public_exposure_instance_count": 113,
+    "current_public_exposure_instance_count": 112,
     "intended_argument_or_meaning_claims_in_this_1539_count": 0,
-    "total": 1528
+    "total": 1518
   },
   "unsupported_claim_decomposition_definitions": {
     "bibliographic_exact_occurrence": "A public source-title occurrence is an editorial exposure risk, not proof that an audited source supports the packet claim.",

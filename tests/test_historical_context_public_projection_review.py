@@ -1,6 +1,7 @@
-"""Regression coverage for the offline v7-to-v8 projection review."""
+"""Regression coverage for historical and post-v9 projection review."""
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -13,7 +14,15 @@ from historical_context_public_projection_review import (
     DOCUMENT_104653_CONTEXT,
     DOCUMENT_104653_QUOTE_ID,
     EXPECTED_MANUAL_HINT_IDS,
+    POST_V9_INPUT_NAMES,
+    POST_V9_TRANSITION_KIND,
+    POST_V9_TRANSITION_STATUS,
+    REVIEW_SCHEMA_VERSION,
     SAFE_EVENT_ONLY_FALLBACK,
+    TRANSITION_MANIFEST_PATH,
+    V9_POLICY,
+    _v7_public_context_supported_fields,
+    _validate_post_v9_transition,
     build_review,
     main,
 )
@@ -25,6 +34,7 @@ def review():
 
 
 def test_projection_review_covers_all_72_cumulative_field_changes(review):
+    assert review["schema_version"] == REVIEW_SCHEMA_VERSION == 3
     assert review["review_ready"] is True
     assert all(review["invariants"].values())
     assert review["counts"] == {
@@ -38,6 +48,9 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
         "duplicate_full_reply_group_count": 0,
         "event_only_downgrade_count": 2,
         "manual_hint_count": 9,
+        "post_v9_public_field_change_count": 5,
+        "post_v9_source_addition_count": 5,
+        "post_v9_transition_packet_count": 5,
         "v8_to_v9_public_field_change_count": 6,
         "safe_date_only_count": 64,
         "safe_event_only_context_count": 1,
@@ -58,6 +71,206 @@ def test_projection_review_covers_all_72_cumulative_field_changes(review):
         for precision in ("day", "month", "year")
     } == {"day": 59, "month": 3, "year": 2}
     assert len(review["incremental_v8_to_v9_records"]) == 6
+    assert {
+        record["quote_id"] for record in review["post_v9_transition_records"]
+    } == {
+        "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+        "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+        "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+        "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+    }
+    assert all(
+        record["public_reply_text"]
+        and record["public_sources"]
+        and not {
+            "empty_context",
+            "bare_date_context",
+            "malformed_context",
+            "unadmitted_date_in_context",
+            "diagnostic_slash_in_context",
+            "duplicate_full_reply",
+        } & set(record["presentation_flags"])
+        for record in review["post_v9_transition_records"]
+    )
+
+
+def _synthetic_post_v9_case():
+    quote_id = "a" * 64
+    source_id = "b" * 64
+    candidate_id = "c" * 64
+    inputs = {name: hashlib.sha256(name.encode()).hexdigest()
+              for name in POST_V9_INPUT_NAMES}
+    packets = {
+        quote_id: {
+            "_source_role_audit": {
+                "curated_sources": [{"source_id": source_id}],
+                "renderable_sources": [{
+                    "claims_supported": ["source_event"],
+                    "source_id": source_id,
+                    "source_quality_class": "strong_primary_evidence",
+                }],
+            },
+        },
+    }
+    curated = {
+        "items": {
+            quote_id: {
+                "sources": [{
+                    "source_id": source_id,
+                    "source_review_candidate_id": candidate_id,
+                }],
+            },
+        },
+    }
+    item = {
+        "current_public_context_supported_fields": ["source_event"],
+        "quote_text_sha256": quote_id,
+        "source_bindings": [{
+            "source_id": source_id,
+            "source_review_candidate_id": candidate_id,
+        }],
+        "v9_baseline_public_context_supported_fields": [],
+    }
+    manifest = {
+        "counts": {
+            "public_field_changes": 1,
+            "source_additions": 1,
+            "transition_packets": 1,
+        },
+        "input_hashes": dict(inputs),
+        "items": {quote_id: item},
+        "manifest_kind": POST_V9_TRANSITION_KIND,
+        "policy_transition": {"from": V9_POLICY, "to": V9_POLICY},
+        "schema_version": 1,
+        "transition_quote_ids_sha256": hashlib.sha256(
+            f"{quote_id}\n".encode()
+        ).hexdigest(),
+        "transition_status": POST_V9_TRANSITION_STATUS,
+    }
+    return manifest, packets, curated, {quote_id: ["source_event"]}, inputs
+
+
+def _validate_synthetic(case):
+    manifest, packets, curated, field_map, inputs = case
+    expected_bindings = {
+        "a" * 64: ("b" * 64, "c" * 64),
+    }
+    return _validate_post_v9_transition(
+        manifest,
+        packets=packets,
+        curated=curated,
+        current_field_map=field_map,
+        historical_transition_ids=set(),
+        expected_input_hashes=inputs,
+        expected_bindings=expected_bindings,
+        expected_baseline_source_count=0,
+        expected_baseline_source_ids_sha256=hashlib.sha256(b"").hexdigest(),
+    )
+
+
+def test_valid_disjoint_post_v9_transition_reconstructs_frozen_baseline():
+    baseline, records = _validate_synthetic(_synthetic_post_v9_case())
+
+    assert baseline == {"a" * 64: []}
+    assert records == [{
+        "current_public_context_supported_fields": ["source_event"],
+        "quote_id": "a" * 64,
+        "source_bindings": [{
+            "source_id": "b" * 64,
+            "source_review_candidate_id": "c" * 64,
+        }],
+        "v9_baseline_public_context_supported_fields": [],
+    }]
+
+
+@pytest.mark.parametrize("mismatch", ["source", "candidate", "input"])
+def test_post_v9_identity_and_input_mismatches_fail_closed(mismatch):
+    case = _synthetic_post_v9_case()
+    manifest = case[0]
+    if mismatch == "source":
+        manifest["items"]["a" * 64]["source_bindings"][0][
+            "source_id"
+        ] = "d" * 64
+    elif mismatch == "candidate":
+        manifest["items"]["a" * 64]["source_bindings"][0][
+            "source_review_candidate_id"
+        ] = "d" * 64
+    else:
+        manifest["input_hashes"]["research_packets.json"] = "d" * 64
+    with pytest.raises(RuntimeError, match="post-v9 transition"):
+        _validate_synthetic(case)
+
+
+def test_post_v9_transition_cannot_overlap_historical_transition():
+    case = _synthetic_post_v9_case()
+    with pytest.raises(RuntimeError, match="scope or inputs differ"):
+        _validate_post_v9_transition(
+            case[0],
+            packets=case[1],
+            curated=case[2],
+            current_field_map=case[3],
+            historical_transition_ids={"a" * 64},
+            expected_input_hashes=case[4],
+            expected_bindings={
+                "a" * 64: ("b" * 64, "c" * 64),
+            },
+            expected_baseline_source_count=0,
+            expected_baseline_source_ids_sha256=hashlib.sha256(b"").hexdigest(),
+        )
+
+
+def test_post_v9_transition_rejects_undeclared_curated_source():
+    case = _synthetic_post_v9_case()
+    case[2]["items"]["d" * 64] = {
+        "sources": [{"source_id": "e" * 64}],
+    }
+    with pytest.raises(RuntimeError, match="undeclared curated sources"):
+        _validate_synthetic(case)
+
+
+@pytest.mark.parametrize("scope_change", ["missing", "extra"])
+def test_post_v9_transition_requires_exact_reviewed_scope(scope_change):
+    case = _synthetic_post_v9_case()
+    if scope_change == "missing":
+        case[0]["items"] = {}
+    else:
+        case[0]["items"]["d" * 64] = dict(case[0]["items"]["a" * 64])
+    with pytest.raises(RuntimeError, match="reviewed scope"):
+        _validate_synthetic(case)
+
+
+def test_v7_reconstruction_excludes_reviewed_later_sources():
+    source_id = "b" * 64
+    packet = {
+        "date": "1975-01-01",
+        "_source_role_audit": {
+            "renderable_sources": [{
+                "assigned_roles": ["source_event_support"],
+                "source_id": source_id,
+            }],
+        },
+    }
+
+    assert _v7_public_context_supported_fields(packet) == [
+        "source_event", "date",
+    ]
+    assert _v7_public_context_supported_fields(
+        packet, later_source_ids={source_id},
+    ) == []
+
+
+def test_post_v9_transition_rejects_undeclared_current_field_change():
+    case = _synthetic_post_v9_case()
+    case[3]["a" * 64] = ["source_event", "date"]
+    with pytest.raises(RuntimeError, match="evidence differs"):
+        _validate_synthetic(case)
+
+
+def test_historical_transition_is_immutable():
+    assert hashlib.sha256(TRANSITION_MANIFEST_PATH.read_bytes()).hexdigest() == (
+        "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba"
+    )
 
 
 def test_projection_review_records_safe_outputs_and_non_promoting_hints(review):

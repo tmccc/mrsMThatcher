@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "review_kind": "historical_context_local_book_evidence_public_render_review",
+  "generated_at": "2026-07-24T13:34:42Z",
+  "status": "reviewed_and_safe",
+  "full_corpus": {
+    "completed_packet_count": 626,
+    "attribution_eligible_quote_count": 610,
+    "unresolved_quote_count": 6,
+    "render_failure_count": 0,
+    "blocking_item_violation_count": 0,
+    "review_ready": true
+  },
+  "reviewed_records": [
+    {
+      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "wording_status": "primary_variant",
+      "context_projection": "source_event_and_date",
+      "meaning_exactly_approved": true,
+      "printed_page_locator_present": true,
+      "public_reply_sha256": "6a1bfd050dec7ced3ddcfab4f9b61cab780f892533ab94ad990f041466c860ce",
+      "gate_allowed_after_review": true
+    },
+    {
+      "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "wording_status": "secondary_reproduction",
+      "context_projection": "safe_date_only_original_occasion_not_established",
+      "meaning_changed": false,
+      "anthology_not_presented_as_primary": true,
+      "public_reply_sha256": "a525cf640641c29847212b7a414e6b6a26d70fdebb875631333a1f4daee994cc",
+      "gate_allowed_after_review": false
+    },
+    {
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "wording_status": "exact_primary",
+      "context_projection": "source_event_and_date",
+      "meaning_exactly_approved": true,
+      "page_29_locator_present": true,
+      "page_31_locator_not_overwritten": true,
+      "public_reply_sha256": "7737d97442a77674394766daf59642e0e0b4d4c42de62ed0da4f35b179bb8cd4",
+      "gate_allowed_after_review": true
+    },
+    {
+      "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "wording_status": "primary_variant",
+      "context_projection": "source_event_and_date",
+      "meaning_exactly_approved": true,
+      "edition": "First U.S. edition, 1998",
+      "printed_page_locator_present": true,
+      "public_reply_sha256": "a6e2e757bab363878f451bd182fc25a176215bc822f4b7ea7c620b3b311ee63c",
+      "gate_allowed_after_review": true
+    },
+    {
+      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "wording_status": "exact_primary",
+      "context_projection": "source_event_date_and_historical_context",
+      "meaning_exactly_approved": true,
+      "printed_page_locator_present": true,
+      "public_reply_sha256": "231b8cecefd40ef9004f43f4d906fe95e8b84f9aa2ef3afbc9021204138be944",
+      "gate_allowed_after_review": true
+    }
+  ],
+  "unrelated_controls": [
+    {
+      "quote_id": "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
+      "control": "unrelated_allowed",
+      "rendered": true,
+      "public_reply_sha256": "dd25ecb59c6588ca85e7f5bd90bcfe57a2b59544bb983f65e792cb394953d552"
+    },
+    {
+      "quote_id": "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
+      "control": "unrelated_blocked_pre_gate_render",
+      "rendered_for_offline_review": true,
+      "public_reply_sha256": "e48bd6755f2c45b5977e4d35d3af54bf2083defe12f5751b938ce5d151448876"
+    }
+  ],
+  "public_output_checks": {
+    "private_absolute_paths_exposed": false,
+    "pdf_hashes_exposed": false,
+    "ocr_paths_exposed": false,
+    "internal_confidence_exposed": false,
+    "evidence_role_diagnostics_exposed": false,
+    "archive_transport_replaced_source_identity": false,
+    "global_formatting_drift_detected": false
+  },
+  "review_passed": true
+}

@@ -1170,6 +1170,9 @@ def audit_packet(
             ],
             "claim_coverage": {
                 "wording": (
+                    "full"
+                    if source["wording_match_kind"] == "exact"
+                    else
                     "normalised"
                     if source["wording_match_kind"]
                     in {"historical_variant", "excerpt"}

@@ -1,6 +1,6 @@
 {
-  "correction_count": 11,
-  "created_at": "2026-07-22",
+  "correction_count": 15,
+  "created_at": "2026-07-24",
   "items": {
     "38805634a94b830357ca31de921357af37ce17c69a295c26dfc4c091979549ad": {
       "corrected_value": "Thatcher argued that government should pursue clear objectives with conviction and resist pressures that would divert it from them.",
@@ -29,6 +29,20 @@
       "quote_text_sha256": "3f2d87ee2926c027067089062d8a9ef5e28291258ca0cc7632f0796c0e927631",
       "rationale": "The previous Meaning narrowed Thatcher's unqualified reference to 'politics' into a specifically left-wing agenda. The replacement preserves her stated contrast with workers' fair treatment and a prosperous industry.",
       "reviewed_at": "2026-07-23"
+    },
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": {
+      "corrected_value": "Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.",
+      "corrected_value_sha256": "dc094474eab3042b8b0fbb2949892271b1efa745901f314e53cbedd31cc2927a",
+      "correction_id": "07429b5dc55acab3ad34fe4a7a40df78d98eec03d628745d6192fc56ed882c5a",
+      "evidence_source_ids": [
+        "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "57ad6db1c2ac2de0b6eb6408f46807c7772ca40c3e08ac6eaa3a6bc77c457538",
+      "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "rationale": "The previous Meaning used market-clearing terminology and stated categorical causation. The replacement restores the source's 'other things being equal' qualification and stays within its stated wage, output, unemployment and competitiveness claims.",
+      "reviewed_at": "2026-07-24"
     },
     "63a705d3b574f9294af663894a908053d17df31c1b177fca7997caa36299a5f5": {
       "corrected_value": "Thatcher argued that governments should not run businesses because state planners do not bear the consequences of their mistakes; taxpayers do.",
@@ -100,6 +114,20 @@
       "rationale": "The previous Meaning universalised a Polish communist example into inevitable failure of all state-run systems. The replacement retains the speech's direct capitalism claim and its immediate comparison.",
       "reviewed_at": "2026-07-23"
     },
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": {
+      "corrected_value": "Thatcher described Nazism and communism as closely related forms of socialism.",
+      "corrected_value_sha256": "c121aa750abd055ee48736a903739de3f3b66ce03f87ee1449afb7bae25494e4",
+      "correction_id": "6e47e11eff213fcae76ca05b1f7f12a09c53899eaad3567876dcb3309805c184",
+      "evidence_source_ids": [
+        "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "50b234c2bad6f5bef1a9105ba6b1ae5c4b7f5e2050dc6f619ba9ee60ed32438e",
+      "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "rationale": "The previous Meaning made broader claims about all totalitarian ideologies and suppression of liberty. The replacement confines the Meaning to the inspected page's comparison; the preceding account of communist and Nazi cooperation remains surrounding context only.",
+      "reviewed_at": "2026-07-24"
+    },
     "d9028da9c6518f578ea0840ab4ae6ed5e3a94028cfb0d4c924a476d19df838c9": {
       "corrected_value": "Thatcher rejected the belief that the state could perpetually raise living standards regardless of individual effort.",
       "corrected_value_sha256": "b3f36c777f04a36fe3bb94c05392338a984e7516676a12f47b88c6164c7c9416",
@@ -155,6 +183,34 @@
       "quote_text_sha256": "e1d78bc63369145f6cf7462d8ad5f15dceef929c0469aff64d3bde1e7a188f18",
       "rationale": "The earlier interpretation added inevitability, inherent causation and state-power language not present in the primary transcript. This replacement stays within Thatcher's qualified wording ('some of the aims') and its stated consequence for individual rights.",
       "reviewed_at": "2026-07-22"
+    },
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": {
+      "corrected_value": "Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.",
+      "corrected_value_sha256": "c0cfd99cee86cf5749de424616e025e2ef820e2bbdb9f8916adad9952c528e67",
+      "correction_id": "318239e770ced811f24491537b9d923f5076acae19ed745a2f1e76557947d676",
+      "evidence_source_ids": [
+        "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "8d5b77c245f20b385c5edab1837fab6f0e59697ffbaa7881b6acf3fe3cecc644",
+      "quote_id": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "quote_text_sha256": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "rationale": "The previous Meaning added a general threat from state control. The replacement stays within the inspected speech's contrast between numbers and individuals, inequality, and equal human importance.",
+      "reviewed_at": "2026-07-24"
+    },
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": {
+      "corrected_value": "Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.",
+      "corrected_value_sha256": "3bbc6715208529c6b127f1792955c89557458a20a36c676dc1682c86052fe413",
+      "correction_id": "849b26b72e25ceac9a5e01dd16d870c266bc8a5efdfd84e96d9a8e6595eb6942",
+      "evidence_source_ids": [
+        "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50"
+      ],
+      "field": "intended_argument",
+      "original_value_sha256": "6d35afdd587c065da6e4e817f651d45a638fdc177bf520ad82dfefea5375142b",
+      "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "rationale": "The previous Meaning added a claim that the passage justified her later free-market reforms. The replacement stays within the inspected memoir's retrospective claim that democratic socialism had received a long practical test and failed.",
+      "reviewed_at": "2026-07-24"
     }
   },
   "policy_version": "historical-context-packet-corrections-v1-intended-argument-only",

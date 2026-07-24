@@ -29,6 +29,12 @@ CORRECTED_MEANING = (
     "Thatcher argued that socialism shares some aims with Marxism and that "
     "pursuing those aims subordinates individual rights to political doctrine."
 )
+LOCAL_BOOK_CORRECTION_IDS = {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+}
 
 
 @pytest.fixture(scope="module")
@@ -96,7 +102,8 @@ def test_document_104653_correction_changes_only_future_meaning_view(
         for quote_id, packet in packets.items()
         if corrected[quote_id] is not packet
     }
-    assert len(correction_ids) == 11
+    assert len(correction_ids) == 15
+    assert LOCAL_BOOK_CORRECTION_IDS <= correction_ids
     assert "inevitably" not in corrected[QUOTE_ID]["intended_argument"]
     assert "inherently" not in corrected[QUOTE_ID]["intended_argument"]
     assert "state power" not in corrected[QUOTE_ID]["intended_argument"]

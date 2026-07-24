@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RESEARCH = ROOT / "semantic_alignment_research" / "quote_research_full_001"
 LEDGER = ROOT / "historical_context_published_reply_semantic_review.json"
 OPEN_FUTURE = (
-    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80"
+    "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
 )
 NEW_POST_BASELINE_FUTURE = (
     "a97e6dd2f444ecfbba67977a34be91db40d17eb09c8566fe714e48bffddb11f7"
@@ -161,7 +161,7 @@ def _install_bot_context(
     return events
 
 
-def test_real_gate_is_hash_bound_and_contains_exact_86_19_9_10_policy():
+def test_real_gate_is_hash_bound_and_contains_exact_86_15_6_9_policy():
     packets, _unresolved = load_and_validate_corpus(
         RESEARCH,
         require_source_role_audit=True,
@@ -181,13 +181,13 @@ def test_real_gate_is_hash_bound_and_contains_exact_86_19_9_10_policy():
     assert gate.reason == ""
     assert gate.ledger_sha256 == EXPECTED_LEDGER_SHA256
     assert gate.projection_sha256 == EXPECTED_PROJECTION_SHA256
-    assert len(gate.blocked_dispositions) == 19
+    assert len(gate.blocked_dispositions) == 15
     assert list(gate.blocked_dispositions.values()).count(
         "future_correction_needed"
-    ) == 9
+    ) == 6
     assert list(gate.blocked_dispositions.values()).count(
         "insufficient_to_assess"
-    ) == 10
+    ) == 9
     assert gate.disposition(OPEN_FUTURE) == "future_correction_needed"
     assert gate.disposition(NEW_POST_BASELINE_FUTURE) == "future_correction_needed"
     assert gate.disposition(OPEN_INSUFFICIENT) == "insufficient_to_assess"

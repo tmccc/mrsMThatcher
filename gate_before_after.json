@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "audit_kind": "historical_context_local_book_evidence_gate_transition",
+  "generated_at": "2026-07-24T13:34:42Z",
+  "status": "recomputed_and_validated",
+  "before": {
+    "blocked_count": 19,
+    "allowed_count": 591,
+    "future_correction_needed": 9,
+    "insufficient_to_assess": 10,
+    "semantic_review_ledger_sha256": "c03cb7244dda84a1590b046e8953b663b2ad4aa3bad458e5f890d53f61a1146d",
+    "blocked_projection_sha256": "d035a0c26ec5a7d6b10367595dde403764ac3ee4623878d948a9446871490b00",
+    "gate_audit_sha256": "7a6c7a237538f924042f3401234a20c01b31ace78f3fbf5a2b04d17a889dc920"
+  },
+  "after": {
+    "blocked_count": 15,
+    "allowed_count": 595,
+    "future_correction_needed": 6,
+    "insufficient_to_assess": 9,
+    "semantic_review_ledger_sha256": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
+    "blocked_projection_sha256": "27a8fdcfb05cbda87d51bb5b035d7f960775552a5281a08c06a958c5ff15869f",
+    "gate_audit_sha256": "bd386244c7dc30c8757aa72fa722e2d961653291c373db824a2c9223cee79623"
+  },
+  "quote_ids_added": [],
+  "quote_ids_removed": [
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+  ],
+  "removed_prior_dispositions": {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": "future_correction_needed",
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": "future_correction_needed",
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": "insufficient_to_assess",
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": "future_correction_needed"
+  },
+  "quislings": {
+    "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+    "before_disposition": "future_correction_needed",
+    "after_disposition": "future_correction_needed",
+    "follow_up_status": "remains_open",
+    "remains_blocked": true
+  },
+  "ordinary_cycle_count_before": 610,
+  "ordinary_cycle_count_after": 610,
+  "ordinary_cycle_order_unchanged": true,
+  "unresolved_count_before": 6,
+  "unresolved_count_after": 6,
+  "unrelated_gate_id_changes": 0,
+  "invariant_failures": 0,
+  "recomputed": true
+}

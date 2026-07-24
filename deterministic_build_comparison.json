@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "validation_kind": "historical_context_local_book_evidence_deterministic_build",
+  "generated_at": "2026-07-24T13:34:42Z",
+  "status": "passed",
+  "build_one_completed": true,
+  "build_two_completed": true,
+  "output_count": 13,
+  "substantive_outputs_byte_identical": true,
+  "gate_membership_identical": true,
+  "source_ids_identical": true,
+  "packet_corrections_identical": true,
+  "checksums_identical": true,
+  "retained_recovery_input": {
+    "path": "semantic_alignment_research/quote_research_full_001/historical_context_source_recovery.json",
+    "sha256": "49747c02218280a9e87870f19f09c4ef446dcb8d1994d717adc48abec5903eb9",
+    "validated_and_unchanged": true,
+    "reason": "The private raw provider-response cache is intentionally absent from the clean worktree, so both builds consumed the existing validated recovery sidecar rather than attempting to reconstruct it from absent private files."
+  },
+  "reviewed_history_input": {
+    "entry_count": 86,
+    "sha256": "9a04aac4235b139faa70e7cc47a186a1fab47d9c826845def439804119670272",
+    "reason": "This is the exact immutable history snapshot reviewed by the current semantic ledger; later natural production history was not rewritten into the reviewed transition."
+  },
+  "outputs": {
+    "historical_context_evidence_truth_audit.json": "05150e8311e7d867e002a109e31d11bf4527fa1fd63401f204db01550712eae9",
+    "historical_context_mtf_priority_manual_review.json": "87f333f60bbc682bd606f76dfefad3645f61b87811e12f7607f8c507a35beec9",
+    "historical_context_mtf_remaining_manual_review.json": "940923e0c282537b927735ef22d5f03efc1dc3dd0d40f4e56874af7d65513ae7",
+    "historical_context_public_projection_review.json": "d60aeafbbb345261a72a60e7005d8237377839bb3ef205f95346060c1bd3c02a",
+    "historical_context_public_render_review.txt": "792ccd17eb412659439f3b10d51880d26270867c626409bc47e4914c9eab6192",
+    "historical_context_public_source_deduplication_audit.json": "a6e836b187593f89e1f48fa1471219e40d2e92b561e47dbc2f84856042170bec",
+    "historical_context_published_reply_semantic_review.json": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
+    "historical_context_reply_semantic_gate_audit.json": "bd386244c7dc30c8757aa72fa722e2d961653291c373db824a2c9223cee79623",
+    "historical_context_source_audit_report.md": "dd7f4b59a08cec8b330e28f06ffe9646daffa961d3ce6d7f26a968f2988fb92b",
+    "semantic_alignment_research/historical_context_source_audit_001/audit_summary.json": "cb8c7c1a8b4953fd924d6cd0f3de85e1f21a0abe89f4a60e75970ef4b708ab69",
+    "semantic_alignment_research/historical_context_source_audit_001/provider_research_summary.json": "a4018971e7f58d1d42d76ae4c24dec55bb8a00c3a3ccb0eb663e74d578d16bed",
+    "semantic_alignment_research/historical_context_source_audit_001/source_snapshot_manifest.json": "f5f0a78d03ec2ad83cbb13509486b54f616ef5364920adf1b75cfe4a8223a307",
+    "semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7"
+  },
+  "stable_inputs": {
+    "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_v9_local_book_evidence_transition_manifest.json": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f"
+  },
+  "validation_passed": true
+}

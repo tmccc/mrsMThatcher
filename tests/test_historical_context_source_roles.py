@@ -646,6 +646,10 @@ def _context_admission_packet(
 ) -> dict:
     quote_text = "A synthetic quotation used only for source-role admission tests."
     source_roles = []
+    if "wording" in claims_supported:
+        source_roles.append("wording_verification")
+    if "attribution" in claims_supported:
+        source_roles.append("attribution_support")
     if set(claims_supported) & {"source_event", "date"}:
         source_roles.append("source_event_support")
     if "historical_context" in claims_supported:
@@ -721,6 +725,15 @@ def test_public_context_admission_requires_non_unknown_claim_confidence():
     assert item["public_context_supported_fields"] == []
 
 
+def test_curated_exact_primary_wording_has_full_coverage():
+    item = _context_admission_packet(["wording", "attribution"])
+
+    assert item["curated_sources"][0]["claim_coverage"]["wording"] == "full"
+    assert item["confidence_after"]["wording"] == "high"
+    assert item["public_verification_wording"] == "Exact wording verified"
+    assert item["public_context_supported_fields"] == []
+
+
 def test_b32_public_context_admits_event_but_not_date(audit):
     quote_id = "b32d8cdf5977dee436857e8060d3a83ebfe54de9f6dabb20ffc65a0796338b5c"
     item = audit["items"][quote_id]
@@ -766,7 +779,7 @@ def test_gemini_queue_and_cost_preflight_cover_only_true_no_source_residual(corp
     packets, _ = corpus
     queue = residual_queue(audit)
     preflight = build_preflight(packets, audit, queue)
-    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 107
+    assert len(queue) == audit["summary"]["packets_with_no_reliable_source"] == 104
     assert len(set(queue)) == len(queue)
     assert queue[0] == THAMES_ID
     assert "313172d18e2d915e514e4a202a8b1bcbb077472c2504dee63fe98edaf60e0b3a" not in queue
@@ -1486,3 +1499,78 @@ def test_developer_only_two_ungrounded_responses_fail_one_item_closed(
     assert manifest["completed_quote_count"] == 0
     assert manifest["failures"][THAMES_ID]["outcome"] == "ungrounded"
     assert manifest["developer_grounding_unavailable"] is False
+
+
+def test_reviewed_local_book_admission_is_exactly_scoped(corpus, audit):
+    corrections = json.loads((
+        RESEARCH_DIR / "historical_context_packet_corrections.json"
+    ).read_text(encoding="utf-8"))["items"]
+    meanings = {
+        "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea":
+            "Thatcher argued that Britain's long post-war experiment with "
+            "democratic socialism had failed in practice.",
+        "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea":
+            "Thatcher described Nazism and communism as closely related "
+            "forms of socialism.",
+        "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80":
+            "Thatcher argued that, other things being equal, excessive "
+            "trade-union power and wage demands unsupported by output "
+            "contributed to unemployment and made British goods uncompetitive.",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37":
+            "Thatcher contrasted treating people as numbers with recognising "
+            "them as distinct individuals: unequal, but equally important.",
+    }
+    for quote_id, meaning in meanings.items():
+        assert corrections[quote_id]["corrected_value"] == meaning
+        assert corpus[0][quote_id]["intended_argument"] == meaning
+
+    exact_ids = {
+        "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+        "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+    }
+    variant_ids = {
+        "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+    }
+    for quote_id in exact_ids:
+        item = audit["items"][quote_id]
+        assert item["current_wording_status"] == "exact"
+        assert item["public_verification_wording"] == "Exact wording verified"
+        assert item["curated_sources"][0]["claim_coverage"]["wording"] == "full"
+    for quote_id in variant_ids:
+        item = audit["items"][quote_id]
+        assert item["current_wording_status"] == "variant"
+        assert item["public_verification_wording"] == (
+            "Historically verified variant"
+        )
+        assert item["curated_sources"][0]["claim_coverage"]["wording"] == (
+            "normalised"
+        )
+
+    trade_union_passage = audit["items"][next(
+        quote_id for quote_id in variant_ids if quote_id.startswith("4f5e")
+    )]["curated_sources"][0]["supporting_passages"][0]["text"]
+    assert "other things being equal" in trade_union_passage
+    assert "British goods uncompetitive" in trade_union_passage
+    people_passage = audit["items"][next(
+        quote_id for quote_id in variant_ids if quote_id.startswith("e259")
+    )]["curated_sources"][0]["supporting_passages"][0]["text"]
+    assert "numbers in a state computer" in people_passage
+    assert "We are all unequal" in people_passage
+    assert "is quite like anyone else" in people_passage
+
+    quislings = audit["items"][
+        "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
+    ]
+    source = quislings["curated_sources"][0]
+    assert source["source_quality_class"] == "reliable_secondary_evidence"
+    assert source["assigned_roles"] == [
+        "wording_verification", "attribution_support",
+    ]
+    assert "source_event" in source["claims_not_supported"]
+    assert quislings["confidence_after"]["source_event"] == "unknown"
+    assert quislings["public_context_supported_fields"] == ["date"]
+    assert (
+        "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351"
+        not in corrections
+    )

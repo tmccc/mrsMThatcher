@@ -19,11 +19,11 @@ packets_with_source_merges: 246
 merged_internal_source_record_count: 366
 identity_ambiguity_count: 66
 packets_with_identity_ambiguities: 52
-packets_with_no_reliable_source: 107
-eligible_packets_with_no_reliable_source: 96
-packets_with_multiple_public_sources: 40
-packets_with_generic_context: 462
-packets_with_generic_context_and_public_source: 355
+packets_with_no_reliable_source: 104
+eligible_packets_with_no_reliable_source: 93
+packets_with_multiple_public_sources: 42
+packets_with_generic_context: 457
+packets_with_generic_context_and_public_source: 353
 packets_with_generic_context_and_event_or_date_evidence: 0
 packets_with_generic_context_and_exact_verification: 146
 packets_with_meaning_omitted: 16
@@ -32,20 +32,20 @@ duplicate_full_public_reply_group_count: 1
 duplicate_quote_text_group_count: 0
 canonical_identity_display_variant_count: 51
 packets_with_reused_identity_display_variants: 221
-packets_with_urlless_public_sources: 158
-urlless_public_source_entry_count: 158
+packets_with_urlless_public_sources: 162
+urlless_public_source_entry_count: 163
 packets_with_generic_mtf_document_titles: 180
 generic_mtf_document_title_entry_count: 184
 editorial_queue_category_count: 9
 url_like_public_title_count: 0
 mtf_page_title_chrome_count: 0
 abbreviated_public_date_count: 0
-source_distribution: {"0":107,"1":479,"2":39,"3":1}
-raw_character_length: {"maximum":775,"median":418.0,"minimum":176}
-weighted_character_length: {"maximum":700,"median":398.0,"minimum":176}
+source_distribution: {"0":104,"1":480,"2":41,"3":1}
+raw_character_length: {"maximum":775,"median":418.5,"minimum":176}
+weighted_character_length: {"maximum":700,"median":398.5,"minimum":176}
 formatter_options: {"include_meaning":true,"include_source":true,"include_verification":true,"maximum_length":4000}
-source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd","historical_context_packet_corrections.json":"7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c","historical_context_source_curated_evidence.json":"8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4","historical_context_source_role_audit.json":"97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
-implementation_file_hashes: {"historical_context_formatter.py":"c4b899b06e7e8f2f7ad95e827131a10d46c4db97cdcb9591ea104edca486a7e4","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"2a1c4cb733a9f42286df199f13c3c4c091b769133907d58c89390c98bbe9c93f"}
+source_file_hashes: {"corpus_manifest.json":"81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da","final_unresolved/final_research_status.json":"df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd","historical_context_packet_corrections.json":"339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee","historical_context_source_curated_evidence.json":"98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3","historical_context_source_role_audit.json":"cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7","mrsMThatcher.txt":"10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee","quote_analysis.json":"e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a","research_packets.json":"862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be","unresolved_quotes.json":"6acb4d2dede398f74e488902c62c672437db8721f6f75c9adebdf323889feb4f"}
+implementation_file_hashes: {"historical_context_formatter.py":"02886eea0c734e36278a83a18a2e9a84862675b35a689db184a99f0c2494cd95","historical_context_public_render_review.py":"f557a59dde57f933485f15c875cce25373686466cfb4d272e1747b3c4282546b","historical_context_public_source_audit.py":"55812f5d5b948171094e29cc4a9e76f0fced8f48ea3ec2997ae0b87b6ecf1f0f","historical_context_source_roles.py":"a233e8a0fcec9f84e69ae7c406f089fb53b81ba81b256951414dc68f73b39227"}
 
 AUTOMATED BLOCKERS
 ------------------
@@ -54,12 +54,12 @@ None.
 EDITORIAL REVIEW QUEUES
 -----------------------
 {"additional_quote_id_count":32,"flag":"IDENTITY_AMBIGUITIES","packet_count":52,"sample_quote_ids":["03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","21db3d129f143edca731ac38704b1add8ef666662555fbbd3a91bd217d09f6a7","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","2b1356ba865985190519435bf06d5d3be6ae3bdd50deb80ec295263502c918b4","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","3faefc589e861823bd4f1f30807535defbadc6177404872bf326e1297c8fb13d","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","693ae75aedff2d0f0c454627bf0f18440cf04a257eef53a82f490cdb186f9939"]}
-{"additional_quote_id_count":87,"flag":"NO_RELIABLE_SOURCE","packet_count":107,"sample_quote_ids":["0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5","0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a","04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550","063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7","08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82","08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa","0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c","0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc","1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc","1085ff6a77a0bf02ea5c2621cc8d546e47637f2e363979687c62ba73f16504fa","13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f","141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5","15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712","184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13","1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55","2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9","25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9","26706085134c745c4f3819322184e57689d7aef652a5011e734adcd86ff77dc7","272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996","2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2"]}
-{"additional_quote_id_count":20,"flag":"MULTIPLE_PUBLIC_SOURCES","packet_count":40,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b","72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e","78f07e83a9b7e3fb3429839d32b4dec32d3ffd8dc89bb777b62c6229d3bccadf"]}
-{"additional_quote_id_count":138,"flag":"URLLESS_PUBLIC_SOURCE","packet_count":158,"sample_quote_ids":["00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448","01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea","03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5","0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","1393eb73be2367fb280b57d3040e93f6ca7f569a77ec5e0a47f72940b9508637","16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f","19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296","1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500","1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315","1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662"]}
+{"additional_quote_id_count":84,"flag":"NO_RELIABLE_SOURCE","packet_count":104,"sample_quote_ids":["0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5","0058570c2c7302e3816cfe8deb9603a35f5475f4f6331e93dfee347dfc82a20a","04d26fbb2aa5ad3824e1f452699b6e9265298b84a61458f524e19db273a70550","063b2c3fd5a61ea4fd955bed8d11b523ee5634086c647e378aaf33e3784abcf7","08230aedc8c52c5b32198c20c40098fa98a1f4e2cd41391a7d01420fc1743c82","08c5df086440f2aaa5c77bcfdd2bc1caf74f4e2108e571ab3bee81348bd5aafa","0dece118f1c2b0a5179b4dfca4b897c5b6828965aff371f1c2b2f8d5fd413a9c","0f3c7da5b7971b89c68fb0a5a07b1b23c563c32a94ee6b3ae5a77fce11d95bcc","1005a705248e9a619623b60321cda394a7507124823e6ac6926857339fad48fc","1085ff6a77a0bf02ea5c2621cc8d546e47637f2e363979687c62ba73f16504fa","13e21e5cb3910397e2c405970735ab2dc7951c6e1be9d4fd22935a6598f5ba7f","141d2c98445a18f2becfa8034eaf9c7aa8ce863f1d754a43d64852d716588eb5","15bd818b86c205c6364eac5614bdda8a9daa968bc6336d9605cf05dacc6a7712","184d3bea3fe23bc3fb8460164de9e8535a8f6a7e43b472c1528d8729c659ac13","1948eccad1dcd6bff2e25fef1bf600b5912093154fd62284035e82da05e65c55","2051b1ac566abdb8335f8967f32f8f23bd71b4fb2cb0231659869045868b14c9","25b16b1294599728b25379c35a6c142b676e02bb6392c307060c9d8567c05cb9","26706085134c745c4f3819322184e57689d7aef652a5011e734adcd86ff77dc7","272c9af2e31064654a8ab74480de7d7357795514e12d947587eb155f31cca996","2b351e489fc2b20f68c7f7867b3b17fb1636bb3ed2e7b6593e3345e10b09d5a2"]}
+{"additional_quote_id_count":22,"flag":"MULTIPLE_PUBLIC_SOURCES","packet_count":42,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","19b4b12f040bed61c1804b573327e36f4cc485636d799602a476e0b89fc8e8b1","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","25861fefe17f2d32d7b07568020d52519850cce1022d7ede400e2b96aaf03d96","31db9c6a5580668ac6f19b5733f56c051c0b972efe735762a51157844b4c50de","343f56906e7263c4429c0dba4eea26694c6816ed7779c6bc14464839acca928d","3865a461dd280b2b0f00d7339e8bb5c9e18fbead71aeee83da52c57bb94cd01e","40355fce2ca29dbf7e41c3c8301ce0317a30c781ccaf7d6274682c7d45b779b8","44600fa8684fa688c505d5a265cafbe98a996f71cac9cc4e0de0c99e25406a58","45cb25eac1bda5913bc330fabf483e71d210042f8f4fb3514b3ca9013bbd8464","52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351","545aee361007f6d7f39394fab1bafb1fd05bc42f7a820bd34b17a75814a109b3","5ccc6c754f38343430f3ebc49a7903cce40b9ce86482dc1a4a66b05e13f71202","5fb09b448a483f90634cde8566794db6b4449c33405215011ac56ec0618c79e4","62dff250423591397e0c27443295a3376824861e1cd8fb43b17645d38cb36427","6f7c8f9564809394dc5cf22cf9ed10e2e8067d08f2fd2bc92c9bbf8d283af54b","72ff626dbcf3a858c8c1d04dc23a5f0f12c0501fa9da90e7629ec865de12059e"]}
+{"additional_quote_id_count":142,"flag":"URLLESS_PUBLIC_SOURCE","packet_count":162,"sample_quote_ids":["00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","0195075998545ab93834a331f35b4ac0d8c76543495757aa72874ad8e9fb3448","01d50c556a2d6283599e8c1eaa04925d42a5b499cc1c5a22925c7cb44097e1ea","03bf609fce2febd4136dee4722a9c5596fe61123411fad59bfcd06c3e821fc2f","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","073d64fa2701a07285b64d02867d75772935b2682ae78dd45124a2a2b55ddc08","0e595cf08a514421a4b966e94527d8c50452c1e98cb01c267971005577d6fc20","0eb571f7580b1f2e701ff718292f97c71db2afef3a061ab35fa6f254272301a5","0ece322a106d6443bef89c14e769b28e8a19db61bbefa53c298cb206c2031ffa","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","102462fc508a75a80c8c56230e613a4902387945107df418ed8d5cce1ecf67aa","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","1393eb73be2367fb280b57d3040e93f6ca7f569a77ec5e0a47f72940b9508637","16c1d05225fe1d45d7ab950a5c54d39b70ef9453718a8678f405195d4af6969f","19cb0b567f5dd9f7f3a15dd38c8c0455112573afe574fc3fbce0151783e5f296","1a1d47475ade7da4e7e32a3dfef2e1aadb479df288d6a502a7d5f93f96e11500","1a73e33d64ecdbdcce0ced1691e91457efd50720116168b28a2371d6b8a8eec6","1ae9443573e42259af54c30a0ec90a6a8746e640b09e53ae1c28a4c0a2d0ed6b","1b123947f471dc4dc78ded36d47a51406cbf17df0163828f4d540d196be43315","1bac978f8c38d97a48ee09d4244af57592f1a26a088562954ae24ea56943e662"]}
 {"additional_quote_id_count":160,"flag":"GENERIC_MTF_DOCUMENT_TITLE","packet_count":180,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","03e473b3f85ab6b046d01953b567b453c33d9d8f080a8bf6e8b50dd04fb63573","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f81923e54293261a3cc8318d9ac5959008002c0a9e17354ae1e8ea881f28e29","115f2b69f05bd8ad48114ece66c3c31d0149f85335b9a9c884a4d790d3268fa0","1389e35a16d50a5e9e3982205e5956af35487e2a97dc9c9c7c55ea556d3799a9","17223b25e42fe5b09b18f7b69eebd7224faeb7d764af5536dd57899eb0201f78","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
 {"additional_quote_id_count":201,"flag":"REUSED_IDENTITY_DISPLAY_VARIANT","packet_count":221,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0f350133f648c71916ffc2a00cb195541115dfb11231e653836bfc19fda685b9","10adcfb75228e14d096125b1bccbedd4630a08b1cdaa3d00c6b3aabcbecbcb11","1100f7567ba493ed9044f6ba234bcbec3d99c9918bfc0ca33cd03ed56d44689a","123ba82403b7a5b6a3d6fe961997c01b1a3498e37a39e328cab098f297c26417","1646e92be4587393785ee01e84676a6dd575cc0e7e6a2b4ddab458464a378b6d","178c44c33dbe9697da6e069b10d4109cd3afa7b5e4b68595ca2d3d165e8125df","17dccede6209dea44954c2f3d55e61aa9fd05ccf632afb3950904ab6f1e6acc1"]}
-{"additional_quote_id_count":335,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":355,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
+{"additional_quote_id_count":333,"flag":"GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","packet_count":353,"sample_quote_ids":["00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d","0164db2b98a39c5cef9d5a6182b3988a16364f514e04be366a39fa1b35254b27","025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","03085800060bfadc419235ff61318aeda096f6b476904d979bc174845834fd68","042a3bbf52636cae18382ef8afc924960e7b323d0355effeac65948918bd534c","04cdf43ebd3729f0c4069ee808ba55613191533d2b12cff8753f55e8ad31c3c6","053f974c97ba37b7a77862c1df8e02cc676ae7607f9c52387abc21a1e93b2e02","06629311412b5ce9a5bd718aa31aaeb3f30b17b8924098d67dca6c6e5203ee02","07e74019b377eb2cb486051caa942b37f4623d394b9ced2e00b3894ed29d445e","0827a4126cc47bd563b75be766edeffcd44f7027125f190887ffb7a70c5bb015","08be01c1fe5fc197294f854d99c293c1d85039b4a0576a9f50db5943d9071560","08c1ba31940172fa194727ff2bf5878ada3b3dd926625ba11e71786e275f993b","093fe18b5e8a685a1ec1a38813fa2dfddce5ca84853723c13d1dfc2a6ac4a429","094d8407d9c2dc0c1cbb1e19da44c6913e96cc127244850415601c163744cacb","0964c36e7f8fbfe99e139d69e48f667be9eb43702a3e8bc163ee6d6ad96d51fd","09d3d7576622dad02608fd67ea9b9493669a418ea407915c176f2fd83c71f84a","0acb6cd5c5ec0ed58b882f3f4077b6f65f04b100ebfde6ace075c1993736b51a","0bde69606fd11b14f4c60bf3fcfd4690360473991536bf6d1d7eb9b83ce9e5b3","0dc2d266b05435062cb2766173439781441788afc8fa54f94d2e59076fdc873d","0e54df9b0adb2337f436d7346964965c56669c997386d75f2d58104ec88e1766"]}
 {"additional_quote_id_count":0,"flag":"DUPLICATE_FULL_PUBLIC_REPLY","packet_count":3,"sample_quote_ids":["aade2d14bf9a942fbef8e0952f7b5f87c176f3592185bed1475a50867380b142","ac98a87cc5725606dc0deac53f611b5b23b3619ae921f6776b94d211a2ca36da","f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4"]}
 {"additional_quote_id_count":0,"flag":"LONG_REPLY","packet_count":2,"sample_quote_ids":["025f0aaeb01b29a6285ae85c4f33c2b9d84c1aad435f0f6036151c39320c3eac","8422560a549eb0c99719e6335e4cfc4bc09e74a2bbb54c31b9e4854b21152a16"]}
 Queue members are marked by the same flag in ALL RENDERED QUOTATIONS.
@@ -7081,30 +7081,30 @@ Formatter version: "historical_context_reply_schema_v5"
 Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
-Verification label: "Research incomplete"
-Raw/weighted/max characters: 326/326/4000
-Internal records -> canonical groups -> public sources: 0 -> 0 -> 0
-Flags: ["NO_RELIABLE_SOURCE","GENERIC_CONTEXT"]
+Verification label: "Historically verified variant"
+Raw/weighted/max characters: 388/388/4000
+Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
+Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-None.
+{"canonical_identity":"source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777","title":"Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-None.
+{"canonical_identity":"source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed","identity_basis":"distinct_source_record","public_title":"Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272","public_url":"","source_ids":["a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — The Downing Street Years (Memoir), 1993.
 
-Meaning — Trade unions cause unemployment by forcing wages above market clearing levels, which makes domestic goods uncompetitive and destroys jobs.
+Meaning — Thatcher argued that, other things being equal, excessive trade-union power and wage demands unsupported by output contributed to unemployment and made British goods uncompetitive.
 
-Verification — Research incomplete
+Verification — Historically verified variant
 
-Source — No reliable source located
+Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272
 END PUBLIC REPLY
 
 ================================================================================
@@ -7382,29 +7382,33 @@ Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Attributed, but exact wording not independently verified"
-Raw/weighted/max characters: 378/378/4000
-Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","URLLESS_PUBLIC_SOURCE"]
+Raw/weighted/max characters: 457/457/4000
+Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
+Flags: ["MULTIPLE_PUBLIC_SOURCES:2","URLLESS_PUBLIC_SOURCE"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
+{"canonical_identity":"source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","date"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","wording_verification"],"source_id":"0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6","title":"Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79"}
 {"canonical_identity":"source_record:cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9:1d841bacc3902087706f564e82842285d28c7f743bf280360337ae4901f8b134","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","secondary_recollection","wording_verification"],"source_id":"cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9","title":"Hugo Young, 'One of Us' (1989), p. 193"}
 
 CANONICAL PUBLIC SOURCE GROUPS
 {"canonical_identity":"source_record:cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9:1d841bacc3902087706f564e82842285d28c7f743bf280360337ae4901f8b134","identity_basis":"distinct_source_record","public_title":"Hugo Young, 'One of Us' (1989), p. 193","public_url":"","source_ids":["cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9"],"source_record_count":1}
+{"canonical_identity":"source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5","identity_basis":"distinct_source_record","public_title":"Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79","public_url":"","source_ids":["0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — The surviving record dates this wording to 1978, but does not establish its occasion.
 
 Meaning — Consensus politics is a betrayal of conservative principles and national interest, requiring a firm ideological break rather than compromise.
 
 Verification — Attributed, but exact wording not independently verified
 
 Source — Hugo Young, 'One of Us' (1989), p. 193
+
+Source — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79
 END PUBLIC REPLY
 
 ================================================================================
@@ -18770,31 +18774,31 @@ Verification status: "exact"
 Formatter version: "historical_context_reply_schema_v5"
 Template variant: "compact_no_public_url"
 Meaning included: true
-Meaning decision: "Meaning retained because the argument is counter-intuitive or contrastive."
-Verification label: "Research incomplete"
-Raw/weighted/max characters: 356/356/4000
-Internal records -> canonical groups -> public sources: 0 -> 0 -> 0
-Flags: ["NO_RELIABLE_SOURCE","GENERIC_CONTEXT"]
+Meaning decision: "Meaning retained because the packet records a distinct explanatory mechanism."
+Verification label: "Exact wording verified"
+Raw/weighted/max characters: 255/255/4000
+Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
+Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-None.
+{"canonical_identity":"source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25","title":"Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-None.
+{"canonical_identity":"source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61","identity_basis":"distinct_source_record","public_title":"Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29","public_url":"","source_ids":["667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — The Path to Power (autobiography), 1995.
 
-Meaning — Both ideologies are totalitarian and anti-democratic, representing different flavors of state control and socialism rather than opposite ends of the political spectrum.
+Meaning — Thatcher described Nazism and communism as closely related forms of socialism.
 
-Verification — Research incomplete
+Verification — Exact wording verified
 
-Source — No reliable source located
+Source — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29
 END PUBLIC REPLY
 
 ================================================================================
@@ -21185,30 +21189,34 @@ Template variant: "compact_with_meaning"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
 Verification label: "Historically verified variant"
-Raw/weighted/max characters: 465/440/4000
-Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
-Flags: ["GENERIC_CONTEXT","GENERIC_CONTEXT_WITH_PUBLIC_SOURCE","REUSED_IDENTITY_DISPLAY_VARIANT"]
+Raw/weighted/max characters: 531/506/4000
+Internal records -> canonical groups -> public sources: 2 -> 2 -> 2
+Flags: ["MULTIPLE_PUBLIC_SOURCES:2","URLLESS_PUBLIC_SOURCE","REUSED_IDENTITY_DISPLAY_VARIANT"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
 {"canonical_identity":"margaret_thatcher_foundation:document:102777","canonical_url":"https://www.margaretthatcher.org/document/102777","document_numbers":["102777"],"evidence_targets":["wording","attribution"],"identity_basis":"margaret_thatcher_foundation_document","raw_url":"https://www.margaretthatcher.org/document/102777","roles":["attribution_support","wording_verification"],"source_id":"28ecd16b29279a8d74c9cb1d0917815655a2d7342ea3928aca5da9cf4f877300","title":"Speech to Conservative Party Conference | Margaret Thatcher Foundation"}
+{"canonical_identity":"source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","source_event_support","wording_verification"],"source_id":"7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa","title":"The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36"}
 
 CANONICAL PUBLIC SOURCE GROUPS
 {"canonical_identity":"margaret_thatcher_foundation:document:102777","identity_basis":"margaret_thatcher_foundation_document","public_title":"Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)","public_url":"https://www.margaretthatcher.org/document/102777","source_ids":["28ecd16b29279a8d74c9cb1d0917815655a2d7342ea3928aca5da9cf4f877300"],"source_record_count":1}
+{"canonical_identity":"source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a","identity_basis":"distinct_source_record","public_title":"The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36","public_url":"","source_ids":["7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Speech to Conservative Party Conference, 10 October 1975.
 
-Meaning — Socialism seeks to enforce artificial equality and treat citizens as statistics, whereas conservatism celebrates individual differences and personal freedom.
+Meaning — Thatcher contrasted treating people as numbers with recognising them as distinct individuals: unequal, but equally important.
 
 Verification — Historically verified variant
 
 Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)
 https://www.margaretthatcher.org/document/102777
+
+Source — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36
 END PUBLIC REPLY
 
 ================================================================================
@@ -22363,30 +22371,30 @@ Formatter version: "historical_context_reply_schema_v5"
 Template variant: "compact_no_public_url"
 Meaning included: true
 Meaning decision: "Meaning retained because the quotation contains a context-dependent reference."
-Verification label: "Research incomplete"
-Raw/weighted/max characters: 347/347/4000
-Internal records -> canonical groups -> public sources: 0 -> 0 -> 0
-Flags: ["NO_RELIABLE_SOURCE","GENERIC_CONTEXT"]
+Verification label: "Exact wording verified"
+Raw/weighted/max characters: 370/370/4000
+Internal records -> canonical groups -> public sources: 1 -> 1 -> 1
+Flags: ["URLLESS_PUBLIC_SOURCE"]
 Blockers: []
 
 INTERNAL SOURCE RECORDS
-None.
+{"canonical_identity":"source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793","canonical_url":"","document_numbers":[],"evidence_targets":["wording","attribution","source_event","date","historical_context"],"identity_basis":"distinct_source_record","raw_url":"","roles":["attribution_support","historical_context_support","source_event_support","wording_verification"],"source_id":"3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50","title":"Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7"}
 
 CANONICAL PUBLIC SOURCE GROUPS
-None.
+{"canonical_identity":"source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793","identity_basis":"distinct_source_record","public_title":"Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7","public_url":"","source_ids":["3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50"],"source_record_count":1}
 
 IDENTITY AMBIGUITIES
 None.
 
 PUBLIC REPLY (VERBATIM)
 -----------------------
-Context — The surviving attribution does not establish an occasion, date or immediate historical issue.
+Context — Publication of her memoir, The Downing Street Years, 1993: The failure of democratic socialism in Britain.
 
-Meaning — To argue that socialist policies had been thoroughly tested in Britain and definitively proven to be disastrous, justifying her subsequent free-market reforms.
+Meaning — Thatcher argued that Britain's long post-war experiment with democratic socialism had failed in practice.
 
-Verification — Research incomplete
+Verification — Exact wording verified
 
-Source — No reliable source located
+Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7
 END PUBLIC REPLY
 
 ================================================================================

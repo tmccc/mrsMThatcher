@@ -1,49 +1,15 @@
 {
-  "ambiguous_exposure_by_provider_family_usd": {
-    "openai": 0.50792025
-  },
-  "attempt_counts": {
-    "gemini": 35,
-    "openai": 157
-  },
-  "combined_ambiguous_exposure_usd": 0.50792025,
-  "combined_conservative_exposure_usd": 5.13322805,
-  "combined_known_spend_usd": 4.6253078,
+  "ambiguous_exposure_by_provider_family_usd": {},
+  "attempt_counts": {},
+  "combined_ambiguous_exposure_usd": 0,
+  "combined_conservative_exposure_usd": 0,
+  "combined_known_spend_usd": 0,
   "gemini_verified_source_count": 1,
   "hard_limit_usd": 35.0,
-  "known_spend_by_provider_family_usd": {
-    "gemini": 1.0564138,
-    "openai": 3.568894
-  },
-  "known_spend_by_transport_usd": {
-    "developer_api": 0.9051138,
-    "openai": 3.568894,
-    "vertex_ai": 0.1513
-  },
-  "ledger_hashes": {
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research/api_cost_ledger.json": "61bf37048d9af7cd69385a9b4caa08773bbc48639bb28b677e9b45907e4c1831",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v10_adjudication_prompt_ungrounded_chunk_archived/api_cost_ledger.json": "3079679fd9c252c0c1a4e02746f38c417e2e13cf5997fbd73aec260fea0f4a95",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v11_search_only_modern_tool_pilot_archived/api_cost_ledger.json": "eebe8cfd67a2fbeba753060ecd0e06c45bea2477a00eb0c7cc27a98a9ffda80e",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v12_forced_retrieval_unsupported_nonbillable/api_cost_ledger.json": "82fc3557ed2de8fbef0dcacb5cf850c82584aa8c5449285f58ea2b7fdb96f2c4",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v13_current_result_structured_pilot_archived/api_cost_ledger.json": "40e3cde9164fcd7245c826a0f3131a0f617573a10564e733b038e089f5236c47",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v1_invalid_no_grounding/api_cost_ledger.json": "27357967967875b68a3b5fe1739f4032c9540026d3073cb4e9edba582a12a90f",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v2_invalid_no_grounding/api_cost_ledger.json": "0529800305ae7fa3879e67b5afb04e1872f4dd3e6b0d1a0c7a7413451693b4b1",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v3_vertex_pilot_archived/api_cost_ledger.json": "b6313794ebd7b8487eea6f7711118d272f1c3c10a292ea20c238757eeff0fa0f",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v4_generate_content_pilot_archived/api_cost_ledger.json": "931b132dcceb048732ec50139f94d99d623c5b9e638068dc4627ffc48c705869",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v5_interactions_v1beta_404_nonbillable/api_cost_ledger.json": "6b7bf6edddd025ac45caeed510620661d1bf44c7e52c935eaaac54293286bc33",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v6_interactions_v1_404_nonbillable/api_cost_ledger.json": "888f72d5613763b3160448a2cc2148061a7cda6d6b9f48bcc99ebb43d8a4fadc",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v7_high_thinking_generate_content_pilot_archived/api_cost_ledger.json": "ae13944c19019e12c0c65c7529988e749b1c4671e2c71b8cdcefee3c5e15ada5",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v8_low_thinking_v1beta_pilot_archived/api_cost_ledger.json": "f5d313f17a5d778bf206d73a69d50fc39d8a85bc8b246a99b19c15f450169482",
-    "semantic_alignment_research/historical_context_source_audit_001/gemini_research_v9_low_thinking_v1alpha_pilot_archived/api_cost_ledger.json": "238985688bd2ab21284ca8e0a18fa79b515b6281796751f69a02e6ae3e8b783b",
-    "semantic_alignment_research/historical_context_source_audit_001/openai_forced_search_full/api_cost_ledger.json": "ad79df3f14ffccba34dcd0c8e85271b835171953375ef66a19bec8d91497dc1c",
-    "semantic_alignment_research/historical_context_source_audit_001/openai_forced_search_pilot/api_cost_ledger.json": "69db35328e48dabdf023a6078c9aaa8aa4bc7bcfcb98fb1a2762b469858410d6",
-    "semantic_alignment_research/historical_context_source_audit_001/openai_forced_search_pilot_v2/api_cost_ledger.json": "edd9372e914395e0a63fd9a6629d3a1efd5812ce78a5558781aa74646241bd20"
-  },
+  "known_spend_by_provider_family_usd": {},
+  "known_spend_by_transport_usd": {},
+  "ledger_hashes": {},
   "openai_verified_source_count": 33,
   "schema_version": 1,
-  "status_counts": {
-    "gemini:completed": 35,
-    "openai:completed": 142,
-    "openai:completed_response_discarded_cost_unknown": 15
-  }
+  "status_counts": {}
 }

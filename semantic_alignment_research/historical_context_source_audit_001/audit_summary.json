@@ -6,22 +6,23 @@
     "discovery_lead_only": 1036,
     "insufficiently_located_evidence": 1055,
     "irrelevant_or_corrupt": 38,
-    "reliable_secondary_evidence": 36,
+    "reliable_secondary_evidence": 37,
     "secondary_recollection": 5,
-    "strong_primary_evidence": 885
+    "strong_primary_evidence": 889
   },
-  "all_evidentiary_source_record_count": 3390,
-  "all_evidentiary_source_role_assignment_count": 4417,
+  "all_evidentiary_source_record_count": 3395,
+  "all_evidentiary_source_role_assignment_count": 4432,
   "all_evidentiary_source_role_counts": {
-    "attribution_support": 885,
+    "attribution_support": 890,
     "discovery_only": 2337,
+    "historical_context_support": 1,
     "rejected_irrelevant": 127,
     "secondary_recollection": 5,
-    "source_event_support": 229,
-    "wording_verification": 834
+    "source_event_support": 233,
+    "wording_verification": 839
   },
-  "audit_sha256": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
-  "audited_source_record_count": 3111,
+  "audit_sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+  "audited_source_record_count": 3116,
   "changed_quote_ids": [
     "00426881d2746c35657e8bb3103febb15cf13f2342bb65604a23a278b608064d",
     "0056972ab9debcb840c36ac23ad0387e715cb22fc4ed49dbcf35159f83592aa5",
@@ -517,10 +518,11 @@
     "source_role_counts": "Overlapping claim roles for observed source records; one source may contribute more than one role assignment."
   },
   "curated_source_adjudication_count": 1,
-  "curated_source_count": 14,
+  "curated_source_count": 19,
   "curated_source_quality_counts": {
+    "reliable_secondary_evidence": 1,
     "secondary_recollection": 1,
-    "strong_primary_evidence": 13
+    "strong_primary_evidence": 17
   },
   "eligible_quote_count": 610,
   "gemini_researched_source_count": 1,
@@ -528,18 +530,18 @@
     "reliable_secondary_evidence": 1
   },
   "headline_observed_source_disposition_counts": {
-    "accepted_evidence": 647,
+    "accepted_evidence": 652,
     "discovery_or_insufficient": 2091,
     "rejected_or_non_verifying": 373,
-    "total": 3111
+    "total": 3116
   },
   "headline_observed_source_provenance_counts": {
     "ai_located_independently_reviewed_sources": 34,
     "model_proposed_source_leads": 790,
-    "operator_curated_sources": 14,
+    "operator_curated_sources": 19,
     "physical_packet_sources": 2017,
     "recovered_citation_sources": 256,
-    "total": 3111
+    "total": 3116
   },
   "model_proposed_lead_quality_counts": {
     "discovery_lead_only": 789,
@@ -577,7 +579,6 @@
     "44272f7a446dab5829fffc29addddf2b4de19217d6f541b15c92b38a3891d190",
     "456fc17b3dd9d2fea708f67ee16f70d10ea092484c43403006087beca8e71c62",
     "4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b",
-    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
     "5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d",
     "5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483",
     "56c77eedf86a10a6748dc8e20d096e415708541735c07f5c88a338f49d29cc9c",
@@ -628,7 +629,6 @@
     "c657fe54330c41e625adb0a38f1b9a2b0069e1f10394b7e3488121fce123050b",
     "c70676b9a1adc20b7b22b33bfb6d43acdcbb2d9990265d93ec565daa87ae6434",
     "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
-    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
     "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
     "cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e",
     "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
@@ -648,7 +648,6 @@
     "ec0799ceb8ea89c6b4472e2aba48ea71de7bf44fcb1fae6edfba90c42e3a7369",
     "ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1",
     "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
-    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
     "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
     "f70a07b2372de9810d6de81c187d2cca606b1d093252e96d7527d3775c814bba",
     "f7e7033fc25ca1944294573e53a4eccc89a60eccb85bba232ba533b04f433a74",
@@ -663,9 +662,9 @@
     "strong_primary_evidence": 26
   },
   "packet_count": 626,
-  "packets_requiring_new_historical_research": 218,
+  "packets_requiring_new_historical_research": 215,
   "packets_whose_public_output_changes": 484,
-  "packets_with_no_reliable_source": 107,
+  "packets_with_no_reliable_source": 104,
   "physical_source_quality_counts": {
     "broken_or_non_verifying_url": 89,
     "circular_attribution": 244,
@@ -745,7 +744,6 @@
     "4d86b60909c026a4a30be158310945742a1c25477ced27f76cf805151054568f",
     "4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b",
     "4e92014dc14fd9cce562099b03ccfdf480fd5909414483edf4a3e28dc6e85c80",
-    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
     "5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d",
     "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
     "53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215",
@@ -852,7 +850,6 @@
     "c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8",
     "c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545",
     "c922a5806879e505e259a3bdadfddb61b1da4d1e3df2b0e9c1ba1012c063a508",
-    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
     "cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a",
     "cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5",
     "cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e",
@@ -886,7 +883,6 @@
     "ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1",
     "eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4",
     "f04bbe960191c8eb537ecf87aa340fb2ae28076d25b791c06a5f0d3a82c9886b",
-    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
     "f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e",
     "f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018",
     "f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4",
@@ -911,18 +907,19 @@
     "discovery_lead_only": 1036,
     "insufficiently_located_evidence": 1055,
     "irrelevant_or_corrupt": 38,
-    "reliable_secondary_evidence": 17,
+    "reliable_secondary_evidence": 18,
     "secondary_recollection": 2,
-    "strong_primary_evidence": 628
+    "strong_primary_evidence": 632
   },
-  "source_role_assignment_count": 3716,
+  "source_role_assignment_count": 3731,
   "source_role_counts": {
-    "attribution_support": 606,
+    "attribution_support": 611,
     "discovery_only": 2337,
+    "historical_context_support": 1,
     "rejected_irrelevant": 127,
     "secondary_recollection": 2,
-    "source_event_support": 79,
-    "wording_verification": 565
+    "source_event_support": 83,
+    "wording_verification": 570
   },
   "unresolved_quote_count": 6,
   "virtual_locator_source_count": 279

@@ -37,8 +37,8 @@ def test_published_reply_review_is_complete_hash_bound_and_reproducible():
         "supported_as_published": 41,
         "future_correction_needed": 33,
         "insufficient_to_assess": 12,
-        "resolved": 26,
-        "remaining": 19,
+        "resolved": 30,
+        "remaining": 15,
     }
     assert len({record["quote_id"] for record in review["records"]}) == 86
     assert all(record["reason"].strip() for record in review["records"])
@@ -148,7 +148,7 @@ def test_latest_history_row_is_explicitly_held_for_future_correction():
     assert "inherent causal mechanism" in record["reason"]
 
 
-def test_six_new_history_rows_are_held_closed_without_a_historical_conclusion():
+def test_post_baseline_unreviewed_rows_stay_closed_except_reviewed_book_case():
     review = _load(OUTPUT_PATH)
     expected = {
         "00a61fc4f76648e2ccbf07fbdadec99afb0000789e85390bae28f11cb3f230ae",
@@ -156,7 +156,6 @@ def test_six_new_history_rows_are_held_closed_without_a_historical_conclusion():
         "880a2f32c7d03b24c72c6e4e3d8c5799c6a7af14a9497f11881aeddb123d5be7",
         "928a6686bc6bb6d35cd1ec139373cb73b85ba9fa40807098d5572ae153dab144",
         "a9426dce186893768be1d61ea3ca82d90d05667d085c5a3d217e3a08059eba5b",
-        "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
     }
     records = {
         record["quote_id"]: record
@@ -171,6 +170,14 @@ def test_six_new_history_rows_are_held_closed_without_a_historical_conclusion():
         and "without a historical conclusion" in record["reason"]
         for record in records.values()
     )
+    reviewed = next(
+        record for record in review["records"]
+        if record["quote_id"]
+        == "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37"
+    )
+    assert reviewed["disposition"] == "insufficient_to_assess"
+    assert reviewed["follow_up_status"] == "resolved_by_current_rendering"
+    assert "primary speech collection" in reviewed["reason"]
 
 
 def test_new_history_row_requires_an_explicit_semantic_review(tmp_path: Path):

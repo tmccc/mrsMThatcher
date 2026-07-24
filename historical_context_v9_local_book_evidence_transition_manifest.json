@@ -1,0 +1,100 @@
+{
+  "counts": {
+    "public_field_changes": 5,
+    "source_additions": 5,
+    "transition_packets": 5
+  },
+  "editorial_review": {
+    "basename": "historical_context_five_sources_four_meaning_corrections_review_updated_20260724T120644Z.md",
+    "sha256": "cff04a652f580b43f411378bac4ac6195d583a90c447fceea02c48cfe1cb79a5"
+  },
+  "input_hashes": {
+    "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
+    "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+    "historical_context_v8_v9_transition_manifest.json": "75077d0522df8cb8f673e8892846624faad9075e907bd20f05bed906f80476ba",
+    "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"
+  },
+  "items": {
+    "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": {
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "quote_text_sha256": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "source_bindings": [
+        {
+          "source_id": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_review_candidate_id": "41607f622b3f8d07407bc2b1b2be68e9624037b9d1b0f380f9c7398602257f29"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351": {
+      "current_public_context_supported_fields": [
+        "date"
+      ],
+      "quote_text_sha256": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
+      "source_bindings": [
+        {
+          "source_id": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_review_candidate_id": "a2f98708d029eaf4b8bd309660db763502510be5a75627d214b5530d80f8a1f5"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": {
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "quote_text_sha256": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "source_bindings": [
+        {
+          "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_review_candidate_id": "ab036aa67cf8241c90dcbfbe62e5887357118829a8a5c7cbd3dc223523cd7594"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": {
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date"
+      ],
+      "quote_text_sha256": "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "source_bindings": [
+        {
+          "source_id": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_review_candidate_id": "5a639e39d475ac8e22b59e890c45bb617d64ad3d15ca1b45a223ddc9a3628a73"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    },
+    "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": {
+      "current_public_context_supported_fields": [
+        "source_event",
+        "date",
+        "historical_context"
+      ],
+      "quote_text_sha256": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
+      "source_bindings": [
+        {
+          "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_review_candidate_id": "6759265bfb86c0564890a0435f625e8b98a9059ddb7e69c4534c51a064a7560e"
+        }
+      ],
+      "v9_baseline_public_context_supported_fields": []
+    }
+  },
+  "manifest_kind": "historical_context_v9_reviewed_evidence_transition",
+  "policy_transition": {
+    "from": "historical-context-source-roles-v9-archive-provenance",
+    "to": "historical-context-source-roles-v9-archive-provenance"
+  },
+  "production_base_commit": "aa0906d7773d6741cd2b0e6b6cf5ddae30386ceb",
+  "schema_version": 1,
+  "transition_quote_ids_sha256": "6a53e09383bac10c7cd3943b2b0bf7b96a0b40ac0631a0de7ab6c10ab8947e0d",
+  "transition_status": "canonical_admission_reviewed"
+}

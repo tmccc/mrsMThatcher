@@ -31,6 +31,18 @@ V1_GOLDEN_OUTPUTS = {
     "e28d24c49780a4d8a0c248097ee4962f941fdf1b2ec687a1bf52cddabc95995b": "c9bf51816d04492e809977a25d5da827685f1b4edb5cdce56db24c80675f4b4d",
     "8c839e92d3961147ef0070f049a2caa7f0c070bffafe4988153659825d9fa50b": "123bc7e6455a36ef82d14ed2c47ba1e14cc515402bf91ef51b8f897568258a34",
 }
+REVIEWED_MEANING_REASON_CHANGES = {
+    "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": {
+        "before": (
+            "Meaning retained because the argument is counter-intuitive or "
+            "contrastive."
+        ),
+        "after": (
+            "Meaning retained because the packet records a distinct "
+            "explanatory mechanism."
+        ),
+    },
+}
 
 
 @pytest.fixture(scope="module")
@@ -157,7 +169,17 @@ def test_promoted_v2_matches_frozen_candidate_or_reviewed_correction(corpus):
             assert actual["text"] == expected_text
         assert actual["template_variant"] == expected["template_variant"]
         assert actual["meaning_included"] == expected["meaning_included"]
-        assert actual["meaning_decision_reason"] == expected["meaning_decision_reason"]
+        reason_change = REVIEWED_MEANING_REASON_CHANGES.get(quote_id)
+        if reason_change is None:
+            assert (
+                actual["meaning_decision_reason"]
+                == expected["meaning_decision_reason"]
+            )
+        else:
+            assert expected["meaning_decision_reason"] == reason_change["before"]
+            assert actual["meaning_decision_reason"] == reason_change["after"]
+            assert quote_id in corrections
+            assert quote_id not in transition
         assert actual["formatter_version"] == v1.HISTORICAL_CONTEXT_FORMATTER_V2
 
 

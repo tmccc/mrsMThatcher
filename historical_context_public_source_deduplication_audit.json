@@ -8,7 +8,7 @@
     "malformed_or_nested_url_count": 0,
     "markdown_link_count": 0,
     "packets_with_duplicate_source_identity": 0,
-    "public_source_record_count": 560,
+    "public_source_record_count": 565,
     "public_source_role_leakage_count": 0,
     "repeated_archive_document_number_group_count": 0
   },
@@ -20,7 +20,7 @@
     "duplicate_canonical_url_group_count": 36,
     "legacy_exact_key_identity_conflict_count": 0,
     "packets_with_duplicate_source_identity": 36,
-    "public_source_record_count": 595,
+    "public_source_record_count": 600,
     "repeated_archive_document_number_excess_record_count": 35,
     "repeated_archive_document_number_group_count": 35
   },
@@ -29,12 +29,12 @@
     "attribution_ineligible_completed_quote_count": 16,
     "blocking_item_violation_count": 0,
     "completed_packet_count": 626,
-    "distinct_canonical_source_count": 560,
+    "distinct_canonical_source_count": 565,
     "identity_ambiguity_count": 66,
-    "internal_source_record_count": 926,
+    "internal_source_record_count": 931,
     "internal_source_records_merged_for_public_display": 366,
     "invariant_violation_count": 0,
-    "packets_with_no_reliable_public_source": 107,
+    "packets_with_no_reliable_public_source": 104,
     "packets_with_public_source_merges": 246,
     "render_failure_count": 0,
     "rendered_packet_count": 626,
@@ -54,7 +54,7 @@
       "unresolved_quote_count_is_6": true
     },
     "completed_quote_id_text_sha256": "235eb63076bbc791c933e951525fbcde09537872241019e06d27fef6f86445eb",
-    "confidence_metadata_sha256": "23d182da7353d2452e5ae2902524eb18b9814aadb966b9cbb827d3eb4ffd308b",
+    "confidence_metadata_sha256": "8160f87230d26d590c0f675f1f976e4546cc07f7463adb3afcfd375cc45cd686",
     "cycle_membership_count": 610,
     "cycle_membership_quote_ids_sha256": "9ad73fda8a0863cd1ba99fea65d1ceccf506f77d4b39742214e5934efd12e7ed",
     "quote_analysis_record_count": 619,
@@ -33705,8 +33705,16 @@
     },
     "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 1,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -33715,12 +33723,61 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 1,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed"
+            ],
+            "canonical_identity": "source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777"
+            ],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+            "url": ""
+          },
+          "source_ids": [
+            "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -33741,17 +33798,65 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 1,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777:801e1f91cb94429d0c5f81ccc4b3117591ce38cde1cf9eee95c4ef89230097ed",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1993",
+            "1995"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:the_downing_street_years_first_harperperennial_edition_1995_printed_page_272_trade_unions"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "a043b13b6e69783a2d61f291e0f9a16656a398a8604155ef253bcc60fb9a3777",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 272"
       ],
       "public_urls": [],
       "quote_id": "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
@@ -34826,13 +34931,20 @@
     },
     "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 2,
         "public_sources": [
           {
             "canonical_identity": "source_record:cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9:1d841bacc3902087706f564e82842285d28c7f743bf280360337ae4901f8b134",
             "canonical_url": "",
             "document_numbers": [],
             "title": "Hugo Young, 'One of Us' (1989), p. 193",
+            "url": ""
+          },
+          {
+            "canonical_identity": "source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
             "url": ""
           }
         ]
@@ -34844,7 +34956,7 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -34863,6 +34975,25 @@
               "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9"
             ],
             "title": "Hugo Young, 'One of Us' (1989), p. 193",
+            "url": ""
+          },
+          {
+            "canonical_identities": [
+              "source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5"
+            ],
+            "canonical_identity": "source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6"
+            ],
+            "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
             "url": ""
           }
         ],
@@ -34893,6 +35024,31 @@
             "cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9"
           ],
           "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "reliable_secondary_evidence",
+            "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+            "url": ""
+          },
+          "source_ids": [
+            "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6"
+          ],
+          "source_record_count": 1
         }
       ],
       "diagnostics": {
@@ -34915,10 +35071,53 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6:195285792162b6c08f73f6bf0a7617593e8fe8f2e1e62154c0ca1f7ce40062f5",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1978",
+            "2010"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:margaret_thatcher_in_her_own_words_biteback_2010_printed_page_79_sidebar_dated_1978"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "0fb8950cd36f132d3ba9baf9536fabb485e9d6bca7484bae5333e5c220c3c6f6",
+          "source_quality_class": "reliable_secondary_evidence",
+          "source_type": "edited_secondary_quotation_anthology",
+          "supporting_passage_count": 1,
+          "title": "Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79",
+          "url": ""
+        },
         {
           "authoritative_urls": [],
           "canonical_identity": "source_record:cd6342b7553cdecf62d9aa6b84ec3dae825602f002b91c229622dc420d2c6ab9:1d841bacc3902087706f564e82842285d28c7f743bf280360337ae4901f8b134",
@@ -34962,10 +35161,12 @@
       "merged_internal_source_record_count": 0,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Hugo Young, 'One of Us' (1989), p. 193"
+        "Source — Hugo Young, 'One of Us' (1989), p. 193",
+        "Source — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79"
       ],
       "public_source_sections": [
-        "Source — Hugo Young, 'One of Us' (1989), p. 193"
+        "Source — Hugo Young, 'One of Us' (1989), p. 193",
+        "Source — Iain Dale (ed.), Margaret Thatcher: In Her Own Words (Biteback, 2010), p. 79"
       ],
       "public_urls": [],
       "quote_id": "52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351",
@@ -87850,8 +88051,16 @@
     },
     "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 1,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -87860,12 +88069,61 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 1,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61"
+            ],
+            "canonical_identity": "source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25"
+            ],
+            "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+            "url": ""
+          },
+          "source_ids": [
+            "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -87886,17 +88144,64 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 1,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25:755b4637f4ea6e80f7e0b310ac6dc7768f7681444cc33b0e5749d77750ab2e61",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1995"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:the_path_to_power_harpercollins_1995_printed_page_29"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "667ebcde5a5ad01990f77c353e979903865c97087f12bfd2bf1062dedded6b25",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Path to Power (HarperCollins, 1995), p. 29"
       ],
       "public_urls": [],
       "quote_id": "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
@@ -98523,7 +98828,7 @@
     },
     "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37": {
       "after_deduplication": {
-        "public_source_count": 1,
+        "public_source_count": 2,
         "public_sources": [
           {
             "canonical_identity": "margaret_thatcher_foundation:document:102777",
@@ -98533,6 +98838,13 @@
             ],
             "title": "Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)",
             "url": "https://www.margaretthatcher.org/document/102777"
+          },
+          {
+            "canonical_identity": "source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+            "url": ""
           }
         ]
       },
@@ -98543,7 +98855,7 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 1,
+        "legacy_public_source_count": 2,
         "legacy_public_sources": [
           {
             "canonical_identities": [
@@ -98567,6 +98879,26 @@
             ],
             "title": "Speech to Conservative Party Conference | Margaret Thatcher Foundation",
             "url": "https://www.margaretthatcher.org/document/102777"
+          },
+          {
+            "canonical_identities": [
+              "source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a"
+            ],
+            "canonical_identity": "source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"
+            ],
+            "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+            "url": ""
           }
         ],
         "repeated_archive_document_number_excess_records": 0,
@@ -98596,6 +98928,33 @@
             "28ecd16b29279a8d74c9cb1d0917815655a2d7342ea3928aca5da9cf4f877300"
           ],
           "source_record_count": 1
+        },
+        {
+          "canonical_identity": "source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date"
+            ],
+            "roles": [
+              "attribution_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+            "url": ""
+          },
+          "source_ids": [
+            "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa"
+          ],
+          "source_record_count": 1
         }
       ],
       "diagnostics": {
@@ -98618,9 +98977,9 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 1,
+      "distinct_canonical_source_count": 2,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 1,
+      "internal_source_record_count": 2,
       "internal_source_records": [
         {
           "authoritative_urls": [
@@ -98661,15 +99020,63 @@
           "supporting_passage_count": 1,
           "title": "Speech to Conservative Party Conference | Margaret Thatcher Foundation",
           "url": "https://www.margaretthatcher.org/document/102777"
+        },
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa:b7f35148bb604cf50b443c9a2d8ca82f1857f7c5bfa61395cf8a41d18104962a",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1975-10-10"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:the_collected_speeches_of_margaret_thatcher_first_u_s_edition_printed_page_36_speech_dated_10_october_1975"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "7f9ca47a606967d657418caa780c4c77dcec706af339cf4fb90b791690d08efa",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "published_primary_speech_collection",
+          "supporting_passage_count": 1,
+          "title": "The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36",
+          "url": ""
         }
       ],
       "merged_internal_source_record_count": 0,
       "no_reliable_source": false,
       "public_source_lines": [
-        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)",
+        "Source — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36"
       ],
       "public_source_sections": [
-        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777"
+        "Source — Margaret Thatcher Foundation, Speech to Conservative Party Conference (Document 102777)\nhttps://www.margaretthatcher.org/document/102777",
+        "Source — The Collected Speeches of Margaret Thatcher, ed. Robin Harris, Conservative Party Conference speech, 10 October 1975, p. 36"
       ],
       "public_urls": [
         "https://www.margaretthatcher.org/document/102777"
@@ -104106,8 +104513,16 @@
     },
     "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea": {
       "after_deduplication": {
-        "public_source_count": 0,
-        "public_sources": []
+        "public_source_count": 1,
+        "public_sources": [
+          {
+            "canonical_identity": "source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793",
+            "canonical_url": "",
+            "document_numbers": [],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+            "url": ""
+          }
+        ]
       },
       "attribution_eligible": true,
       "before_deduplication": {
@@ -104116,12 +104531,64 @@
         "duplicate_canonical_url_excess_records": 0,
         "duplicate_canonical_urls": [],
         "legacy_exact_key_identity_conflicts": [],
-        "legacy_public_source_count": 0,
-        "legacy_public_sources": [],
+        "legacy_public_source_count": 1,
+        "legacy_public_sources": [
+          {
+            "canonical_identities": [
+              "source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793"
+            ],
+            "canonical_identity": "source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793",
+            "canonical_url": "",
+            "canonical_urls": [],
+            "document_number": null,
+            "document_numbers": [],
+            "roles": [
+              "attribution_support",
+              "historical_context_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "source_ids": [
+              "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50"
+            ],
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+            "url": ""
+          }
+        ],
         "repeated_archive_document_number_excess_records": 0,
         "repeated_archive_document_numbers": []
       },
-      "canonical_source_groups": [],
+      "canonical_source_groups": [
+        {
+          "canonical_identity": "source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793",
+          "canonical_url": "",
+          "document_number": null,
+          "identity_basis": "distinct_source_record",
+          "public_source": {
+            "claims_supported": [
+              "wording",
+              "attribution",
+              "source_event",
+              "date",
+              "historical_context"
+            ],
+            "roles": [
+              "attribution_support",
+              "historical_context_support",
+              "source_event_support",
+              "wording_verification"
+            ],
+            "secondary_recollection": false,
+            "source_type": "strong_primary_evidence",
+            "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+            "url": ""
+          },
+          "source_ids": [
+            "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50"
+          ],
+          "source_record_count": 1
+        }
+      ],
       "diagnostics": {
         "duplicate_canonical_identities": [],
         "duplicate_canonical_identity_excess_records": 0,
@@ -104142,17 +104609,69 @@
         "repeated_archive_document_numbers": [],
         "urls_not_on_own_line": []
       },
-      "distinct_canonical_source_count": 0,
+      "distinct_canonical_source_count": 1,
       "formatter_version": "historical_context_reply_schema_v5",
-      "internal_source_record_count": 0,
-      "internal_source_records": [],
+      "internal_source_record_count": 1,
+      "internal_source_records": [
+        {
+          "authoritative_urls": [],
+          "canonical_identity": "source_record:3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50:10056e91f461c976436227744dd4da6d76ef74cc0bd27d485c6cb3ea1e711793",
+          "canonical_url": "",
+          "claims_supported": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "composite_locator": false,
+          "date_identities": [
+            "1993",
+            "1995"
+          ],
+          "document_number": null,
+          "document_numbers": [],
+          "evidence_targets": [
+            "wording",
+            "attribution",
+            "source_event",
+            "date",
+            "historical_context"
+          ],
+          "explicit_identifiers": [],
+          "identity_basis": "distinct_source_record",
+          "internal_roles": [
+            "attribution_support",
+            "historical_context_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "locator_components": [
+            "stable_locator:the_downing_street_years_first_harperperennial_edition_1995_printed_page_7"
+          ],
+          "publisher": "unknown",
+          "roles": [
+            "attribution_support",
+            "historical_context_support",
+            "source_event_support",
+            "wording_verification"
+          ],
+          "secondary_recollection": false,
+          "source_id": "3ded90e076eec6ee1154959853f4a5e9bc1841a8ed32aadb373491f28491bf50",
+          "source_quality_class": "strong_primary_evidence",
+          "source_type": "thatcher_authored_primary_book",
+          "supporting_passage_count": 1,
+          "title": "Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7",
+          "url": ""
+        }
+      ],
       "merged_internal_source_record_count": 0,
-      "no_reliable_source": true,
+      "no_reliable_source": false,
       "public_source_lines": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7"
       ],
       "public_source_sections": [
-        "Source — No reliable source located"
+        "Source — Margaret Thatcher, The Downing Street Years (first HarperPerennial edition, 1995), p. 7"
       ],
       "public_urls": [],
       "quote_id": "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea",
@@ -114829,9 +115348,9 @@
   "source_file_hashes": {
     "corpus_manifest.json": "81f6b2974c30d5810afc74c24704f5ee3d3868a6b2d94859cad2fa8cebce12da",
     "final_unresolved/final_research_status.json": "df60eb151ec6f33cdd018a76b0f57a3a47384b69425e974f9d5c7f0503744bdd",
-    "historical_context_packet_corrections.json": "7a39b3add33b313d609652dc9f9a7a20f63ea918041c241e7cf3c7fd5d2bfa0c",
-    "historical_context_source_curated_evidence.json": "8032b0a5927312e9323944df2b38bf54ff032005393728bc1becc8f9522942d4",
-    "historical_context_source_role_audit.json": "97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908",
+    "historical_context_packet_corrections.json": "339abd69b9cfc9a6138bc6aebacb3da9331dc4b399b89a58668bd07e9a5289ee",
+    "historical_context_source_curated_evidence.json": "98a5a08371f87d8980f16aab849d8da1fa3b33e37061971aa16aab3dfb209ee3",
+    "historical_context_source_role_audit.json": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
     "mrsMThatcher.txt": "10310a9d62c03a87f2c1e55fa10286d1413216b8c0cb34cb0dbe4b3c12f19bee",
     "quote_analysis.json": "e53b6e1448335c060f941ddd90cfb8035d12014b691ac93036f606832408d39a",
     "research_packets.json": "862eb81b87abf4c5a42bb9a6f4a1dab74d0a2e40be36922c00bb19f8ecfed8be"

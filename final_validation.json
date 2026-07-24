@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "validation_kind": "historical_context_local_book_evidence_admission",
+  "generated_at": "2026-07-24T14:07:02Z",
+  "final_status": "ADMISSION CANDIDATE VALIDATED — READY FOR CONTROLLED DEPLOYMENT",
+  "admission_worktree": "/disks/disk1/research/mrsMThatcher-book-admission-20260724T122834Z",
+  "admission_branch": "production/local-book-evidence-admission-20260724T122834Z",
+  "base_commit": "aa0906d7773d6741cd2b0e6b6cf5ddae30386ceb",
+  "production_commit": null,
+  "review_report_sha256": "cff04a652f580b43f411378bac4ac6195d583a90c447fceea02c48cfe1cb79a5",
+  "five_reviewed_source_records_admitted": true,
+  "four_preferred_meanings_admitted_exactly": true,
+  "source_bindings_independently_verified": 5,
+  "exact_primary_count_admitted": 2,
+  "primary_variant_count_admitted": 2,
+  "secondary_only_count_admitted": 1,
+  "quislings_original_event_remains_unresolved": true,
+  "quislings_semantic_follow_up_remains_open": true,
+  "quislings_remains_blocked": true,
+  "collected_speeches_edition_year": {
+    "value": 1998,
+    "visually_confirmed": true,
+    "qualification": "First U.S. edition; originally published in Britain and copyright 1997"
+  },
+  "path_to_power_locator_handling": {
+    "page_29_verified": true,
+    "page_31_preserved": true,
+    "locators_treated_as_edition_specific": true
+  },
+  "gate": {
+    "before": 19,
+    "after": 15,
+    "ids_added": [],
+    "ids_removed": [
+      "4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80",
+      "cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea",
+      "e259f9a77a234e4d03f415740045fb374b7c68eba06f857d7c79a73500dafe37",
+      "f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea"
+    ],
+    "recomputed": true,
+    "invariant_failures": 0
+  },
+  "unresolved": {
+    "before": 6,
+    "after": 6,
+    "changed": false
+  },
+  "ordinary_cycle": {
+    "before": 610,
+    "after": 610,
+    "membership_unchanged": true,
+    "order_unchanged": true
+  },
+  "completed_packets": {
+    "before": 626,
+    "after": 626
+  },
+  "completed_attribution_ineligible": {
+    "before": 16,
+    "after": 16
+  },
+  "quotation_text_unchanged": true,
+  "quotation_ids_unchanged": true,
+  "unrelated_packet_semantic_changes": 0,
+  "unrelated_gate_changes": 0,
+  "source_role_representation_only_non_target_changes": 8,
+  "deterministic_double_build_passed": true,
+  "deterministic_output_count": 13,
+  "focused_tests_passed": true,
+  "complete_suite_tests_passed": true,
+  "complete_suite": {
+    "baseline": {
+      "passed": 2300,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1052.52
+    },
+    "first_candidate_pass": {
+      "passed": 2309,
+      "failures": 4,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1046.64,
+      "all_failures_repaired": true
+    },
+    "repaired_targeted_pass": {
+      "passed": 40,
+      "failures": 0,
+      "errors": 0,
+      "duration_seconds": 111.16
+    },
+    "final_candidate_pass": {
+      "status": "passed",
+      "passed": 2313,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 25,
+      "duration_seconds": 1035.31
+    }
+  },
+  "compilation_passed": true,
+  "git_diff_check_passed": true,
+  "transition_manifest_sha256": "ea4963ea1afd6e5e8b94454ddc5e491e52e0066579c1a6b29576fd69f441214f",
+  "source_role_audit_sha256": "cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7",
+  "semantic_review_ledger_sha256": "ffe8e31f7b5e7c34271c6baa9a53c73e19598e8abeca427dab1bea48d79c9fea",
+  "blocked_projection_sha256": "27a8fdcfb05cbda87d51bb5b035d7f960775552a5281a08c06a958c5ff15869f",
+  "gate_audit_sha256": "bd386244c7dc30c8757aa72fa722e2d961653291c373db824a2c9223cee79623",
+  "commit_hash": null,
+  "push_succeeded": false,
+  "production_deployed": false,
+  "service": {
+    "changed": false,
+    "signals": 0
+  },
+  "source_role_audit_candidate_loads": true,
+  "semantic_gate_candidate_loads": true,
+  "generated_pool_unchanged": true,
+  "semantic_veto_enforcement_unchanged": true,
+  "task_triggered_x_actions": 0,
+  "rollback_performed": false,
+  "ready_for_commit_and_controlled_deployment": true
+}

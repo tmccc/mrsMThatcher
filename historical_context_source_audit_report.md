@@ -43,44 +43,45 @@ The source-role sidecar now prevents provider redirects, search machinery, quota
 
 ### Mutually exclusive headline totals
 
-- Observed source records: **3111** (physical 2017; recovered citations 256; model leads 790; independently reviewed AI-located 34).
-- Accepted observed evidence: **647**
+- Observed source records: **3116** (physical 2017; recovered citations 256; model leads 790; independently reviewed AI-located 34).
+- Accepted observed evidence: **652**
 - Discovery-only or insufficient observed records: **2091**
 - Rejected or non-verifying observed records: **373**
 - Additional canonical virtual-locator records: **279**
-- All evidentiary records including virtual locators: **3390**
+- All evidentiary records including virtual locators: **3395**
 
 The provenance and disposition groups above are mutually exclusive and each observed-source partition sums to the same total. Quality counts below are mutually exclusive per evidentiary record and include virtual locators. Role counts overlap because one source may support several claims.
 
 ### Detailed quality and role counts
-- Primary sources: **885**
-- Secondary sources: **36**
+- Primary sources: **889**
+- Secondary sources: **37**
 - Recollections: **5**
 - Discovery-only sources: **1036**
 - Circular attribution sources: **246**
 - Rejected irrelevant sources: **38**
 - Broken or non-verifying urls: **89**
 - Insufficiently located evidence: **1055**
-- Role `attribution_support`: **885**
+- Role `attribution_support`: **890**
 - Role `discovery_only`: **2337**
+- Role `historical_context_support`: **1**
 - Role `rejected_irrelevant`: **127**
 - Role `secondary_recollection`: **5**
-- Role `source_event_support`: **229**
-- Role `wording_verification`: **834**
-- Packets with no reliable renderable source: **107**
+- Role `source_event_support`: **233**
+- Role `wording_verification`: **839**
+- Packets with no reliable renderable source: **104**
 - Packets with material public-output corrections: **484**
-- Packets requiring further historical research: **218**
+- Packets requiring further historical research: **215**
 
 ## Bounded provider research
 
-- Gemini billed attempts: **35**
-- OpenAI transmitted attempts: **157**
-- Gemini known spend: **US$1.056414**
-- OpenAI known spend: **US$3.568894**
-- Developer API known spend: **US$0.905114**
-- Vertex pilot known spend: **US$0.151300**
-- Conservative ambiguous exposure: **US$0.507920**
-- Combined conservative exposure: **US$5.133228 / US$35.00**
+- Gemini billed attempts: **0**
+- OpenAI transmitted attempts: **0**
+- Gemini known spend: **US$0.000000**
+- OpenAI known spend: **US$0.000000**
+- Developer API known spend: **US$0.000000**
+- Vertex pilot known spend: **US$0.000000**
+- Conservative ambiguous exposure: **US$0.000000**
+- Combined conservative exposure: **US$0.000000 / US$35.00**
 - Gemini `generateContent` frequently returned ungrounded prose despite the search declaration; unsupported interaction endpoints returned non-billable 404 responses.
 - OpenAI Responses requests forced native web search. Model conclusions were ignored: only independently fetched pages containing authorised wording and nearby Thatcher attribution were accepted.
 
@@ -246,7 +247,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `4e3084635fd956f139d521bcdf10c484afbf05c51f5e610b80a995e9a0fe7dfd` | The moment ownership passes into the name of the public is the moment the public ceases to have any ownership or accountability, and often… | discovery-only source suppressed |
 | `4e92014dc14fd9cce562099b03ccfdf480fd5909414483edf4a3e28dc6e85c80` | The Labour Party has now been taken over by extremists. The Labour Party is now committed to a programme which is frankly and unashamedly M… | discovery-only source suppressed |
 | `4ea4e926c5aee56df329a14e46212e30060e553eba6ef633ad136d1e45201a3d` | We believe in the diffusion of power. Spreading power among the people - political power, economic power, above all the power of people to… | discovery-only source suppressed |
-| `4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80` | Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The… | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
+| `4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80` | Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The… | discovery-only source suppressed |
 | `4f657d67183044e12ea9fa4bab713121f1b114c442ed8b0064536883b517cf70` | The old saying has it that the first victim of war is truth. But it is more accurate to say that the first victim of totalitarianism is tru… | discovery-only source suppressed; irrelevant source suppressed |
 | `4ffa3d1db4201e7a9302c3e90098a6142747fc65113158ce62ab8e0aaf0b53d0` | Governments do not create the wealth. They consume it. It is the people who create the wealth and they need the incentive of tax cuts to do… | discovery-only source suppressed |
 | `5031e014fbb9f27c5e8b13477726933029935c580af556127d9e17a6a3125b63` | If you devalue the role and status of management, industry will not be properly managed. | discovery-only source suppressed |
@@ -486,7 +487,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545` | Whether it is in the United States or in mainland Europe, written constitutions have one great weakness. That is that they contain the pote… | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
 | `c9040d5f09e96cfcae62fba63d73e4d255213b39864fd89b623b67c4f8dbd18b` | Peace, freedom and justice are only to be found where people are prepared to defend them. | discovery-only source suppressed |
 | `c922a5806879e505e259a3bdadfddb61b1da4d1e3df2b0e9c1ba1012c063a508` | Marxist jargon has been replaced by soothing language honed in focus groups. Donkey jackets have given way to Armani suits. Pioneering holi… | discovery-only source suppressed; verification wording made source-conservative |
-| `cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea` | Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin. | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
+| `cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea` | Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin. | discovery-only source suppressed |
 | `cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a` | It is one of the great paradoxes of history that Socialism, which has done so much harm - was born of a great humanitarian urge - the desir… | discovery-only source suppressed; verification wording made source-conservative |
 | `cb0389dcbc1d4532742f73271d0e6b26f62d6b3ada40db984d3a0fa7d25a7a1f` | Socialism does not produce a classless society; on the contrary it produces the most stratified of all societies, divided into two classes:… | discovery-only source suppressed |
 | `cb5c6ba02224a3ab087546b1b1429c8f8b32d452a8f2f8e2eb5e9595823d0120` | We in Britain have seen that every advance to Socialism reduces the individual, exalts the State, exacerbates our economic problems and dra… | discovery-only source suppressed |
@@ -561,7 +562,7 @@ The provenance and disposition groups above are mutually exclusive and each obse
 | `f0209c9a0effe2f5cd4b95e03d5de956dfafeaaf34174599188690fa7cced1df` | Either you believe in capitalism, or you believe in socialism. Capitalism, as we know, creates wealth. Socialism, as we also know, creates… | discovery-only source suppressed |
 | `f04bbe960191c8eb537ecf87aa340fb2ae28076d25b791c06a5f0d3a82c9886b` | Socialists are nothing if not great levellers - down. | verification wording made source-conservative |
 | `f057d087704724241758726985631db68cd9d7c2d34722969eeca73585de4f6d` | Most people should know by now that unless you pursue the policies of wealth creation, you will not in fact get the improvement of social s… | discovery-only source suppressed |
-| `f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea` | No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism recei… | discovery-only source suppressed; no reliable public source; verification wording made source-conservative |
+| `f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea` | No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism recei… | discovery-only source suppressed |
 | `f132ff5d665aea62ccdcef9f6e14da4da22ecbca330d8dfe3175b93b47c28161` | Communism, whose denial of liberty of all kinds, personal and economic, was the utter negation of the human spirit. | discovery-only source suppressed |
 | `f1edcae11f5476a82acc3279eb1e75db01bc9673337edf893ccde19a1abbe022` | Our challenge is to create the kind of economic background which enables private initiative and private enterprise to flourish for the bene… | discovery-only source suppressed |
 | `f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e` | Am I alone in suspecting that those in the West, in whose hearts lurked some sympathy with the system the other side of the Berlin Wall, ha… | discovery-only source suppressed; verification wording made source-conservative |
@@ -661,9 +662,8 @@ These records remain in the 610-quotation posting population. This list concerns
 | `4d86b60909c026a4a30be158310945742a1c25477ced27f76cf805151054568f` | Lord Acton's aphorism: only a foolish conservative would judge the present by the standards of the past, but only a foolish liberal would j… | variant | high | medium |
 | `4e08964fca7fabd939c7be1842bcc25133d0a5d8eccaaf78d4c36689350daa9b` | Countries trade with each other because that is the way to advance their interests. We do not need to beg people to trade with us - as long… | excerpt | unknown | unknown |
 | `4e92014dc14fd9cce562099b03ccfdf480fd5909414483edf4a3e28dc6e85c80` | The Labour Party has now been taken over by extremists. The Labour Party is now committed to a programme which is frankly and unashamedly M… | composite | high | medium |
-| `4f5e783f4957dc615742df2b827214e539a5123af1b4863822ba2e52684a0d80` | Unlike some of my colleagues, I never ceased to believe that the level of unemployment was related to the extent of trade union power. The… | variant | unknown | unknown |
 | `5189f2683ec11a28cc0507226cff34c24e7341a489395bf5e472cc437179499d` | If... many influential people have failed to understand, or have just forgotten, what we were up against in the Cold War and how we overcam… | unverified | unknown | unknown |
-| `52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351` | There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it. | variant | low | low |
+| `52f9b9f99f66ff3bc786183803f3a8d68277604471cd411027441989337c9351` | There are still people in my party who believe in consensus politics. I regard them as Quislings, as traitors... I mean it. | variant | medium | medium |
 | `53699726287c4fed9ef2b086e53cc2938b1fd482a7b5541f4718df3439598215` | What is success? I think it is a mixture of having a flair for the thing that you are doing; knowing that it is not enough, that you have g… | unverified | high | unknown |
 | `5375f62e3ac4d5c44f8f691b94a9cfc52eb3f2e020e9fcc8c2fd2f4475e960b4` | The Communist Party is like a monstrous parasite which consumes the flesh of its host and leaves behind a shell, which is designed to conce… | exact | high | medium |
 | `5440b194ff60f3b728644d36cb483d0c23448616b4c79588e798177e1ffa0483` | Europe is not based on a common language, culture and values... Europe is a result of plans. It is, in fact, a classic utopian project, a m… | variant | unknown | unknown |
@@ -768,7 +768,6 @@ These records remain in the 610-quotation posting population. This list concerns
 | `c8c53940947ed01b968baa2a2dd7198173e11ad8d62e77032f752aca9cc32ab8` | Freedom has to be valued for itself - not just for its material benefits. | exact | high | medium |
 | `c9003765734e425db58b6c58a9045c093fa5abe71b8bb262ad3b620e753cf545` | Whether it is in the United States or in mainland Europe, written constitutions have one great weakness. That is that they contain the pote… | exact | unknown | unknown |
 | `c922a5806879e505e259a3bdadfddb61b1da4d1e3df2b0e9c1ba1012c063a508` | Marxist jargon has been replaced by soothing language honed in focus groups. Donkey jackets have given way to Armani suits. Pioneering holi… | variant | high | medium |
-| `cac5746ca684f9611a25dcfb6b024ed63bfb3d41b2fa4c5c3d6e44290378d4ea` | Nazism (national Socialism) and communism (international socialism) were but two sides of the same coin. | exact | unknown | unknown |
 | `cad4d1a64707c8c68990f510f40e739f5e0a1dc444d56de29c80be3379462d9a` | It is one of the great paradoxes of history that Socialism, which has done so much harm - was born of a great humanitarian urge - the desir… | exact | high | medium |
 | `cd6a642bb6539c6b79098f1d599f9dba9c12fc5d9a190caf74cd452f7f9d10d5` | Fear is not the basis for foreign policy. | unverified | unknown | unknown |
 | `cdf29235583d7f6ff95df8d6271362b37946413f521bf6b45ba739e4001f409e` | Independence and autonomy is the very air that entrepreneurship breathes and lives on. Socialist politicians plan to destroy it. | unverified | unknown | unknown |
@@ -802,7 +801,6 @@ These records remain in the 610-quotation posting population. This list concerns
 | `ec3b101e2df20999be5599c41d5da597e652edc610186684fbc504412392d0a1` | Our policy is not built on envy or hatred, but on liberty for the individual man or woman. | exact | unknown | unknown |
 | `eca9b542f2b3b84e3d917eb4dda8b4539505b74db73cfc3b5c0278bdf96593e4` | One of the things being in politics has taught me is that men are not a reasoned or reasonable sex. | unverified | unknown | unknown |
 | `f04bbe960191c8eb537ecf87aa340fb2ae28076d25b791c06a5f0d3a82c9886b` | Socialists are nothing if not great levellers - down. | exact | high | medium |
-| `f0d85c7301e8b27bc694ac030d7c5f6b1d15ff3bcdf31cbdfb03a1c05bbe83ea` | No theory of government was ever given a fairer test or a more prolonged experiment in a democratic country than democratic socialism recei… | exact | unknown | unknown |
 | `f21b03167596dc30e89a4412b183ed00825706030ff8a4eee471d41b9b5b3d2e` | Am I alone in suspecting that those in the West, in whose hearts lurked some sympathy with the system the other side of the Berlin Wall, ha… | exact | high | medium |
 | `f229667039f3ec978efdde02a325e71652d24c9bbc2ad86aeea64835f30bc018` | 364 economists who claimed that it was madness to think you could get economic growth by cutting government borrowing were proved wrong: I'… | exact | high | medium |
 | `f24b3fed7f85ac08b56e4d56f08913f9a32706029daa1f73bcc500db992d13f4` | To be free is better than to be unfree always. Any politician who suggests the opposite should be treated as suspect. | normalised | unknown | unknown |
@@ -821,7 +819,7 @@ These records remain in the 610-quotation posting population. This list concerns
 ## Migration and preservation
 
 - Audit sidecar: `semantic_alignment_research/quote_research_full_001/historical_context_source_role_audit.json`
-- Audit SHA-256: `97c9d67958d4cc8e781f32bc7d9bd89d4362ca5ac9f1570bdcb0f28d49c86908`
+- Audit SHA-256: `cbb249ab764e474408a215f5c12b59eda548f07211ec2b87d9a7311df5d426c7`
 - Eligible-ID set SHA-256 before: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Eligible-ID set SHA-256 after: `1d4995c70e07041caa83e594b6acf8d597eaccf854462fecacf484c5419043e5`
 - Raw `research_packets.json`, `grounding_sources.json`, manifest and provider history were not rewritten.

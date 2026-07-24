@@ -31,14 +31,14 @@ def test_gate_audit_processes_every_packet_without_changing_regular_eligibility(
     assert audit["coverage"]["completed_attribution_ineligible_count"] == 16
     assert audit["coverage"]["unresolved_quote_count"] == 6
     assert audit["gate"]["available"] is True
-    assert audit["gate"]["blocked_quote_count"] == 19
+    assert audit["gate"]["blocked_quote_count"] == 15
     assert audit["gate"]["disposition_counts"] == {
-        "future_correction_needed": 9,
-        "insufficient_to_assess": 10,
+        "future_correction_needed": 6,
+        "insufficient_to_assess": 9,
     }
     assert audit["decision_counts"] == {
-        "blocked_open_semantic_review": 19,
-        "eligible_allow": 591,
+        "blocked_open_semantic_review": 15,
+        "eligible_allow": 595,
         "ineligible_not_regular_post": 16,
     }
     assert audit["invariant_failure_count"] == 0
@@ -58,7 +58,7 @@ def test_gate_audit_records_exact_suppressed_replies_and_allows_104653():
         for row in records
         if row["public_reply_decision"] == "blocked_open_semantic_review"
     ]
-    assert len(blocked) == 19
+    assert len(blocked) == 15
     assert all(row["attribution_eligible"] is True for row in blocked)
     assert all(row["open_review_disposition"] for row in blocked)
     assert all(
