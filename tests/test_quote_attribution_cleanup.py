@@ -306,7 +306,7 @@ def test_live_quote_analysis_and_overrides_match_cleaned_line_map() -> None:
         assert override["expected_line_numbers"] == expected_lines[qid]
 
 
-def test_prepared_v3_shadow_manifest_fails_closed_after_cycle_transition() -> None:
+def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
     path = cleanup.DEFAULT_RUN / "deployment_candidate/material_veto_v3_shadow_manifest.json"
     if not path.is_file():
         pytest.skip("digest021 v3 shadow candidate not prepared yet")
@@ -314,7 +314,7 @@ def test_prepared_v3_shadow_manifest_fails_closed_after_cycle_transition() -> No
 
     manifest = cleanup.read_json(path)
     audit = validate_compiled_manifest(manifest, strict=True)
-    assert audit["quote_count"] == 610
+    assert audit["quote_count"] == 611
     assert audit["pair_count"] == 22_066
     config = {
         "enabled": True,
@@ -330,8 +330,8 @@ def test_prepared_v3_shadow_manifest_fails_closed_after_cycle_transition() -> No
         verify_source_hashes=True,
         enable_history=False,
     )
-    assert runtime.available is False
-    assert runtime.status == "manifest_stale"
+    assert runtime.available is True
+    assert runtime.status == "allow"
     eligibility = cleanup.read_json(
         cleanup.DEFAULT_RUN / "deployment_candidate/runtime_eligible_quote_manifest.json"
     )
@@ -343,8 +343,31 @@ def test_prepared_v3_shadow_manifest_fails_closed_after_cycle_transition() -> No
         enable_history=False,
         expected_runtime_quote_ids=expected_runtime_ids,
     )
-    assert runtime.available is False
-    assert runtime.status == "manifest_stale"
+    assert runtime.available is True
+    assert runtime.status == "allow"
+    pair_quote_ids = {
+        row["quote_id"]
+        for row in [
+            *manifest["pairs"].values(),
+            *manifest["adjudicated_unknown_pairs"].values(),
+        ]
+    }
+    new_unadjudicated_ids = set(manifest["quote_has_allowed_candidate"]) - pair_quote_ids
+    assert len(new_unadjudicated_ids) == 1
+    new_quote_id = next(iter(new_unadjudicated_ids))
+    assert manifest["quote_has_allowed_candidate"][new_quote_id] is None
+    assert manifest["quote_pair_coverage"][new_quote_id] == {
+        "adjudicated_unknown_count": 0,
+        "allow_count": 0,
+        "authorised_image_count": 91,
+        "complete_pair_coverage": False,
+        "fully_resolved_pair_coverage": False,
+        "global_no_safe_image": False,
+        "not_adjudicated_count": 91,
+        "observed_pair_count": 0,
+        "resolved_pair_count": 0,
+        "veto_count": 0,
+    }
 
     stale = ShadowRuntime.load(
         cleanup.ROOT,

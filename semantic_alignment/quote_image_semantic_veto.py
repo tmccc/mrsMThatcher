@@ -24,7 +24,7 @@ from .io import atomic_write_json, atomic_write_text, sha256_file
 SCHEMA_VERSION = 1
 POLICY_VERSION = "material-veto-v2-postrun-corrected-shadow-v1"
 ATTRIBUTION_CLEANED_V3_POLICY_VERSION = (
-    "affirmative-material-contradiction-rules-v3-runtime-eligible-610-coverage-v2"
+    "affirmative-material-contradiction-rules-v3-runtime-eligible-611-coverage-v3"
 )
 ATTRIBUTION_ELIGIBILITY_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 DEFAULT_MANIFEST = (
@@ -451,7 +451,7 @@ def _validate_attribution_cleaned_v3_manifest(
     value: dict[str, Any], *, strict: bool
 ) -> dict[str, Any]:
     exact = {
-        "quote_count": 610,
+        "quote_count": 611,
         "image_count": 91,
         "pair_count": 22_066,
         "allow_count": 21_938,
@@ -460,11 +460,11 @@ def _validate_attribution_cleaned_v3_manifest(
         "quotes_without_allowed_candidate": 0,
         "unknown_pair_count_excluded_from_lookup": 167,
         "adjudicated_unknown_pair_count": 167,
-        "not_adjudicated_pair_count": 33_277,
-        "total_authorised_pair_count": 55_510,
+        "not_adjudicated_pair_count": 33_368,
+        "total_authorised_pair_count": 55_601,
         "resolved_pair_count": 22_066,
-        "quotes_with_incomplete_pair_coverage": 610,
-        "quotes_without_observed_allow_but_incomplete": 1,
+        "quotes_with_incomplete_pair_coverage": 611,
+        "quotes_without_observed_allow_but_incomplete": 2,
     }
     for key, expected in exact.items():
         _expect(value.get(key) == expected, f"v3 manifest {key} mismatch")
@@ -480,7 +480,7 @@ def _validate_attribution_cleaned_v3_manifest(
     _expect(isinstance(pairs, dict) and len(pairs) == exact["pair_count"], "v3 pair index is incomplete")
     counts: Counter[str] = Counter()
     pair_ids: set[str] = set()
-    quote_ids: set[str] = set()
+    observed_quote_ids: set[str] = set()
     observed_image_hashes: set[str] = set()
     coverage_counts: dict[str, Counter[str]] = {}
     for key, row in pairs.items():
@@ -496,7 +496,7 @@ def _validate_attribution_cleaned_v3_manifest(
         pair_id = str(row.get("source_pair_id") or "")
         _expect(HEX64.fullmatch(pair_id) is not None and pair_id not in pair_ids, f"duplicate/invalid v3 source pair ID {pair_id}")
         pair_ids.add(pair_id)
-        quote_ids.add(quote_id)
+        observed_quote_ids.add(quote_id)
         observed_image_hashes.add(image_hash)
         counts[decision] += 1
         coverage_counts.setdefault(quote_id, Counter())[decision] += 1
@@ -525,18 +525,27 @@ def _validate_attribution_cleaned_v3_manifest(
             f"duplicate/invalid v3 unknown source pair ID {pair_id}",
         )
         pair_ids.add(pair_id)
-        quote_ids.add(quote_id)
+        observed_quote_ids.add(quote_id)
         observed_image_hashes.add(image_hash)
         coverage_counts.setdefault(quote_id, Counter())["unknown"] += 1
 
     _expect(counts == {"allow": 21_938, "veto": 128}, "v3 manifest decision totals mismatch")
-    _expect(len(quote_ids) == 610, "v3 manifest quotation coverage mismatch")
     _expect(observed_image_hashes == image_hashes, "v3 manifest does not exercise every authorised image")
     flags = value.get("quote_has_allowed_candidate")
-    _expect(isinstance(flags, dict) and set(flags) == quote_ids, "v3 global quote safety flags are incomplete")
+    _expect(
+        isinstance(flags, dict)
+        and len(flags) == exact["quote_count"]
+        and all(HEX64.fullmatch(str(quote_id)) is not None for quote_id in flags),
+        "v3 global quote safety flags are incomplete",
+    )
+    quote_ids = set(flags)
+    _expect(
+        observed_quote_ids <= quote_ids,
+        "v3 adjudicated pairs include a quotation outside runtime coverage",
+    )
     _expect(sum(flag is True for flag in flags.values()) == 609, "v3 global quote safety flag totals mismatch")
     _expect(sum(flag is False for flag in flags.values()) == 0, "v3 no-safe-image flag total mismatch")
-    _expect(sum(flag is None for flag in flags.values()) == 1, "v3 incomplete-without-allow flag total mismatch")
+    _expect(sum(flag is None for flag in flags.values()) == 2, "v3 incomplete-without-allow flag total mismatch")
 
     coverage = value.get("quote_pair_coverage")
     _expect(isinstance(coverage, dict) and set(coverage) == quote_ids, "v3 pair coverage index is incomplete")
@@ -586,8 +595,8 @@ def _validate_attribution_cleaned_v3_manifest(
     runtime_quote_ids = value.get("runtime_eligible_quote_ids")
     _expect(
         isinstance(runtime_quote_ids, list)
-        and len(runtime_quote_ids) == 610
-        and len(set(runtime_quote_ids)) == 610
+        and len(runtime_quote_ids) == exact["quote_count"]
+        and len(set(runtime_quote_ids)) == exact["quote_count"]
         and all(HEX64.fullmatch(str(quote_id)) is not None for quote_id in runtime_quote_ids),
         "v3 runtime eligibility IDs are invalid",
     )

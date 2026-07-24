@@ -1503,16 +1503,17 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
     current_source_ids = {
         row["quote_id"] for row in source_records((ROOT / SOURCE_NAME).read_bytes())
     }
-    runtime_quote_ids = {
-        quote_id(str(packet.get("quote_text") or ""))
+    runtime_packets_by_id = {
+        quote_id(str(packet.get("quote_text") or "")): packet
         for packet in packets.values()
         if isinstance(packet, dict)
         and packet_is_attributed_to_margaret_thatcher(packet)
         and quote_id(str(packet.get("quote_text") or "")) in current_source_ids
     }
-    if len(runtime_quote_ids) != 610:
+    runtime_quote_ids = set(runtime_packets_by_id)
+    if len(runtime_quote_ids) != 611:
         raise CleanupError(
-            f"current attribution predicate yielded {len(runtime_quote_ids)} runtime quotations; expected 610"
+            f"current attribution predicate yielded {len(runtime_quote_ids)} runtime quotations; expected 611"
         )
     aliases = source.get("runtime_quote_aliases") or {}
     resolved_runtime_ids = {
@@ -1526,10 +1527,27 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "8c70978a89ef43e405dbc7eb0bb9751d9dbe631d63d9834ccf3dfde51a4a971c",
         "cf7a03be1c6e34efbcfec0cc8010544e2deab777a05cb0193d237814244f5c8e",
     }
-    if stale_quote_ids != expected_stale_ids or missing_quote_ids:
+    if stale_quote_ids != expected_stale_ids:
         raise CleanupError(
-            "v3 runtime eligibility delta is not the three evidence-backed stale quotations: "
+            "v3 runtime eligibility delta does not preserve the three evidence-backed stale quotations: "
             f"stale={sorted(stale_quote_ids)} missing={sorted(missing_quote_ids)}"
+        )
+    if len(missing_quote_ids) != 1:
+        raise CleanupError(
+            "v3 runtime eligibility must contain exactly one newly eligible, unadjudicated quotation: "
+            f"missing={sorted(missing_quote_ids)}"
+        )
+    source_pair_rows = [
+        row
+        for row in [
+            *(source.get("pairs") or {}).values(),
+            *(source.get("adjudicated_unknown_pairs") or {}).values(),
+        ]
+        if str(row.get("quote_id") or "") in missing_quote_ids
+    ]
+    if source_pair_rows:
+        raise CleanupError(
+            "newly eligible quotation unexpectedly has source pair adjudications"
         )
 
     candidate_manifest = read_json(DEFAULT_REMEDIATION / "candidate_manifest_v3.json")
@@ -1605,15 +1623,24 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
     manifest.update(coverage)
     decisions = Counter(str(row.get("decision") or "") for row in manifest["pairs"].values())
     manifest["policy_version"] = ATTRIBUTION_CLEANED_V3_POLICY_VERSION
-    manifest["source_run_id"] = f"{source.get('source_run_id', 'v3')}-runtime-eligible-610"
+    manifest["source_run_id"] = f"{source.get('source_run_id', 'v3')}-runtime-eligible-611"
     manifest["quote_count"] = len(resolved_runtime_ids)
     manifest["pair_count"] = len(manifest["pairs"])
     manifest["allow_count"] = decisions["allow"]
     manifest["veto_count"] = decisions["veto"]
-    manifest["quote_text"] = {
+    quote_text = {
         quote_key: text for quote_key, text in (manifest.get("quote_text") or {}).items()
         if quote_key in resolved_runtime_ids
     }
+    for runtime_id in sorted(runtime_quote_ids):
+        resolved_id = str(aliases.get(runtime_id) or runtime_id)
+        quote_text.setdefault(
+            resolved_id,
+            str(runtime_packets_by_id[runtime_id].get("quote_text") or ""),
+        )
+    if set(quote_text) != resolved_runtime_ids or any(not text for text in quote_text.values()):
+        raise CleanupError("v3 runtime quotation text coverage is incomplete")
+    manifest["quote_text"] = dict(sorted(quote_text.items()))
     manifest["runtime_eligible_quote_ids"] = sorted(runtime_quote_ids)
     manifest["attribution_rule_version"] = THATCHER_ATTRIBUTION_RULE_VERSION
     manifest["compiled_at"] = str(source.get("compiled_at") or "")
@@ -1648,6 +1675,8 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "unresolved_quote_count": len(unresolved_ids),
         "runtime_eligible_quote_count": len(runtime_quote_ids),
         "stale_manifest_quote_count_removed": len(stale_quote_ids),
+        "new_unadjudicated_quote_count": len(missing_quote_ids),
+        "new_unadjudicated_quote_ids": sorted(missing_quote_ids),
         "new_ai_spend_usd": 0.0,
     }
     gorbachev_quote_id = "67eacce6d9e102d4cf8a316451f9b8b9c095fdc6d0cffffb5a2d445e43b3d44d"
@@ -1706,6 +1735,7 @@ def prepare_v3_shadow_manifest(project_dir: Path, run_dir: Path) -> dict[str, An
         "validation_evidence": manifest["validation_evidence"],
         "removed_or_unresolved_quote_ids_present": [],
         "stale_quote_ids_removed": sorted(stale_quote_ids),
+        "new_unadjudicated_quote_ids": sorted(missing_quote_ids),
         "runtime_eligibility_manifest_path": str(eligibility_path.relative_to(ROOT)),
         "runtime_eligibility_manifest_sha256": sha256_file(eligibility_path),
         "active_enforcement": False,

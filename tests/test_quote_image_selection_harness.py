@@ -255,7 +255,15 @@ def test_unknown_pair_is_not_treated_as_allowed() -> None:
 
 def test_incomplete_coverage_policy_does_not_select_vetoed_or_unknown(tmp_path: Path) -> None:
     runtime = load_veto()
-    quote_id = next(key for key, has_allowed in runtime.quote_flags.items() if has_allowed is None)
+    quote_id = next(
+        key
+        for key, has_allowed in runtime.quote_flags.items()
+        if has_allowed is None
+        and any(
+            value["quote_id"] == key and value["decision"] == "veto"
+            for value in runtime.pairs.values()
+        )
+    )
     pair = next(value for value in runtime.pairs.values() if value["quote_id"] == quote_id and value["decision"] == "veto")
     ctx = minimal_context(tmp_path, quote_id, runtime)
     quote = {"quote_hash": quote_id, "text": "A quotation.", "analysis": {}}
