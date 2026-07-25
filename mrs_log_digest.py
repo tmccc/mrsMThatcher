@@ -18,10 +18,9 @@ files. It stores its resume timestamp in .mrs_log_digest_state.json.
 
 No third-party dependencies.
 
-Enhanced v8: keeps the v7 rotation-safe config back-scan and adds explicit
-retention coverage, optional historical-context runtime failures, maintenance
-and repair events, configured semantic-veto startup health, and current
-historical-context corpus fingerprints.
+Enhanced v9: keeps the v8 retention and configured-manifest checks, groups
+operational cascades by root incident, distinguishes current from recovered
+health, and clarifies semantic-veto and generated-image coverage.
 """
 from __future__ import annotations
 
@@ -117,14 +116,65 @@ def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str
         audit = validate_compiled_manifest(manifest)
         stale = manifest_source_hash_mismatches(project_dir, manifest)
         manifest_hash = file_sha256(configured_path)
+        quote_count = audit.get("quote_count", manifest.get("quote_count"))
+        image_count = audit.get("image_count", manifest.get("image_count"))
+        total_authorised = manifest.get("total_authorised_pair_count")
+        if type(total_authorised) is not int and type(quote_count) is int and type(image_count) is int:
+            total_authorised = quote_count * image_count
+        coverage = manifest.get("quote_pair_coverage")
+        quote_text = manifest.get("quote_text")
+        fully_unadjudicated: List[Dict[str, Any]] = []
+        if isinstance(coverage, dict):
+            for quote_id, row in sorted(coverage.items()):
+                if not isinstance(row, dict):
+                    continue
+                authorised = row.get("authorised_image_count")
+                not_adjudicated = row.get("not_adjudicated_count")
+                if (
+                    type(authorised) is int
+                    and authorised > 0
+                    and not_adjudicated == authorised
+                ):
+                    fully_unadjudicated.append(
+                        {
+                            "quote_id": str(quote_id),
+                            "quote_preview": short(
+                                quote_text.get(quote_id, "")
+                                if isinstance(quote_text, dict)
+                                else "",
+                                120,
+                            ),
+                            "authorised_image_count": authorised,
+                            "resolved_pair_count": int(row.get("resolved_pair_count", 0) or 0),
+                            "adjudicated_unknown_count": int(
+                                row.get("adjudicated_unknown_count", 0) or 0
+                            ),
+                            "not_adjudicated_count": not_adjudicated,
+                        }
+                    )
         result.update(
             {
                 "manifest_path": str(configured_path),
                 "manifest_policy_version": str(manifest.get("policy_version") or "unavailable"),
                 "manifest_sha256": manifest_hash,
-                "quote_count": audit.get("quote_count", manifest.get("quote_count")),
-                "image_count": audit.get("image_count", manifest.get("image_count")),
+                "quote_count": quote_count,
+                "image_count": image_count,
                 "pair_count": audit.get("pair_count", manifest.get("pair_count")),
+                "total_authorised_pair_count": total_authorised,
+                "resolved_pair_count": manifest.get(
+                    "resolved_pair_count",
+                    audit.get("pair_count", manifest.get("pair_count")),
+                ),
+                "adjudicated_unknown_pair_count": manifest.get(
+                    "adjudicated_unknown_pair_count",
+                    audit.get("adjudicated_unknown_pair_count", 0),
+                ),
+                "not_adjudicated_pair_count": manifest.get(
+                    "not_adjudicated_pair_count",
+                    audit.get("not_adjudicated_pair_count", 0),
+                ),
+                "fully_unadjudicated_quote_count": len(fully_unadjudicated),
+                "fully_unadjudicated_quotes": fully_unadjudicated,
             }
         )
         if stale:
@@ -176,6 +226,25 @@ def _add_configured_veto_health(
             "configured_manifest_quote_count": configured.get("quote_count"),
             "configured_manifest_image_count": configured.get("image_count"),
             "configured_manifest_pair_count": configured.get("pair_count"),
+            "configured_manifest_total_authorised_pair_count": configured.get(
+                "total_authorised_pair_count"
+            ),
+            "configured_manifest_resolved_pair_count": configured.get(
+                "resolved_pair_count"
+            ),
+            "configured_manifest_adjudicated_unknown_pair_count": configured.get(
+                "adjudicated_unknown_pair_count"
+            ),
+            "configured_manifest_not_adjudicated_pair_count": configured.get(
+                "not_adjudicated_pair_count"
+            ),
+            "configured_manifest_fully_unadjudicated_quote_count": configured.get(
+                "fully_unadjudicated_quote_count"
+            ),
+            "configured_manifest_fully_unadjudicated_quotes": configured.get(
+                "fully_unadjudicated_quotes"
+            )
+            or [],
         }
     )
     if runtime.get("available") and configured.get("available"):
@@ -737,6 +806,7 @@ def generated_image_utilisation(pool: Dict[str, Any], rates: Dict[str, Any], lim
         "never_used": [{"image": name, "origin_quote_hash": origins.get(name)} for name in sorted(never)[:limit]],
         "never_used_total": len(never),
         "unused_longest": [row(name) for name in longest[:limit]],
+        "unused_longest_total": len(longest),
         "quarantined_generated_images": len(quarantined),
         "history_coverage_start": rates.get("coverage_start"),
         "history_coverage_end": rates.get("coverage_end"),
@@ -1775,6 +1845,244 @@ def is_reply_target_eligibility_restriction(message: str) -> bool:
             "not allowed to reply",
         )
     )
+
+
+def is_deleted_or_inaccessible_tweet_403(message: str) -> bool:
+    """Return whether a 403 says the target tweet was deleted or inaccessible."""
+    text = str(message or "").lower()
+    return "403" in text and any(
+        marker in text
+        for marker in (
+            "tweet that is deleted or not visible to you",
+            "post that is deleted or not visible to you",
+            "tweet is deleted or not visible",
+            "post is deleted or not visible",
+            "tweet is unavailable",
+            "post is unavailable",
+        )
+    )
+
+
+def plural_count(count: Any, singular: str, plural: Optional[str] = None) -> str:
+    """Format an integer with a correctly pluralised noun phrase."""
+    try:
+        number = int(count)
+    except (TypeError, ValueError):
+        number = 0
+    noun = singular if number == 1 else (plural or f"{singular}s")
+    return f"{number} {noun}"
+
+
+def _incident_exception_line(message: str) -> str:
+    """Return the final exception/result line from a traceback-like message."""
+    lines = [line.strip() for line in str(message or "").splitlines() if line.strip()]
+    for line in reversed(lines):
+        if line.startswith(("Traceback (most recent call last)", "File ")):
+            continue
+        return line
+    return ""
+
+
+def _normalise_incident_text(value: str) -> str:
+    """Remove volatile identifiers while retaining a deterministic root signature."""
+    text = str(value or "").lower()
+    text = re.sub(r"/[^\s:]+", "<path>", text)
+    text = re.sub(r"\b[0-9a-f]{64}\b", "<sha256>", text)
+    text = re.sub(r"\b\d{12,}\b", "<id>", text)
+    text = re.sub(r"\b\d+\b", "<n>", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def classify_operational_error(message: str) -> str:
+    """Classify a traceback/error by its root operational concern."""
+    text = str(message or "")
+    lowered = text.lower()
+    exception_line = _incident_exception_line(text).lower()
+    if is_deleted_or_inaccessible_tweet_403(text):
+        return "deleted_or_inaccessible_tweet"
+    if "source-role audit policy is incompatible" in lowered:
+        return "historical_context_source_role_incompatibility"
+    if "bot crashed with unhandled exception" in lowered:
+        return "process_crash"
+    if (
+        "unresolvedregularpostreceipt" in lowered
+        or "unresolved regular-post receipt" in lowered
+    ):
+        return "legacy_regular_receipt_barrier"
+    if "historical context reply failed independently" in lowered:
+        return "historical_context_reply_failure"
+    if "daily meme posting failed" in lowered:
+        return "daily_meme_failure"
+    if "quote/image posting failed" in lowered:
+        return "quote_image_posting_failure"
+    if "failed to post generated reply" in lowered:
+        return "conversational_reply_posting_failure"
+    if exception_line:
+        return _normalise_incident_text(exception_line).split(":", 1)[0] or "operational_error"
+    return "operational_error"
+
+
+def _event_time(value: Dict[str, Any]) -> Optional[datetime]:
+    try:
+        return parse_dt(str(value.get("time") or ""))
+    except ValueError:
+        return None
+
+
+def summarise_operational_error_health(
+    errors: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    receipt_events: List[Dict[str, Any]],
+    lifecycle: Iterable[Dict[str, Any]] = (),
+) -> Dict[str, Any]:
+    """Group traceback cascades and distinguish recovered from current incidents."""
+    serious = [item for item in errors if item.get("level") in {"ERROR", "CRITICAL"}]
+    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    stable_root_categories = {
+        "historical_context_source_role_incompatibility",
+        "historical_context_reply_failure",
+        "legacy_regular_receipt_barrier",
+        "process_crash",
+    }
+    for item in serious:
+        raw = str(item.get("_raw_message") or item.get("message") or "")
+        category = classify_operational_error(raw)
+        root = (_incident_exception_line(raw) or raw.splitlines()[0]) if raw else category
+        signature = (
+            category
+            if category in stable_root_categories
+            else _normalise_incident_text(root)
+        )
+        groups.setdefault((category, signature), []).append(item)
+
+    event_times: Dict[str, List[datetime]] = {}
+    for event in events:
+        ts = _event_time(event)
+        if ts is not None:
+            event_times.setdefault(str(event.get("kind") or ""), []).append(ts)
+    receipt_removed_times: List[datetime] = []
+    for item in receipt_events:
+        if item.get("kind") not in {"regular_removed", "regular_reconciled"}:
+            continue
+        ts = _event_time(item)
+        if ts is not None:
+            receipt_removed_times.append(ts)
+    successful_restart_times: List[datetime] = []
+    for item in lifecycle:
+        if "Bot started successfully" not in str(item.get("message") or ""):
+            continue
+        ts = _event_time(item)
+        if ts is not None:
+            successful_restart_times.append(ts)
+
+    def recovered_after(category: str, last_time: datetime) -> Tuple[bool, str, Optional[datetime]]:
+        candidates: List[Tuple[datetime, str]] = []
+        recovery_kinds: Tuple[str, ...] = ()
+        if category in {
+            "historical_context_source_role_incompatibility",
+            "historical_context_reply_failure",
+        }:
+            for event in events:
+                ts = _event_time(event)
+                if (
+                    ts is not None
+                    and ts > last_time
+                    and event.get("kind") == "historical_context_reply"
+                    and event.get("status") in {"completed", "already_completed"}
+                ):
+                    candidates.append((ts, "later historical-context reply completed"))
+            for event in events:
+                ts = _event_time(event)
+                if (
+                    ts is not None
+                    and ts > last_time
+                    and event.get("kind") == "historical_context_semantic_gate"
+                    and event.get("status") == "loaded"
+                ):
+                    candidates.append(
+                        (ts, "later historical-context semantic gate loaded successfully")
+                    )
+        elif category == "legacy_regular_receipt_barrier":
+            candidates.extend(
+                (ts, "regular receipt reconciled or retired")
+                for ts in receipt_removed_times
+                if ts > last_time
+            )
+            recovery_kinds = ("daily_meme_posted", "quote_image_posted")
+        elif category == "daily_meme_failure":
+            recovery_kinds = ("daily_meme_posted",)
+        elif category == "quote_image_posting_failure":
+            recovery_kinds = ("quote_image_posted",)
+        elif category == "conversational_reply_posting_failure":
+            recovery_kinds = (
+                "mention_reply_posted",
+                "hot_post_reply_posted",
+                "quote_tweet_reply_posted",
+            )
+        elif category == "process_crash":
+            candidates.extend(
+                (ts, "later successful bot startup observed")
+                for ts in successful_restart_times
+                if ts > last_time
+            )
+        for kind in recovery_kinds:
+            candidates.extend(
+                (ts, f"later {kind.replace('_', ' ')} observed")
+                for ts in event_times.get(kind, [])
+                if ts > last_time
+            )
+        if not candidates:
+            return False, "", None
+        recovery_time, reason = min(candidates, key=lambda item: (item[0], item[1]))
+        return True, reason, recovery_time
+
+    incidents: List[Dict[str, Any]] = []
+    for (category, signature), rows in groups.items():
+        ordered = sorted(
+            rows,
+            key=lambda item: (str(item.get("time") or ""), str(item.get("where") or "")),
+        )
+        first_time = parse_dt(str(ordered[0].get("time") or "")) or datetime.min
+        last_time = parse_dt(str(ordered[-1].get("time") or "")) or first_time
+        resolved, resolution_reason, resolution_time = recovered_after(category, last_time)
+        representative = str(
+            ordered[0].get("_raw_message") or ordered[0].get("message") or ""
+        ).splitlines()[0]
+        incidents.append(
+            {
+                "category": category,
+                "signature": signature,
+                "status": "historical_resolved" if resolved else "current_unresolved",
+                "first_seen": dt_text(first_time),
+                "last_seen": dt_text(last_time),
+                "record_count": len(ordered),
+                "traceback_count": sum(
+                    "Traceback" in str(item.get("_raw_message") or item.get("message") or "")
+                    for item in ordered
+                ),
+                "affected_locations": sorted(
+                    {
+                        str(item.get("where") or "")
+                        for item in ordered
+                        if item.get("where")
+                    }
+                ),
+                "summary": short(representative, 300),
+                "resolution_reason": resolution_reason,
+                "resolution_time": dt_text(resolution_time) if resolution_time else None,
+            }
+        )
+    incidents.sort(key=lambda item: (item["first_seen"], item["category"], item["signature"]))
+    current = [item for item in incidents if item["status"] == "current_unresolved"]
+    resolved = [item for item in incidents if item["status"] == "historical_resolved"]
+    return {
+        "current_independent_incident_count": len(current),
+        "historical_resolved_incident_count": len(resolved),
+        "raw_serious_error_record_count": len(serious),
+        "raw_traceback_count": sum(item.get("traceback_count", 0) for item in incidents),
+        "current_incidents": current,
+        "historical_resolved_incidents": resolved,
+    }
 
 
 def is_media_fallback_warning(record: Record) -> bool:
@@ -2945,6 +3253,7 @@ def analyse(
         )
         is_handled_reply_restriction = (
             is_reply_target_eligibility_restriction(msg)
+            or is_deleted_or_inaccessible_tweet_403(msg)
             or "reply not allowed" in msg.lower()
             or "marking quote tweet as skipped without consuming reply quota" in msg.lower()
             or "not allowed to reply" in msg.lower()
@@ -3034,6 +3343,7 @@ def analyse(
                 "level": r.level,
                 "where": f"{r.src}:{r.line}",
                 "message": short(msg, 900),
+                "_raw_message": msg,
                 "_fingerprint": record_fingerprint(r),
             })
 
@@ -3599,7 +3909,14 @@ def analyse(
                 "lane": lane,
                 "message": short(msg, 240),
             }
+            if status_code == "403" and is_deleted_or_inaccessible_tweet_403(msg):
+                api_error["restriction_kind"] = "deleted_or_inaccessible_tweet"
+                endpoint = "post/reply"
+                api_error["endpoint"] = endpoint
+                handled_api_restrictions.append(api_error)
+                continue
             if status_code == "403" and is_handled_reply_restriction:
+                api_error["restriction_kind"] = "reply_target_eligibility"
                 handled_api_restrictions.append(api_error)
             else:
                 api_errors.append(api_error)
@@ -4198,54 +4515,127 @@ def analyse(
         remaining_errors.append(item)
     errors = remaining_errors
 
-    # Build a short automatic headline.
-    serious_errors = [e for e in errors if e["level"] in {"ERROR", "CRITICAL"}]
-    headline = []
-    headline.append(f"{stats.get('quote_image_posted', 0)} quote/image post(s)")
-    headline.append(f"{stats.get('daily_meme_posted', 0)} daily meme(s)")
-    headline.append(f"{stats.get('mention_reply_posted', 0)} mention reply/replies")
-    headline.append(f"{stats.get('hot_post_reply_posted', 0)} hot-post reply/replies")
-    headline.append(f"{stats.get('quote_tweet_reply_posted', 0)} quote-tweet reply/replies")
-    headline.append(
-        f"{stats.get('historical_context_reply_status_completed', 0)} "
-        "historical context reply/replies completed"
+    error_health = summarise_operational_error_health(
+        errors,
+        events,
+        receipt_events,
+        lifecycle,
     )
-    headline.append(f"{stats.get('mention_grok_skip', 0) + stats.get('hot_post_reply_grok_skip', 0) + stats.get('quote_tweet_grok_skip', 0)} Grok skip(s)")
-    if serious_errors:
-        headline.append(f"{len(serious_errors)} operational error(s)")
+
+    # Build a short automatic headline around current health, not raw traceback volume.
+    headline = []
+    headline.append(plural_count(stats.get("quote_image_posted", 0), "quote/image post"))
+    headline.append(plural_count(stats.get("daily_meme_posted", 0), "daily meme"))
+    headline.append(plural_count(stats.get("mention_reply_posted", 0), "mention reply", "mention replies"))
+    headline.append(plural_count(stats.get("hot_post_reply_posted", 0), "hot-post reply", "hot-post replies"))
+    headline.append(plural_count(stats.get("quote_tweet_reply_posted", 0), "quote-tweet reply", "quote-tweet replies"))
+    headline.append(
+        plural_count(
+            stats.get("historical_context_reply_status_completed", 0),
+            "historical-context reply",
+            "historical-context replies",
+        )
+        + " completed"
+    )
+    headline.append(
+        plural_count(
+            stats.get("mention_grok_skip", 0)
+            + stats.get("hot_post_reply_grok_skip", 0)
+            + stats.get("quote_tweet_grok_skip", 0),
+            "Grok skip",
+        )
+    )
+    current_incidents = int(error_health["current_independent_incident_count"])
+    resolved_incidents = int(error_health["historical_resolved_incident_count"])
+    if current_incidents:
+        headline.append(
+            "current health: "
+            + plural_count(
+                current_incidents,
+                "unresolved operational incident",
+            )
+        )
     else:
-        headline.append("no serious errors")
+        headline.append("current health: no unresolved operational incidents")
+    if resolved_incidents:
+        headline.append(
+            plural_count(
+                resolved_incidents,
+                "historical/resolved incident",
+            )
+            + " in window"
+        )
     if handled_api_restrictions:
-        handled_incidents = {
+        deleted_incidents = {
+            (
+                str(item.get("service") or ""),
+                str(item.get("target_id") or item.get("message") or ""),
+            )
+            for item in handled_api_restrictions
+            if item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
+        }
+        other_handled_incidents = {
             (
                 str(item.get("service") or ""),
                 str(item.get("status") or ""),
                 str(item.get("target_id") or item.get("message") or ""),
             )
             for item in handled_api_restrictions
+            if item.get("restriction_kind") != "deleted_or_inaccessible_tweet"
         }
-        headline.append(f"{len(handled_incidents)} handled API restriction incident(s)")
+        if deleted_incidents:
+            headline.append(
+                plural_count(
+                    len(deleted_incidents),
+                    "deleted/inaccessible-target 403",
+                    "deleted/inaccessible-target 403s",
+                )
+                + " handled"
+            )
+        if other_handled_incidents:
+            headline.append(
+                plural_count(
+                    len(other_handled_incidents),
+                    "handled API restriction incident",
+                )
+            )
     handled_media_fallbacks = [item for item in media_upload_incidents if item.get("status") == "handled"]
     unrecovered_media = [item for item in media_upload_incidents if item.get("status") != "handled"]
     if handled_media_fallbacks:
-        headline.append(f"{len(handled_media_fallbacks)} handled media-upload fallback(s)")
+        headline.append(plural_count(len(handled_media_fallbacks), "handled media-upload fallback"))
     if unrecovered_media:
-        headline.append(f"{len(unrecovered_media)} unrecovered media-upload failure(s)")
+        headline.append(plural_count(len(unrecovered_media), "unrecovered media-upload failure"))
     if self_test_errors:
         selftest_fail_checks = sum(1 for e in self_test_errors if str(e.get("message", "")).startswith("SELFTEST FAIL:"))
         headline.append(f"self-test failures: {selftest_fail_checks} check(s)")
     if confirmed_post_recovery:
-        headline.append(f"{len(confirmed_post_recovery)} confirmed-post recovery warning(s)")
+        headline.append(
+            plural_count(
+                len(confirmed_post_recovery),
+                "confirmed-post recovery record",
+            )
+            + " in window"
+        )
     if confirmed_reply_recovery:
-        headline.append(f"{len(confirmed_reply_recovery)} confirmed-reply recovery warning(s)")
+        headline.append(
+            plural_count(
+                len(confirmed_reply_recovery),
+                "confirmed-reply recovery record",
+            )
+            + " in window"
+        )
     blocking_receipts = [
         item for item in receipt_events
         if item.get("kind") in {"invalid_or_unresolved_blocked", "simultaneous_receipts_blocked"}
     ]
     if blocking_receipts:
-        headline.append(f"{len(blocking_receipts)} receipt block(s)")
+        headline.append(
+            plural_count(len(blocking_receipts), "receipt-block record") + " in window"
+        )
     if asset_health:
-        headline.append(f"{len(asset_health)} asset metadata warning(s)")
+        headline.append(
+            plural_count(len(asset_health), "asset-metadata warning") + " in window"
+        )
     cooldown_until_epoch = int_or_none(latest_state_summary.get("api_cooldown_until_epoch"))
     x_write_cooldown_until_epoch = int_or_none(latest_state_summary.get("x_write_api_cooldown_until_epoch"))
     xai_cooldown_until_epoch = int_or_none(latest_state_summary.get("xai_api_cooldown_until_epoch"))
@@ -4312,7 +4702,12 @@ def analyse(
     api_status_counts = Counter(str(item.get("status") or "unavailable") for item in all_api_failures)
     target_eligibility_403_count = sum(
         str(item.get("status")) == "403"
-        and is_reply_target_eligibility_restriction(str(item.get("message") or ""))
+        and item.get("restriction_kind") == "reply_target_eligibility"
+        for item in all_api_failures
+    )
+    deleted_or_inaccessible_tweet_403_count = sum(
+        str(item.get("status")) == "403"
+        and item.get("restriction_kind") == "deleted_or_inaccessible_tweet"
         for item in all_api_failures
     )
     posting_attempt_count = sum(item.get("endpoint") == "post/reply" for item in all_api_failures)
@@ -4438,6 +4833,9 @@ def analyse(
             "unique_incident_count": len(unique_api_incidents),
             "posting_attempt_count": posting_attempt_count,
             "target_eligibility_403_count": target_eligibility_403_count,
+            "deleted_or_inaccessible_tweet_403_count": (
+                deleted_or_inaccessible_tweet_403_count
+            ),
             "transient_failure_count": transient_failure_count,
             "rate_limit_failure_count": rate_limit_failure_count,
             "legacy_cooldown_from_target_restriction_count": legacy_cooldown_from_target_restriction_count,
@@ -4548,7 +4946,15 @@ def analyse(
         "lifecycle": lifecycle[-12:],
         "events": events,
         "self_test_errors": self_test_errors[-40:],
-        "errors_and_warnings": errors[-40:],
+        "error_health": error_health,
+        "errors_and_warnings": [
+            {
+                key: value
+                for key, value in item.items()
+                if not key.startswith("_")
+            }
+            for item in errors[-40:]
+        ],
     }
 
 
@@ -5082,10 +5488,42 @@ def render_markdown(report: Dict[str, Any]) -> str:
     generated_spacing = report.get("generated_image_spacing") or {}
     generated_spacing_latest = generated_spacing.get("latest") or {}
     generated_spacing_events = generated_spacing.get("events") or []
+    generated_pool_enabled = generated_spacing_latest.get("pool_enabled")
+    if isinstance(generated_pool_enabled, str):
+        generated_pool_enabled = generated_pool_enabled.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+    generated_pool_allowed = generated_spacing_latest.get("allowed")
+    if isinstance(generated_pool_allowed, str):
+        generated_pool_allowed = generated_pool_allowed.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
     pool_health = report.get("generated_image_pool_health") or {}
     if pool_health:
         out.append("## Generated image pool health")
         out.append("Current filesystem snapshot at digest generation time; these counts are not limited to the selected log window.")
+        if generated_pool_enabled is False:
+            disabled_explanation = (
+                "**The generated-image pool is intentionally disabled.** "
+                "Pool inventory and historical usage are reported for observability only."
+            )
+            if generated_pool_allowed is True:
+                disabled_explanation += (
+                    " `allowed=true` means a spacing rule would permit selection, "
+                    "not that the pool is enabled."
+                )
+            else:
+                disabled_explanation += (
+                    " The `allowed` flag reports spacing eligibility separately "
+                    "from the enablement setting."
+                )
+            out.append(disabled_explanation)
         out.append("")
         out.append("```text")
         out.append(f"active_generated_images       = {pool_health.get('active_generated_images', 'unavailable')}")
@@ -5195,7 +5633,11 @@ def render_markdown(report: Dict[str, Any]) -> str:
     utilisation = report.get("generated_image_utilisation") or {}
     if utilisation:
         out.append("## Generated image utilisation")
-        out.append("Successful-post history is bounded by available structured production logs; observed-log usage and current-cycle history are separate measures.")
+        out.append(
+            "Current-cycle history records whether an image is marked used in the live image cycle. "
+            "Bounded structured-log observations count successful post records retained in the scanned logs. "
+            "The two measures answer different questions and are not interchangeable."
+        )
         out.append("Deprecated machine-readable usage aliases retain the bounded-log values for compatibility and are planned for removal only in a future major digest schema version.")
         coverage_start = utilisation.get("history_coverage_start") or "unavailable"
         coverage_end = utilisation.get("history_coverage_end") or "unavailable"
@@ -5225,27 +5667,81 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if not utilisation.get("most_frequently_used"): out.append(md_table_row(["none observed", "0", "never"]))
         out.append("")
 
-        out.append("Active generated images never successfully posted in observed logs")
+        filename_sample_limit = 5
+        never_used_rows = list(utilisation.get("never_used") or [])
+        unused_longest_rows = list(utilisation.get("unused_longest") or [])
+        never_used_total = int(utilisation.get("never_used_total", 0) or 0)
+        never_used_sample = never_used_rows[:filename_sample_limit]
+        unused_longest_sample = unused_longest_rows[:filename_sample_limit]
+        unused_longest_total = int(
+            utilisation.get(
+                "unused_longest_total",
+                utilisation.get("active_generated_images", len(unused_longest_rows)),
+            )
+            or 0
+        )
+
+        out.append(
+            "Active generated images never successfully posted in observed logs "
+            f"(count: **{never_used_total}**; sample: **{len(never_used_sample)}**)"
+        )
         out.append(md_table_row(["image", "origin_quote_hash"]))
         out.append(md_table_row(["---", "---"]))
-        for item in utilisation.get("never_used") or []:
+        for item in never_used_sample:
             out.append(md_table_row([item.get("image", ""), item.get("origin_quote_hash") or "unavailable"]))
-        omitted = int(utilisation.get("never_used_total", 0) or 0) - len(utilisation.get("never_used") or [])
-        if omitted > 0: out.append(f"{omitted} additional active image(s) omitted.")
-        if not utilisation.get("never_used"): out.append(md_table_row(["none", "-"]))
+        omitted = max(0, never_used_total - len(never_used_sample))
+        if omitted > 0:
+            out.append(
+                f"{plural_count(omitted, 'additional active image')} omitted from the readable summary."
+            )
+        if not never_used_sample:
+            out.append(md_table_row(["none", "-"]))
         out.append("")
 
-        out.append("Active generated images unused longest in observed logs")
+        out.append(
+            "Active generated images unused longest in observed logs "
+            f"(count: **{unused_longest_total}**; sample: **{len(unused_longest_sample)}**)"
+        )
         out.append(md_table_row(["image", "last_successful_post", "successful_posts"]))
         out.append(md_table_row(["---", "---", "---"]))
-        for item in utilisation.get("unused_longest") or []:
+        for item in unused_longest_sample:
             out.append(md_table_row([item.get("image", ""), item.get("last_successful_post") or "never", item.get("successful_posts", 0)]))
-        if not utilisation.get("unused_longest"): out.append(md_table_row(["none", "never", "0"]))
+        if unused_longest_total > len(unused_longest_sample):
+            out.append(
+                f"{plural_count(unused_longest_total - len(unused_longest_sample), 'additional row')} "
+                "omitted from the readable summary."
+            )
+        if not unused_longest_sample:
+            out.append(md_table_row(["none", "never", "0"]))
         out.append("")
+
+        if report.get("detailed_appendix") and (never_used_rows or unused_longest_rows):
+            out.append("### Detailed generated-image filename appendix")
+            out.append(
+                "This optional appendix contains every filename retained in the digest's "
+                "already-bounded utilisation result."
+            )
+            if never_used_rows:
+                out.append("Never observed:")
+                for item in never_used_rows:
+                    out.append(f"- `{item.get('image', '')}`")
+            if unused_longest_rows:
+                out.append("Unused longest:")
+                for item in unused_longest_rows:
+                    out.append(
+                        f"- `{item.get('image', '')}` — "
+                        f"{item.get('last_successful_post') or 'never'}"
+                    )
+            out.append("")
 
     if generated_spacing_latest or generated_spacing_events:
         out.append("## Generated image spacing")
         if generated_spacing_latest:
+            if generated_pool_enabled is False:
+                out.append(
+                    "The pool is intentionally disabled; spacing eligibility is informational "
+                    "and does not activate generated-image selection."
+                )
             out.append("```text")
             out.append(f"required_original_posts_between = {generated_spacing_latest.get('required', '')}")
             out.append(f"original_posts_since_generated  = {generated_spacing_latest.get('original_posts_since_generated', '')}")
@@ -5523,6 +6019,33 @@ def render_markdown(report: Dict[str, Any]) -> str:
 
     context_quality = report.get("historical_context_quality") or {}
     out.append("## Historical context reply quality")
+    error_health = report.get("error_health") or {}
+    context_categories = {
+        "historical_context_source_role_incompatibility",
+        "historical_context_reply_failure",
+        "legacy_regular_receipt_barrier",
+    }
+    current_context_incidents = [
+        item
+        for item in error_health.get("current_incidents") or []
+        if item.get("category") in context_categories
+    ]
+    resolved_context_incidents = [
+        item
+        for item in error_health.get("historical_resolved_incidents") or []
+        if item.get("category") in context_categories
+    ]
+    out.append(
+        "Operational status: "
+        f"**{plural_count(len(current_context_incidents), 'current independent incident')}**; "
+        f"**{plural_count(len(resolved_context_incidents), 'resolved legacy receipt/source-role incident')}** "
+        "in the selected log window."
+    )
+    if resolved_context_incidents:
+        out.append(
+            "Resolved legacy incidents remain visible as history; they are not counted as "
+            "current historical-context failures."
+        )
     status_counts = context_quality.get("status_counts") or {}
     out.append(
         f"Attempted: **{context_quality.get('attempted_count', 0)}**; "
@@ -5650,15 +6173,39 @@ def render_markdown(report: Dict[str, Any]) -> str:
     out.append("## Quote/image semantic veto shadow")
     configured_available = veto_runtime.get("configured_manifest_available") is True
     if veto_runtime.get("configured_manifest_present"):
+        configured_mode = veto_runtime.get("configured_manifest_mode") or "unavailable"
+        enforcement = (
+            "disabled; observations are advisory and production selection is unchanged"
+            if configured_mode == "shadow"
+            else "disabled"
+            if configured_mode == "disabled"
+            else "unavailable"
+        )
         out.append(
-            "Configured manifest startup health: "
+            f"Mode: **{configured_mode}**; active enforcement: **{enforcement}**."
+        )
+        out.append(
+            "Loaded configured manifest: "
             f"**{veto_runtime.get('configured_manifest_status') or 'unavailable'}**; "
             f"policy **{veto_runtime.get('configured_manifest_policy_version') or 'unavailable'}**; "
-            f"hash `{str(veto_runtime.get('configured_manifest_sha256') or '')[:16] or 'unavailable'}`; "
-            f"quotes/images/pairs **"
-            f"{veto_runtime.get('configured_manifest_quote_count', 'unavailable')} / "
-            f"{veto_runtime.get('configured_manifest_image_count', 'unavailable')} / "
-            f"{veto_runtime.get('configured_manifest_pair_count', 'unavailable')}**."
+            f"hash `{str(veto_runtime.get('configured_manifest_sha256') or '')[:16] or 'unavailable'}`."
+        )
+        configured_quote_count = veto_runtime.get("configured_manifest_quote_count")
+        configured_image_count = veto_runtime.get("configured_manifest_image_count")
+        out.append(
+            "Authorised pair universe: "
+            f"**{configured_quote_count if configured_quote_count is not None else 'unavailable'} "
+            f"quotations × {configured_image_count if configured_image_count is not None else 'unavailable'} images "
+            f"= {veto_runtime.get('configured_manifest_total_authorised_pair_count', 'unavailable')} pairs**."
+        )
+        out.append(
+            "Pair adjudication state: "
+            f"**{veto_runtime.get('configured_manifest_resolved_pair_count', 'unavailable')} resolved "
+            "(allow or veto); "
+            f"{veto_runtime.get('configured_manifest_adjudicated_unknown_pair_count', 'unavailable')} "
+            "adjudicated unknown; "
+            f"{veto_runtime.get('configured_manifest_not_adjudicated_pair_count', 'unavailable')} "
+            "authorised but not yet adjudicated**."
         )
         if veto_runtime.get("configured_manifest_reason"):
             out.append(
@@ -5741,6 +6288,27 @@ def render_markdown(report: Dict[str, Any]) -> str:
                 summary.get("configured_manifest_sha256") or ""
             )
             failures = int(summary.get("manifest_unavailable", 0) or 0) + int(summary.get("manifest_stale", 0) or 0)
+        strata = summary.get("manifest_strata") or []
+        if strata:
+            out.append("Manifest-version strata:")
+            out.append(md_table_row(["policy", "manifest hash", "observations", "status counts"]))
+            out.append(md_table_row(["---", "---", "---", "---"]))
+            for item in strata:
+                observations = item.get(
+                    "selection_time_observations",
+                    item.get("events", 0),
+                )
+                out.append(
+                    md_table_row(
+                        [
+                            item.get("manifest_policy_version") or "unavailable",
+                            str(item.get("manifest_sha256") or "")[:16] or "unavailable",
+                            observations,
+                            compact_counts(item.get("status_counts") or {}),
+                        ]
+                    )
+                )
+            out.append("")
         out.append("Selections:")
         out.append(f"- Allowed: **{allowed}**")
         out.append(f"- Vetoed: **{vetoed}**")
@@ -5759,7 +6327,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"**{f'{float(median_delta):.2f}' if median_delta is not None else 'unavailable'}**."
         )
         out.append(
-            f"Manifest: **{version}** (`{str(manifest_hash)[:16] or 'unavailable'}`); "
+            f"Observation stratum manifest: **{version}** "
+            f"(`{str(manifest_hash)[:16] or 'unavailable'}`); "
             f"lookup failures: **{failures}**."
         )
         reason_counts = summary.get("veto_reason_counts") or {}
@@ -5768,11 +6337,29 @@ def render_markdown(report: Dict[str, Any]) -> str:
             for reason, count in sorted(reason_counts.items(), key=lambda item: (-item[1], item[0])):
                 out.append(f"- {reason}: **{count}**")
         out.append("")
-        out.append("Coverage gaps:")
+        out.append("Coverage state:")
         out.append(f"- quotations with no safe historical image: **{no_global}**")
         out.append(
-            f"- observed quotations with incomplete manifest coverage: **{incomplete_global}**"
+            "- selected quotations whose full image matrices remain unadjudicated: "
+            f"**{incomplete_global}**"
         )
+        fully_unadjudicated = (
+            veto_runtime.get("configured_manifest_fully_unadjudicated_quotes") or []
+        )
+        if fully_unadjudicated:
+            out.append(
+                "- fully unadjudicated quotation matrices in the configured manifest "
+                f"(coverage state, not a runtime error): **{len(fully_unadjudicated)}**"
+            )
+            for item in fully_unadjudicated[:3]:
+                preview = item.get("quote_preview") or "text unavailable"
+                out.append(
+                    f"  - `{item.get('quote_id')}` — {preview}; "
+                    f"resolved **{item.get('resolved_pair_count', 0)}**, "
+                    f"adjudicated unknown **{item.get('adjudicated_unknown_count', 0)}**, "
+                    f"not adjudicated **{item.get('not_adjudicated_count', 0)} / "
+                    f"{item.get('authorised_image_count', 0)}**"
+                )
         examples = veto_window.get("examples") or []
         if examples:
             out.append("")
@@ -6145,7 +6732,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         out.append(
             f"Unique incidents: **{api_health.get('unique_incident_count', 0)}**; "
             f"posting attempts: **{api_health.get('posting_attempt_count', 0)}**; "
-            f"Target-eligibility 403 responses: **{api_health.get('target_eligibility_403_count', 0)}**; "
+            f"reply-target eligibility 403 responses: **{api_health.get('target_eligibility_403_count', 0)}**; "
+            f"deleted/inaccessible-tweet 403 responses: "
+            f"**{api_health.get('deleted_or_inaccessible_tweet_403_count', 0)}**; "
             f"transient transport failures: **{api_health.get('transient_failure_count', 0)}**; "
             f"rate-limit failures: **{api_health.get('rate_limit_failure_count', 0)}**."
         )
@@ -6166,11 +6755,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
         if handled_restrictions:
             out.append("Handled API restrictions:")
-            out.append(md_table_row(["time", "service", "endpoint", "status", "lane", "target", "message"]))
-            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---"]))
+            out.append(md_table_row(["time", "classification", "service", "endpoint", "status", "lane", "target", "message"]))
+            out.append(md_table_row(["---", "---", "---", "---", "---", "---", "---", "---"]))
             for item in handled_restrictions:
                 out.append(md_table_row([
                     item.get("time", ""),
+                    str(item.get("restriction_kind") or "other").replace("_", " "),
                     item.get("service", ""),
                     item.get("endpoint", ""),
                     item.get("status", ""),
@@ -6204,6 +6794,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append("")
         if handled_restrictions:
             legacy_cooldowns = int(api_health.get("legacy_cooldown_from_target_restriction_count", 0) or 0)
+            deleted_count = int(
+                api_health.get("deleted_or_inaccessible_tweet_403_count", 0) or 0
+            )
+            target_count = int(api_health.get("target_eligibility_403_count", 0) or 0)
             if legacy_cooldowns:
                 out.append(
                     "403 restriction summary: deterministic target restrictions were identified; "
@@ -6211,7 +6805,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
                     "were caused by the pre-fix classification."
                 )
             else:
-                out.append("403 restriction summary: target conversation controls disallowed the reply; handled locally without quota/cooldown impact.")
+                out.append(
+                    "403 restriction summary: "
+                    f"{plural_count(deleted_count, 'deleted/inaccessible target')} and "
+                    f"{plural_count(target_count, 'reply-target eligibility restriction')} "
+                    "were handled locally without being presented as current independent errors."
+                )
             out.append("")
 
     self_test_errors = report.get("self_test_errors") or []
@@ -6223,15 +6822,98 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([e.get("time"), e.get("level"), e.get("where"), e.get("message")]))
         out.append("")
 
-    errs = report.get("errors_and_warnings") or []
-    out.append("## Errors / warnings")
-    if not errs:
+    error_health = report.get("error_health") or {}
+    current_incidents = error_health.get("current_incidents") or []
+    historical_incidents = error_health.get("historical_resolved_incidents") or []
+    out.append("## Current independent errors")
+    if not current_incidents:
+        out.append("None unresolved in the selected window.")
+    else:
+        out.append(
+            md_table_row(
+                [
+                    "category",
+                    "first seen",
+                    "last seen",
+                    "error records",
+                    "tracebacks",
+                    "locations",
+                    "root summary",
+                ]
+            )
+        )
+        out.append(md_table_row(["---"] * 7))
+        for incident in current_incidents:
+            out.append(
+                md_table_row(
+                    [
+                        str(incident.get("category") or "").replace("_", " "),
+                        incident.get("first_seen", ""),
+                        incident.get("last_seen", ""),
+                        incident.get("record_count", 0),
+                        incident.get("traceback_count", 0),
+                        ", ".join(incident.get("affected_locations") or []),
+                        incident.get("summary", ""),
+                    ]
+                )
+            )
+    out.append("")
+
+    out.append("## Historical/resolved incident errors")
+    if not historical_incidents:
+        out.append("None identified in the selected window.")
+    else:
+        out.append(
+            "Repeated tracebacks are grouped under their root incident and retained here as "
+            "historical evidence; they do not determine the current-health headline."
+        )
+        out.append(
+            md_table_row(
+                [
+                    "category",
+                    "first seen",
+                    "last seen",
+                    "error records",
+                    "tracebacks",
+                    "resolution",
+                    "resolved at",
+                ]
+            )
+        )
+        out.append(md_table_row(["---"] * 7))
+        for incident in historical_incidents:
+            out.append(
+                md_table_row(
+                    [
+                        str(incident.get("category") or "").replace("_", " "),
+                        incident.get("first_seen", ""),
+                        incident.get("last_seen", ""),
+                        incident.get("record_count", 0),
+                        incident.get("traceback_count", 0),
+                        incident.get("resolution_reason", ""),
+                        incident.get("resolution_time", ""),
+                    ]
+                )
+            )
+    out.append("")
+
+    warnings = [
+        item
+        for item in report.get("errors_and_warnings") or []
+        if item.get("level") == "WARNING"
+    ]
+    out.append("## Other warnings")
+    if not warnings:
         out.append("None found in selected window.")
     else:
-        out.append(md_table_row(["time", "level", "where", "message"]))
-        out.append(md_table_row(["---", "---", "---", "---"]))
-        for e in errs:
-            out.append(md_table_row([e.get("time"), e.get("level"), e.get("where"), e.get("message")]))
+        out.append(md_table_row(["time", "where", "message"]))
+        out.append(md_table_row(["---", "---", "---"]))
+        for item in warnings:
+            out.append(
+                md_table_row(
+                    [item.get("time"), item.get("where"), item.get("message")]
+                )
+            )
     out.append("")
 
     if report.get("lifecycle"):
@@ -6351,6 +7033,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--markdown-output", type=Path, help="Also atomically write Markdown to this file.")
     ap.add_argument("--json-output", type=Path, help="Also atomically write structured JSON to this file.")
     ap.add_argument("--verbose-replies", action="store_true", help="Include truncated context-reply previews in Markdown event detail.")
+    ap.add_argument(
+        "--detailed-appendix",
+        action="store_true",
+        help="Include detailed filename appendices that are abbreviated in the readable digest.",
+    )
     ap.add_argument("--max-text", type=int, default=280, help="Maximum text length per field in report. Default: 280.")
     ap.add_argument("--glob", default="mrsMThatcher*.log*", help="Log glob to use when no explicit log files are supplied. Default: mrsMThatcher*.log*")
     ap.add_argument("--project-dir", type=Path, default=Path(__file__).resolve().parent, help="Project directory for config, metadata, history and auto-discovered logs.")
@@ -6579,8 +7266,13 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     runway_config = load_runway_config(project_dir, dict(report.get("latest_config") or {}))
     report["generated_image_post_rates"] = generated_post_rate_history(logs)
     report["generated_image_pool_runway"] = generated_pool_runway(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"], runway_config)
-    report["generated_image_utilisation"] = generated_image_utilisation(report.get("generated_image_pool_health") or {}, report["generated_image_post_rates"])
+    report["generated_image_utilisation"] = generated_image_utilisation(
+        report.get("generated_image_pool_health") or {},
+        report["generated_image_post_rates"],
+        limit=100000 if getattr(args, "detailed_appendix", False) else 10,
+    )
     report["verbose_replies"] = bool(args.verbose_replies)
+    report["detailed_appendix"] = bool(getattr(args, "detailed_appendix", False))
 
     if args.json:
         rendered = json.dumps(report, indent=2, ensure_ascii=False) + "\n"

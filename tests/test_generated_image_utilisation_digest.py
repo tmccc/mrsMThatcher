@@ -50,7 +50,8 @@ def test_no_generated_usage_is_clean_and_bounded(tmp_path):
     assert result["top_10_share_of_successful_generated_posts"] is None
     text = render(digest.generated_pool_health_snapshot(base), rates)
     assert "## Generated image utilisation" in text
-    assert "observed-log usage and current-cycle history are separate measures" in text
+    assert "Current-cycle history records whether an image is marked used" in text
+    assert "Bounded structured-log observations count successful post records" in text
     assert "active_images_used_ever" not in text
     assert "active_images_used_in_observed_logs" in text
     assert "Observed structured-log coverage" in text

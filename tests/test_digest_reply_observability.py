@@ -727,7 +727,7 @@ def test_403_target_eligibility_incident_is_not_labelled_as_5xx():
     assert report["api_health"]["legacy_cooldown_from_target_restriction_count"] == 1
     assert "operational error" not in report["summary"]["headline"]
     assert "503/5xx summary" not in rendered
-    assert "Target-eligibility 403 responses: **2**" in rendered
+    assert "reply-target eligibility 403 responses: **2**" in rendered
     assert "legacy cooldown activation" in rendered
 
 
@@ -1051,9 +1051,9 @@ def test_configured_veto_health_is_visible_before_any_runtime_observation(
     report = digest.analyse([])
     report["quote_image_semantic_veto_shadow"]["runtime_summary"] = summary
     rendered = digest.render_markdown(report)
-    assert "Configured manifest startup health: **loaded**" in rendered
+    assert "Loaded configured manifest: **loaded**" in rendered
     assert "current-test-policy" in rendered
-    assert "611 / 91 / 22066" in rendered
+    assert "611 quotations × 91 images = 55601 pairs" in rendered
 
 
 def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
