@@ -880,3 +880,259 @@ def test_digest_distinguishes_confirmed_main_context_states_and_meme_stage():
     assert "context_reply_failed_terminal" in rendered
     assert "Daily meme failures by stage" in rendered
     assert "media_upload" in rendered
+
+
+def test_input_retention_coverage_warns_when_requested_start_predates_logs():
+    result = digest.input_retention_coverage(
+        [
+            {
+                "first_timestamp": "2026-07-21 00:51:23",
+                "last_timestamp": "2026-07-25 01:00:00",
+            }
+        ],
+        datetime(2026, 7, 18, 0, 0),
+    )
+
+    assert result["requested_start_covered"] is False
+    assert result["retention_gap_seconds"] == 262283
+    assert "coverage of the preceding interval cannot be verified" in result["warning"]
+    rendered = digest.render_markdown(
+        {
+            **digest.analyse([]),
+            "requested_since": "2026-07-18 00:00:00",
+            "since_source": "manual --since",
+            "since_exclusive": False,
+            "input_retention_coverage": result,
+            "input_warning": result["warning"],
+        }
+    )
+    assert "Retained-log coverage of requested start: **no**" in rendered
+
+
+def test_input_retention_coverage_accepts_a_covered_boundary():
+    result = digest.input_retention_coverage(
+        [{"first_timestamp": "2026-07-17 23:59:59"}],
+        datetime(2026, 7, 18, 0, 0),
+    )
+
+    assert result["requested_start_covered"] is True
+    assert result["warning"] == ""
+
+
+def test_new_runtime_pause_evidence_and_repair_events_are_structured():
+    payloads = [
+        {
+            "event": "historical_context_runtime",
+            "status": "unavailable",
+            "reason": "source-role audit policy is incompatible",
+            "regular_post_eligibility_unchanged": True,
+        },
+        {
+            "event": "reply_evidence_unavailable",
+            "lane": "mention",
+            "target_id": "101",
+        },
+        {
+            "event": "runtime_control_pause",
+            "key": "pause_all",
+            "lanes": ["disable_quote_posts", "disable_meme_posts"],
+            "until_epoch": 123456,
+        },
+        {
+            "event": "clarification_reply_cap_override",
+            "target_id": "102",
+            "thread_id": "202",
+            "author_id": "302",
+            "bypassed_cap": "per_author_daily",
+        },
+        {
+            "event": "clarification_reply_used",
+            "target_id": "102",
+            "thread_id": "202",
+            "author_id": "302",
+            "reply_post_id": "402",
+            "trigger": "corrected_question",
+        },
+        {
+            "event": "repair_reply_completed",
+            "target_id": "102",
+            "thread_id": "202",
+            "author_id": "302",
+            "reply_post_id": "402",
+        },
+    ]
+    records = [
+        digest.Record(
+            ts=datetime(2026, 7, 25, 1, index),
+            level="INFO",
+            src="log_event",
+            line=index,
+            msg="EVENT " + json.dumps(payload),
+            path="mrsMThatcher.log",
+            ordinal=index,
+        )
+        for index, payload in enumerate(payloads, start=1)
+    ]
+
+    report = digest.analyse(records)
+    kinds = {item["kind"] for item in report["events"]}
+    assert {
+        "historical_context_runtime",
+        "reply_evidence_unavailable",
+        "runtime_control_pause",
+        "clarification_reply_cap_override",
+        "clarification_reply_used",
+        "repair_reply_completed",
+    } <= kinds
+    consistency = report["production_consistency"]
+    assert consistency["historical_context_runtime_status_counts"] == {
+        "unavailable": 1
+    }
+    assert consistency["reply_evidence_unavailable_lane_counts"] == {"mention": 1}
+    rendered = digest.render_markdown(report)
+    assert "Historical-context runtime availability" in rendered
+    assert "Reply evidence unavailable" in rendered
+    assert "Runtime control pauses" in rendered
+    assert "Clarification reply cap overrides" in rendered
+    assert "Repair replies completed" in rendered
+
+
+def test_configured_veto_health_is_visible_before_any_runtime_observation(
+    tmp_path,
+    monkeypatch,
+):
+    import semantic_alignment.quote_image_semantic_veto as veto
+
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "policy_version": "current-test-policy",
+                "quote_count": 611,
+                "image_count": 91,
+                "pair_count": 22066,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "mrsMThatcher.local.json").write_text(
+        json.dumps(
+            {
+                "quote_image_semantic_veto": {
+                    "enabled": True,
+                    "mode": "shadow",
+                    "fail_open": True,
+                    "manifest_path": "manifest.json",
+                    "maximum_shadow_history": 10000,
+                    "record_best_allowed_alternative": True,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(veto, "validate_shadow_config", lambda _config: [])
+    monkeypatch.setattr(
+        veto,
+        "validate_compiled_manifest",
+        lambda _manifest: {
+            "quote_count": 611,
+            "image_count": 91,
+            "pair_count": 22066,
+        },
+    )
+    monkeypatch.setattr(veto, "manifest_source_hash_mismatches", lambda *_args: [])
+
+    summary = digest.quote_image_semantic_veto_shadow_snapshot(tmp_path)
+
+    assert summary["available"] is False
+    assert summary["configured_manifest_available"] is True
+    assert summary["configured_manifest_policy_version"] == "current-test-policy"
+    assert summary["configured_manifest_quote_count"] == 611
+    report = digest.analyse([])
+    report["quote_image_semantic_veto_shadow"]["runtime_summary"] = summary
+    rendered = digest.render_markdown(report)
+    assert "Configured manifest startup health: **loaded**" in rendered
+    assert "current-test-policy" in rendered
+    assert "611 / 91 / 22066" in rendered
+
+
+def test_current_corpus_snapshot_reports_counts_policies_and_hashes(tmp_path):
+    paths = {
+        "packets": (
+            tmp_path
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "research_packets.json"
+        ),
+        "unresolved": (
+            tmp_path
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "final_unresolved"
+            / "unresolved_cases.json"
+        ),
+        "eligible": (
+            tmp_path
+            / "semantic_alignment_research"
+            / "quote_attribution_cleanup_001"
+            / "deployment_candidate"
+            / "runtime_eligible_quote_manifest.json"
+        ),
+        "roles": (
+            tmp_path
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "historical_context_source_role_audit.json"
+        ),
+        "gate": tmp_path / "historical_context_reply_semantic_gate_audit.json",
+        "ledger": tmp_path / "historical_context_published_reply_semantic_review.json",
+    }
+    for path in paths.values():
+        path.parent.mkdir(parents=True, exist_ok=True)
+    paths["packets"].write_text(json.dumps({"items": [{"id": 1}, {"id": 2}]}))
+    paths["unresolved"].write_text(json.dumps({"case_count": 1, "cases": [{}]}))
+    paths["eligible"].write_text(
+        json.dumps({"runtime_eligible_quote_count": 2, "runtime_eligible_quote_ids": ["a", "b"]})
+    )
+    paths["roles"].write_text(
+        json.dumps({"policy_version": "roles-v9", "attribution_eligible_quote_count": 2})
+    )
+    paths["gate"].write_text(
+        json.dumps(
+            {
+                "policy_version": "gate-v1",
+                "coverage": {
+                    "attribution_eligible_count": 2,
+                    "completed_attribution_ineligible_count": 0,
+                },
+                "decision_counts": {
+                    "eligible_allow": 1,
+                    "blocked_open_semantic_review": 1,
+                },
+                "gate": {
+                    "blocked_quote_count": 1,
+                    "semantic_review_ledger_sha256": "a" * 64,
+                    "blocked_projection_sha256": "b" * 64,
+                },
+            }
+        )
+    )
+    paths["ledger"].write_text(json.dumps({"records": []}))
+
+    snapshot = digest.historical_context_corpus_snapshot(tmp_path)
+
+    assert snapshot["available"] is True
+    assert snapshot["completed_packet_count"] == 2
+    assert snapshot["ordinary_post_cycle_count"] == 2
+    assert snapshot["unresolved_quote_count"] == 1
+    assert snapshot["historical_context_blocked_count"] == 1
+    assert snapshot["historical_context_allowed_count"] == 1
+    assert snapshot["source_role_policy_version"] == "roles-v9"
+    assert set(snapshot["file_sha256"]) == {
+        "research_packets",
+        "unresolved_cases",
+        "runtime_eligible_manifest",
+        "source_role_audit",
+        "semantic_gate_audit",
+        "semantic_review_ledger",
+    }

@@ -18,10 +18,10 @@ files. It stores its resume timestamp in .mrs_log_digest_state.json.
 
 No third-party dependencies.
 
-Enhanced v7: keeps the v6 meme-scheduler reporting and fixes config
-back-scan across multiple/rotated log files. Earlier v5/v6 scanned log files
-in path order, so an older rotated file could overwrite newer Config values.
-v7 sorts all candidate Config records chronologically before applying them.
+Enhanced v8: keeps the v7 rotation-safe config back-scan and adds explicit
+retention coverage, optional historical-context runtime failures, maintenance
+and repair events, configured semantic-veto startup health, and current
+historical-context corpus fingerprints.
 """
 from __future__ import annotations
 
@@ -66,8 +66,132 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def configured_quote_image_semantic_veto_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Validate the configured semantic-veto manifest without changing runtime state."""
+    config_path = project_dir / "mrsMThatcher.local.json"
+    try:
+        local_config = json.loads(config_path.read_text(encoding="utf-8"))
+        if not isinstance(local_config, dict):
+            raise ValueError("local config root is not an object")
+    except FileNotFoundError:
+        return {"present": False}
+    except Exception as exc:
+        return {
+            "present": True,
+            "available": False,
+            "status": "config_unavailable",
+            "reason": f"local config unavailable: {type(exc).__name__}",
+        }
+
+    config = local_config.get("quote_image_semantic_veto")
+    if not isinstance(config, dict):
+        return {"present": False}
+    result: Dict[str, Any] = {
+        "present": True,
+        "available": False,
+        "enabled": config.get("enabled") is True,
+        "mode": str(config.get("mode") or "unavailable"),
+        "status": "disabled",
+        "reason": "",
+    }
+    if config.get("enabled") is not True:
+        result["reason"] = "semantic-veto shadow is disabled in local config"
+        return result
+
+    configured_path = Path(str(config.get("manifest_path") or ""))
+    if not configured_path.is_absolute():
+        configured_path = project_dir / configured_path
+    try:
+        from semantic_alignment.quote_image_semantic_veto import (
+            manifest_source_hash_mismatches,
+            validate_compiled_manifest,
+            validate_shadow_config,
+        )
+
+        config_errors = validate_shadow_config(config)
+        if config_errors:
+            raise ValueError("; ".join(config_errors))
+        manifest = json.loads(configured_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValueError("manifest root is not an object")
+        audit = validate_compiled_manifest(manifest)
+        stale = manifest_source_hash_mismatches(project_dir, manifest)
+        manifest_hash = file_sha256(configured_path)
+        result.update(
+            {
+                "manifest_path": str(configured_path),
+                "manifest_policy_version": str(manifest.get("policy_version") or "unavailable"),
+                "manifest_sha256": manifest_hash,
+                "quote_count": audit.get("quote_count", manifest.get("quote_count")),
+                "image_count": audit.get("image_count", manifest.get("image_count")),
+                "pair_count": audit.get("pair_count", manifest.get("pair_count")),
+            }
+        )
+        if stale:
+            result.update(
+                {
+                    "status": "manifest_stale",
+                    "reason": f"source hash mismatch: {Path(stale[0]).name}",
+                }
+            )
+            return result
+        result.update({"available": True, "status": "loaded"})
+        return result
+    except FileNotFoundError:
+        result.update(
+            {
+                "status": "manifest_unavailable",
+                "reason": f"configured manifest is missing: {configured_path.name}",
+            }
+        )
+    except Exception as exc:
+        result.update(
+            {
+                "status": "manifest_invalid",
+                "reason": f"configured manifest invalid: {type(exc).__name__}: {exc}",
+            }
+        )
+    return result
+
+
+def _add_configured_veto_health(
+    runtime: Dict[str, Any],
+    configured: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Attach current configured-manifest health to a retained runtime snapshot."""
+    if not configured.get("present"):
+        return runtime
+    result = dict(runtime)
+    result.update(
+        {
+            "configured_manifest_present": True,
+            "configured_manifest_available": configured.get("available") is True,
+            "configured_manifest_enabled": configured.get("enabled"),
+            "configured_manifest_mode": configured.get("mode"),
+            "configured_manifest_status": configured.get("status"),
+            "configured_manifest_reason": configured.get("reason") or "",
+            "configured_manifest_path": configured.get("manifest_path"),
+            "configured_manifest_policy_version": configured.get("manifest_policy_version"),
+            "configured_manifest_sha256": configured.get("manifest_sha256"),
+            "configured_manifest_quote_count": configured.get("quote_count"),
+            "configured_manifest_image_count": configured.get("image_count"),
+            "configured_manifest_pair_count": configured.get("pair_count"),
+        }
+    )
+    if runtime.get("available") and configured.get("available"):
+        result["runtime_status_matches_configured_manifest"] = bool(
+            runtime.get("manifest_policy_version")
+            == configured.get("manifest_policy_version")
+            and runtime.get("manifest_sha256") == configured.get("manifest_sha256")
+        )
+    else:
+        result["runtime_status_matches_configured_manifest"] = None
+    return result
+
+
 def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, Any]:
     """Read the local material-veto shadow status without any provider access."""
+    configured = configured_quote_image_semantic_veto_snapshot(project_dir)
     path = project_dir / "quote_image_semantic_veto_runtime" / "shadow_status.json"
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -147,10 +271,16 @@ def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, An
         if not isinstance(manifest_strata, list) or not all(isinstance(item, dict) for item in manifest_strata):
             raise ValueError("manifest_strata must be a list of objects")
     except FileNotFoundError:
-        return {"available": False, "reason": "shadow mode disabled or no events observed"}
+        return _add_configured_veto_health(
+            {"available": False, "reason": "shadow mode disabled or no events observed"},
+            configured,
+        )
     except Exception as exc:
-        return {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"}
-    return {
+        return _add_configured_veto_health(
+            {"available": False, "reason": f"shadow status unavailable: {type(exc).__name__}"},
+            configured,
+        )
+    return _add_configured_veto_health({
         "available": True,
         **counts,
         **measurements,
@@ -163,6 +293,114 @@ def quote_image_semantic_veto_shadow_snapshot(project_dir: Path) -> Dict[str, An
         "manifest_policy_version": str(value.get("manifest_policy_version") or "unavailable"),
         "manifest_sha256": str(value.get("manifest_sha256") or ""),
         "updated_at": value.get("updated_at"),
+    }, configured)
+
+
+def historical_context_corpus_snapshot(project_dir: Path) -> Dict[str, Any]:
+    """Read current corpus, unresolved, eligibility, gate, and audit counts."""
+    paths = {
+        "research_packets": (
+            project_dir
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "research_packets.json"
+        ),
+        "unresolved_cases": (
+            project_dir
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "final_unresolved"
+            / "unresolved_cases.json"
+        ),
+        "runtime_eligible_manifest": (
+            project_dir
+            / "semantic_alignment_research"
+            / "quote_attribution_cleanup_001"
+            / "deployment_candidate"
+            / "runtime_eligible_quote_manifest.json"
+        ),
+        "source_role_audit": (
+            project_dir
+            / "semantic_alignment_research"
+            / "quote_research_full_001"
+            / "historical_context_source_role_audit.json"
+        ),
+        "semantic_gate_audit": project_dir / "historical_context_reply_semantic_gate_audit.json",
+        "semantic_review_ledger": (
+            project_dir / "historical_context_published_reply_semantic_review.json"
+        ),
+    }
+    loaded: Dict[str, Dict[str, Any]] = {}
+    hashes: Dict[str, str] = {}
+    missing: List[str] = []
+    malformed: List[str] = []
+    for label, path in paths.items():
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                raise ValueError("root is not an object")
+            loaded[label] = value
+            hashes[label] = file_sha256(path)
+        except FileNotFoundError:
+            missing.append(label)
+        except Exception as exc:
+            malformed.append(f"{label}:{type(exc).__name__}")
+
+    packets = loaded.get("research_packets", {}).get("items")
+    unresolved = loaded.get("unresolved_cases", {})
+    eligible = loaded.get("runtime_eligible_manifest", {})
+    role_audit = loaded.get("source_role_audit", {})
+    gate_audit = loaded.get("semantic_gate_audit", {})
+    gate = gate_audit.get("gate") if isinstance(gate_audit.get("gate"), dict) else {}
+    coverage = (
+        gate_audit.get("coverage")
+        if isinstance(gate_audit.get("coverage"), dict)
+        else {}
+    )
+    decision_counts = (
+        gate_audit.get("decision_counts")
+        if isinstance(gate_audit.get("decision_counts"), dict)
+        else {}
+    )
+    packet_count = len(packets) if isinstance(packets, (dict, list)) else None
+    unresolved_count = unresolved.get("case_count")
+    if type(unresolved_count) is not int:
+        cases = unresolved.get("cases")
+        unresolved_count = len(cases) if isinstance(cases, list) else None
+    ordinary_count = eligible.get("runtime_eligible_quote_count")
+    if type(ordinary_count) is not int:
+        ordinary_ids = eligible.get("runtime_eligible_quote_ids")
+        ordinary_count = len(ordinary_ids) if isinstance(ordinary_ids, list) else None
+    blocked_count = gate.get("blocked_quote_count")
+    if type(blocked_count) is not int:
+        blocked_count = decision_counts.get("blocked_open_semantic_review")
+
+    required_counts = (packet_count, unresolved_count, ordinary_count, blocked_count)
+    return {
+        "available": not missing and not malformed and all(type(value) is int for value in required_counts),
+        "reason": (
+            "; ".join(
+                ([f"missing: {', '.join(missing)}"] if missing else [])
+                + ([f"malformed: {', '.join(malformed)}"] if malformed else [])
+            )
+        ),
+        "completed_packet_count": packet_count,
+        "unresolved_quote_count": unresolved_count,
+        "ordinary_post_cycle_count": ordinary_count,
+        "attribution_eligible_count": coverage.get(
+            "attribution_eligible_count",
+            role_audit.get("attribution_eligible_quote_count"),
+        ),
+        "completed_attribution_ineligible_count": coverage.get(
+            "completed_attribution_ineligible_count"
+        ),
+        "historical_context_blocked_count": blocked_count,
+        "historical_context_allowed_count": decision_counts.get("eligible_allow"),
+        "source_role_policy_version": role_audit.get("policy_version"),
+        "semantic_gate_policy_version": gate_audit.get("policy_version"),
+        "semantic_review_ledger_sha256": gate.get("semantic_review_ledger_sha256"),
+        "semantic_gate_projection_sha256": gate.get("blocked_projection_sha256"),
+        "file_sha256": dict(sorted(hashes.items())),
     }
 
 
@@ -1076,6 +1314,56 @@ def summarize_input_files(
         summaries.append(summary)
 
     return summaries
+
+
+def input_retention_coverage(
+    input_files: List[Dict[str, Any]],
+    since: Optional[datetime],
+) -> Dict[str, Any]:
+    """Describe whether retained records cover the requested lower boundary."""
+    timestamps: List[datetime] = []
+    for item in input_files:
+        first = item.get("first_timestamp")
+        if not first:
+            continue
+        try:
+            parsed = parse_dt(str(first))
+        except ValueError:
+            continue
+        if parsed is not None:
+            timestamps.append(parsed)
+    earliest = min(timestamps) if timestamps else None
+    result: Dict[str, Any] = {
+        "requested_since": dt_text(since) if since else None,
+        "earliest_retained_timestamp": dt_text(earliest) if earliest else None,
+        "requested_start_covered": None,
+        "retention_gap_seconds": None,
+        "warning": "",
+    }
+    if since is None or earliest is None:
+        return result
+    if earliest <= since:
+        result["requested_start_covered"] = True
+        return result
+    gap = int((earliest - since).total_seconds())
+    result.update(
+        {
+            "requested_start_covered": False,
+            "retention_gap_seconds": gap,
+            "warning": (
+                f"requested window starts at {dt_text(since)}, but the earliest "
+                f"retained timestamp is {dt_text(earliest)}; coverage of the "
+                "preceding interval cannot be verified from retained logs"
+            ),
+        }
+    )
+    return result
+
+
+def combine_input_warnings(*warnings: Optional[str]) -> Optional[str]:
+    """Combine distinct non-empty input warnings deterministically."""
+    values = list(dict.fromkeys(str(value) for value in warnings if value))
+    return "; ".join(values) if values else None
 
 
 def lit(value: str) -> str:
@@ -2852,6 +3140,70 @@ def analyse(
                     blocked_quote_count=event_obj.get("blocked_quote_count"),
                     reason=event_obj.get("reason") or "",
                 )
+            elif event_obj and event_obj.get("event") == "historical_context_runtime":
+                status = str(event_obj.get("status") or "unavailable")
+                add_event(
+                    "historical_context_runtime",
+                    r.ts,
+                    status=status,
+                    reason=event_obj.get("reason") or "",
+                    regular_post_eligibility_unchanged=event_obj.get(
+                        "regular_post_eligibility_unchanged"
+                    ),
+                )
+                stats[f"historical_context_runtime_status_{status}"] += 1
+            elif event_obj and event_obj.get("event") == "reply_evidence_unavailable":
+                lane = str(event_obj.get("lane") or "unavailable")
+                add_event(
+                    "reply_evidence_unavailable",
+                    r.ts,
+                    lane=lane,
+                    target_id=event_obj.get("target_id") or "",
+                )
+                stats[f"reply_evidence_unavailable_lane_{lane}"] += 1
+            elif event_obj and event_obj.get("event") == "runtime_control_pause":
+                lanes = event_obj.get("lanes")
+                add_event(
+                    "runtime_control_pause",
+                    r.ts,
+                    key=event_obj.get("key") or "unavailable",
+                    lanes=", ".join(str(item) for item in lanes)
+                    if isinstance(lanes, list)
+                    else "",
+                    until_epoch=event_obj.get("until_epoch"),
+                )
+                stats["runtime_control_pause"] += 1
+            elif event_obj and event_obj.get("event") == "clarification_reply_cap_override":
+                add_event(
+                    "clarification_reply_cap_override",
+                    r.ts,
+                    target_id=event_obj.get("target_id") or "",
+                    thread_id=event_obj.get("thread_id") or "",
+                    author_id=event_obj.get("author_id") or "",
+                    bypassed_cap=event_obj.get("bypassed_cap") or "",
+                )
+                stats["clarification_reply_cap_override"] += 1
+            elif event_obj and event_obj.get("event") == "clarification_reply_used":
+                add_event(
+                    "clarification_reply_used",
+                    r.ts,
+                    target_id=event_obj.get("target_id") or "",
+                    thread_id=event_obj.get("thread_id") or "",
+                    author_id=event_obj.get("author_id") or "",
+                    reply_post_id=event_obj.get("reply_post_id") or "",
+                    trigger=event_obj.get("trigger") or "",
+                )
+                stats["clarification_reply_used"] += 1
+            elif event_obj and event_obj.get("event") == "repair_reply_completed":
+                add_event(
+                    "repair_reply_completed",
+                    r.ts,
+                    target_id=event_obj.get("target_id") or "",
+                    thread_id=event_obj.get("thread_id") or "",
+                    author_id=event_obj.get("author_id") or "",
+                    reply_post_id=event_obj.get("reply_post_id") or "",
+                )
+                stats["repair_reply_completed"] += 1
             elif event_obj and event_obj.get("event") == "historical_context_reply":
                 status = str(event_obj.get("status") or "unknown")
                 confidence_dimensions = event_obj.get("confidence_dimensions")
@@ -4112,6 +4464,12 @@ def analyse(
                 for item in events
                 if item.get("kind")
                 in {
+                    "historical_context_runtime",
+                    "reply_evidence_unavailable",
+                    "runtime_control_pause",
+                    "clarification_reply_cap_override",
+                    "clarification_reply_used",
+                    "repair_reply_completed",
                     "posting_transaction_state",
                     "historical_context_obligation",
                     "historical_context_outbox",
@@ -4132,6 +4490,16 @@ def analyse(
                 key.removeprefix("daily_meme_failure_stage_"): value
                 for key, value in sorted(stats.items())
                 if key.startswith("daily_meme_failure_stage_")
+            },
+            "historical_context_runtime_status_counts": {
+                key.removeprefix("historical_context_runtime_status_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("historical_context_runtime_status_")
+            },
+            "reply_evidence_unavailable_lane_counts": {
+                key.removeprefix("reply_evidence_unavailable_lane_"): value
+                for key, value in sorted(stats.items())
+                if key.startswith("reply_evidence_unavailable_lane_")
             },
         },
         "historical_context_quality": context_quality,
@@ -4368,6 +4736,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
     input_warning = report.get("input_warning")
     if input_warning:
         out.append(f"Input warning: **{input_warning}**")
+    retention = report.get("input_retention_coverage") or {}
+    if retention.get("requested_since"):
+        coverage = retention.get("requested_start_covered")
+        coverage_text = (
+            "yes" if coverage is True else "no" if coverage is False else "unknown"
+        )
+        out.append(
+            "Retained-log coverage of requested start: "
+            f"**{coverage_text}**; earliest retained timestamp: "
+            f"`{retention.get('earliest_retained_timestamp') or 'unavailable'}`."
+        )
     out.append("")
 
     input_files = report.get("input_files") or []
@@ -5197,6 +5576,40 @@ def render_markdown(report: Dict[str, Any]) -> str:
             out.append(md_table_row([reason, count]))
     out.append("")
 
+    corpus = report.get("historical_context_corpus_snapshot") or {}
+    out.append("## Current historical-context corpus")
+    if not corpus.get("available"):
+        out.append(
+            f"Snapshot incomplete: **{corpus.get('reason') or 'authoritative files unavailable'}**."
+        )
+    out.append(
+        "Completed packets / attribution eligible / attribution ineligible: "
+        f"**{corpus.get('completed_packet_count', 'unavailable')} / "
+        f"{corpus.get('attribution_eligible_count', 'unavailable')} / "
+        f"{corpus.get('completed_attribution_ineligible_count', 'unavailable')}**."
+    )
+    out.append(
+        "Ordinary-post cycle / unresolved / historical-context blocked / allowed: "
+        f"**{corpus.get('ordinary_post_cycle_count', 'unavailable')} / "
+        f"{corpus.get('unresolved_quote_count', 'unavailable')} / "
+        f"{corpus.get('historical_context_blocked_count', 'unavailable')} / "
+        f"{corpus.get('historical_context_allowed_count', 'unavailable')}**."
+    )
+    out.append(
+        f"Source-role policy: **{corpus.get('source_role_policy_version') or 'unavailable'}**; "
+        f"semantic-gate policy: **{corpus.get('semantic_gate_policy_version') or 'unavailable'}**."
+    )
+    out.append(
+        "Current ledger / gate projection: "
+        f"`{str(corpus.get('semantic_review_ledger_sha256') or '')[:16] or 'unavailable'}` / "
+        f"`{str(corpus.get('semantic_gate_projection_sha256') or '')[:16] or 'unavailable'}`."
+    )
+    if corpus.get("file_sha256"):
+        out.append("Authoritative snapshot hashes:")
+        for label, value in sorted(corpus["file_sha256"].items()):
+            out.append(f"- {label}: `{str(value)[:16]}`")
+    out.append("")
+
     engagement = report.get("historical_context_engagement") or {}
     out.append("## Historical context engagement")
     if not engagement.get("available"):
@@ -5235,7 +5648,32 @@ def render_markdown(report: Dict[str, Any]) -> str:
     veto_window = veto_section.get("summary") or {}
     veto_runtime = veto_section.get("runtime_summary") or {}
     out.append("## Quote/image semantic veto shadow")
-    if not veto_window.get("available") and not veto_runtime.get("available"):
+    configured_available = veto_runtime.get("configured_manifest_available") is True
+    if veto_runtime.get("configured_manifest_present"):
+        out.append(
+            "Configured manifest startup health: "
+            f"**{veto_runtime.get('configured_manifest_status') or 'unavailable'}**; "
+            f"policy **{veto_runtime.get('configured_manifest_policy_version') or 'unavailable'}**; "
+            f"hash `{str(veto_runtime.get('configured_manifest_sha256') or '')[:16] or 'unavailable'}`; "
+            f"quotes/images/pairs **"
+            f"{veto_runtime.get('configured_manifest_quote_count', 'unavailable')} / "
+            f"{veto_runtime.get('configured_manifest_image_count', 'unavailable')} / "
+            f"{veto_runtime.get('configured_manifest_pair_count', 'unavailable')}**."
+        )
+        if veto_runtime.get("configured_manifest_reason"):
+            out.append(
+                f"Configured manifest warning: **{veto_runtime.get('configured_manifest_reason')}**."
+            )
+        if veto_runtime.get("runtime_status_matches_configured_manifest") is False:
+            out.append(
+                "Runtime-status warning: **the retained runtime status describes a different "
+                "manifest from the currently configured validated manifest**."
+            )
+    if (
+        not veto_window.get("available")
+        and not veto_runtime.get("available")
+        and not configured_available
+    ):
         out.append(f"Unavailable: **{veto_runtime.get('reason') or 'shadow mode disabled'}**.")
     else:
         if veto_window.get("available"):
@@ -5266,8 +5704,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
             adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
             not_adjudicated = summary.get("not_adjudicated_selections", 0)
             median_delta = summary.get("median_alternative_score_delta")
-            version = summary.get("manifest_policy_version", "unavailable")
-            manifest_hash = summary.get("manifest_sha256") or ""
+            version = summary.get("manifest_policy_version") or (
+                veto_runtime.get("configured_manifest_policy_version") or "unavailable"
+            )
+            manifest_hash = summary.get("manifest_sha256") or (
+                veto_runtime.get("configured_manifest_sha256") or ""
+            )
             failures = summary.get("lookup_failures", 0)
         else:
             summary = veto_runtime
@@ -5292,8 +5734,12 @@ def render_markdown(report: Dict[str, Any]) -> str:
             adjudicated_unknown = summary.get("adjudicated_unknown_selections", 0)
             not_adjudicated = summary.get("not_adjudicated_selections", 0)
             median_delta = summary.get("alternative_score_delta_median")
-            version = summary.get("manifest_policy_version", "unavailable")
-            manifest_hash = summary.get("manifest_sha256") or ""
+            version = summary.get("manifest_policy_version") or (
+                summary.get("configured_manifest_policy_version") or "unavailable"
+            )
+            manifest_hash = summary.get("manifest_sha256") or (
+                summary.get("configured_manifest_sha256") or ""
+            )
             failures = int(summary.get("manifest_unavailable", 0) or 0) + int(summary.get("manifest_stale", 0) or 0)
         out.append("Selections:")
         out.append(f"- Allowed: **{allowed}**")
@@ -5478,6 +5924,36 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "historical_context_semantic_gate",
         "Historical context semantic gate",
         ["time", "status", "policy_version", "ledger_sha256", "projection_sha256", "blocked_quote_count", "reason"],
+    )
+    section(
+        "historical_context_runtime",
+        "Historical-context runtime availability",
+        ["time", "status", "regular_post_eligibility_unchanged", "reason"],
+    )
+    section(
+        "reply_evidence_unavailable",
+        "Reply evidence unavailable",
+        ["time", "lane", "target_id"],
+    )
+    section(
+        "runtime_control_pause",
+        "Runtime control pauses",
+        ["time", "key", "lanes", "until_epoch"],
+    )
+    section(
+        "clarification_reply_cap_override",
+        "Clarification reply cap overrides",
+        ["time", "target_id", "thread_id", "author_id", "bypassed_cap"],
+    )
+    section(
+        "clarification_reply_used",
+        "Clarification replies used",
+        ["time", "target_id", "thread_id", "author_id", "reply_post_id", "trigger"],
+    )
+    section(
+        "repair_reply_completed",
+        "Repair replies completed",
+        ["time", "target_id", "thread_id", "author_id", "reply_post_id"],
     )
     section(
         "historical_context_reply",
@@ -6026,6 +6502,11 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
             "selected log sources contain timestamped records inside the requested window, "
             "but 0 records survived filtering"
         )
+    report["input_retention_coverage"] = input_retention_coverage(input_files, since)
+    report["input_warning"] = combine_input_warnings(
+        report["input_warning"],
+        report["input_retention_coverage"].get("warning"),
+    )
     report["requested_since"] = dt_text(since) if since else None
     report["since_source"] = since_source
     report["since_exclusive"] = since_exclusive
@@ -6041,6 +6522,9 @@ def run_digest(args: argparse.Namespace, *, project_dir: Path, state_file: Path)
     report["resume_state_file"] = None if args.no_state else str(state_file)
     report["state_updated"] = False
     report["generated_image_pool_health"] = generated_pool_health_snapshot(project_dir)
+    report["historical_context_corpus_snapshot"] = historical_context_corpus_snapshot(
+        project_dir
+    )
     try:
         from mrs_engagement_analytics import read_digest_summary
 
