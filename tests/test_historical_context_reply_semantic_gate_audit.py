@@ -61,9 +61,19 @@ def test_gate_audit_records_exact_suppressed_replies_and_allows_104653():
     assert len(blocked) == 21
     assert all(row["attribution_eligible"] is True for row in blocked)
     assert all(row["open_review_disposition"] for row in blocked)
+    suppressed = [
+        row["otherwise_rendered_public_reply_suppressed"] for row in blocked
+    ]
+    assert all(text.strip() for text in suppressed)
     assert all(
-        row["otherwise_rendered_public_reply_suppressed"].startswith("Context — ")
-        for row in blocked
+        text.startswith(("Context — ", "Meaning — ", "Verification — ", "Source — "))
+        for text in suppressed
+    )
+    assert all(
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+        not in text
+        for text in suppressed
     )
     known = next(row for row in records if row["quote_id"] == KNOWN_104653_QUOTE_ID)
     assert known["public_reply_decision"] == "eligible_allow"

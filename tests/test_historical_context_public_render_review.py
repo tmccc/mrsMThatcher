@@ -101,6 +101,7 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
     assert summary["packets_with_no_reliable_source"] == 100
     assert summary["eligible_packets_with_no_reliable_source"] == 89
     assert summary["packets_with_multiple_public_sources"] == 49
+    assert summary["packets_with_generic_context"] == 451
     assert summary["packets_with_generic_context_and_public_source"] == 351
     assert summary[
         "packets_with_generic_context_and_event_or_date_evidence"
@@ -143,6 +144,18 @@ def test_all_quote_review_uses_public_formatter_and_surfaces_review_queues(revie
 
     entries = {entry["quote_id"]: entry for entry in review["entries"]}
     assert len(entries) == 627
+    generic_omissions = [
+        entry
+        for entry in entries.values()
+        if entry["template_variant"] == "compact_generic_context_omitted"
+    ]
+    assert len(generic_omissions) == 451
+    assert all(
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+        not in entry["public_text"]
+        for entry in generic_omissions
+    )
     known = entries[KNOWN_107352_ID]
     assert known["internal_source_record_count"] == 2
     assert len(known["canonical_source_groups"]) == 1

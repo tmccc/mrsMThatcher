@@ -76,6 +76,10 @@ _V2_DATE_LIKE_EVENT_TEXT = re.compile(
     re.I,
 )
 _V2_DIAGNOSTIC_EVENT_SLASH = re.compile(r"\s*/\s*")
+_V2_GENERIC_CONTEXT = (
+    "The surviving attribution does not establish an occasion, date or "
+    "immediate historical issue."
+)
 _FORMATTER_METADATA_KEYS_V2 = {
     "formatter_version", "template_variant", "meaning_included", "meaning_decision_reason",
     "raw_character_count", "weighted_character_count", "verification_label", "source_class",
@@ -730,7 +734,7 @@ def _v2_context_sentence(
     if unsafe_public_event:
         return "The surviving record identifies an occasion, but does not establish a reliable date."
     if date: return f"The surviving record dates this wording to {date}, but does not establish its occasion."
-    return "The surviving attribution does not establish an occasion, date or immediate historical issue."
+    return _V2_GENERIC_CONTEXT
 
 
 def _audited_public_sources(packet: dict[str, Any]) -> list[dict[str, Any]]:
@@ -990,7 +994,7 @@ def format_context_reply_v2(
         if rendering_mode == PUBLIC_RENDERING_MODE
         else _audited_verification_label(packet)
     )
-    sections = [f"Context — {context}"]
+    sections: list[str] = []
     if decision["meaning_included"]:
         sections.append(f"Meaning — {decision['meaning']}")
     if include_verification:
@@ -1001,6 +1005,13 @@ def format_context_reply_v2(
             if rendering_mode == INTERNAL_RENDERING_MODE
             else _public_source_lines(sources)
         )
+    generic_context_omitted = bool(
+        rendering_mode == PUBLIC_RENDERING_MODE
+        and context == _V2_GENERIC_CONTEXT
+        and sections
+    )
+    if not generic_context_omitted:
+        sections.insert(0, f"Context — {context}")
     if rendering_mode == INTERNAL_RENDERING_MODE:
         confidence_labels = (
             ("Attribution", "attribution"), ("wording", "wording"),
@@ -1015,7 +1026,9 @@ def format_context_reply_v2(
     weighted = x_weighted_length(text)
     if weighted > maximum_length or _v2_forbidden_style(text):
         return None
-    if packet["verification_status"] in _V2_UNCERTAIN_STATUSES:
+    if generic_context_omitted:
+        variant = "compact_generic_context_omitted"
+    elif packet["verification_status"] in _V2_UNCERTAIN_STATUSES:
         variant = "compact_uncertain_wording"
     elif not decision["meaning_included"]:
         variant = "compact_without_redundant_meaning"

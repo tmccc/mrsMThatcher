@@ -215,6 +215,52 @@ def test_public_formatter_obeys_all_event_date_admission_combinations(
     assert rendered["text"] == expected_context
 
 
+def test_public_formatter_omits_only_the_generic_context_section(corpus):
+    packets, _ = corpus
+    packet = next(
+        row
+        for row in packets.values()
+        if not row["_source_role_audit"]["public_context_supported_fields"]
+        and (
+            rendered := format_context_reply_public(row)
+        ) is not None
+        and rendered["meaning_included"]
+    )
+
+    public = format_context_reply_public(packet)
+    internal = format_context_reply_v2(
+        packet,
+        rendering_mode="internal",
+    )
+
+    assert public is not None
+    assert public["text"].startswith("Meaning — ")
+    assert "Context —" not in public["text"]
+    assert public["template_variant"] == "compact_generic_context_omitted"
+    assert internal is not None
+    assert internal["text"].startswith(
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+    )
+
+
+def test_public_formatter_retains_substantive_context_section(corpus):
+    packet = copy.deepcopy(next(iter(corpus[0].values())))
+    packet["immediate_subject"] = "A substantive historical issue."
+    packet["historical_context"] = "A substantive historical issue."
+    packet["_source_role_audit"]["public_context_supported_fields"] = [
+        "historical_context"
+    ]
+
+    rendered = format_context_reply_public(packet)
+
+    assert rendered is not None
+    assert rendered["text"].startswith(
+        "Context — A substantive historical issue."
+    )
+    assert rendered["template_variant"] != "compact_generic_context_omitted"
+
+
 @pytest.mark.parametrize(
     "source_event",
     [
@@ -299,7 +345,11 @@ def test_standalone_formatter_cli_distinguishes_internal_and_public_rendering(co
         "--rendering-mode", "public",
     ]) == 0
     public_output = capsys.readouterr().out
-    assert public_output.startswith("Context — ")
+    assert public_output.startswith("Meaning — ")
+    assert (
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+    ) not in public_output
     assert "Confidence —" not in public_output
 
 

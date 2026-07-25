@@ -222,7 +222,12 @@ def _reply_structure_blockers(
     text = str(formatted.get("text") or "")
     sections = text.split("\n\n") if text else []
     blockers: list[str] = []
-    expected_labels = ["Context"]
+    expected_labels = (
+        []
+        if formatted.get("template_variant")
+        == "compact_generic_context_omitted"
+        else ["Context"]
+    )
     if formatted.get("meaning_included"):
         expected_labels.append("Meaning")
     expected_labels.append("Verification")
@@ -337,7 +342,14 @@ def _record_entry(
     ambiguities = item["diagnostics"]["identity_ambiguities"]
     if ambiguities:
         flags.append(f"IDENTITY_AMBIGUITIES:{len(ambiguities)}")
-    generic_context = _context_line(text) == _GENERIC_CONTEXT
+    generic_context = (
+        _context_line(text) == _GENERIC_CONTEXT
+        or (
+            formatted is not None
+            and formatted.get("template_variant")
+            == "compact_generic_context_omitted"
+        )
+    )
     if generic_context:
         flags.append("GENERIC_CONTEXT")
         if public_pairs:

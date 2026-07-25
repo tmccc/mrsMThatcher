@@ -588,8 +588,11 @@ def test_rolling_back_socialism_regression_uses_public_sections_without_confiden
     formatted = format_context_reply_public(packet)
 
     assert formatted is not None
-    assert formatted["text"].startswith("Context —")
-    assert "\n\nMeaning —" in formatted["text"]
+    assert formatted["text"].startswith("Meaning —")
+    assert (
+        "Context — The surviving attribution does not establish an occasion, "
+        "date or immediate historical issue."
+    ) not in formatted["text"]
     assert "\n\nVerification — Research incomplete" in formatted["text"]
     assert "\n\nSource — No reliable source located" in formatted["text"]
     assert "Confidence —" not in formatted["text"]
