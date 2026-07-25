@@ -437,6 +437,54 @@ def test_source_grounded_wrong_event_veto_is_not_normalised_away() -> None:
     assert result["final_decision"] == "veto"
 
 
+def test_unrelated_specific_event_is_not_an_affirmative_contradiction() -> None:
+    model_row = {
+        "decision": "veto",
+        "final_decision": "veto",
+        "final_reason": "model_veto_or_uncertainty",
+        "contradiction_types": ["misleading_dominant_message"],
+    }
+    result = rem.normalise_unsupported_model_literalism(
+        model_row,
+        quote(),
+        image(
+            event="A source-grounded diplomatic signing",
+            documented_relationships=[
+                {
+                    "participants": ["Margaret Thatcher", "A counterpart"],
+                    "relationship": "unknown",
+                    "evidence": [],
+                }
+            ],
+            safe_as_neutral_portrait=False,
+        ),
+        [],
+    )
+    assert result["decision"] == "veto"  # Raw provider output remains auditable.
+    assert result["final_decision"] == "allow"
+    assert "unsupported_literal_depiction_veto_rejected" in result["normalisation"]
+
+
+def test_generic_theme_only_is_not_an_affirmative_contradiction() -> None:
+    model_row = {
+        "decision": "veto",
+        "final_decision": "veto",
+        "final_reason": "model_veto_or_uncertainty",
+        "contradiction_types": ["generic_theme_only"],
+    }
+    result = rem.normalise_unsupported_model_literalism(
+        model_row,
+        quote(),
+        image(
+            event="A source-grounded summit",
+            known_participants=["Margaret Thatcher", "A counterpart"],
+            safe_as_neutral_portrait=False,
+        ),
+        [],
+    )
+    assert result["final_decision"] == "allow"
+
+
 def test_deterministic_contradiction_cannot_be_overridden_as_literalism() -> None:
     model_row = {
         "decision": "veto", "final_decision": "veto",

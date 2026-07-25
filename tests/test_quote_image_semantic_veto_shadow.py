@@ -114,9 +114,10 @@ def test_attribution_cleaned_v3_policy_is_strictly_validated() -> None:
     assert manifest["policy_version"] == ATTRIBUTION_CLEANED_V3_POLICY_VERSION
     audit = validate_compiled_manifest(manifest)
     assert (audit["quote_count"], audit["image_count"]) == (611, 91)
-    assert (audit["allow_count"], audit["veto_count"]) == (21_938, 128)
+    assert (audit["allow_count"], audit["veto_count"]) == (22_029, 128)
     assert audit["adjudicated_unknown_pair_count"] == 167
-    assert audit["not_adjudicated_pair_count"] == 33_368
+    assert audit["not_adjudicated_pair_count"] == 33_277
+    assert audit["quotes_with_incomplete_pair_coverage"] == 610
     assert audit["quotes_without_allowed_candidate"] == 0
 
 

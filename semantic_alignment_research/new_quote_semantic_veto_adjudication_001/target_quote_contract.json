@@ -1,0 +1,63 @@
+{
+  "canonical_speaker": "Margaret Thatcher",
+  "claim_type": "abstract_principle",
+  "contract_confidence": "high",
+  "contract_version": "relation-aware-material-contract-v3",
+  "dominant_proposition": "Thatcher argued that socialists repeatedly renamed their beliefs because earlier versions had become outdated and discredited.",
+  "event_specific_image_required": false,
+  "evidence_fields": [
+    "quote_text",
+    "verified_text",
+    "intended_argument",
+    "literal_meaning",
+    "editorial_guidance"
+  ],
+  "field_provenance": {
+    "canonical_speaker": {
+      "path": "research_packets.json/items/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/speaker",
+      "source": "canonical_packet"
+    },
+    "dominant_proposition": {
+      "path": "research_packets.json/items/0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729/intended_argument",
+      "source": "canonical_packet"
+    },
+    "visual_requirements": {
+      "rule": "no concrete visual requirement inferred from contextual metadata",
+      "source": "fail_closed_new_quote_fallback"
+    }
+  },
+  "hard_visual_conflicts": [
+    "an image that affirmatively presents political relabelling as proof that the underlying beliefs changed",
+    "an image whose established dominant story reverses the quotation's criticism of political rebranding"
+  ],
+  "literal_visualisation_required": false,
+  "material_false_implications": [
+    "Presenting a renamed label as proof that the underlying policy changed."
+  ],
+  "mentioned_entities": [
+    "Margaret Thatcher",
+    "socialists"
+  ],
+  "mentioned_relationships": [],
+  "multi_person_image_required": false,
+  "neutral_portrait_allowed": true,
+  "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+  "quote_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+  "relationship_evidence_required": false,
+  "required_action": null,
+  "required_actor_count_minimum": 0,
+  "required_actor_roles": [],
+  "required_transition": null,
+  "research_confidence": "high",
+  "source_contract_v2_sha256": null,
+  "source_date": "2002",
+  "source_occasion": "Publication of Statecraft: Strategies for a Changing World",
+  "symbolic_image_allowed": true,
+  "thatcher_attribution_status": "confirmed_thatcher",
+  "verification_status": "exact",
+  "verified_text": "Socialists have always spent much of their time seeking new titles for their beliefs, because the old versions so quickly become outdated and discredited.",
+  "visual_event_requirement": null,
+  "visual_period_requirement": null,
+  "visually_required_entities": [],
+  "visually_required_relationships": []
+}

@@ -1598,8 +1598,13 @@ def normalise_unsupported_model_literalism(
         and quote.get("literal_visualisation_required") is False
         and not quote.get("relationship_evidence_required")
         and not quote.get("visually_required_entities")
-        and not image.get("event")
-        and not image.get("documented_relationships")
+        and (
+            not image.get("event")
+            or (
+                not quote.get("event_specific_image_required")
+                and not quote.get("visual_event_requirement")
+            )
+        )
     )
     if not eligible:
         return result

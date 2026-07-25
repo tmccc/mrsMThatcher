@@ -1,0 +1,34 @@
+{
+  "changed_top_level_fields": [
+    "allow_count",
+    "not_adjudicated_pair_count",
+    "pair_count",
+    "pairs",
+    "quote_has_allowed_candidate",
+    "quote_pair_coverage",
+    "quotes_with_allowed_candidate",
+    "quotes_with_incomplete_pair_coverage",
+    "quotes_with_incomplete_pair_coverage_ids",
+    "quotes_without_observed_allow_but_incomplete",
+    "quotes_without_observed_allow_but_incomplete_ids",
+    "resolved_pair_count",
+    "source_file_hashes",
+    "source_run_id",
+    "validation_evidence"
+  ],
+  "enforcement_remains_disabled": true,
+  "policy_version_unchanged": true,
+  "prior_resolved_rows_changed": 0,
+  "prior_unknown_rows_changed": 0,
+  "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+  "schema_version": 1,
+  "source_hash_entries_added": [
+    "new_quote_pair_adjudications"
+  ],
+  "target_not_adjudicated_after": 0,
+  "target_not_adjudicated_before": 91,
+  "target_resolved_rows_added": 91,
+  "target_unknown_rows_added": 0,
+  "unrelated_quote_allow_flags_changed": 0,
+  "unrelated_quote_coverage_rows_changed": 0
+}

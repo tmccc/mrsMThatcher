@@ -26,6 +26,9 @@ POLICY_VERSION = "material-veto-v2-postrun-corrected-shadow-v1"
 ATTRIBUTION_CLEANED_V3_POLICY_VERSION = (
     "affirmative-material-contradiction-rules-v3-runtime-eligible-611-coverage-v3"
 )
+FULLY_ADJUDICATED_V3_QUOTE_IDS = {
+    "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+}
 ATTRIBUTION_ELIGIBILITY_RULE_VERSION = "canonical-principal-speaker-v2-reject-misattributed"
 DEFAULT_MANIFEST = (
     "semantic_alignment_research/quote_image_semantic_veto_001/shadow/"
@@ -453,18 +456,18 @@ def _validate_attribution_cleaned_v3_manifest(
     exact = {
         "quote_count": 611,
         "image_count": 91,
-        "pair_count": 22_066,
-        "allow_count": 21_938,
+        "pair_count": 22_157,
+        "allow_count": 22_029,
         "veto_count": 128,
-        "quotes_with_allowed_candidate": 609,
+        "quotes_with_allowed_candidate": 610,
         "quotes_without_allowed_candidate": 0,
         "unknown_pair_count_excluded_from_lookup": 167,
         "adjudicated_unknown_pair_count": 167,
-        "not_adjudicated_pair_count": 33_368,
+        "not_adjudicated_pair_count": 33_277,
         "total_authorised_pair_count": 55_601,
-        "resolved_pair_count": 22_066,
-        "quotes_with_incomplete_pair_coverage": 611,
-        "quotes_without_observed_allow_but_incomplete": 2,
+        "resolved_pair_count": 22_157,
+        "quotes_with_incomplete_pair_coverage": 610,
+        "quotes_without_observed_allow_but_incomplete": 1,
     }
     for key, expected in exact.items():
         _expect(value.get(key) == expected, f"v3 manifest {key} mismatch")
@@ -529,7 +532,7 @@ def _validate_attribution_cleaned_v3_manifest(
         observed_image_hashes.add(image_hash)
         coverage_counts.setdefault(quote_id, Counter())["unknown"] += 1
 
-    _expect(counts == {"allow": 21_938, "veto": 128}, "v3 manifest decision totals mismatch")
+    _expect(counts == {"allow": 22_029, "veto": 128}, "v3 manifest decision totals mismatch")
     _expect(observed_image_hashes == image_hashes, "v3 manifest does not exercise every authorised image")
     flags = value.get("quote_has_allowed_candidate")
     _expect(
@@ -543,13 +546,14 @@ def _validate_attribution_cleaned_v3_manifest(
         observed_quote_ids <= quote_ids,
         "v3 adjudicated pairs include a quotation outside runtime coverage",
     )
-    _expect(sum(flag is True for flag in flags.values()) == 609, "v3 global quote safety flag totals mismatch")
+    _expect(sum(flag is True for flag in flags.values()) == 610, "v3 global quote safety flag totals mismatch")
     _expect(sum(flag is False for flag in flags.values()) == 0, "v3 no-safe-image flag total mismatch")
-    _expect(sum(flag is None for flag in flags.values()) == 2, "v3 incomplete-without-allow flag total mismatch")
+    _expect(sum(flag is None for flag in flags.values()) == 1, "v3 incomplete-without-allow flag total mismatch")
 
     coverage = value.get("quote_pair_coverage")
     _expect(isinstance(coverage, dict) and set(coverage) == quote_ids, "v3 pair coverage index is incomplete")
     missing_total = 0
+    expected_incomplete_ids: set[str] = set()
     for quote_id in sorted(quote_ids):
         row = coverage.get(quote_id)
         _expect(isinstance(row, dict), f"v3 pair coverage is invalid for {quote_id}")
@@ -580,6 +584,8 @@ def _validate_attribution_cleaned_v3_manifest(
         )
         _expect(flags[quote_id] is expected_flag, f"v3 global safety flag is invalid for {quote_id}")
         missing_total += missing_count
+        if missing_count:
+            expected_incomplete_ids.add(quote_id)
     _expect(missing_total == exact["not_adjudicated_pair_count"], "v3 missing pair total mismatch")
     _expect(
         value.get("quotes_without_allowed_candidate_ids") == [],
@@ -587,7 +593,9 @@ def _validate_attribution_cleaned_v3_manifest(
     )
     incomplete_ids = value.get("quotes_with_incomplete_pair_coverage_ids")
     _expect(
-        isinstance(incomplete_ids, list) and set(incomplete_ids) == quote_ids,
+        isinstance(incomplete_ids, list)
+        and set(incomplete_ids) == expected_incomplete_ids
+        and quote_ids - expected_incomplete_ids == FULLY_ADJUDICATED_V3_QUOTE_IDS,
         "v3 incomplete pair coverage IDs mismatch",
     )
     aliases = value.get("runtime_quote_aliases") or {}

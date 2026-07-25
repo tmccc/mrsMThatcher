@@ -1,0 +1,194 @@
+{
+  "deterministic_count": 71,
+  "provider_residual_count": 20,
+  "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729",
+  "records": [
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "04db47bd4c09a6e14a236bee9abe5664b8bb5775a0bebc920cf6ea0827711e08",
+      "image_id": "original:t44.jpg",
+      "pair_id": "e7cb9c99da017e8fe14cde8cc1fdaf153a3eae970b08419788e6b61b0e0f0014",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "0e30e6d23f352d0f442df8e9c8d8f48312fadaea39ce8597d34c91b998ae51f9",
+      "image_id": "discovered:0fe7ed6333faf654b062",
+      "pair_id": "04f8d65eaf1c4afc9e50d2b014a2b4ccb35714d2d14cbedb30dd1c0360b8ae2b",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "1aaba8a569185eb3ead13ec14fb403c31aee303e58c96d17cef82d2d664eab6b",
+      "image_id": "discovered:253f9adb9e67db0a67d7",
+      "pair_id": "78703c4ff7bd1425c4da704652593858a32c930db55e49af0a02975c463e6976",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "1d826e2875402047d7a4eb6cf57a22faaf95dc934315515ccdd8df24dcc42bc2",
+      "image_id": "discovered:3e16363d7234c33cd75e",
+      "pair_id": "4c56a3fe7332293b46bc8adceca8c7f569716daf2aea2d9f78c851aea238e7d2",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "3470febc887018d7983ffb54982d0328004d2ede042d32addd6f67caefe9c98f",
+      "image_id": "discovered:6966b6853551436e849b",
+      "pair_id": "dcea33586965c0c51b58bc92b932e5f83e6af09ef93be7ef9573f96c2d67547c",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "38527605ae6890331049ae7212d80a9be068816bc393c95fa629ef981152814c",
+      "image_id": "original:t05.jpg",
+      "pair_id": "a63eecda014e095bb5152be4856ddef9debfe41e3c750a408f1bd0b02ab68d2a",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "3ac945969fa09d3278d9a7673a5fab13b44f7ea39a3a54e617db983641ec0554",
+      "image_id": "discovered:5ac817d960fb7eb0f974",
+      "pair_id": "b6e98738582b7482dcd54fc865f141d576a15996280b1aa489cd8dbadcf5e142",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "439fcff048e06594de958e39919a78d1818c1f106b35550ad4eb9610ef06e6fb",
+      "image_id": "discovered:0b42b54c4148ee2562fb",
+      "pair_id": "f16a2ca389b75e13c012a96c4f241c0293302707b1bc69ad027058436fad3be9",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "4ad6d90fefcb2e5abe5be54aecf4b86f4caa7b5b2f8cc5de0d45bb219c91a4a0",
+      "image_id": "discovered:168392f289b5df25f16b",
+      "pair_id": "ee086f05dc5d7214d5d417e65e769bd9058bf488b599896c181d8bb87f16ff6f",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "52b43a3e0d9ae651106d833d0b0d9f08c3e4c14ff36a6cc1860277da9976bf44",
+      "image_id": "discovered:0b15f11312a31033907d",
+      "pair_id": "cce12324e2bb1d6ed2ba04f50d7efa60050ce82dd161e8daab02e23ad464c35f",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "57dc278524fa121e17a02de0f029d14428d2fa2b73cd44131346472f51c78a35",
+      "image_id": "discovered:7720de19eda682fe608d",
+      "pair_id": "e7442491df60fcccb5e8f3dc4a003da1c47ccce25ac9e13ebc83f26ef052ea28",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "5f5c97a11ee46fa2c108cf5e24fb98af86bbc67fdc8d593eaebd718ee8a4b8a4",
+      "image_id": "discovered:5202e374b764482c4cda",
+      "pair_id": "698d7aebfb6e1cbe859810b153796c3cfc5c50ffcd800b8d49c50acf6ecb80a2",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "7059deb92864897b82b184265934791c23b1e95b87a64c82834f9b03c458714a",
+      "image_id": "discovered:00f4566964e0c88838ad",
+      "pair_id": "4e1e6c0c91661f4d198d1e0a1e9f5008f32918e42e8de25949729c43ded3adba",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "77c7d73c7a1875176a34d70911afaa60d2f65dab8140d5c04b2324b88f3062c7",
+      "image_id": "discovered:149e63869f481474a798",
+      "pair_id": "56abc334c1f5c55ff0e29a9da480e6be357d25dc28db185af31c553e619764a3",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "7aab78079fc25a0f1c67d599629c5d952bb055f4e2cdb6945868077cefccd072",
+      "image_id": "discovered:f8872af0e0d18261b23e",
+      "pair_id": "216f1c3bed460136ef5b6269689eb1736468a11f4ee3b592a76fb92c1b3e2fc0",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "873fe5683a42eb82c6f0999e52e660084c43a45177262d1d40cdecc295d13b99",
+      "image_id": "discovered:36d6b17bedd4345d223e",
+      "pair_id": "5e781e0344556a998477b8230a4fe562995cc7cb5c09606e041dadd5796d15e8",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "c197b2c2cbb7b40414c7b81775391f9153f73f7440349b16b77c92e647124ccb",
+      "image_id": "discovered:539626eef2896af392c4",
+      "pair_id": "cb4eb02cbe1e50e415e9c4ee0f1b9761aeae16ca78366dafb5eb773261842ba4",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "e2523be7bc07538b16a60e4059b6c7508599c8afe5e72065f5b5742a46c3a9e2",
+      "image_id": "discovered:3abe0be95aa60233f374",
+      "pair_id": "f4a1cd8d59d7fb427fd4e24715c5da13f97cbc278527a07235093a0231fe0279",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "f271019f2226396d8fdbc5297b968240d9654591b94f65778d7a84d2bc16a63a",
+      "image_id": "discovered:62fe0c8d105bf2ad7c95",
+      "pair_id": "83cbbf286f43730ef98a4e850aa57ba01e452eae6607facc734b6d77d12c9532",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    },
+    {
+      "deterministic_basis": "semantic_adjudication_required",
+      "deterministic_decision": "unknown",
+      "deterministic_reasons": [],
+      "image_hash": "ff3f0e8fd7c6f77d80f40b38d85d09872fccaed8b14577a3d67e4e5dea371d09",
+      "image_id": "original:t35.jpg",
+      "pair_id": "b2836eaec3e6accfc7cf2b75b67eee5ead19cc7d8e2d4ed6c997a2a6502f2999",
+      "quote_id": "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    }
+  ],
+  "run_version": "new-runtime-quote-semantic-veto-adjudication-v1",
+  "schema_version": 1,
+  "source_hashes": {
+    "base_manifest": "a9161f1a6da83d8327b51d7ef211fa88e5b28ed160b1093050733f120ddf579d",
+    "canonical_packets": "bc030b8b911d9bf5f104fcfe8235474903edac53bc0af0c52b7fe40ed9093aa0",
+    "image_contracts": "ad1738cb0db3d11b382831548ff60e1fd71e61c5b2f3ec17f39f93e74025be66"
+  }
+}

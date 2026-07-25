@@ -315,7 +315,7 @@ def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
     manifest = cleanup.read_json(path)
     audit = validate_compiled_manifest(manifest, strict=True)
     assert audit["quote_count"] == 611
-    assert audit["pair_count"] == 22_066
+    assert audit["pair_count"] == 22_157
     config = {
         "enabled": True,
         "mode": "shadow",
@@ -352,20 +352,21 @@ def test_prepared_v3_shadow_manifest_covers_current_cycle_fail_closed() -> None:
             *manifest["adjudicated_unknown_pairs"].values(),
         ]
     }
-    new_unadjudicated_ids = set(manifest["quote_has_allowed_candidate"]) - pair_quote_ids
-    assert len(new_unadjudicated_ids) == 1
-    new_quote_id = next(iter(new_unadjudicated_ids))
-    assert manifest["quote_has_allowed_candidate"][new_quote_id] is None
+    assert set(manifest["quote_has_allowed_candidate"]) - pair_quote_ids == set()
+    new_quote_id = (
+        "0a67f403a7ac02347e43791d2daf3057aabdcfd64b62edbe1b3484a3a4b66729"
+    )
+    assert manifest["quote_has_allowed_candidate"][new_quote_id] is True
     assert manifest["quote_pair_coverage"][new_quote_id] == {
         "adjudicated_unknown_count": 0,
-        "allow_count": 0,
+        "allow_count": 91,
         "authorised_image_count": 91,
-        "complete_pair_coverage": False,
-        "fully_resolved_pair_coverage": False,
+        "complete_pair_coverage": True,
+        "fully_resolved_pair_coverage": True,
         "global_no_safe_image": False,
-        "not_adjudicated_count": 91,
-        "observed_pair_count": 0,
-        "resolved_pair_count": 0,
+        "not_adjudicated_count": 0,
+        "observed_pair_count": 91,
+        "resolved_pair_count": 91,
         "veto_count": 0,
     }
 

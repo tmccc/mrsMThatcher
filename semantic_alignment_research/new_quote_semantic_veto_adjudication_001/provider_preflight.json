@@ -1,0 +1,9 @@
+{
+  "fail_closed": true,
+  "first_pass_calls": 20,
+  "maximum_second_pass_calls": 20,
+  "model": "gemini-3.1-pro-preview",
+  "schema_version": "relation-aware-pair-judgement-v4",
+  "search": false,
+  "tools": false
+}
